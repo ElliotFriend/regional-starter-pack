@@ -43,12 +43,7 @@
 
         try {
             // Get or create customer
-            const customer = await api.getOrCreateCustomer(
-                fetch,
-                provider,
-                email,
-                country,
-            );
+            const customer = await api.getOrCreateCustomer(fetch, provider, email, country);
             customerStore.set(customer);
 
             // Check for existing KYC submission

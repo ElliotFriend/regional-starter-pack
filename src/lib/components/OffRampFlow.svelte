@@ -1,3 +1,17 @@
+<!--
+@component Off-Ramp User Flow Component
+
+This component manages and triggers the various points in the life-cycle of a
+user creating an off-ramp transaction. It will create the customer on the
+anchor's platform, query and ask for any KYC information required, register bank
+account information, and submit a request to the anchor that initiates an
+off-ramp transaction, and prompt the user to sign the transaction in freighter.
+
+Usage:
+```html
+<OffRampFlow provider="alfredpay" />
+```
+-->
 <script lang="ts">
     import { onMount } from 'svelte';
     import { walletStore } from '$lib/stores/wallet.svelte';
@@ -405,9 +419,9 @@
                 <div class="mt-6 space-y-4">
                     {#if savedAccounts.length > 0}
                         <div>
-                            <p class="mb-2 block text-sm font-medium text-gray-700"
-                                >Saved Accounts</p
-                            >
+                            <p class="mb-2 block text-sm font-medium text-gray-700">
+                                Saved Accounts
+                            </p>
                             <div class="space-y-2">
                                 {#each savedAccounts as account (account.id)}
                                     <label
@@ -664,3 +678,17 @@
         <ErrorAlert message={error} onDismiss={clearError} />
     {/if}
 </div>
+
+<!-- For Developers -->
+<section class="mt-8 mx-auto max-w-lg">
+    <div class="rounded-lg bg-gray-900 p-8 text-white">
+        <h2 class="text-2xl font-bold mb-4">For Developers</h2>
+        <a
+            href="https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/components/OffRampFlow.svelte"
+            target="_blank"
+            class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+        >
+            View Component Source Code
+        </a>
+    </div>
+</section>
