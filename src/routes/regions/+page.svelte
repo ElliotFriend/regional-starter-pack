@@ -1,5 +1,11 @@
 <script lang="ts">
     import type { PageProps } from './$types';
+
+    // we use `$props()` in SvelteKit to "grab" the various data that's been
+    // loaded from any relevant `+layout.ts` or `+page.ts` files in the
+    // directory structure. The `data`, in this case is inherited from the
+    // root-level `+layout.ts` load function, rather than a co-located load
+    // function.
     const { data }: PageProps = $props();
 </script>
 

@@ -1,8 +1,12 @@
 <script lang="ts">
     import { getToken } from '$lib/config/regions';
-
     import type { PageProps } from './$types';
+
+    // we use `$props()` in SvelteKit to "grab" the various data that's been
+    // loaded from any relevant `+layout.ts` or `+page.ts` files in the
+    // directory structure.
     const { data }: PageProps = $props();
+    // pull out the pieces of data as `$derived()` state.
     const { region, tokens, anchors } = $derived(data);
 </script>
 

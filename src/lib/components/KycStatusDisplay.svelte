@@ -1,5 +1,5 @@
 <script lang="ts">
-    import KycForm from './KycForm.svelte';
+    import KycForm from '$lib/components/KycForm.svelte';
     import { KYC_STATUS } from '$lib/constants';
     import type { Customer } from '$lib/anchors/types';
 

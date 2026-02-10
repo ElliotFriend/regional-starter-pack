@@ -2,8 +2,8 @@
     import { onMount } from 'svelte';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
-    import QuoteDisplay from './QuoteDisplay.svelte';
-    import ErrorAlert from './ErrorAlert.svelte';
+    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
+    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import { getStatusColor } from '$lib/utils/status';
     import { PROVIDER, CURRENCY, TX_STATUS } from '$lib/constants';
     import * as api from '$lib/api/anchor';

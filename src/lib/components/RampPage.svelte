@@ -2,7 +2,7 @@
     import type { Snippet } from 'svelte';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
-    import KycStatusDisplay from './KycStatusDisplay.svelte';
+    import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { KycStatus } from '$lib/anchors/types';
     import * as api from '$lib/api/anchor';
