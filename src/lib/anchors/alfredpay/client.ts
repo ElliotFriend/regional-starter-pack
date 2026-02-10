@@ -97,7 +97,6 @@ export class AlfredPayClient implements Anchor {
         return {
             id: response.id,
             email: response.email,
-            stellarAddress: response.wallet_address || '',
             kycStatus: response.kyc_status as KycStatus,
             createdAt: response.created_at,
             updatedAt: response.updated_at,
@@ -259,7 +258,6 @@ export class AlfredPayClient implements Anchor {
         return {
             id: response.customerId,
             email: input.email,
-            stellarAddress: input.stellarAddress,
             kycStatus: 'not_started',
             createdAt: response.createdAt,
             updatedAt: response.createdAt,
@@ -292,7 +290,6 @@ export class AlfredPayClient implements Anchor {
             return {
                 id: response.customerId,
                 email: email,
-                stellarAddress: '',
                 kycStatus: 'not_started',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),

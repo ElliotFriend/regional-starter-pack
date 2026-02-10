@@ -114,14 +114,13 @@ export async function getOrCreateCustomer(
     fetch: Fetch,
     provider: string,
     email: string,
-    stellarAddress: string,
     country: string = 'MX',
 ): Promise<Customer> {
     const existing = await getCustomerByEmail(fetch, provider, email, country);
     if (existing) {
         return existing;
     }
-    return createCustomer(fetch, provider, email, stellarAddress, country);
+    return createCustomer(fetch, provider, email, country);
 }
 
 // =============================================================================

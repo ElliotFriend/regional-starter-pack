@@ -16,7 +16,6 @@ export type TransactionStatus =
 export interface Customer {
     id: string;
     email: string;
-    stellarAddress: string;
     kycStatus: KycStatus;
     createdAt: string;
     updatedAt: string;
@@ -88,7 +87,6 @@ export interface OffRampTransaction {
 
 export interface CreateCustomerInput {
     email: string;
-    stellarAddress: string;
     country?: string;
 }
 

@@ -47,7 +47,6 @@
                 fetch,
                 provider,
                 email,
-                walletStore.publicKey,
                 country,
             );
             customerStore.set(customer);

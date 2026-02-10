@@ -58,7 +58,6 @@ export interface AlfredPayCreateCustomerResponse {
 export interface AlfredPayCustomerResponse {
     id: string;
     email: string;
-    wallet_address?: string;
     kyc_status: 'pending' | 'approved' | 'rejected' | 'not_started';
     created_at: string;
     updated_at: string;
