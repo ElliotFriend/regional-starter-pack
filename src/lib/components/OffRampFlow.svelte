@@ -405,8 +405,8 @@
                 <div class="mt-6 space-y-4">
                     {#if savedAccounts.length > 0}
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700"
-                                >Saved Accounts</label
+                            <p class="mb-2 block text-sm font-medium text-gray-700"
+                                >Saved Accounts</p
                             >
                             <div class="space-y-2">
                                 {#each savedAccounts as account (account.id)}
