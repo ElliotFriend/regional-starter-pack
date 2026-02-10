@@ -1,6 +1,22 @@
 /**
  * AlfredPay API Client
- * Server-side only - uses API keys that should never be exposed to the client
+ *
+ * Server-side only — authenticates with API keys that must never be exposed to
+ * the browser. Implements the shared {@link Anchor} interface so it can be
+ * swapped with any other anchor provider.
+ *
+ * @example
+ * ```ts
+ * import { AlfredPayClient } from '$lib/anchors/alfredpay';
+ *
+ * const alfred = new AlfredPayClient({
+ *     apiKey: process.env.ALFREDPAY_API_KEY,
+ *     apiSecret: process.env.ALFREDPAY_API_SECRET,
+ *     baseUrl: process.env.ALFREDPAY_BASE_URL,
+ * });
+ *
+ * const customer = await alfred.createCustomer({ email: 'user@example.com' });
+ * ```
  */
 
 import type {
@@ -41,14 +57,32 @@ import type {
     AlfredPaySandboxWebhookRequest,
 } from './types';
 
+/**
+ * Client for the AlfredPay fiat on/off ramp API.
+ *
+ * Supports customer management, KYC verification, currency quotes, on-ramp
+ * (MXN → USDC) and off-ramp (USDC → MXN) transactions on the Stellar network
+ * via Mexico's SPEI payment rail.
+ */
 export class AlfredPayClient implements Anchor {
     readonly name = 'alfredpay';
     private readonly config: AlfredPayConfig;
 
+    /** @param config - API credentials and base URL. */
     constructor(config: AlfredPayConfig) {
         this.config = config;
     }
 
+    /**
+     * Send an authenticated JSON request to the AlfredPay API.
+     *
+     * @typeParam T - Expected response body type.
+     * @param method - HTTP method.
+     * @param endpoint - API path appended to {@link AlfredPayConfig.baseUrl}.
+     * @param body - Optional JSON request body.
+     * @returns Parsed response body.
+     * @throws {AnchorError} On non-2xx responses.
+     */
     private async request<T>(
         method: 'GET' | 'POST' | 'PUT' | 'DELETE',
         endpoint: string,
@@ -93,6 +127,10 @@ export class AlfredPayClient implements Anchor {
         return data as T;
     }
 
+    /**
+     * Map an AlfredPay customer response to the shared {@link Customer} type.
+     * @param response - Raw API response from `GET /customers/:id`.
+     */
     private mapCustomer(response: AlfredPayCustomerResponse): Customer {
         return {
             id: response.id,
@@ -103,6 +141,11 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Map an AlfredPay quote response to the shared {@link Quote} type.
+     * Sums all fee line items into a single total.
+     * @param response - Raw API response from `POST /quotes`.
+     */
     private mapQuote(response: AlfredPayQuoteResponse): Quote {
         // Calculate total fee from fees array
         const totalFee = response.fees
@@ -122,6 +165,12 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Map AlfredPay fiat payment instructions to the shared {@link PaymentInstructions} type.
+     * @param instructions - Raw SPEI payment instruction fields.
+     * @param amount - Transfer amount.
+     * @param currency - Transfer currency code.
+     */
     private mapPaymentInstructions(
         instructions: AlfredPayOnRampResponse['fiatPaymentInstructions'],
         amount: string,
@@ -139,6 +188,10 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Map a nested on-ramp response (from `POST /onramp`) to the shared {@link OnRampTransaction} type.
+     * @param response - Raw API response containing `transaction` and `fiatPaymentInstructions`.
+     */
     private mapOnRampTransaction(response: AlfredPayOnRampResponse): OnRampTransaction {
         const tx = response.transaction;
         const statusMap: Record<string, OnRampTransaction['status']> = {
@@ -172,6 +225,10 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Map a flat on-ramp response (from `GET /onramp/:id`) to the shared {@link OnRampTransaction} type.
+     * @param response - Raw API response with transaction fields at the top level.
+     */
     private mapOnRampFlatTransaction(response: AlfredPayOnRampFlatResponse): OnRampTransaction {
         const statusMap: Record<string, OnRampTransaction['status']> = {
             CREATED: 'pending',
@@ -204,6 +261,11 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Map an off-ramp response to the shared {@link OffRampTransaction} type.
+     * @param response - Raw API response from `POST /offramp` or `GET /offramp/:id`.
+     * @param bankAccountInfo - Optional bank details to attach (the API response only includes the fiat account ID).
+     */
     private mapOffRampTransaction(
         response: AlfredPayOffRampResponse,
         bankAccountInfo?: Omit<BankAccount, 'id'>,
@@ -242,6 +304,12 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Create a new customer in AlfredPay.
+     * @param input - Customer email and optional country code (defaults to `"MX"`).
+     * @returns A {@link Customer} with `kycStatus` set to `"not_started"`.
+     * @throws {AnchorError} On API failure.
+     */
     async createCustomer(input: CreateCustomerInput): Promise<Customer> {
         const response = await this.request<AlfredPayCreateCustomerResponse>(
             'POST',
@@ -264,6 +332,12 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * Fetch a customer by their AlfredPay ID.
+     * @param customerId - The customer's unique identifier.
+     * @returns The {@link Customer}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
     async getCustomer(customerId: string): Promise<Customer | null> {
         try {
             const response = await this.request<AlfredPayCustomerResponse>(
@@ -279,6 +353,18 @@ export class AlfredPayClient implements Anchor {
         }
     }
 
+    /**
+     * Look up a customer by email and country.
+     *
+     * The API endpoint only returns a `customerId`, so the returned {@link Customer}
+     * object has placeholder timestamps and a `"not_started"` KYC status. Use
+     * {@link getCustomer} if you need full customer details.
+     *
+     * @param email - Customer's email address.
+     * @param country - ISO 3166-1 alpha-2 country code. Defaults to `"MX"`.
+     * @returns A minimal {@link Customer}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
     async getCustomerByEmail(email: string, country: string = 'MX'): Promise<Customer | null> {
         try {
             const response = await this.request<{ customerId: string }>(
@@ -302,6 +388,16 @@ export class AlfredPayClient implements Anchor {
         }
     }
 
+    /**
+     * Request a currency conversion quote.
+     *
+     * Hardcoded to the XLM chain and SPEI payment method. Provide either
+     * `fromAmount` or `toAmount` in the input — the API will calculate the other.
+     *
+     * @param input - Currency pair and amount.
+     * @returns A {@link Quote} with rate, fees, and expiration.
+     * @throws {AnchorError} On API failure.
+     */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
         const body: Record<string, string> = {
             fromCurrency: input.fromCurrency,
@@ -322,6 +418,16 @@ export class AlfredPayClient implements Anchor {
         return this.mapQuote(response);
     }
 
+    /**
+     * Create an on-ramp transaction (fiat MXN → USDC on Stellar).
+     *
+     * The returned transaction includes SPEI {@link OnRampTransaction.paymentInstructions | paymentInstructions}
+     * that the user must follow to fund the transaction.
+     *
+     * @param input - Customer, quote, amount, and destination Stellar address.
+     * @returns The created {@link OnRampTransaction}.
+     * @throws {AnchorError} On API failure.
+     */
     async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
         const response = await this.request<AlfredPayOnRampResponse>('POST', '/onramp', {
             customerId: input.customerId,
@@ -338,6 +444,12 @@ export class AlfredPayClient implements Anchor {
         return this.mapOnRampTransaction(response);
     }
 
+    /**
+     * Fetch the current state of an on-ramp transaction.
+     * @param transactionId - The transaction's unique identifier.
+     * @returns The {@link OnRampTransaction}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
     async getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null> {
         try {
             // GET returns flat response (not wrapped in {transaction, fiatPaymentInstructions})
@@ -354,6 +466,15 @@ export class AlfredPayClient implements Anchor {
         }
     }
 
+    /**
+     * Register a bank account (SPEI) for a customer.
+     *
+     * The account must be registered before it can be used in off-ramp transactions.
+     *
+     * @param input - Customer ID and bank account details (account number, CLABE, beneficiary).
+     * @returns The newly registered {@link RegisteredFiatAccount}.
+     * @throws {AnchorError} On API failure.
+     */
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
         const response = await this.request<AlfredPayFiatAccountResponse>('POST', '/fiatAccounts', {
             customerId: input.customerId,
@@ -381,6 +502,12 @@ export class AlfredPayClient implements Anchor {
         };
     }
 
+    /**
+     * List all registered fiat accounts for a customer.
+     * @param customerId - The customer's unique identifier.
+     * @returns Array of {@link SavedFiatAccount} objects. Returns an empty array if none are found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
     async getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]> {
         try {
             const response = await this.request<AlfredPayFiatAccountListItem[]>(
@@ -408,6 +535,16 @@ export class AlfredPayClient implements Anchor {
         }
     }
 
+    /**
+     * Create an off-ramp transaction (USDC on Stellar → fiat MXN via SPEI).
+     *
+     * The returned transaction includes a `stellarAddress` and `memo` that the user
+     * must use when sending USDC on the Stellar network.
+     *
+     * @param input - Customer, quote, amount, fiat account ID, and source Stellar address.
+     * @returns The created {@link OffRampTransaction}.
+     * @throws {AnchorError} On API failure.
+     */
     async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
         const response = await this.request<AlfredPayOffRampResponse>('POST', '/offramp', {
             customerId: input.customerId,
@@ -423,6 +560,12 @@ export class AlfredPayClient implements Anchor {
         return this.mapOffRampTransaction(response, input.bankAccountInfo);
     }
 
+    /**
+     * Fetch the current state of an off-ramp transaction.
+     * @param transactionId - The transaction's unique identifier.
+     * @returns The {@link OffRampTransaction}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
     async getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null> {
         try {
             const response = await this.request<AlfredPayOffRampResponse>(
@@ -438,6 +581,13 @@ export class AlfredPayClient implements Anchor {
         }
     }
 
+    /**
+     * Get a URL for an interactive KYC verification iframe.
+     * @param customerId - The customer's unique identifier.
+     * @param country - ISO 3166-1 alpha-2 country code. Defaults to `"MX"`.
+     * @returns The iframe URL string.
+     * @throws {AnchorError} On API failure.
+     */
     async getKycIframeUrl(customerId: string, country: string = 'MX'): Promise<string> {
         const response = await this.request<{ verification_url: string; submissionId: string }>(
             'GET',
@@ -446,6 +596,15 @@ export class AlfredPayClient implements Anchor {
         return response.verification_url;
     }
 
+    /**
+     * Get the current KYC verification status for a customer.
+     *
+     * Fetches the full customer record and returns just the KYC status field.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @returns The customer's {@link KycStatus}.
+     * @throws {AnchorError} If the customer is not found or the API fails.
+     */
     async getKycStatus(customerId: string): Promise<KycStatus> {
         const customer = await this.getCustomer(customerId);
         if (!customer) {
@@ -454,6 +613,12 @@ export class AlfredPayClient implements Anchor {
         return customer.kycStatus;
     }
 
+    /**
+     * Fetch an existing KYC submission for a customer.
+     * @param customerId - The customer's unique identifier.
+     * @returns The {@link AlfredPayKycSubmissionResponse}, or `null` if no submission exists.
+     * @throws {AnchorError} On non-404 API errors.
+     */
     async getKycSubmission(customerId: string): Promise<AlfredPayKycSubmissionResponse | null> {
         try {
             const response = await this.request<AlfredPayKycSubmissionResponse>(
@@ -469,6 +634,13 @@ export class AlfredPayClient implements Anchor {
         }
     }
 
+    /**
+     * Check the review status of a specific KYC submission.
+     * @param customerId - The customer's unique identifier.
+     * @param submissionId - The KYC submission identifier.
+     * @returns The {@link AlfredPayKycSubmissionStatusResponse} with the current status.
+     * @throws {AnchorError} On API failure.
+     */
     async getKycSubmissionStatus(
         customerId: string,
         submissionId: string,
@@ -480,6 +652,12 @@ export class AlfredPayClient implements Anchor {
         return response;
     }
 
+    /**
+     * Fetch the KYC field and document requirements for a country.
+     * @param country - ISO 3166-1 alpha-2 country code. Defaults to `"MX"`.
+     * @returns Personal data fields and document requirements.
+     * @throws {AnchorError} On API failure.
+     */
     async getKycRequirements(country: string = 'MX'): Promise<AlfredPayKycRequirementsResponse> {
         const response = await this.request<AlfredPayKycRequirementsResponse>(
             'GET',
@@ -488,6 +666,17 @@ export class AlfredPayClient implements Anchor {
         return response;
     }
 
+    /**
+     * Submit personal KYC data for a customer.
+     *
+     * After submitting data, upload required documents with {@link submitKycFile},
+     * then call {@link finalizeKycSubmission} to send the submission for review.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @param data - Personal information fields (name, address, DOB, etc.).
+     * @returns The created {@link AlfredPayKycSubmissionResponse} with a `submissionId`.
+     * @throws {AnchorError} On API failure.
+     */
     async submitKycData(
         customerId: string,
         data: AlfredPayKycSubmissionRequest['kycSubmission'],
@@ -500,6 +689,15 @@ export class AlfredPayClient implements Anchor {
         return response;
     }
 
+    /**
+     * Finalize a KYC submission and send it for review.
+     *
+     * Call this after uploading all required documents with {@link submitKycFile}.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @param submissionId - The KYC submission identifier returned by {@link submitKycData}.
+     * @throws {AnchorError} On API failure.
+     */
     async finalizeKycSubmission(customerId: string, submissionId: string): Promise<void> {
         await this.request<{ message: string }>(
             'POST',
@@ -507,6 +705,20 @@ export class AlfredPayClient implements Anchor {
         );
     }
 
+    /**
+     * Upload a KYC identity document file.
+     *
+     * Uses `multipart/form-data` (not JSON) so it bypasses the standard
+     * {@link request} method and handles authentication headers directly.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @param submissionId - The KYC submission identifier returned by {@link submitKycData}.
+     * @param fileType - Document category (e.g. `"National ID Front"`, `"Selfie"`).
+     * @param file - The file contents as a Blob.
+     * @param filename - Original filename (e.g. `"id-front.jpg"`).
+     * @returns The {@link AlfredPayKycFileResponse} with a `fileId` and processing status.
+     * @throws {AnchorError} On API failure.
+     */
     async submitKycFile(
         customerId: string,
         submissionId: string,
@@ -557,19 +769,28 @@ export class AlfredPayClient implements Anchor {
     }
 
     // ========== Sandbox-only methods ==========
-    // These methods are for testing in sandbox environments only
 
     /**
-     * Send a webhook event to AlfredPay (sandbox only)
-     * Used to simulate status changes for testing
+     * Send a simulated webhook event to AlfredPay. **Sandbox only.**
+     *
+     * Used to simulate status changes (KYC approval, transaction completion, etc.)
+     * during development and testing.
+     *
+     * @param webhook - The webhook event to simulate.
+     * @throws {AnchorError} On API failure.
      */
     async sendSandboxWebhook(webhook: AlfredPaySandboxWebhookRequest): Promise<void> {
         await this.request<{ message: string }>('POST', '/webhooks', webhook);
     }
 
     /**
-     * Complete KYC verification in sandbox (sandbox only)
-     * Marks a KYC submission as COMPLETED for testing purposes
+     * Mark a KYC submission as completed. **Sandbox only.**
+     *
+     * Convenience wrapper around {@link sendSandboxWebhook} that sends a
+     * `KYC` / `COMPLETED` webhook event for the given submission.
+     *
+     * @param submissionId - The KYC submission identifier to mark as completed.
+     * @throws {AnchorError} On API failure.
      */
     async completeKycSandbox(submissionId: string): Promise<void> {
         await this.sendSandboxWebhook({
