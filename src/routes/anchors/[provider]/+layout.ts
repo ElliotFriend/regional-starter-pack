@@ -5,7 +5,7 @@ import { error } from '@sveltejs/kit';
 export const load: LayoutLoad = async ({ params }) => {
     const providerId = params.provider;
     if (!providerId) {
-        error(400, { message: 'Missing anchor' })
+        error(400, { message: 'Missing anchor' });
     }
 
     const anchor = getAnchor(providerId);

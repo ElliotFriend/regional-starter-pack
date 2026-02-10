@@ -44,14 +44,15 @@ src/
 ### The Anchor Interface (`/types.ts`)
 
 All custom anchor clients implement this interface:
+
 ```typescript
 interface Anchor {
-  createCustomer(input): Promise<Customer>;
-  getQuote(input): Promise<Quote>;
-  createOnRamp(input): Promise<OnRampTransaction>;
-  createOffRamp(input): Promise<OffRampTransaction>;
-  getKycIframeUrl(customerId): Promise<string>;
-  // ... etc
+    createCustomer(input): Promise<Customer>;
+    getQuote(input): Promise<Quote>;
+    createOnRamp(input): Promise<OnRampTransaction>;
+    createOffRamp(input): Promise<OffRampTransaction>;
+    getKycIframeUrl(customerId): Promise<string>;
+    // ... etc
 }
 ```
 
@@ -60,6 +61,7 @@ This allows swapping anchor implementations without changing application code.
 ### AlfredPay Client (`/alfredpay/client.ts`)
 
 Complete implementation for AlfredPay (Mexico, MXN via SPEI). Key features:
+
 - Customer management with KYC
 - Quotes for MXN ↔ USDC
 - On-ramp: User pays MXN, receives USDC on Stellar
@@ -69,11 +71,13 @@ Complete implementation for AlfredPay (Mexico, MXN via SPEI). Key features:
 ### SEP Library (`/sep/`)
 
 SEP protocol implementations:
+
 - Framework-agnostic (just `@stellar/stellar-sdk`)
 - Optional `fetchFn` parameter for SSR
 - Can be copied into any TypeScript project
 
 **When modifying SEP modules:**
+
 - Keep them framework-agnostic
 - Maintain the `fetchFn` parameter pattern
 - Update sep/types.ts for SEP-specific types
@@ -82,6 +86,7 @@ SEP protocol implementations:
 ### CORS Proxy Pattern
 
 Browser requests to anchor endpoints fail due to CORS. The solution:
+
 1. Create SvelteKit server endpoints (`/api/testanchor/sep6`, `/api/testanchor/sep24`)
 2. Frontend calls local endpoint
 3. Server proxies to anchor
@@ -92,6 +97,7 @@ See `/src/routes/api/testanchor/sep24/+server.ts` for the pattern.
 ### SEP Flow Sequence
 
 Typical on/off ramp flow:
+
 1. **SEP-1**: Discover anchor endpoints from stellar.toml
 2. **SEP-10**: Authenticate user, get JWT token
 3. **SEP-12**: Check/submit KYC (if required)
@@ -130,25 +136,31 @@ The `/testanchor` page demonstrates all SEP flows using Stellar's test anchor at
 6. Document in `/src/lib/anchors/README.md`
 
 Example structure:
+
 ```typescript
 // client.ts
 import type { Anchor, Customer, Quote } from '../types';
 import { AnchorError } from '../types';
 
 export class MyAnchorClient implements Anchor {
-  readonly name = 'myanchor';
+    readonly name = 'myanchor';
 
-  constructor(private config: { apiKey: string }) {}
+    constructor(private config: { apiKey: string }) {}
 
-  async createCustomer(input) { /* ... */ }
-  async getQuote(input) { /* ... */ }
-  // ... implement all Anchor methods
+    async createCustomer(input) {
+        /* ... */
+    }
+    async getQuote(input) {
+        /* ... */
+    }
+    // ... implement all Anchor methods
 }
 ```
 
 ### Working with Transactions
 
 All SEP modules use common transaction statuses from `types.ts`:
+
 - `pending_*` statuses indicate in-progress
 - `completed`, `error`, `expired`, `refunded` are terminal
 - Use `pollTransaction` helpers for status updates

@@ -6,13 +6,13 @@
  */
 
 import type {
-	Sep31Info,
-	Sep31AssetInfo,
-	Sep31PostTransactionRequest,
-	Sep31PostTransactionResponse,
-	Sep31Transaction,
-	TransactionStatus,
-	SepError
+    Sep31Info,
+    Sep31AssetInfo,
+    Sep31PostTransactionRequest,
+    Sep31PostTransactionResponse,
+    Sep31Transaction,
+    TransactionStatus,
+    SepError,
 } from './types';
 import { SepApiError } from './types';
 import { createAuthHeaders } from './sep10';
@@ -24,23 +24,23 @@ import { createAuthHeaders } from './sep10';
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getInfo(
-	directPaymentServer: string,
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep31Info> {
-	const url = `${directPaymentServer}/info`;
+    const url = `${directPaymentServer}/info`;
 
-	const response = await fetchFn(url);
+    const response = await fetchFn(url);
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get SEP-31 info: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get SEP-31 info: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -50,11 +50,11 @@ export async function getInfo(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getReceiveAssets(
-	directPaymentServer: string,
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Record<string, Sep31AssetInfo>> {
-	const info = await getInfo(directPaymentServer, fetchFn);
-	return info.receive;
+    const info = await getInfo(directPaymentServer, fetchFn);
+    return info.receive;
 }
 
 /**
@@ -66,32 +66,32 @@ export async function getReceiveAssets(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function postTransaction(
-	directPaymentServer: string,
-	token: string,
-	request: Sep31PostTransactionRequest,
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    token: string,
+    request: Sep31PostTransactionRequest,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep31PostTransactionResponse> {
-	const url = `${directPaymentServer}/transactions`;
+    const url = `${directPaymentServer}/transactions`;
 
-	const response = await fetchFn(url, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			...createAuthHeaders(token)
-		},
-		body: JSON.stringify(request)
-	});
+    const response = await fetchFn(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...createAuthHeaders(token),
+        },
+        body: JSON.stringify(request),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to create transaction: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to create transaction: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -103,28 +103,28 @@ export async function postTransaction(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getTransaction(
-	directPaymentServer: string,
-	token: string,
-	transactionId: string,
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    token: string,
+    transactionId: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep31Transaction> {
-	const url = `${directPaymentServer}/transactions/${transactionId}`;
+    const url = `${directPaymentServer}/transactions/${transactionId}`;
 
-	const response = await fetchFn(url, {
-		headers: createAuthHeaders(token)
-	});
+    const response = await fetchFn(url, {
+        headers: createAuthHeaders(token),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get transaction: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get transaction: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	const data = await response.json();
-	return data.transaction;
+    const data = await response.json();
+    return data.transaction;
 }
 
 /**
@@ -138,34 +138,34 @@ export async function getTransaction(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function patchTransaction(
-	directPaymentServer: string,
-	token: string,
-	transactionId: string,
-	fields: Record<string, string>,
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    token: string,
+    transactionId: string,
+    fields: Record<string, string>,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep31Transaction> {
-	const url = `${directPaymentServer}/transactions/${transactionId}`;
+    const url = `${directPaymentServer}/transactions/${transactionId}`;
 
-	const response = await fetchFn(url, {
-		method: 'PATCH',
-		headers: {
-			'Content-Type': 'application/json',
-			...createAuthHeaders(token)
-		},
-		body: JSON.stringify({ fields })
-	});
+    const response = await fetchFn(url, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            ...createAuthHeaders(token),
+        },
+        body: JSON.stringify({ fields }),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to update transaction: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to update transaction: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	const data = await response.json();
-	return data.transaction;
+    const data = await response.json();
+    return data.transaction;
 }
 
 /**
@@ -178,31 +178,31 @@ export async function patchTransaction(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function putTransactionCallback(
-	directPaymentServer: string,
-	token: string,
-	transactionId: string,
-	callbackUrl: string,
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    token: string,
+    transactionId: string,
+    callbackUrl: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<void> {
-	const url = `${directPaymentServer}/transactions/${transactionId}/callback`;
+    const url = `${directPaymentServer}/transactions/${transactionId}/callback`;
 
-	const response = await fetchFn(url, {
-		method: 'PUT',
-		headers: {
-			'Content-Type': 'application/json',
-			...createAuthHeaders(token)
-		},
-		body: JSON.stringify({ url: callbackUrl })
-	});
+    const response = await fetchFn(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            ...createAuthHeaders(token),
+        },
+        body: JSON.stringify({ url: callbackUrl }),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to set callback: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to set callback: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 }
 
 // =============================================================================
@@ -213,76 +213,76 @@ export async function putTransactionCallback(
  * Check if a transaction is complete.
  */
 export function isComplete(status: TransactionStatus): boolean {
-	return status === 'completed';
+    return status === 'completed';
 }
 
 /**
  * Check if the transaction needs additional info from the sender.
  */
 export function needsTransactionInfo(status: TransactionStatus): boolean {
-	return status === 'pending_transaction_info_update';
+    return status === 'pending_transaction_info_update';
 }
 
 /**
  * Check if the transaction needs additional customer info.
  */
 export function needsCustomerInfo(status: TransactionStatus): boolean {
-	return status === 'pending_customer_info_update';
+    return status === 'pending_customer_info_update';
 }
 
 /**
  * Check if a transaction is pending (waiting for Stellar payment).
  */
 export function isPendingPayment(status: TransactionStatus): boolean {
-	return status === 'pending_sender' || status === 'pending_stellar';
+    return status === 'pending_sender' || status === 'pending_stellar';
 }
 
 /**
  * Check if a transaction is pending (anchor processing).
  */
 export function isPendingAnchor(status: TransactionStatus): boolean {
-	return status === 'pending_external' || status === 'pending_receiver';
+    return status === 'pending_external' || status === 'pending_receiver';
 }
 
 /**
  * Check if a transaction has failed.
  */
 export function isFailed(status: TransactionStatus): boolean {
-	return status === 'error' || status === 'expired';
+    return status === 'error' || status === 'expired';
 }
 
 /**
  * Check if a transaction was refunded.
  */
 export function isRefunded(status: TransactionStatus): boolean {
-	return status === 'refunded';
+    return status === 'refunded';
 }
 
 /**
  * Check if a transaction is in progress (not terminal).
  */
 export function isInProgress(status: TransactionStatus): boolean {
-	return !isComplete(status) && !isFailed(status) && !isRefunded(status);
+    return !isComplete(status) && !isFailed(status) && !isRefunded(status);
 }
 
 /**
  * Get a human-readable description of a SEP-31 transaction status.
  */
 export function getStatusDescription(status: TransactionStatus): string {
-	const descriptions: Record<string, string> = {
-		pending_sender: 'Waiting for Stellar payment from sender',
-		pending_stellar: 'Stellar payment received, confirming',
-		pending_customer_info_update: 'Additional customer information required',
-		pending_transaction_info_update: 'Additional transaction information required',
-		pending_receiver: 'Processing payment to receiver',
-		pending_external: 'Waiting for external system',
-		completed: 'Payment complete',
-		refunded: 'Payment refunded',
-		expired: 'Transaction expired',
-		error: 'Transaction failed'
-	};
+    const descriptions: Record<string, string> = {
+        pending_sender: 'Waiting for Stellar payment from sender',
+        pending_stellar: 'Stellar payment received, confirming',
+        pending_customer_info_update: 'Additional customer information required',
+        pending_transaction_info_update: 'Additional transaction information required',
+        pending_receiver: 'Processing payment to receiver',
+        pending_external: 'Waiting for external system',
+        completed: 'Payment complete',
+        refunded: 'Payment refunded',
+        expired: 'Transaction expired',
+        error: 'Transaction failed',
+    };
 
-	return descriptions[status] || status;
+    return descriptions[status] || status;
 }
 
 /**
@@ -295,41 +295,46 @@ export function getStatusDescription(status: TransactionStatus): string {
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function pollTransaction(
-	directPaymentServer: string,
-	token: string,
-	transactionId: string,
-	options: {
-		interval?: number;
-		timeout?: number;
-		onStatusChange?: (transaction: Sep31Transaction) => void;
-		shouldStop?: (status: TransactionStatus) => boolean;
-	} = {},
-	fetchFn: typeof fetch = fetch
+    directPaymentServer: string,
+    token: string,
+    transactionId: string,
+    options: {
+        interval?: number;
+        timeout?: number;
+        onStatusChange?: (transaction: Sep31Transaction) => void;
+        shouldStop?: (status: TransactionStatus) => boolean;
+    } = {},
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep31Transaction> {
-	const {
-		interval = 5000,
-		timeout = 600000, // 10 minutes
-		onStatusChange,
-		shouldStop = (status) => isComplete(status) || isFailed(status) || isRefunded(status)
-	} = options;
+    const {
+        interval = 5000,
+        timeout = 600000, // 10 minutes
+        onStatusChange,
+        shouldStop = (status) => isComplete(status) || isFailed(status) || isRefunded(status),
+    } = options;
 
-	const startTime = Date.now();
-	let lastStatus: TransactionStatus | null = null;
+    const startTime = Date.now();
+    let lastStatus: TransactionStatus | null = null;
 
-	while (Date.now() - startTime < timeout) {
-		const transaction = await getTransaction(directPaymentServer, token, transactionId, fetchFn);
+    while (Date.now() - startTime < timeout) {
+        const transaction = await getTransaction(
+            directPaymentServer,
+            token,
+            transactionId,
+            fetchFn,
+        );
 
-		if (transaction.status !== lastStatus) {
-			lastStatus = transaction.status;
-			onStatusChange?.(transaction);
-		}
+        if (transaction.status !== lastStatus) {
+            lastStatus = transaction.status;
+            onStatusChange?.(transaction);
+        }
 
-		if (shouldStop(transaction.status)) {
-			return transaction;
-		}
+        if (shouldStop(transaction.status)) {
+            return transaction;
+        }
 
-		await new Promise((resolve) => setTimeout(resolve, interval));
-	}
+        await new Promise((resolve) => setTimeout(resolve, interval));
+    }
 
-	throw new Error(`Transaction polling timed out after ${timeout}ms`);
+    throw new Error(`Transaction polling timed out after ${timeout}ms`);
 }

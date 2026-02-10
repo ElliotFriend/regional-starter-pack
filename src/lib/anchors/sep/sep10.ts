@@ -7,22 +7,22 @@
 
 import * as StellarSdk from '@stellar/stellar-sdk';
 import type {
-	Sep10ChallengeResponse,
-	Sep10TokenResponse,
-	Sep10JwtPayload,
-	SepError
+    Sep10ChallengeResponse,
+    Sep10TokenResponse,
+    Sep10JwtPayload,
+    SepError,
 } from './types';
 import { SepApiError } from './types';
 
 export interface Sep10Config {
-	authEndpoint: string;
-	serverSigningKey: string;
-	networkPassphrase: string;
-	homeDomain?: string;
+    authEndpoint: string;
+    serverSigningKey: string;
+    networkPassphrase: string;
+    homeDomain?: string;
 }
 
 export interface Sep10SignerFn {
-	(transactionXdr: string, networkPassphrase: string): Promise<string>;
+    (transactionXdr: string, networkPassphrase: string): Promise<string>;
 }
 
 /**
@@ -34,39 +34,39 @@ export interface Sep10SignerFn {
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getChallenge(
-	config: Sep10Config,
-	account: string,
-	options?: {
-		memo?: string;
-		clientDomain?: string;
-	},
-	fetchFn: typeof fetch = fetch
+    config: Sep10Config,
+    account: string,
+    options?: {
+        memo?: string;
+        clientDomain?: string;
+    },
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep10ChallengeResponse> {
-	const url = new URL(config.authEndpoint);
-	url.searchParams.set('account', account);
+    const url = new URL(config.authEndpoint);
+    url.searchParams.set('account', account);
 
-	if (options?.memo) {
-		url.searchParams.set('memo', options.memo);
-	}
-	if (config.homeDomain) {
-		url.searchParams.set('home_domain', config.homeDomain);
-	}
-	if (options?.clientDomain) {
-		url.searchParams.set('client_domain', options.clientDomain);
-	}
+    if (options?.memo) {
+        url.searchParams.set('memo', options.memo);
+    }
+    if (config.homeDomain) {
+        url.searchParams.set('home_domain', config.homeDomain);
+    }
+    if (options?.clientDomain) {
+        url.searchParams.set('client_domain', options.clientDomain);
+    }
 
-	const response = await fetchFn(url.toString());
+    const response = await fetchFn(url.toString());
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get challenge: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get challenge: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -80,94 +80,94 @@ export async function getChallenge(
  * @param userAccount - The user's Stellar public key
  */
 export function validateChallenge(
-	challengeXdr: string,
-	serverSigningKey: string,
-	networkPassphrase: string,
-	homeDomain: string,
-	userAccount: string
+    challengeXdr: string,
+    serverSigningKey: string,
+    networkPassphrase: string,
+    homeDomain: string,
+    userAccount: string,
 ): {
-	valid: boolean;
-	transaction: StellarSdk.Transaction;
-	error?: string;
+    valid: boolean;
+    transaction: StellarSdk.Transaction;
+    error?: string;
 } {
-	try {
-		const transaction = new StellarSdk.Transaction(challengeXdr, networkPassphrase);
+    try {
+        const transaction = new StellarSdk.Transaction(challengeXdr, networkPassphrase);
 
-		// Check that the transaction source is the server's signing key
-		if (transaction.source !== serverSigningKey) {
-			return {
-				valid: false,
-				transaction,
-				error: `Transaction source ${transaction.source} does not match server signing key ${serverSigningKey}`
-			};
-		}
+        // Check that the transaction source is the server's signing key
+        if (transaction.source !== serverSigningKey) {
+            return {
+                valid: false,
+                transaction,
+                error: `Transaction source ${transaction.source} does not match server signing key ${serverSigningKey}`,
+            };
+        }
 
-		// Check that the transaction has a sequence number of 0
-		if (transaction.sequence !== '0') {
-			return {
-				valid: false,
-				transaction,
-				error: 'Challenge transaction sequence number must be 0'
-			};
-		}
+        // Check that the transaction has a sequence number of 0
+        if (transaction.sequence !== '0') {
+            return {
+                valid: false,
+                transaction,
+                error: 'Challenge transaction sequence number must be 0',
+            };
+        }
 
-		// Check that the first operation is a manage_data operation
-		if (transaction.operations.length === 0) {
-			return {
-				valid: false,
-				transaction,
-				error: 'Challenge transaction must have at least one operation'
-			};
-		}
+        // Check that the first operation is a manage_data operation
+        if (transaction.operations.length === 0) {
+            return {
+                valid: false,
+                transaction,
+                error: 'Challenge transaction must have at least one operation',
+            };
+        }
 
-		const firstOp = transaction.operations[0];
-		if (firstOp.type !== 'manageData') {
-			return {
-				valid: false,
-				transaction,
-				error: 'First operation must be manage_data'
-			};
-		}
+        const firstOp = transaction.operations[0];
+        if (firstOp.type !== 'manageData') {
+            return {
+                valid: false,
+                transaction,
+                error: 'First operation must be manage_data',
+            };
+        }
 
-		// Check that the manage_data operation's name matches the home domain
-		const expectedName = `${homeDomain} auth`;
-		if (firstOp.name !== expectedName) {
-			return {
-				valid: false,
-				transaction,
-				error: `Manage data operation name ${firstOp.name} does not match expected ${expectedName}`
-			};
-		}
+        // Check that the manage_data operation's name matches the home domain
+        const expectedName = `${homeDomain} auth`;
+        if (firstOp.name !== expectedName) {
+            return {
+                valid: false,
+                transaction,
+                error: `Manage data operation name ${firstOp.name} does not match expected ${expectedName}`,
+            };
+        }
 
-		// Check that the manage_data operation's source is the user's account
-		const opSource = firstOp.source || transaction.source;
-		if (opSource !== userAccount) {
-			return {
-				valid: false,
-				transaction,
-				error: `Operation source ${opSource} does not match user account ${userAccount}`
-			};
-		}
+        // Check that the manage_data operation's source is the user's account
+        const opSource = firstOp.source || transaction.source;
+        if (opSource !== userAccount) {
+            return {
+                valid: false,
+                transaction,
+                error: `Operation source ${opSource} does not match user account ${userAccount}`,
+            };
+        }
 
-		// Check that the transaction is not expired
-		const now = Math.floor(Date.now() / 1000);
-		const maxTime = transaction.timeBounds?.maxTime;
-		if (maxTime && parseInt(maxTime, 10) < now) {
-			return {
-				valid: false,
-				transaction,
-				error: 'Challenge transaction has expired'
-			};
-		}
+        // Check that the transaction is not expired
+        const now = Math.floor(Date.now() / 1000);
+        const maxTime = transaction.timeBounds?.maxTime;
+        if (maxTime && parseInt(maxTime, 10) < now) {
+            return {
+                valid: false,
+                transaction,
+                error: 'Challenge transaction has expired',
+            };
+        }
 
-		return { valid: true, transaction };
-	} catch (error) {
-		return {
-			valid: false,
-			transaction: null as unknown as StellarSdk.Transaction,
-			error: `Failed to parse challenge transaction: ${error}`
-		};
-	}
+        return { valid: true, transaction };
+    } catch (error) {
+        return {
+            valid: false,
+            transaction: null as unknown as StellarSdk.Transaction,
+            error: `Failed to parse challenge transaction: ${error}`,
+        };
+    }
 }
 
 /**
@@ -179,11 +179,11 @@ export function validateChallenge(
  * @param signer - A function that signs the transaction XDR
  */
 export async function signChallenge(
-	challengeXdr: string,
-	networkPassphrase: string,
-	signer: Sep10SignerFn
+    challengeXdr: string,
+    networkPassphrase: string,
+    signer: Sep10SignerFn,
 ): Promise<string> {
-	return signer(challengeXdr, networkPassphrase);
+    return signer(challengeXdr, networkPassphrase);
 }
 
 /**
@@ -194,28 +194,28 @@ export async function signChallenge(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function submitChallenge(
-	authEndpoint: string,
-	signedTransactionXdr: string,
-	fetchFn: typeof fetch = fetch
+    authEndpoint: string,
+    signedTransactionXdr: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep10TokenResponse> {
-	const response = await fetchFn(authEndpoint, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ transaction: signedTransactionXdr })
-	});
+    const response = await fetchFn(authEndpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ transaction: signedTransactionXdr }),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to submit challenge: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to submit challenge: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -233,44 +233,44 @@ export async function submitChallenge(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function authenticate(
-	config: Sep10Config,
-	account: string,
-	signer: Sep10SignerFn,
-	options?: {
-		memo?: string;
-		clientDomain?: string;
-		validateChallenge?: boolean;
-	},
-	fetchFn: typeof fetch = fetch
+    config: Sep10Config,
+    account: string,
+    signer: Sep10SignerFn,
+    options?: {
+        memo?: string;
+        clientDomain?: string;
+        validateChallenge?: boolean;
+    },
+    fetchFn: typeof fetch = fetch,
 ): Promise<string> {
-	// 1. Get challenge
-	const challenge = await getChallenge(config, account, options, fetchFn);
+    // 1. Get challenge
+    const challenge = await getChallenge(config, account, options, fetchFn);
 
-	// 2. Validate challenge (optional but recommended)
-	if (options?.validateChallenge !== false && config.homeDomain) {
-		const validation = validateChallenge(
-			challenge.transaction,
-			config.serverSigningKey,
-			challenge.network_passphrase || config.networkPassphrase,
-			config.homeDomain,
-			account
-		);
-		if (!validation.valid) {
-			throw new Error(`Invalid challenge: ${validation.error}`);
-		}
-	}
+    // 2. Validate challenge (optional but recommended)
+    if (options?.validateChallenge !== false && config.homeDomain) {
+        const validation = validateChallenge(
+            challenge.transaction,
+            config.serverSigningKey,
+            challenge.network_passphrase || config.networkPassphrase,
+            config.homeDomain,
+            account,
+        );
+        if (!validation.valid) {
+            throw new Error(`Invalid challenge: ${validation.error}`);
+        }
+    }
 
-	// 3. Sign challenge
-	const signedXdr = await signChallenge(
-		challenge.transaction,
-		challenge.network_passphrase || config.networkPassphrase,
-		signer
-	);
+    // 3. Sign challenge
+    const signedXdr = await signChallenge(
+        challenge.transaction,
+        challenge.network_passphrase || config.networkPassphrase,
+        signer,
+    );
 
-	// 4. Submit and get token
-	const tokenResponse = await submitChallenge(config.authEndpoint, signedXdr, fetchFn);
+    // 4. Submit and get token
+    const tokenResponse = await submitChallenge(config.authEndpoint, signedXdr, fetchFn);
 
-	return tokenResponse.token;
+    return tokenResponse.token;
 }
 
 /**
@@ -280,14 +280,14 @@ export async function authenticate(
  * @param token - The JWT token
  */
 export function decodeToken(token: string): Sep10JwtPayload {
-	const parts = token.split('.');
-	if (parts.length !== 3) {
-		throw new Error('Invalid JWT token format');
-	}
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+        throw new Error('Invalid JWT token format');
+    }
 
-	const payload = parts[1];
-	const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-	return JSON.parse(decoded);
+    const payload = parts[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
 }
 
 /**
@@ -297,13 +297,13 @@ export function decodeToken(token: string): Sep10JwtPayload {
  * @param bufferSeconds - Optional buffer time in seconds (default: 60)
  */
 export function isTokenExpired(token: string, bufferSeconds: number = 60): boolean {
-	try {
-		const payload = decodeToken(token);
-		const now = Math.floor(Date.now() / 1000);
-		return payload.exp < now + bufferSeconds;
-	} catch {
-		return true;
-	}
+    try {
+        const payload = decodeToken(token);
+        const now = Math.floor(Date.now() / 1000);
+        return payload.exp < now + bufferSeconds;
+    } catch {
+        return true;
+    }
 }
 
 /**
@@ -312,5 +312,5 @@ export function isTokenExpired(token: string, bufferSeconds: number = 60): boole
  * @param token - The JWT token
  */
 export function createAuthHeaders(token: string): { Authorization: string } {
-	return { Authorization: `Bearer ${token}` };
+    return { Authorization: `Bearer ${token}` };
 }

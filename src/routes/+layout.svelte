@@ -50,7 +50,11 @@
                 <!-- Test Anchor -->
                 <a
                     href="/testanchor"
-                    class="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url.pathname.startsWith('/testanchor') ? 'bg-violet-100 text-violet-800' : 'text-gray-700 hover:bg-gray-100'}"
+                    class="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url.pathname.startsWith(
+                        '/testanchor',
+                    )
+                        ? 'bg-violet-100 text-violet-800'
+                        : 'text-gray-700 hover:bg-gray-100'}"
                 >
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path
@@ -135,18 +139,11 @@
             <footer class="border-t border-gray-200 bg-white">
                 <div class="px-8 py-6">
                     <p class="text-sm text-gray-500">
-                        Powered by <a
-                            href="https://stellar.org"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="text-indigo-600 hover:text-indigo-800">Stellar</a
-                        >
-                        &middot;
                         <a
-                            href="https://alfredpay.io"
+                            href="https://github.com/ElliotFriend/regional-starter-pack"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-indigo-600 hover:text-indigo-800">AlfredPay</a
+                            class="text-indigo-600 hover:text-indigo-800">Project Source Code</a
                         >
                     </p>
                 </div>

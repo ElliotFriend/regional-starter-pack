@@ -1,12 +1,9 @@
 <script lang="ts">
-    import {
-        getPaymentRail,
-        getToken,
-    } from '$lib/config/regions';
+    import { getPaymentRail, getToken } from '$lib/config/regions';
 
     import type { PageProps } from './$types';
     const { data }: PageProps = $props();
-    const { anchor, regions, tokens } = $derived(data)
+    const { anchor, regions, tokens } = $derived(data);
 </script>
 
 {#if anchor}

@@ -5,7 +5,7 @@ import { getAnchorsForRegion, getRegion } from '$lib/config/regions';
 export const load: PageLoad = async ({ params }) => {
     const regionId = params.region;
     if (!regionId) {
-        error(400, { message: 'Missing region' })
+        error(400, { message: 'Missing region' });
     }
 
     const region = getRegion(regionId);

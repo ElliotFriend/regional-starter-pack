@@ -2,8 +2,8 @@
     import { getToken } from '$lib/config/regions';
 
     import type { PageProps } from './$types';
-    const { data }: PageProps = $props()
-    const { region, tokens, anchors } = $derived(data)
+    const { data }: PageProps = $props();
+    const { region, tokens, anchors } = $derived(data);
 </script>
 
 {#if region}

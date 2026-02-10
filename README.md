@@ -52,19 +52,19 @@ const toml = await fetchStellarToml('testanchor.stellar.org');
 
 // 2. Authenticate
 const token = await authenticate(
-  {
-    authEndpoint: toml.WEB_AUTH_ENDPOINT!,
-    serverSigningKey: toml.SIGNING_KEY!,
-    networkPassphrase: 'Test SDF Network ; September 2015',
-  },
-  userPublicKey,
-  signerFunction
+    {
+        authEndpoint: toml.WEB_AUTH_ENDPOINT!,
+        serverSigningKey: toml.SIGNING_KEY!,
+        networkPassphrase: 'Test SDF Network ; September 2015',
+    },
+    userPublicKey,
+    signerFunction,
 );
 
 // 3. Start interactive deposit
 const response = await sep24Deposit(toml.TRANSFER_SERVER_SEP0024!, token, {
-  asset_code: 'USDC',
-  amount: '100',
+    asset_code: 'USDC',
+    amount: '100',
 });
 
 window.open(response.url, '_blank');
@@ -79,33 +79,33 @@ import { AlfredPayClient } from './anchors/alfredpay';
 
 // Initialize (server-side only)
 const anchor = new AlfredPayClient({
-  apiKey: process.env.ALFREDPAY_API_KEY!,
-  apiSecret: process.env.ALFREDPAY_API_SECRET!,
-  baseUrl: 'https://api-service-co.alfredpay.app/api/v1/third-party-service/penny'
+    apiKey: process.env.ALFREDPAY_API_KEY!,
+    apiSecret: process.env.ALFREDPAY_API_SECRET!,
+    baseUrl: 'https://api-service-co.alfredpay.app/api/v1/third-party-service/penny',
 });
 
 // Create customer
 const customer = await anchor.createCustomer({
-  email: 'user@example.com',
-  stellarAddress: 'GXYZ...',
-  country: 'MX'
+    email: 'user@example.com',
+    stellarAddress: 'GXYZ...',
+    country: 'MX',
 });
 
 // Get quote (MXN → USDC)
 const quote = await anchor.getQuote({
-  fromCurrency: 'MXN',
-  toCurrency: 'USDC',
-  fromAmount: '1000'
+    fromCurrency: 'MXN',
+    toCurrency: 'USDC',
+    fromAmount: '1000',
 });
 
 // Create on-ramp
 const onramp = await anchor.createOnRamp({
-  customerId: customer.id,
-  quoteId: quote.id,
-  stellarAddress: 'GXYZ...',
-  fromCurrency: 'MXN',
-  toCurrency: 'USDC',
-  amount: '1000'
+    customerId: customer.id,
+    quoteId: quote.id,
+    stellarAddress: 'GXYZ...',
+    fromCurrency: 'MXN',
+    toCurrency: 'USDC',
+    amount: '1000',
 });
 
 // User pays via SPEI
@@ -119,13 +119,13 @@ All custom clients implement a shared `Anchor` interface for consistency:
 
 ```typescript
 interface Anchor {
-  createCustomer(input): Promise<Customer>;
-  getCustomer(id): Promise<Customer | null>;
-  getQuote(input): Promise<Quote>;
-  createOnRamp(input): Promise<OnRampTransaction>;
-  createOffRamp(input): Promise<OffRampTransaction>;
-  getKycIframeUrl(customerId): Promise<string>;
-  // ... and more
+    createCustomer(input): Promise<Customer>;
+    getCustomer(id): Promise<Customer | null>;
+    getQuote(input): Promise<Quote>;
+    createOnRamp(input): Promise<OnRampTransaction>;
+    createOffRamp(input): Promise<OffRampTransaction>;
+    getKycIframeUrl(customerId): Promise<string>;
+    // ... and more
 }
 ```
 
@@ -135,29 +135,29 @@ This means you can swap anchor implementations without changing your application
 
 ## SEP Module Reference
 
-| Module | Protocol | Description |
-| ------- | ---------- | ------------- |
-| `sep1` | [SEP-1](https://stellar.org/protocol/sep-1) | Stellar.toml discovery |
-| `sep10` | [SEP-10](https://stellar.org/protocol/sep-10) | Web authentication |
-| `sep6` | [SEP-6](https://stellar.org/protocol/sep-6) | Programmatic deposits/withdrawals |
-| `sep12` | [SEP-12](https://stellar.org/protocol/sep-12) | KYC/customer management |
-| `sep24` | [SEP-24](https://stellar.org/protocol/sep-24) | Interactive deposits/withdrawals |
-| `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments |
-| `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ) |
+| Module  | Protocol                                      | Description                       |
+| ------- | --------------------------------------------- | --------------------------------- |
+| `sep1`  | [SEP-1](https://stellar.org/protocol/sep-1)   | Stellar.toml discovery            |
+| `sep10` | [SEP-10](https://stellar.org/protocol/sep-10) | Web authentication                |
+| `sep6`  | [SEP-6](https://stellar.org/protocol/sep-6)   | Programmatic deposits/withdrawals |
+| `sep12` | [SEP-12](https://stellar.org/protocol/sep-12) | KYC/customer management           |
+| `sep24` | [SEP-24](https://stellar.org/protocol/sep-24) | Interactive deposits/withdrawals  |
+| `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments             |
+| `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ)               |
 
 ## AlfredPay Reference
 
 AlfredPay provides MXN on/off ramps for Mexico via SPEI bank transfers.
 
-| Method | Description |
-| -------- | ------------- |
-| `createCustomer()` | Create new customer |
-| `getQuote()` | Get exchange rate |
-| `createOnRamp()` | Fiat → Crypto (MXN → USDC) |
-| `createOffRamp()` | Crypto → Fiat (USDC → MXN) |
-| `registerFiatAccount()` | Register bank account |
-| `getKycIframeUrl()` | Get KYC verification URL |
-| `submitKycData()` | Programmatic KYC submission |
+| Method                  | Description                 |
+| ----------------------- | --------------------------- |
+| `createCustomer()`      | Create new customer         |
+| `getQuote()`            | Get exchange rate           |
+| `createOnRamp()`        | Fiat → Crypto (MXN → USDC)  |
+| `createOffRamp()`       | Crypto → Fiat (USDC → MXN)  |
+| `registerFiatAccount()` | Register bank account       |
+| `getKycIframeUrl()`     | Get KYC verification URL    |
+| `submitKycData()`       | Programmatic KYC submission |
 
 See [`/src/lib/anchors/README.md`](src/lib/anchors/README.md) for complete documentation.
 

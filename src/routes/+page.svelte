@@ -27,9 +27,10 @@
     <div class="rounded-lg border border-gray-200 bg-white p-8">
         <h2 class="text-2xl font-bold text-gray-900">What is This?</h2>
         <p class="mt-4 text-gray-600">
-            The Regional Starter Pack demonstrates how to interact with anchor on/off ramp functionality using
-            the Stellar network. It provides working examples of integrating with anchor providers
-            to enable users to convert between local currencies and digital assets.
+            The Regional Starter Pack demonstrates how to interact with anchor on/off ramp
+            functionality using the Stellar network. It provides working examples of integrating
+            with anchor providers to enable users to convert between local currencies and digital
+            assets.
         </p>
         <div class="mt-6 grid gap-6 md:grid-cols-3">
             <div class="rounded-lg bg-gray-50 p-4">

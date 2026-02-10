@@ -44,16 +44,16 @@ import { AlfredPayClient } from './anchors/alfredpay';
 
 // Initialize (server-side only - uses API keys)
 const anchor = new AlfredPayClient({
-  apiKey: process.env.ALFREDPAY_API_KEY!,
-  apiSecret: process.env.ALFREDPAY_API_SECRET!,
-  baseUrl: 'https://api-service-co.alfredpay.app/api/v1/third-party-service/penny'
+    apiKey: process.env.ALFREDPAY_API_KEY!,
+    apiSecret: process.env.ALFREDPAY_API_SECRET!,
+    baseUrl: 'https://api-service-co.alfredpay.app/api/v1/third-party-service/penny',
 });
 
 // Create customer
 const customer = await anchor.createCustomer({
-  email: 'user@example.com',
-  stellarAddress: 'GXYZ...',
-  country: 'MX'
+    email: 'user@example.com',
+    stellarAddress: 'GXYZ...',
+    country: 'MX',
 });
 
 // Get KYC iframe URL
@@ -61,19 +61,19 @@ const kycUrl = await anchor.getKycIframeUrl(customer.id);
 
 // Get quote (MXN → USDC)
 const quote = await anchor.getQuote({
-  fromCurrency: 'MXN',
-  toCurrency: 'USDC',
-  fromAmount: '1000'
+    fromCurrency: 'MXN',
+    toCurrency: 'USDC',
+    fromAmount: '1000',
 });
 
 // Create on-ramp transaction
 const onramp = await anchor.createOnRamp({
-  customerId: customer.id,
-  quoteId: quote.id,
-  stellarAddress: 'GXYZ...',
-  fromCurrency: 'MXN',
-  toCurrency: 'USDC',
-  amount: '1000'
+    customerId: customer.id,
+    quoteId: quote.id,
+    stellarAddress: 'GXYZ...',
+    fromCurrency: 'MXN',
+    toCurrency: 'USDC',
+    amount: '1000',
 });
 
 // User pays via SPEI using these instructions:
@@ -90,31 +90,31 @@ console.log('Status:', tx?.status);
 ```typescript
 // Register bank account
 const fiatAccount = await anchor.registerFiatAccount({
-  customerId: customer.id,
-  bankAccount: {
-    bankName: 'BBVA',
-    accountNumber: '123456789',
-    clabe: '012345678901234567',
-    beneficiary: 'John Doe'
-  }
+    customerId: customer.id,
+    bankAccount: {
+        bankName: 'BBVA',
+        accountNumber: '123456789',
+        clabe: '012345678901234567',
+        beneficiary: 'John Doe',
+    },
 });
 
 // Get quote
 const quote = await anchor.getQuote({
-  fromCurrency: 'USDC',
-  toCurrency: 'MXN',
-  fromAmount: '100'
+    fromCurrency: 'USDC',
+    toCurrency: 'MXN',
+    fromAmount: '100',
 });
 
 // Create off-ramp
 const offramp = await anchor.createOffRamp({
-  customerId: customer.id,
-  quoteId: quote.id,
-  stellarAddress: 'GXYZ...',
-  fiatAccountId: fiatAccount.id,
-  fromCurrency: 'USDC',
-  toCurrency: 'MXN',
-  amount: '100'
+    customerId: customer.id,
+    quoteId: quote.id,
+    stellarAddress: 'GXYZ...',
+    fiatAccountId: fiatAccount.id,
+    fromCurrency: 'USDC',
+    toCurrency: 'MXN',
+    amount: '100',
 });
 
 // Send USDC to this address with this memo
@@ -130,12 +130,12 @@ Copy `/sep/` into your project for SEP protocol support.
 
 ```typescript
 import {
-  fetchStellarToml,
-  getSep10Endpoint,
-  getSep24Endpoint,
-  authenticate,
-  sep24Deposit,
-  pollSep24Transaction
+    fetchStellarToml,
+    getSep10Endpoint,
+    getSep24Endpoint,
+    authenticate,
+    sep24Deposit,
+    pollSep24Transaction,
 } from './anchors/sep';
 
 // 1. Discover anchor endpoints
@@ -143,32 +143,27 @@ const toml = await fetchStellarToml('testanchor.stellar.org');
 
 // 2. Authenticate
 const token = await authenticate(
-  {
-    authEndpoint: getSep10Endpoint(toml)!,
-    serverSigningKey: toml.SIGNING_KEY!,
-    networkPassphrase: 'Test SDF Network ; September 2015',
-    homeDomain: 'testanchor.stellar.org'
-  },
-  userPublicKey,
-  async (xdr, passphrase) => signWithWallet(xdr, passphrase)
+    {
+        authEndpoint: getSep10Endpoint(toml)!,
+        serverSigningKey: toml.SIGNING_KEY!,
+        networkPassphrase: 'Test SDF Network ; September 2015',
+        homeDomain: 'testanchor.stellar.org',
+    },
+    userPublicKey,
+    async (xdr, passphrase) => signWithWallet(xdr, passphrase),
 );
 
 // 3. Start interactive deposit
-const response = await sep24Deposit(
-  getSep24Endpoint(toml)!,
-  token,
-  { asset_code: 'USDC', amount: '100' }
-);
+const response = await sep24Deposit(getSep24Endpoint(toml)!, token, {
+    asset_code: 'USDC',
+    amount: '100',
+});
 
 // 4. Open anchor UI
 window.open(response.url, '_blank');
 
 // 5. Poll for completion
-const tx = await pollSep24Transaction(
-  getSep24Endpoint(toml)!,
-  token,
-  response.id
-);
+const tx = await pollSep24Transaction(getSep24Endpoint(toml)!, token, response.id);
 ```
 
 ---
@@ -179,62 +174,62 @@ All custom anchor clients implement this interface, giving you a consistent API:
 
 ```typescript
 interface Anchor {
-  readonly name: string;
+    readonly name: string;
 
-  // Customer management
-  createCustomer(input: CreateCustomerInput): Promise<Customer>;
-  getCustomer(customerId: string): Promise<Customer | null>;
-  getCustomerByEmail(email: string, country?: string): Promise<Customer | null>;
+    // Customer management
+    createCustomer(input: CreateCustomerInput): Promise<Customer>;
+    getCustomer(customerId: string): Promise<Customer | null>;
+    getCustomerByEmail(email: string, country?: string): Promise<Customer | null>;
 
-  // Quotes
-  getQuote(input: GetQuoteInput): Promise<Quote>;
+    // Quotes
+    getQuote(input: GetQuoteInput): Promise<Quote>;
 
-  // On-ramp (fiat → crypto)
-  createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
-  getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
+    // On-ramp (fiat → crypto)
+    createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
+    getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
 
-  // Off-ramp (crypto → fiat)
-  registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
-  getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
-  createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
-  getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
+    // Off-ramp (crypto → fiat)
+    registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
+    getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
+    createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
+    getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
 
-  // KYC
-  getKycIframeUrl(customerId: string): Promise<string>;
-  getKycStatus(customerId: string): Promise<KycStatus>;
+    // KYC
+    getKycIframeUrl(customerId: string): Promise<string>;
+    getKycStatus(customerId: string): Promise<KycStatus>;
 }
 ```
 
 ### Implementing a New Anchor
 
 ```typescript
-import type { Anchor, Customer, Quote, /* ... */ } from './types';
+import type { Anchor, Customer, Quote /* ... */ } from './types';
 import { AnchorError } from './types';
 
 export class MyAnchorClient implements Anchor {
-  readonly name = 'myanchor';
+    readonly name = 'myanchor';
 
-  constructor(private config: { apiKey: string; baseUrl: string }) {}
+    constructor(private config: { apiKey: string; baseUrl: string }) {}
 
-  async createCustomer(input: CreateCustomerInput): Promise<Customer> {
-    const response = await fetch(`${this.config.baseUrl}/customers`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.config.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email: input.email })
-    });
+    async createCustomer(input: CreateCustomerInput): Promise<Customer> {
+        const response = await fetch(`${this.config.baseUrl}/customers`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${this.config.apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: input.email }),
+        });
 
-    if (!response.ok) {
-      throw new AnchorError('Failed to create customer', 'CREATE_FAILED', response.status);
+        if (!response.ok) {
+            throw new AnchorError('Failed to create customer', 'CREATE_FAILED', response.status);
+        }
+
+        const data = await response.json();
+        return this.mapToCustomer(data);
     }
 
-    const data = await response.json();
-    return this.mapToCustomer(data);
-  }
-
-  // ... implement other methods
+    // ... implement other methods
 }
 ```
 
@@ -254,23 +249,23 @@ ALFREDPAY_BASE_URL=https://api-service-co.alfredpay.app/api/v1/third-party-servi
 
 ### AlfredPayClient Methods
 
-| Method | Description |
-|--------|-------------|
-| `createCustomer(input)` | Create new customer |
-| `getCustomer(id)` | Get customer by ID |
-| `getCustomerByEmail(email, country)` | Find customer by email |
-| `getQuote(input)` | Get exchange rate quote |
-| `createOnRamp(input)` | Create fiat → crypto transaction |
-| `getOnRampTransaction(id)` | Get on-ramp status |
-| `registerFiatAccount(input)` | Register bank account |
-| `getFiatAccounts(customerId)` | List saved bank accounts |
-| `createOffRamp(input)` | Create crypto → fiat transaction |
-| `getOffRampTransaction(id)` | Get off-ramp status |
-| `getKycIframeUrl(customerId)` | Get KYC verification URL |
-| `getKycStatus(customerId)` | Get KYC status |
-| `getKycRequirements(country)` | Get required KYC fields |
-| `submitKycData(customerId, data)` | Submit KYC data programmatically |
-| `submitKycFile(...)` | Upload KYC document |
+| Method                               | Description                      |
+| ------------------------------------ | -------------------------------- |
+| `createCustomer(input)`              | Create new customer              |
+| `getCustomer(id)`                    | Get customer by ID               |
+| `getCustomerByEmail(email, country)` | Find customer by email           |
+| `getQuote(input)`                    | Get exchange rate quote          |
+| `createOnRamp(input)`                | Create fiat → crypto transaction |
+| `getOnRampTransaction(id)`           | Get on-ramp status               |
+| `registerFiatAccount(input)`         | Register bank account            |
+| `getFiatAccounts(customerId)`        | List saved bank accounts         |
+| `createOffRamp(input)`               | Create crypto → fiat transaction |
+| `getOffRampTransaction(id)`          | Get off-ramp status              |
+| `getKycIframeUrl(customerId)`        | Get KYC verification URL         |
+| `getKycStatus(customerId)`           | Get KYC status                   |
+| `getKycRequirements(country)`        | Get required KYC fields          |
+| `submitKycData(customerId, data)`    | Submit KYC data programmatically |
+| `submitKycFile(...)`                 | Upload KYC document              |
 
 ### KYC Flow
 
@@ -284,26 +279,26 @@ const requirements = await anchor.getKycRequirements('MX');
 console.log('Required fields:', requirements.requirements.personal);
 
 const submission = await anchor.submitKycData(customer.id, {
-  firstName: 'Jane',
-  lastName: 'Doe',
-  dateOfBirth: '1990-01-15',
-  country: 'MX',
-  city: 'Mexico City',
-  state: 'CDMX',
-  address: '123 Main St',
-  zipCode: '06600',
-  nationalities: ['MX'],
-  email: 'jane@example.com',
-  dni: 'CURP123456'
+    firstName: 'Jane',
+    lastName: 'Doe',
+    dateOfBirth: '1990-01-15',
+    country: 'MX',
+    city: 'Mexico City',
+    state: 'CDMX',
+    address: '123 Main St',
+    zipCode: '06600',
+    nationalities: ['MX'],
+    email: 'jane@example.com',
+    dni: 'CURP123456',
 });
 
 // Upload ID documents
 await anchor.submitKycFile(
-  customer.id,
-  submission.submissionId,
-  'National ID Front',
-  frontImageBlob,
-  'id-front.jpg'
+    customer.id,
+    submission.submissionId,
+    'National ID Front',
+    frontImageBlob,
+    'id-front.jpg',
 );
 
 // Finalize
@@ -318,18 +313,18 @@ await anchor.finalizeKycSubmission(customer.id, submission.submissionId);
 
 ```typescript
 import {
-  fetchStellarToml,
-  getSep10Endpoint,
-  getSep6Endpoint,
-  getSep24Endpoint,
-  getSep38Endpoint,
-  supportsSep
+    fetchStellarToml,
+    getSep10Endpoint,
+    getSep6Endpoint,
+    getSep24Endpoint,
+    getSep38Endpoint,
+    supportsSep,
 } from './sep';
 
 const toml = await fetchStellarToml('anchor.example.com');
 
 if (supportsSep(toml, 24)) {
-  console.log('SEP-24:', getSep24Endpoint(toml));
+    console.log('SEP-24:', getSep24Endpoint(toml));
 }
 ```
 
@@ -341,7 +336,7 @@ import { authenticate, isTokenExpired, createAuthHeaders } from './sep';
 const token = await authenticate(config, publicKey, signerFn);
 
 if (isTokenExpired(token)) {
-  // Re-authenticate
+    // Re-authenticate
 }
 
 const headers = createAuthHeaders(token);
@@ -353,9 +348,9 @@ const headers = createAuthHeaders(token);
 import { sep6Deposit, sep6Withdraw, getSep6Transaction } from './sep';
 
 const deposit = await sep6Deposit(server, token, {
-  asset_code: 'USDC',
-  account: publicKey,
-  amount: '100'
+    asset_code: 'USDC',
+    account: publicKey,
+    amount: '100',
 });
 console.log('Instructions:', deposit.instructions);
 ```
@@ -368,11 +363,11 @@ import { getCustomer, putCustomer, isKycComplete, needsMoreInfo } from './sep';
 const customer = await getCustomer(kycServer, token, { type: 'sep6-deposit' });
 
 if (needsMoreInfo(customer.status)) {
-  await putCustomer(kycServer, token, {
-    first_name: 'Jane',
-    last_name: 'Doe',
-    email_address: 'jane@example.com'
-  });
+    await putCustomer(kycServer, token, {
+        first_name: 'Jane',
+        last_name: 'Doe',
+        email_address: 'jane@example.com',
+    });
 }
 ```
 
@@ -385,7 +380,7 @@ const response = await sep24Deposit(server, token, { asset_code: 'USDC' });
 openPopup(response.url);
 
 const tx = await pollSep24Transaction(server, token, response.id, {
-  onStatusChange: (tx) => console.log(tx.status)
+    onStatusChange: (tx) => console.log(tx.status),
 });
 ```
 
@@ -395,10 +390,10 @@ const tx = await pollSep24Transaction(server, token, response.id, {
 import { postTransaction, pollSep31Transaction } from './sep';
 
 const tx = await postTransaction(server, token, {
-  amount: '100',
-  asset_code: 'USDC',
-  sender_id: senderId,
-  receiver_id: receiverId
+    amount: '100',
+    asset_code: 'USDC',
+    sender_id: senderId,
+    receiver_id: receiverId,
 });
 
 // Send USDC to tx.stellar_account_id with memo tx.stellar_memo
@@ -434,22 +429,28 @@ type KycStatus = 'pending' | 'approved' | 'rejected' | 'not_started' | 'update_r
 ### TransactionStatus
 
 ```typescript
-type TransactionStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'expired' | 'cancelled';
+type TransactionStatus =
+    | 'pending'
+    | 'processing'
+    | 'completed'
+    | 'failed'
+    | 'expired'
+    | 'cancelled';
 ```
 
 ### Quote
 
 ```typescript
 interface Quote {
-  id: string;
-  fromCurrency: string;
-  toCurrency: string;
-  fromAmount: string;
-  toAmount: string;
-  exchangeRate: string;
-  fee: string;
-  expiresAt: string;
-  createdAt: string;
+    id: string;
+    fromCurrency: string;
+    toCurrency: string;
+    fromAmount: string;
+    toAmount: string;
+    exchangeRate: string;
+    fee: string;
+    expiresAt: string;
+    createdAt: string;
 }
 ```
 
@@ -474,20 +475,22 @@ try {
 ## Installation / Copying
 
 1. Copy the directories you need:
-   - `/sep/` for SEP-compliant anchors
-   - `/alfredpay/` for AlfredPay integration
-   - `/types.ts` for the shared Anchor interface
+    - `/sep/` for SEP-compliant anchors
+    - `/alfredpay/` for AlfredPay integration
+    - `/types.ts` for the shared Anchor interface
 
 2. Install the dependency:
-   ```bash
-   npm install @stellar/stellar-sdk
-   ```
+
+    ```bash
+    npm install @stellar/stellar-sdk
+    ```
 
 3. The library works in any TypeScript environment (Node.js, browser, SvelteKit, Next.js, etc.)
 
 ## CORS Note
 
 Browser requests to anchor APIs typically fail due to CORS. Solutions:
+
 1. **Server proxy** (recommended): Create API routes that proxy to the anchor
 2. **Server-side only**: Use the library only in server code (API routes, SSR)
 

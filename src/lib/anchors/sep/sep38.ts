@@ -6,13 +6,13 @@
  */
 
 import type {
-	Sep38Info,
-	Sep38Asset,
-	Sep38PriceRequest,
-	Sep38PriceResponse,
-	Sep38QuoteRequest,
-	Sep38QuoteResponse,
-	SepError
+    Sep38Info,
+    Sep38Asset,
+    Sep38PriceRequest,
+    Sep38PriceResponse,
+    Sep38QuoteRequest,
+    Sep38QuoteResponse,
+    SepError,
 } from './types';
 import { SepApiError } from './types';
 import { createAuthHeaders } from './sep10';
@@ -24,22 +24,22 @@ import { createAuthHeaders } from './sep10';
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getInfo(
-	quoteServer: string,
-	fetchFn: typeof fetch = fetch
+    quoteServer: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep38Info> {
-	const url = `${quoteServer}/info`;
-	const response = await fetchFn(url);
+    const url = `${quoteServer}/info`;
+    const response = await fetchFn(url);
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get SEP-38 info: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get SEP-38 info: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -49,11 +49,11 @@ export async function getInfo(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getAssets(
-	quoteServer: string,
-	fetchFn: typeof fetch = fetch
+    quoteServer: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep38Asset[]> {
-	const info = await getInfo(quoteServer, fetchFn);
-	return info.assets;
+    const info = await getInfo(quoteServer, fetchFn);
+    return info.assets;
 }
 
 /**
@@ -65,46 +65,46 @@ export async function getAssets(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getPrice(
-	quoteServer: string,
-	request: Sep38PriceRequest,
-	fetchFn: typeof fetch = fetch
+    quoteServer: string,
+    request: Sep38PriceRequest,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep38PriceResponse> {
-	const url = new URL(`${quoteServer}/price`);
+    const url = new URL(`${quoteServer}/price`);
 
-	// Add required parameters
-	url.searchParams.set('sell_asset', request.sell_asset);
-	url.searchParams.set('buy_asset', request.buy_asset);
-	url.searchParams.set('context', request.context);
+    // Add required parameters
+    url.searchParams.set('sell_asset', request.sell_asset);
+    url.searchParams.set('buy_asset', request.buy_asset);
+    url.searchParams.set('context', request.context);
 
-	// Add optional parameters
-	if (request.sell_amount) {
-		url.searchParams.set('sell_amount', request.sell_amount);
-	}
-	if (request.buy_amount) {
-		url.searchParams.set('buy_amount', request.buy_amount);
-	}
-	if (request.sell_delivery_method) {
-		url.searchParams.set('sell_delivery_method', request.sell_delivery_method);
-	}
-	if (request.buy_delivery_method) {
-		url.searchParams.set('buy_delivery_method', request.buy_delivery_method);
-	}
-	if (request.country_code) {
-		url.searchParams.set('country_code', request.country_code);
-	}
+    // Add optional parameters
+    if (request.sell_amount) {
+        url.searchParams.set('sell_amount', request.sell_amount);
+    }
+    if (request.buy_amount) {
+        url.searchParams.set('buy_amount', request.buy_amount);
+    }
+    if (request.sell_delivery_method) {
+        url.searchParams.set('sell_delivery_method', request.sell_delivery_method);
+    }
+    if (request.buy_delivery_method) {
+        url.searchParams.set('buy_delivery_method', request.buy_delivery_method);
+    }
+    if (request.country_code) {
+        url.searchParams.set('country_code', request.country_code);
+    }
 
-	const response = await fetchFn(url.toString());
+    const response = await fetchFn(url.toString());
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get price: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get price: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -115,38 +115,38 @@ export async function getPrice(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getPrices(
-	quoteServer: string,
-	params: {
-		sell_asset?: string;
-		buy_asset?: string;
-		sell_amount?: string;
-		buy_amount?: string;
-		sell_delivery_method?: string;
-		buy_delivery_method?: string;
-		country_code?: string;
-	},
-	fetchFn: typeof fetch = fetch
+    quoteServer: string,
+    params: {
+        sell_asset?: string;
+        buy_asset?: string;
+        sell_amount?: string;
+        buy_amount?: string;
+        sell_delivery_method?: string;
+        buy_delivery_method?: string;
+        country_code?: string;
+    },
+    fetchFn: typeof fetch = fetch,
 ): Promise<{ buy_assets?: Sep38PriceResponse[]; sell_assets?: Sep38PriceResponse[] }> {
-	const url = new URL(`${quoteServer}/prices`);
+    const url = new URL(`${quoteServer}/prices`);
 
-	Object.entries(params).forEach(([key, value]) => {
-		if (value) {
-			url.searchParams.set(key, value);
-		}
-	});
+    Object.entries(params).forEach(([key, value]) => {
+        if (value) {
+            url.searchParams.set(key, value);
+        }
+    });
 
-	const response = await fetchFn(url.toString());
+    const response = await fetchFn(url.toString());
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get prices: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get prices: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -159,32 +159,32 @@ export async function getPrices(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function postQuote(
-	quoteServer: string,
-	token: string,
-	request: Sep38QuoteRequest,
-	fetchFn: typeof fetch = fetch
+    quoteServer: string,
+    token: string,
+    request: Sep38QuoteRequest,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep38QuoteResponse> {
-	const url = `${quoteServer}/quote`;
+    const url = `${quoteServer}/quote`;
 
-	const response = await fetchFn(url, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			...createAuthHeaders(token)
-		},
-		body: JSON.stringify(request)
-	});
+    const response = await fetchFn(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...createAuthHeaders(token),
+        },
+        body: JSON.stringify(request),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to create quote: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to create quote: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 /**
@@ -196,27 +196,27 @@ export async function postQuote(
  * @param fetchFn - Optional fetch function for SSR compatibility
  */
 export async function getQuote(
-	quoteServer: string,
-	token: string,
-	quoteId: string,
-	fetchFn: typeof fetch = fetch
+    quoteServer: string,
+    token: string,
+    quoteId: string,
+    fetchFn: typeof fetch = fetch,
 ): Promise<Sep38QuoteResponse> {
-	const url = `${quoteServer}/quote/${quoteId}`;
+    const url = `${quoteServer}/quote/${quoteId}`;
 
-	const response = await fetchFn(url, {
-		headers: createAuthHeaders(token)
-	});
+    const response = await fetchFn(url, {
+        headers: createAuthHeaders(token),
+    });
 
-	if (!response.ok) {
-		const errorBody = (await response.json().catch(() => ({}))) as SepError;
-		throw new SepApiError(
-			errorBody.error || `Failed to get quote: ${response.status}`,
-			response.status,
-			errorBody
-		);
-	}
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to get quote: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
 
-	return response.json();
+    return response.json();
 }
 
 // =============================================================================
@@ -228,13 +228,13 @@ export async function getQuote(
  * Format: stellar:<code>:<issuer> or stellar:native for XLM
  */
 export function stellarAssetId(code: string, issuer?: string): string {
-	if (code === 'XLM' || code === 'native') {
-		return 'stellar:native';
-	}
-	if (!issuer) {
-		throw new Error(`Issuer required for non-native asset ${code}`);
-	}
-	return `stellar:${code}:${issuer}`;
+    if (code === 'XLM' || code === 'native') {
+        return 'stellar:native';
+    }
+    if (!issuer) {
+        throw new Error(`Issuer required for non-native asset ${code}`);
+    }
+    return `stellar:${code}:${issuer}`;
 }
 
 /**
@@ -242,29 +242,29 @@ export function stellarAssetId(code: string, issuer?: string): string {
  * Format: iso4217:<code>
  */
 export function fiatAssetId(code: string): string {
-	return `iso4217:${code}`;
+    return `iso4217:${code}`;
 }
 
 /**
  * Parses a SEP-38 asset identifier.
  */
 export function parseAssetId(assetId: string): {
-	type: 'stellar' | 'fiat';
-	code: string;
-	issuer?: string;
+    type: 'stellar' | 'fiat';
+    code: string;
+    issuer?: string;
 } {
-	const [scheme, code, issuer] = assetId.split(':');
+    const [scheme, code, issuer] = assetId.split(':');
 
-	if (scheme === 'stellar') {
-		if (code === 'native') {
-			return { type: 'stellar', code: 'XLM' };
-		}
-		return { type: 'stellar', code, issuer };
-	}
+    if (scheme === 'stellar') {
+        if (code === 'native') {
+            return { type: 'stellar', code: 'XLM' };
+        }
+        return { type: 'stellar', code, issuer };
+    }
 
-	if (scheme === 'iso4217') {
-		return { type: 'fiat', code };
-	}
+    if (scheme === 'iso4217') {
+        return { type: 'fiat', code };
+    }
 
-	throw new Error(`Unknown asset scheme: ${scheme}`);
+    throw new Error(`Unknown asset scheme: ${scheme}`);
 }
