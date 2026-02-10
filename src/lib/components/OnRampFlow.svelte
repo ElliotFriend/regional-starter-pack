@@ -333,9 +333,9 @@ Usage:
 </div>
 
 <!-- For Developers -->
-<section class="mt-8 mx-auto max-w-lg">
+<section class="mx-auto mt-8 max-w-lg">
     <div class="rounded-lg bg-gray-900 p-8 text-white">
-        <h2 class="text-2xl font-bold mb-4">For Developers</h2>
+        <h2 class="mb-4 text-2xl font-bold">For Developers</h2>
         <a
             href="https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/components/OnRampFlow.svelte"
             target="_blank"
