@@ -1,6 +1,6 @@
 # AlfredPay Client
 
-Server-side TypeScript client for the [AlfredPay](https://alfredpay.app) anchor API. Handles fiat on/off ramps between MXN and USDC on the Stellar network via Mexico's SPEI payment system.
+Server-side TypeScript client for the [Alfred Pay](https://alfredpay.io) anchor API. Handles fiat on/off ramps between MXN and USDC on the Stellar network via Mexico's SPEI payment system.
 
 **This client must only run on the server.** It authenticates with API keys that should never be exposed to browsers.
 
