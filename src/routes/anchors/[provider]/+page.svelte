@@ -16,14 +16,24 @@
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900">{anchor.name}</h1>
             <p class="mt-2 text-gray-600">{anchor.description}</p>
-            <a
-                href={anchor.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
-            >
-                {anchor.website} &rarr;
-            </a>
+            <div class="flex flex-row gap-6">
+                <a
+                    href={anchor.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
+                >
+                    {anchor.website} &rarr;
+                </a>
+                <a
+                    href={anchor.documentation}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
+                >
+                    {anchor.documentation} &rarr;
+                </a>
+            </div>
         </div>
 
         <!-- Try It Out CTA -->

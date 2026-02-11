@@ -34,6 +34,7 @@ export interface Anchor {
     name: string;
     description: string;
     website: string;
+    documentation: string;
     logo?: string;
     regions: Record<string, AnchorCapability>; // keyed by region ID
 }
@@ -62,42 +63,6 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             "Sistema de Pagos Electrónicos Interbancarios - Mexico's real-time payment system",
         type: 'bank_transfer',
     },
-    pix: {
-        id: 'pix',
-        name: 'PIX',
-        description: "Brazil's instant payment system by the Central Bank",
-        type: 'bank_transfer',
-    },
-    coelsa: {
-        id: 'coelsa',
-        name: 'COELSA',
-        description: "Argentina's electronic clearing house for interbank transfers",
-        type: 'bank_transfer',
-    },
-    ach: {
-        id: 'ach',
-        name: 'ACH',
-        description: 'Automated Clearing House - electronic bank transfers',
-        type: 'bank_transfer',
-    },
-    ach_chl: {
-        id: 'ach_chl',
-        name: 'ACH Chile',
-        description: "Chile's automated clearing house system",
-        type: 'bank_transfer',
-    },
-    ach_bol: {
-        id: 'ach_bol',
-        name: 'ACH Bolivia',
-        description: "Bolivia's automated clearing house system",
-        type: 'bank_transfer',
-    },
-    ach_dom: {
-        id: 'ach_dom',
-        name: 'ACH Dominican Republic',
-        description: "Dominican Republic's automated clearing house system",
-        type: 'bank_transfer',
-    },
 };
 
 // =============================================================================
@@ -116,6 +81,12 @@ export const TOKENS: Record<string, Token> = {
         name: 'Stellar Lumens',
         description: 'The native token of the Stellar network',
     },
+    CETES: {
+        symbol: 'CETES',
+        name: 'Etherfuse CETES',
+        issuer: 'GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC',
+        description: 'Etherfuse CETES, officially known as Mexican Federal Treasury Certificates, are Mexico\'s oldest short-term debt securities issued by the Ministry of Finance.'
+    },
 };
 
 // =============================================================================
@@ -129,6 +100,7 @@ export const ANCHORS: Record<string, Anchor> = {
         description:
             'Alfred Pay provides fiat on/off ramp services across Latin America, enabling seamless conversion between local currencies and digital assets on the Stellar network.',
         website: 'https://alfredpay.io',
+        documentation: 'https://alfredpay.readme.io',
         regions: {
             mexico: {
                 onRamp: true,
@@ -139,6 +111,23 @@ export const ANCHORS: Record<string, Anchor> = {
             },
         },
     },
+    etherfuse: {
+        id: 'etherfuse',
+        name: 'Etherfuse',
+        description:
+            'Etherfuse bridges traditional finance and decentralized finance, making financial systems more inclusive, transparent, and efficient for everyone.',
+        website: 'https://www.etherfuse.com',
+        documentation: 'https://docs.etherfuse.com',
+        regions: {
+            mexico: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['spei'],
+                tokens: ['CETES'],
+                kycRequired: true,
+            },
+        },
+    }
 };
 
 // =============================================================================
@@ -156,7 +145,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Multiple anchors support MXN to USDC conversion.',
         paymentRails: [PAYMENT_RAILS.spei],
-        anchors: ['alfredpay'],
+        anchors: ['alfredpay', 'etherfuse'],
     },
 };
 
@@ -173,7 +162,7 @@ export function getAnchor(id: string): Anchor | undefined {
 }
 
 export function getRegionsForAnchor(anchorId: string): Region[] {
-    const anchor = ANCHORS[anchorId];
+    const anchor = getAnchor(anchorId);
     if (!anchor) return [];
 
     return Object.keys(anchor.regions)
@@ -182,7 +171,7 @@ export function getRegionsForAnchor(anchorId: string): Region[] {
 }
 
 export function getAnchorsForRegion(regionId: string): Anchor[] {
-    const region = REGIONS[regionId];
+    const region = getRegion(regionId);
     if (!region) return [];
 
     return region.anchors
