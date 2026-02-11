@@ -1,0 +1,698 @@
+/**
+ * Etherfuse API Client
+ *
+ * Server-side only — authenticates with an API key that must never be exposed
+ * to the browser. Implements the shared {@link Anchor} interface so it can be
+ * swapped with any other anchor provider.
+ *
+ * @example
+ * ```ts
+ * import { EtherfuseClient } from '$lib/anchors/etherfuse';
+ *
+ * const etherfuse = new EtherfuseClient({
+ *     apiKey: process.env.ETHERFUSE_API_KEY,
+ *     baseUrl: process.env.ETHERFUSE_BASE_URL,
+ * });
+ *
+ * const customer = await etherfuse.createCustomer({ email: 'user@example.com' });
+ * ```
+ */
+
+import type {
+    Anchor,
+    Customer,
+    Quote,
+    OnRampTransaction,
+    OffRampTransaction,
+    CreateCustomerInput,
+    GetQuoteInput,
+    CreateOnRampInput,
+    CreateOffRampInput,
+    RegisterFiatAccountInput,
+    RegisteredFiatAccount,
+    SavedFiatAccount,
+    KycStatus,
+    PaymentInstructions,
+    TransactionStatus,
+} from '../types';
+import { AnchorError } from '../types';
+import type {
+    EtherfuseConfig,
+    EtherfuseOnboardingResponse,
+    EtherfuseCustomerResponse,
+    EtherfuseQuoteResponse,
+    EtherfuseOnRampOrderResponse,
+    EtherfuseOffRampOrderResponse,
+    EtherfuseKycStatusResponse,
+    EtherfuseBankAccountResponse,
+    EtherfuseBankAccountListResponse,
+    EtherfuseAssetsResponse,
+    EtherfuseErrorResponse,
+    EtherfuseOrderStatus,
+    EtherfuseKycIdentityRequest,
+    EtherfuseKycDocumentRequest,
+    EtherfuseDepositDetails,
+} from './types';
+
+/**
+ * Client for the Etherfuse fiat on/off ramp API.
+ *
+ * Supports customer management, KYC verification, currency quotes, on-ramp
+ * (MXN → CETES) and off-ramp (CETES → MXN) transactions on the Stellar
+ * network via Mexico's SPEI payment rail.
+ */
+export class EtherfuseClient implements Anchor {
+    readonly name = 'etherfuse';
+    private readonly config: EtherfuseConfig;
+    private readonly blockchain: string;
+
+    /** @param config - API key, base URL, and optional defaults. */
+    constructor(config: EtherfuseConfig) {
+        this.config = config;
+        this.blockchain = config.defaultBlockchain || 'stellar';
+    }
+
+    /**
+     * Send an authenticated JSON request to the Etherfuse API.
+     *
+     * @typeParam T - Expected response body type.
+     * @param method - HTTP method.
+     * @param endpoint - API path appended to {@link EtherfuseConfig.baseUrl}.
+     * @param body - Optional JSON request body.
+     * @returns Parsed response body.
+     * @throws {AnchorError} On non-2xx responses.
+     */
+    private async request<T>(
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+        endpoint: string,
+        body?: unknown,
+    ): Promise<T> {
+        const url = `${this.config.baseUrl}${endpoint}`;
+
+        console.log(`[Etherfuse] ${method} ${url}`, body ? JSON.stringify(body) : '');
+
+        const response = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: this.config.apiKey,
+            },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Etherfuse] Error ${response.status}:`, errorText);
+
+            let errorData: EtherfuseErrorResponse = {
+                error: { code: 'UNKNOWN_ERROR', message: '' },
+            };
+            try {
+                errorData = JSON.parse(errorText) as EtherfuseErrorResponse;
+            } catch {
+                // Not JSON
+            }
+
+            throw new AnchorError(
+                errorData.error?.message || errorText || `Etherfuse API error: ${response.status}`,
+                errorData.error?.code || 'UNKNOWN_ERROR',
+                response.status,
+            );
+        }
+
+        const data = await response.json();
+        console.log(`[Etherfuse] Response:`, JSON.stringify(data));
+        return data as T;
+    }
+
+    // =========================================================================
+    // Private mapping helpers
+    // =========================================================================
+
+    /**
+     * Map an Etherfuse order status to the shared {@link TransactionStatus}.
+     */
+    private mapOrderStatus(status: EtherfuseOrderStatus): TransactionStatus {
+        const statusMap: Record<EtherfuseOrderStatus, TransactionStatus> = {
+            created: 'pending',
+            funded: 'processing',
+            completed: 'completed',
+            failed: 'failed',
+            expired: 'expired',
+        };
+        return statusMap[status] || 'pending';
+    }
+
+    /**
+     * Map an Etherfuse KYC status to the shared {@link KycStatus}.
+     */
+    private mapKycStatus(status: string): KycStatus {
+        const statusMap: Record<string, KycStatus> = {
+            not_started: 'not_started',
+            proposed: 'pending',
+            approved: 'approved',
+            rejected: 'rejected',
+        };
+        return statusMap[status] || 'not_started';
+    }
+
+    /**
+     * Map Etherfuse deposit details to the shared {@link PaymentInstructions} type.
+     */
+    private mapPaymentInstructions(details: EtherfuseDepositDetails): PaymentInstructions {
+        return {
+            type: 'spei',
+            bankName: details.bankName,
+            accountNumber: '',
+            clabe: details.depositClabe,
+            beneficiary: details.beneficiary,
+            reference: details.reference,
+            amount: details.amount,
+            currency: details.currency,
+        };
+    }
+
+    /**
+     * Map an on-ramp order response to the shared {@link OnRampTransaction} type.
+     */
+    private mapOnRampTransaction(response: EtherfuseOnRampOrderResponse): OnRampTransaction {
+        return {
+            id: response.orderId,
+            customerId: response.customerId,
+            quoteId: response.quoteId,
+            status: this.mapOrderStatus(response.status),
+            fromAmount: response.fromAmount,
+            fromCurrency: response.fromCurrency,
+            toAmount: response.toAmount,
+            toCurrency: response.toCurrency,
+            stellarAddress: response.stellarAddress,
+            paymentInstructions: response.depositDetails
+                ? this.mapPaymentInstructions(response.depositDetails)
+                : undefined,
+            stellarTxHash: response.stellarTxHash,
+            createdAt: response.createdAt,
+            updatedAt: response.updatedAt,
+        };
+    }
+
+    /**
+     * Map an off-ramp order response to the shared {@link OffRampTransaction} type.
+     */
+    private mapOffRampTransaction(
+        response: EtherfuseOffRampOrderResponse,
+        bankAccountInfo?: { bankName: string; clabe: string; beneficiary: string },
+    ): OffRampTransaction {
+        return {
+            id: response.orderId,
+            customerId: response.customerId,
+            quoteId: response.quoteId,
+            status: this.mapOrderStatus(response.status),
+            fromAmount: response.fromAmount,
+            fromCurrency: response.fromCurrency,
+            toAmount: response.toAmount,
+            toCurrency: response.toCurrency,
+            stellarAddress: response.stellarAddress,
+            bankAccount: {
+                id: response.bankAccountId,
+                bankName: bankAccountInfo?.bankName || '',
+                accountNumber: '',
+                clabe: bankAccountInfo?.clabe || '',
+                beneficiary: bankAccountInfo?.beneficiary || '',
+            },
+            stellarTxHash: response.stellarTxHash,
+            signableTransaction: response.burnTransaction,
+            createdAt: response.createdAt,
+            updatedAt: response.updatedAt,
+        };
+    }
+
+    // =========================================================================
+    // Anchor interface implementation
+    // =========================================================================
+
+    /**
+     * Create a new customer via the Etherfuse onboarding flow.
+     *
+     * Generates a partner-side UUID for the customer and requests a presigned
+     * onboarding URL. The URL is stored internally but not directly returned —
+     * use {@link getKycIframeUrl} to retrieve it.
+     *
+     * @param input - Customer email and optional country code.
+     * @returns A {@link Customer} with `kycStatus` set to `"not_started"`.
+     * @throws {AnchorError} On API failure.
+     */
+    async createCustomer(input: CreateCustomerInput): Promise<Customer> {
+        const customerId = crypto.randomUUID();
+        const publicKey = this.config.defaultPublicKey || '';
+
+        const response = await this.request<EtherfuseOnboardingResponse>(
+            'POST',
+            '/ramp/onboarding-url',
+            {
+                customerId,
+                email: input.email,
+                publicKey,
+                blockchain: this.blockchain,
+            },
+        );
+
+        const now = new Date().toISOString();
+        return {
+            id: response.customerId,
+            email: input.email,
+            kycStatus: 'not_started',
+            createdAt: now,
+            updatedAt: now,
+        };
+    }
+
+    /**
+     * Fetch a customer by their Etherfuse ID.
+     * @param customerId - The customer's unique identifier.
+     * @returns The {@link Customer}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
+    async getCustomer(customerId: string): Promise<Customer | null> {
+        try {
+            const response = await this.request<EtherfuseCustomerResponse>(
+                'GET',
+                `/ramp/customer/${customerId}`,
+            );
+            return {
+                id: response.customerId,
+                email: response.email,
+                kycStatus: 'not_started', // KYC status requires separate call with pubkey
+                createdAt: response.createdAt,
+                updatedAt: response.updatedAt,
+            };
+        } catch (error) {
+            if (error instanceof AnchorError && error.statusCode === 404) {
+                return null;
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Look up a customer by email.
+     *
+     * Etherfuse does not support customer lookup by email. This method always
+     * throws an {@link AnchorError} with status 501.
+     *
+     * @throws {AnchorError} Always — NOT_SUPPORTED.
+     */
+    async getCustomerByEmail(_email: string, _country?: string): Promise<Customer | null> {
+        throw new AnchorError(
+            'Etherfuse does not support customer lookup by email',
+            'NOT_SUPPORTED',
+            501,
+        );
+    }
+
+    /**
+     * Request a currency conversion quote.
+     *
+     * Generates a partner-side UUID for the quote. Currency codes for crypto
+     * assets use the `CODE:ISSUER` format expected by the Etherfuse API.
+     *
+     * @param input - Currency pair and amount.
+     * @returns A {@link Quote} with rate, fee, and expiration.
+     * @throws {AnchorError} On API failure.
+     */
+    async getQuote(input: GetQuoteInput): Promise<Quote> {
+        const quoteId = crypto.randomUUID();
+
+        const body: Record<string, string> = {
+            quoteId,
+            fromCurrency: input.fromCurrency,
+            toCurrency: input.toCurrency,
+            blockchain: this.blockchain,
+        };
+
+        if (input.fromAmount) {
+            body.fromAmount = String(input.fromAmount);
+        }
+        if (input.toAmount) {
+            body.toAmount = String(input.toAmount);
+        }
+
+        const response = await this.request<EtherfuseQuoteResponse>('POST', '/ramp/quote', body);
+
+        return {
+            id: response.quoteId,
+            fromCurrency: response.fromCurrency,
+            toCurrency: response.toCurrency,
+            fromAmount: response.fromAmount,
+            toAmount: response.toAmount,
+            exchangeRate: response.exchangeRate,
+            fee: response.fee,
+            expiresAt: response.expiresAt,
+            createdAt: new Date().toISOString(),
+        };
+    }
+
+    /**
+     * Create an on-ramp transaction (fiat MXN → CETES on Stellar).
+     *
+     * The returned transaction includes SPEI {@link OnRampTransaction.paymentInstructions | paymentInstructions}
+     * that the user must follow to fund the transaction.
+     *
+     * @param input - Customer, quote, amount, and destination Stellar address.
+     * @returns The created {@link OnRampTransaction}.
+     * @throws {AnchorError} On API failure.
+     */
+    async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
+        const orderId = crypto.randomUUID();
+
+        const response = await this.request<EtherfuseOnRampOrderResponse>('POST', '/ramp/order', {
+            orderId,
+            customerId: input.customerId,
+            quoteId: input.quoteId,
+            orderType: 'on-ramp',
+            fromCurrency: input.fromCurrency,
+            toCurrency: input.toCurrency,
+            amount: input.amount,
+            stellarAddress: input.stellarAddress,
+            blockchain: this.blockchain,
+            memo: input.memo || '',
+        });
+
+        return this.mapOnRampTransaction(response);
+    }
+
+    /**
+     * Fetch the current state of an on-ramp transaction.
+     * @param transactionId - The order's unique identifier.
+     * @returns The {@link OnRampTransaction}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
+    async getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null> {
+        try {
+            const response = await this.request<EtherfuseOnRampOrderResponse>(
+                'GET',
+                `/ramp/order/${transactionId}`,
+            );
+            return this.mapOnRampTransaction(response);
+        } catch (error) {
+            if (error instanceof AnchorError && error.statusCode === 404) {
+                return null;
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Register a bank account (SPEI) for a customer.
+     *
+     * Generates a partner-side UUID for the bank account.
+     *
+     * @param input - Customer ID and bank account details.
+     * @returns The newly registered {@link RegisteredFiatAccount}.
+     * @throws {AnchorError} On API failure.
+     */
+    async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
+        const bankAccountId = crypto.randomUUID();
+
+        const response = await this.request<EtherfuseBankAccountResponse>(
+            'POST',
+            '/ramp/bank-account',
+            {
+                bankAccountId,
+                customerId: input.customerId,
+                bankName: input.bankAccount.bankName,
+                clabe: input.bankAccount.clabe,
+                beneficiary: input.bankAccount.beneficiary,
+            },
+        );
+
+        return {
+            id: response.bankAccountId,
+            customerId: response.customerId,
+            type: 'SPEI',
+            status: response.status,
+            createdAt: response.createdAt,
+        };
+    }
+
+    /**
+     * List all registered bank accounts for a customer.
+     * @param customerId - The customer's unique identifier.
+     * @returns Array of {@link SavedFiatAccount} objects.
+     * @throws {AnchorError} On API failure.
+     */
+    async getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]> {
+        try {
+            const response = await this.request<EtherfuseBankAccountListResponse>(
+                'POST',
+                `/ramp/customer/${customerId}/bank-accounts`,
+                {},
+            );
+
+            return response.bankAccounts.map((account) => ({
+                id: account.bankAccountId,
+                type: 'SPEI',
+                accountNumber: account.clabe,
+                bankName: account.bankName,
+                accountHolderName: account.beneficiary,
+                createdAt: account.createdAt,
+            }));
+        } catch (error) {
+            if (error instanceof AnchorError && error.statusCode === 404) {
+                return [];
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Create an off-ramp transaction (CETES on Stellar → fiat MXN via SPEI).
+     *
+     * The response may include a `signableTransaction` (base64-encoded Stellar
+     * transaction envelope) that the user must sign and submit.
+     *
+     * @param input - Customer, quote, amount, fiat account ID, and source Stellar address.
+     * @returns The created {@link OffRampTransaction}.
+     * @throws {AnchorError} On API failure.
+     */
+    async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
+        const orderId = crypto.randomUUID();
+
+        const response = await this.request<EtherfuseOffRampOrderResponse>('POST', '/ramp/order', {
+            orderId,
+            customerId: input.customerId,
+            quoteId: input.quoteId,
+            orderType: 'off-ramp',
+            fromCurrency: input.fromCurrency,
+            toCurrency: input.toCurrency,
+            amount: input.amount,
+            stellarAddress: input.stellarAddress,
+            bankAccountId: input.fiatAccountId,
+            blockchain: this.blockchain,
+            memo: input.memo || '',
+        });
+
+        return this.mapOffRampTransaction(response, input.bankAccountInfo
+            ? {
+                  bankName: input.bankAccountInfo.bankName,
+                  clabe: input.bankAccountInfo.clabe,
+                  beneficiary: input.bankAccountInfo.beneficiary,
+              }
+            : undefined,
+        );
+    }
+
+    /**
+     * Fetch the current state of an off-ramp transaction.
+     * @param transactionId - The order's unique identifier.
+     * @returns The {@link OffRampTransaction}, or `null` if not found.
+     * @throws {AnchorError} On non-404 API errors.
+     */
+    async getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null> {
+        try {
+            const response = await this.request<EtherfuseOffRampOrderResponse>(
+                'GET',
+                `/ramp/order/${transactionId}`,
+            );
+            return this.mapOffRampTransaction(response);
+        } catch (error) {
+            if (error instanceof AnchorError && error.statusCode === 404) {
+                return null;
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Get a presigned URL for the Etherfuse onboarding/KYC flow.
+     *
+     * Calls the onboarding endpoint again to generate a fresh presigned URL.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @returns The onboarding URL string.
+     * @throws {AnchorError} On API failure.
+     */
+    async getKycIframeUrl(customerId: string): Promise<string> {
+        const publicKey = this.config.defaultPublicKey || '';
+
+        const response = await this.request<EtherfuseOnboardingResponse>(
+            'POST',
+            '/ramp/onboarding-url',
+            {
+                customerId,
+                email: '', // Not required for URL generation
+                publicKey,
+                blockchain: this.blockchain,
+            },
+        );
+
+        return response.onboardingUrl;
+    }
+
+    /**
+     * Get the current KYC status for a customer.
+     *
+     * Requires the customer's wallet public key, which is taken from
+     * {@link EtherfuseConfig.defaultPublicKey}.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @returns The customer's {@link KycStatus}.
+     * @throws {AnchorError} If no public key is configured or the API fails.
+     */
+    async getKycStatus(customerId: string): Promise<KycStatus> {
+        const publicKey = this.config.defaultPublicKey;
+        if (!publicKey) {
+            throw new AnchorError(
+                'defaultPublicKey is required for KYC status checks',
+                'MISSING_PUBLIC_KEY',
+                400,
+            );
+        }
+
+        const response = await this.request<EtherfuseKycStatusResponse>(
+            'GET',
+            `/ramp/customer/${customerId}/kyc/${publicKey}`,
+        );
+
+        return this.mapKycStatus(response.status);
+    }
+
+    // =========================================================================
+    // Etherfuse-specific methods (beyond Anchor interface)
+    // =========================================================================
+
+    /**
+     * List rampable assets available on Etherfuse.
+     *
+     * @param blockchain - Blockchain filter (e.g. `"stellar"`).
+     * @param currency - Fiat currency filter (e.g. `"MXN"`).
+     * @param wallet - Optional wallet public key for personalized results.
+     * @returns The {@link EtherfuseAssetsResponse} with available assets.
+     * @throws {AnchorError} On API failure.
+     */
+    async getAssets(
+        blockchain?: string,
+        currency?: string,
+        wallet?: string,
+    ): Promise<EtherfuseAssetsResponse> {
+        const params = new URLSearchParams();
+        if (blockchain) params.set('blockchain', blockchain);
+        if (currency) params.set('currency', currency);
+        if (wallet) params.set('wallet', wallet);
+
+        const query = params.toString();
+        const endpoint = `/ramp/assets${query ? `?${query}` : ''}`;
+
+        return this.request<EtherfuseAssetsResponse>('GET', endpoint);
+    }
+
+    /**
+     * Submit programmatic KYC identity data for a customer.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @param publicKey - Stellar public key associated with the customer.
+     * @param identity - Personal information fields.
+     * @returns The API response.
+     * @throws {AnchorError} On API failure.
+     */
+    async submitKycIdentity(
+        customerId: string,
+        publicKey: string,
+        identity: EtherfuseKycIdentityRequest,
+    ): Promise<unknown> {
+        return this.request(
+            'POST',
+            `/ramp/customer/${customerId}/kyc/${publicKey}/identity`,
+            identity,
+        );
+    }
+
+    /**
+     * Upload KYC identity documents for a customer.
+     *
+     * Documents should be Base64-encoded images.
+     *
+     * @param customerId - The customer's unique identifier.
+     * @param publicKey - Stellar public key associated with the customer.
+     * @param documents - Array of document submissions.
+     * @returns The API response.
+     * @throws {AnchorError} On API failure.
+     */
+    async submitKycDocuments(
+        customerId: string,
+        publicKey: string,
+        documents: EtherfuseKycDocumentRequest[],
+    ): Promise<unknown> {
+        return this.request(
+            'POST',
+            `/ramp/customer/${customerId}/kyc/${publicKey}/documents`,
+            { documents },
+        );
+    }
+
+    /**
+     * Accept all legal agreements via a presigned onboarding URL.
+     *
+     * @param presignedUrl - The presigned URL from the onboarding response.
+     * @returns The API response.
+     * @throws {AnchorError} On API failure.
+     */
+    async acceptAgreements(presignedUrl: string): Promise<unknown> {
+        console.log(`[Etherfuse] POST ${presignedUrl} (accept agreements)`);
+
+        const response = await fetch(presignedUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: this.config.apiKey,
+            },
+            body: JSON.stringify({ acceptAll: true }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Etherfuse] Error ${response.status}:`, errorText);
+            throw new AnchorError(
+                errorText || `Etherfuse API error: ${response.status}`,
+                'AGREEMENT_ERROR',
+                response.status,
+            );
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Simulate a fiat payment received event. **Sandbox only.**
+     *
+     * Useful for testing on-ramp flows without sending real SPEI transfers.
+     *
+     * @param orderId - The order to simulate payment for.
+     * @throws {AnchorError} On API failure.
+     */
+    async simulateFiatReceived(orderId: string): Promise<void> {
+        await this.request<{ message: string }>(
+            'POST',
+            `/ramp/order/${orderId}/simulate-fiat-received`,
+        );
+    }
+}

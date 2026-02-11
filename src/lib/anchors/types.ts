@@ -81,6 +81,8 @@ export interface OffRampTransaction {
     bankAccount: BankAccount;
     memo?: string;
     stellarTxHash?: string;
+    /** Pre-built transaction envelope (e.g. base64 XDR) for the user to sign. */
+    signableTransaction?: string;
     createdAt: string;
     updatedAt: string;
 }
