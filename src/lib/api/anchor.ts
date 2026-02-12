@@ -97,30 +97,36 @@ export async function createCustomer(
     fetch: Fetch,
     provider: string,
     email: string,
-    stellarAddress: string,
     country: string = 'MX',
+    publicKey?: string,
 ): Promise<Customer> {
     return postJson<Customer>(fetch, `/api/anchor/${provider}/customers`, {
         email,
-        stellarAddress,
         country,
+        publicKey,
     });
 }
 
 /**
  * Get or create a customer - tries to find existing first
+ * When supportsEmailLookup is false, skips the GET (email lookup) and goes straight to POST (create).
  */
 export async function getOrCreateCustomer(
     fetch: Fetch,
     provider: string,
     email: string,
     country: string = 'MX',
+    options?: { supportsEmailLookup?: boolean; publicKey?: string },
 ): Promise<Customer> {
-    const existing = await getCustomerByEmail(fetch, provider, email, country);
-    if (existing) {
-        return existing;
+    const supportsEmailLookup = options?.supportsEmailLookup ?? true;
+
+    if (supportsEmailLookup) {
+        const existing = await getCustomerByEmail(fetch, provider, email, country);
+        if (existing) {
+            return existing;
+        }
     }
-    return createCustomer(fetch, provider, email, country);
+    return createCustomer(fetch, provider, email, country, options?.publicKey);
 }
 
 // =============================================================================
@@ -132,6 +138,8 @@ export interface GetQuoteOptions {
     toCurrency: string;
     amount: string;
     direction?: 'from' | 'to';
+    customerId?: string;
+    stellarAddress?: string;
 }
 
 /**
@@ -142,13 +150,19 @@ export async function getQuote(
     provider: string,
     options: GetQuoteOptions,
 ): Promise<Quote> {
-    const { fromCurrency, toCurrency, amount, direction = 'from' } = options;
+    const { fromCurrency, toCurrency, amount, direction = 'from', customerId, stellarAddress } = options;
 
     const body: Record<string, string> = { fromCurrency, toCurrency };
     if (direction === 'from') {
         body.fromAmount = amount;
     } else {
         body.toAmount = amount;
+    }
+    if (customerId) {
+        body.customerId = customerId;
+    }
+    if (stellarAddress) {
+        body.stellarAddress = stellarAddress;
     }
 
     return postJson<Quote>(fetch, `/api/anchor/${provider}/quotes`, body);
@@ -166,6 +180,7 @@ export interface CreateOnRampOptions {
     toCurrency: string;
     amount: string;
     memo?: string;
+    bankAccountId?: string;
 }
 
 /**
@@ -341,11 +356,11 @@ export async function getKycStatus(
     fetch: Fetch,
     provider: string,
     customerId: string,
+    publicKey?: string,
 ): Promise<string> {
-    const data = await apiRequest<{ status: string }>(
-        fetch,
-        `/api/anchor/${provider}/kyc?customerId=${customerId}&type=status`,
-    );
+    let url = `/api/anchor/${provider}/kyc?customerId=${customerId}&type=status`;
+    if (publicKey) url += `&publicKey=${encodeURIComponent(publicKey)}`;
+    const data = await apiRequest<{ status: string }>(fetch, url);
     return data.status;
 }
 
@@ -356,11 +371,11 @@ export async function getKycIframeUrl(
     fetch: Fetch,
     provider: string,
     customerId: string,
+    publicKey?: string,
 ): Promise<string> {
-    const data = await apiRequest<{ url: string }>(
-        fetch,
-        `/api/anchor/${provider}/kyc?customerId=${customerId}&type=iframe`,
-    );
+    let url = `/api/anchor/${provider}/kyc?customerId=${customerId}&type=iframe`;
+    if (publicKey) url += `&publicKey=${encodeURIComponent(publicKey)}`;
+    const data = await apiRequest<{ url: string }>(fetch, url);
     return data.url;
 }
 

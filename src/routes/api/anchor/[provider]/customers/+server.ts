@@ -17,14 +17,14 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     try {
         const body = await request.json();
-        const { email, country = 'MX' } = body;
+        const { email, country = 'MX', publicKey } = body;
 
         if (!email) {
             throw error(400, { message: 'email is required' });
         }
 
         const anchor = getAnchor(provider);
-        const customer = await anchor.createCustomer({ email, country });
+        const customer = await anchor.createCustomer({ email, country, publicKey });
 
         return json(customer, { status: 201 });
     } catch (err) {

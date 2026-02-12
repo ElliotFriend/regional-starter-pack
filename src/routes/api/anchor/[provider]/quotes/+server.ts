@@ -16,7 +16,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     try {
         const body = await request.json();
-        const { fromCurrency, toCurrency, fromAmount, toAmount } = body;
+        const { fromCurrency, toCurrency, fromAmount, toAmount, customerId, stellarAddress } = body;
 
         if (!fromCurrency || !toCurrency) {
             throw error(400, { message: 'fromCurrency and toCurrency are required' });
@@ -32,6 +32,8 @@ export const POST: RequestHandler = async ({ params, request }) => {
             toCurrency,
             fromAmount,
             toAmount,
+            customerId,
+            stellarAddress,
         });
 
         return json(quote);

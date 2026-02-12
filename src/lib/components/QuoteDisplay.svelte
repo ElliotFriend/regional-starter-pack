@@ -11,16 +11,22 @@
     let { quote, onRefresh, isRefreshing = false }: Props = $props();
 
     // Common digital assets that should show more decimal places
-    const CRYPTO_CURRENCIES = ['USDC', 'EURC', 'XLM', 'BTC', 'ETH', 'USDT'];
+    const CRYPTO_CURRENCIES = ['USDC', 'EURC', 'XLM', 'BTC', 'ETH', 'USDT', 'CETES'];
+
+    /** Strip the issuer from a `CODE:ISSUER` asset string. */
+    function displayCurrency(currency: string): string {
+        return currency.split(':')[0];
+    }
 
     function formatCurrency(amount: string, currency: string): string {
         const num = parseFloat(amount);
+        const code = displayCurrency(currency);
         // For digital assets, show more decimal places
-        if (CRYPTO_CURRENCIES.includes(currency)) {
-            return `${num.toFixed(7)} ${currency}`;
+        if (CRYPTO_CURRENCIES.includes(code)) {
+            return `${num.toFixed(7)} ${code}`;
         }
         // For fiat currencies, use locale formatting with 2 decimal places
-        return `${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+        return `${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${code}`;
     }
 
     function calculateExpiresIn(expiresAt: string): string {
@@ -94,7 +100,7 @@
             <div class="flex justify-between text-sm">
                 <span class="text-gray-500">Exchange rate</span>
                 <span class="text-gray-700"
-                    >1 {quote.toCurrency} = {quote.exchangeRate} {quote.fromCurrency}</span
+                    >1 {displayCurrency(quote.toCurrency)} ≈ {parseFloat(quote.exchangeRate).toFixed(7)} {displayCurrency(quote.fromCurrency)}</span
                 >
             </div>
 

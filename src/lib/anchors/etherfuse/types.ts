@@ -34,20 +34,28 @@ export interface EtherfuseOnboardingRequest {
     blockchain: string;
 }
 
+/** Quote asset pair with ramp direction. */
+export interface EtherfuseQuoteAssets {
+    /** Ramp direction. */
+    type: 'onramp' | 'offramp' | 'swap';
+    /** Source asset — fiat code for on-ramp, `CODE:ISSUER` for off-ramp. */
+    sourceAsset: string;
+    /** Target asset — `CODE:ISSUER` for on-ramp, fiat code for off-ramp. */
+    targetAsset: string;
+}
+
 /** Request body for `POST /ramp/quote`. */
 export interface EtherfuseQuoteRequest {
     /** Partner-generated UUID for this quote. */
     quoteId: string;
-    /** Source currency code (e.g. `"MXN"`). */
-    fromCurrency: string;
-    /** Destination asset in `CODE:ISSUER` format (e.g. `"CETES:GCRYUGD5..."`). */
-    toCurrency: string;
-    /** Amount in the source currency. */
-    fromAmount?: string;
-    /** Amount in the destination currency. */
-    toAmount?: string;
+    /** Customer UUID. */
+    customerId: string;
     /** Blockchain identifier (e.g. `"stellar"`). */
     blockchain: string;
+    /** Asset pair and ramp direction. */
+    quoteAssets: EtherfuseQuoteAssets;
+    /** Amount of the source asset to convert. */
+    sourceAmount: string;
 }
 
 /** Request body for `POST /ramp/order` (on-ramp). */
@@ -164,18 +172,28 @@ export interface EtherfuseOnboardingResponse {
 export interface EtherfuseQuoteResponse {
     /** Quote ID echoed back. */
     quoteId: string;
-    /** Source currency code. */
-    fromCurrency: string;
-    /** Destination asset in `CODE:ISSUER` format. */
-    toCurrency: string;
-    /** Amount in the source currency. */
-    fromAmount: string;
-    /** Amount in the destination currency. */
-    toAmount: string;
+    /** Customer ID echoed back. */
+    customerId: string;
+    /** Blockchain identifier. */
+    blockchain: string;
+    /** Asset pair and ramp direction. */
+    quoteAssets: EtherfuseQuoteAssets;
+    /** Amount of the source asset. */
+    sourceAmount: string;
+    /** Converted amount of the destination asset. */
+    destinationAmount: string;
     /** Exchange rate as a decimal string. */
     exchangeRate: string;
-    /** Total fee as a decimal string. */
-    fee: string;
+    /** Fee in basis points. */
+    feeBps: string | null;
+    /** Fee amount. */
+    feeAmount: string | null;
+    /** Destination amount after fee deduction. */
+    destinationAmountAfterFee: string | null;
+    /** ISO 8601 creation timestamp. */
+    createdAt: string;
+    /** ISO 8601 last-update timestamp. */
+    updatedAt: string;
     /** ISO 8601 expiration timestamp. */
     expiresAt: string;
 }
@@ -332,27 +350,31 @@ export interface EtherfuseBankAccountListItem {
 /** Paginated response from `POST /ramp/customer/{id}/bank-accounts`. */
 export interface EtherfuseBankAccountListResponse {
     /** List of bank accounts. */
-    bankAccounts: EtherfuseBankAccountListItem[];
+    items: EtherfuseBankAccountListItem[];
     /** Total number of bank accounts. */
-    total: number;
-    /** Current page number. */
-    page: number;
+    totalItems: number;
     /** Number of items per page. */
     pageSize: number;
+    /** Current page number (0-indexed). */
+    pageNumber: number;
+    /** Total number of pages. */
+    totalPages: number;
 }
 
-/** Rampable asset returned by the assets endpoint. */
+/** Rampable asset returned by `GET /ramp/assets`. */
 export interface EtherfuseAsset {
-    /** Asset code (e.g. `"CETES"`). */
-    code: string;
-    /** Asset issuer (Stellar public key). */
-    issuer: string;
+    /** Token symbol (e.g. `"CETES"`). */
+    symbol: string;
+    /** Full asset identifier for use in quotes/orders (e.g. `"CETES:GCRYUGD5..."`). */
+    identifier: string;
     /** Human-readable asset name. */
     name: string;
-    /** Blockchain identifier. */
-    blockchain: string;
-    /** Supported fiat currencies for this asset. */
-    currencies: string[];
+    /** Associated fiat currency, if any. */
+    currency: string | null;
+    /** Wallet balance for this asset, if a wallet was provided. */
+    balance: string | null;
+    /** Asset image URL. */
+    image: string | null;
 }
 
 /** Response from `GET /ramp/assets`. */

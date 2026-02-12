@@ -15,6 +15,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
     const customerId = url.searchParams.get('customerId');
     const type = url.searchParams.get('type') || 'status';
     const country = url.searchParams.get('country') || 'MX';
+    const publicKey = url.searchParams.get('publicKey') || undefined;
 
     if (!isValidProvider(provider)) {
         throw error(400, { message: `Invalid provider: ${provider}` });
@@ -57,7 +58,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
         }
 
         if (type === 'iframe') {
-            const iframeUrl = await anchor.getKycIframeUrl(customerId!);
+            const iframeUrl = await anchor.getKycIframeUrl(customerId!, publicKey);
             return json({ url: iframeUrl });
         }
 
@@ -65,7 +66,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
         if (!customerId) {
             throw error(400, { message: 'customerId query parameter is required' });
         }
-        const status = await anchor.getKycStatus(customerId);
+        const status = await anchor.getKycStatus(customerId, publicKey);
         return json({ status });
     } catch (err) {
         if (err instanceof AnchorError) {

@@ -29,6 +29,7 @@ export const DEFAULT_COUNTRY = 'MX';
 // Provider names
 export const PROVIDER = {
     ALFREDPAY: 'alfredpay',
+    ETHERFUSE: 'etherfuse',
 } as const;
 
 // KYC statuses (internal)

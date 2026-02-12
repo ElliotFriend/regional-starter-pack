@@ -17,16 +17,28 @@ Usage:
     import { customerStore } from '$lib/stores/customer.svelte';
     import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
+    import { signWithFreighter } from '$lib/wallet/freighter';
+    import {
+        submitTransaction,
+        getUsdcAsset,
+        getStellarAsset,
+        checkTrustline,
+        buildTrustlineTransaction,
+    } from '$lib/wallet/stellar';
+    import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
+    import type { StellarNetwork } from '$lib/wallet/types';
     import { getStatusColor } from '$lib/utils/status';
     import { PROVIDER, CURRENCY, TX_STATUS } from '$lib/constants';
+    import { getToken } from '$lib/config/regions';
     import * as api from '$lib/api/anchor';
     import type { Quote, OnRampTransaction } from '$lib/anchors/types';
 
     interface Props {
         provider?: string;
+        toCurrency?: string;
     }
 
-    let { provider = PROVIDER.ALFREDPAY }: Props = $props();
+    let { provider = PROVIDER.ALFREDPAY, toCurrency = CURRENCY.USDC }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');
@@ -40,6 +52,59 @@ Usage:
     // Steps: 'input' | 'quote' | 'payment' | 'complete'
     let step = $state<'input' | 'quote' | 'payment' | 'complete'>('input');
 
+    // Trustline state
+    let hasTrustline = $state(false);
+    let isCheckingBalance = $state(true);
+    let isSigning = $state(false);
+
+    const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
+
+    // Resolve the Stellar asset from the toCurrency token config
+    const stellarAsset = $derived.by(() => {
+        const tokenConfig = getToken(toCurrency);
+        return tokenConfig?.issuer
+            ? getStellarAsset(tokenConfig.symbol, tokenConfig.issuer)
+            : getUsdcAsset(PUBLIC_USDC_ISSUER);
+    });
+    $inspect('stellarAsset', stellarAsset)
+
+    async function checkTrustlineStatus() {
+        if (!walletStore.publicKey) return;
+
+        isCheckingBalance = true;
+        try {
+            const result = await checkTrustline(walletStore.publicKey, stellarAsset, network);
+            hasTrustline = result.hasTrustline;
+        } catch (e) {
+            console.error('Failed to check trustline:', e);
+        } finally {
+            isCheckingBalance = false;
+        }
+    }
+
+    async function addTrustline() {
+        if (!walletStore.publicKey) return;
+
+        isSigning = true;
+        try {
+            const xdr = await buildTrustlineTransaction({
+                sourcePublicKey: walletStore.publicKey,
+                asset: stellarAsset,
+                network,
+            });
+
+            const signed = await signWithFreighter(xdr, network);
+            await submitTransaction(signed.signedXdr, network);
+
+            // Refresh trustline status
+            await checkTrustlineStatus();
+        } catch (e) {
+            console.error('Failed to add trustline:', e);
+        } finally {
+            isSigning = false;
+        }
+    }
+
     async function getQuote() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
@@ -49,8 +114,10 @@ Usage:
         try {
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency: CURRENCY.FIAT,
-                toCurrency: CURRENCY.USDC,
+                toCurrency,
                 amount,
+                customerId: customerStore.current?.id,
+                stellarAddress: walletStore.publicKey ?? undefined,
             });
             step = 'quote';
         } catch (err) {
@@ -66,8 +133,10 @@ Usage:
         try {
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency: CURRENCY.FIAT,
-                toCurrency: CURRENCY.USDC,
+                toCurrency,
                 amount,
+                customerId: customerStore.current?.id,
+                stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to refresh quote';
@@ -91,6 +160,7 @@ Usage:
                 fromCurrency: quote.fromCurrency,
                 toCurrency: quote.toCurrency,
                 amount: quote.fromAmount,
+                // bankAccountId: customer,
             });
             step = 'payment';
             startPolling();
@@ -146,6 +216,7 @@ Usage:
     }
 
     onMount(() => {
+        checkTrustlineStatus();
         return () => stopPolling();
     });
 </script>
@@ -157,6 +228,27 @@ Usage:
             <p class="mt-1 text-sm text-gray-500">
                 Enter the amount of local currency you want to convert to digital assets.
             </p>
+
+            {#if walletStore.isConnected}
+                <div class="mt-4 rounded-md bg-gray-50 p-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-500">Trustline Status</span>
+                        {#if isCheckingBalance}
+                            <span class="text-sm text-gray-400">Checking...</span>
+                        {:else if hasTrustline}
+                            <span class="text-sm font-medium text-green-600">Ready</span>
+                        {:else}
+                            <button
+                                onclick={addTrustline}
+                                disabled={isSigning}
+                                class="text-sm text-indigo-600 hover:text-indigo-800"
+                            >
+                                {isSigning ? 'Adding...' : 'Add Trustline'}
+                            </button>
+                        {/if}
+                    </div>
+                </div>
+            {/if}
 
             <div class="mt-6">
                 <label for="amount" class="block text-sm font-medium text-gray-700"
@@ -182,7 +274,7 @@ Usage:
 
             <button
                 onclick={getQuote}
-                disabled={!amount || isGettingQuote || !walletStore.isConnected}
+                disabled={!amount || isGettingQuote || !walletStore.isConnected || !hasTrustline}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 {isGettingQuote ? 'Getting Quote...' : 'Get Quote'}

@@ -17,6 +17,8 @@ export interface Customer {
     id: string;
     email: string;
     kycStatus: KycStatus;
+    /** Bank account ID — generated at registration time for providers that require it (e.g. Etherfuse). */
+    bankAccountId?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -90,6 +92,7 @@ export interface OffRampTransaction {
 export interface CreateCustomerInput {
     email: string;
     country?: string;
+    publicKey?: string;
 }
 
 export interface GetQuoteInput {
@@ -97,6 +100,10 @@ export interface GetQuoteInput {
     toCurrency: string;
     fromAmount?: string;
     toAmount?: string;
+    /** Customer ID — required by some providers for quote generation. */
+    customerId?: string;
+    /** Wallet address — used by some providers to resolve asset identifiers. */
+    stellarAddress?: string;
 }
 
 export interface CreateOnRampInput {
@@ -107,6 +114,8 @@ export interface CreateOnRampInput {
     toCurrency: string;
     amount: string;
     memo?: string;
+    /** Bank account ID — required by some providers (e.g. Etherfuse). */
+    bankAccountId?: string;
 }
 
 export interface FiatAccountInput {
@@ -171,8 +180,8 @@ export interface Anchor {
     createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
     getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
 
-    getKycIframeUrl(customerId: string): Promise<string>;
-    getKycStatus(customerId: string): Promise<KycStatus>;
+    getKycIframeUrl(customerId: string, publicKey?: string): Promise<string>;
+    getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
 }
 
 export class AnchorError extends Error {

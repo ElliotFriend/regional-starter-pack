@@ -40,6 +40,13 @@ export function getUsdcAsset(issuer: string): Asset {
 }
 
 /**
+ * Get a Stellar Asset by code and issuer
+ */
+export function getStellarAsset(code: string, issuer: string): Asset {
+    return new Asset(code, issuer);
+}
+
+/**
  * Build a payment transaction
  */
 export async function buildPaymentTransaction(options: {

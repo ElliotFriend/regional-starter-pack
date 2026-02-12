@@ -29,6 +29,11 @@ export interface AnchorCapability {
     maxAmount?: string;
 }
 
+export interface AnchorCapabilities {
+    supportsEmailLookup: boolean; // Can find customers by email?
+    kycFlow: 'form' | 'iframe'; // form = AlfredPay-style, iframe = onboarding URL
+}
+
 export interface Anchor {
     id: string;
     name: string;
@@ -36,6 +41,7 @@ export interface Anchor {
     website: string;
     documentation: string;
     logo?: string;
+    capabilities: AnchorCapabilities;
     regions: Record<string, AnchorCapability>; // keyed by region ID
 }
 
@@ -73,7 +79,7 @@ export const TOKENS: Record<string, Token> = {
     USDC: {
         symbol: 'USDC',
         name: 'USD Coin',
-        issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN', // Circle USDC issuer on Stellar
+        issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN', // Circle USDC issuer on Testnet
         description: 'A fully-reserved stablecoin pegged 1:1 to the US Dollar',
     },
     XLM: {
@@ -84,7 +90,7 @@ export const TOKENS: Record<string, Token> = {
     CETES: {
         symbol: 'CETES',
         name: 'Etherfuse CETES',
-        issuer: 'GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC',
+        issuer: 'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4', // Etherfuse issuer on Testnet
         description: 'Etherfuse CETES, officially known as Mexican Federal Treasury Certificates, are Mexico\'s oldest short-term debt securities issued by the Ministry of Finance.'
     },
 };
@@ -101,6 +107,10 @@ export const ANCHORS: Record<string, Anchor> = {
             'Alfred Pay provides fiat on/off ramp services across Latin America, enabling seamless conversion between local currencies and digital assets on the Stellar network.',
         website: 'https://alfredpay.io',
         documentation: 'https://alfredpay.readme.io',
+        capabilities: {
+            supportsEmailLookup: true,
+            kycFlow: 'form',
+        },
         regions: {
             mexico: {
                 onRamp: true,
@@ -118,6 +128,10 @@ export const ANCHORS: Record<string, Anchor> = {
             'Etherfuse bridges traditional finance and decentralized finance, making financial systems more inclusive, transparent, and efficient for everyone.',
         website: 'https://www.etherfuse.com',
         documentation: 'https://docs.etherfuse.com',
+        capabilities: {
+            supportsEmailLookup: false,
+            kycFlow: 'iframe',
+        },
         regions: {
             mexico: {
                 onRamp: true,

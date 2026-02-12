@@ -23,6 +23,7 @@ Usage:
         buildPaymentTransaction,
         submitTransaction,
         getUsdcAsset,
+        getStellarAsset,
         checkTrustline,
         buildTrustlineTransaction,
     } from '$lib/wallet/stellar';
@@ -31,13 +32,15 @@ Usage:
     import type { Quote, OffRampTransaction, SavedFiatAccount } from '$lib/anchors/types';
     import { getStatusColor } from '$lib/utils/status';
     import { PROVIDER, CURRENCY, TX_STATUS } from '$lib/constants';
+    import { getToken } from '$lib/config/regions';
     import * as api from '$lib/api/anchor';
 
     interface Props {
         provider?: string;
+        fromCurrency?: string;
     }
 
-    let { provider = PROVIDER.ALFREDPAY }: Props = $props();
+    let { provider = PROVIDER.ALFREDPAY, fromCurrency = CURRENCY.USDC }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');
@@ -64,22 +67,29 @@ Usage:
     // Steps: 'input' | 'quote' | 'bank' | 'signing' | 'pending' | 'complete'
     let step = $state<'input' | 'quote' | 'bank' | 'signing' | 'pending' | 'complete'>('input');
 
-    // USDC balance
-    let usdcBalance = $state('0');
+    // Asset balance
+    let assetBalance = $state('0');
     let hasTrustline = $state(false);
     let isCheckingBalance = $state(true);
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
-    const usdcAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
+
+    // Resolve the Stellar asset from the fromCurrency token config
+    const stellarAsset = $derived.by(() => {
+        const tokenConfig = getToken(fromCurrency);
+        return tokenConfig?.issuer
+            ? getStellarAsset(tokenConfig.symbol, tokenConfig.issuer)
+            : getUsdcAsset(PUBLIC_USDC_ISSUER);
+    });
 
     async function checkBalance() {
         if (!walletStore.publicKey) return;
 
         isCheckingBalance = true;
         try {
-            const result = await checkTrustline(walletStore.publicKey, usdcAsset, network);
+            const result = await checkTrustline(walletStore.publicKey, stellarAsset, network);
             hasTrustline = result.hasTrustline;
-            usdcBalance = result.balance;
+            assetBalance = result.balance;
         } catch (e) {
             console.error('Failed to check balance:', e);
         } finally {
@@ -94,7 +104,7 @@ Usage:
         try {
             const xdr = await buildTrustlineTransaction({
                 sourcePublicKey: walletStore.publicKey,
-                asset: usdcAsset,
+                asset: stellarAsset,
                 network,
             });
 
@@ -118,9 +128,11 @@ Usage:
 
         try {
             quote = await api.getQuote(fetch, provider, {
-                fromCurrency: CURRENCY.USDC,
+                fromCurrency,
                 toCurrency: CURRENCY.FIAT,
                 amount,
+                customerId: customerStore.current?.id,
+                stellarAddress: walletStore.publicKey ?? undefined,
             });
             step = 'quote';
         } catch (err) {
@@ -135,9 +147,11 @@ Usage:
         isGettingQuote = true;
         try {
             quote = await api.getQuote(fetch, provider, {
-                fromCurrency: CURRENCY.USDC,
+                fromCurrency,
                 toCurrency: CURRENCY.FIAT,
                 amount,
+                customerId: customerStore.current?.id,
+                stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to refresh quote';
@@ -228,20 +242,25 @@ Usage:
             transaction = tx;
             step = 'signing';
 
-            // Now sign and send the USDC transaction
+            // Now sign and send the transaction
             isSigning = true;
 
-            // The destination is the anchor's receiving address
-            const anchorAddress = tx.stellarAddress;
-
-            const xdr = await buildPaymentTransaction({
-                sourcePublicKey: walletStore.publicKey,
-                destinationPublicKey: anchorAddress,
-                asset: usdcAsset,
-                amount: String(amount),
-                memo: tx.memo || '',
-                network,
-            });
+            let xdr: string;
+            if (tx.signableTransaction) {
+                // Use pre-built transaction from the anchor (e.g. Etherfuse burn)
+                xdr = tx.signableTransaction;
+            } else {
+                // Build a payment transaction to the anchor's receiving address
+                const anchorAddress = tx.stellarAddress;
+                xdr = await buildPaymentTransaction({
+                    sourcePublicKey: walletStore.publicKey,
+                    destinationPublicKey: anchorAddress,
+                    asset: stellarAsset,
+                    amount: String(amount),
+                    memo: tx.memo || '',
+                    network,
+                });
+            }
 
             const signed = await signWithFreighter(xdr, network);
             await submitTransaction(signed.signedXdr, network);
@@ -330,7 +349,7 @@ Usage:
                             <span class="text-sm text-gray-400">Loading...</span>
                         {:else if hasTrustline}
                             <span class="font-medium"
-                                >{parseFloat(usdcBalance).toFixed(2)} {CURRENCY.USDC}</span
+                                >{parseFloat(assetBalance).toFixed(2)} {fromCurrency}</span
                             >
                         {:else}
                             <button
@@ -347,7 +366,7 @@ Usage:
 
             <div class="mt-6">
                 <label for="amount" class="block text-sm font-medium text-gray-700"
-                    >Amount ({CURRENCY.USDC})</label
+                    >Amount ({fromCurrency})</label
                 >
                 <input
                     type="number"
@@ -356,10 +375,10 @@ Usage:
                     placeholder="100"
                     min="1"
                     step="1"
-                    max={usdcBalance}
+                    max={assetBalance}
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
-                {#if parseFloat(amount) > parseFloat(usdcBalance)}
+                {#if parseFloat(amount) > parseFloat(assetBalance)}
                     <p class="mt-1 text-sm text-red-600">Insufficient balance</p>
                 {/if}
             </div>
@@ -370,7 +389,7 @@ Usage:
                     isGettingQuote ||
                     !walletStore.isConnected ||
                     !hasTrustline ||
-                    parseFloat(amount) > parseFloat(usdcBalance)}
+                    parseFloat(amount) > parseFloat(assetBalance)}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 {isGettingQuote ? 'Getting Quote...' : 'Get Quote'}

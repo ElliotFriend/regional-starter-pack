@@ -5,6 +5,7 @@
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { KycStatus } from '$lib/anchors/types';
+    import type { AnchorCapabilities } from '$lib/config/regions';
     import * as api from '$lib/api/anchor';
 
     interface Props {
@@ -12,10 +13,11 @@
         title: string;
         description: string;
         connectMessage: string;
+        capabilities: AnchorCapabilities;
         children: Snippet;
     }
 
-    let { provider, title, description, connectMessage, children }: Props = $props();
+    let { provider, title, description, connectMessage, capabilities, children }: Props = $props();
 
     // Local UI state
     let email = $state('');
@@ -25,6 +27,21 @@
     let showKyc = $state(false);
     let kycSubmissionId = $state<string | null>(null);
     let isCompletingKyc = $state(false);
+
+    // Iframe KYC state (for providers with kycFlow: 'iframe')
+    let kycIframeUrl = $state<string | null>(null);
+    let isLoadingIframeUrl = $state(false);
+    let isRefreshingKycStatus = $state(false);
+
+    // Hydrate customer from localStorage when wallet connects (or switches)
+    $effect(() => {
+        const pk = walletStore.publicKey;
+        if (pk) {
+            customerStore.load(pk);
+        } else {
+            customerStore.clear();
+        }
+    });
 
     // Derived step based on wallet/customer/kyc state
     let currentStep = $derived.by(() => {
@@ -42,26 +59,38 @@
         registrationError = null;
 
         try {
-            // Get or create customer
-            const customer = await api.getOrCreateCustomer(fetch, provider, email, country);
+            // Get or create customer — skip email lookup for providers that don't support it
+            const customer = await api.getOrCreateCustomer(fetch, provider, email, country, {
+                supportsEmailLookup: capabilities.supportsEmailLookup,
+                publicKey: walletStore.publicKey,
+            });
             customerStore.set(customer);
 
-            // Check for existing KYC submission
-            const kycStatus = await checkAndUpdateKycStatus();
-
-            // Try to get submission ID for sandbox completion
-            try {
-                const submission = await api.getKycSubmission(fetch, provider, customer.id);
-                if (submission) {
-                    kycSubmissionId = submission.submissionId;
+            if (capabilities.kycFlow === 'iframe') {
+                // For iframe-based KYC, check status and load iframe URL if needed
+                const kycStatus = await checkIframeKycStatus(customer.id);
+                if (kycStatus !== KYC_STATUS.APPROVED) {
+                    showKyc = true;
+                    await loadKycIframeUrl(customer.id);
                 }
-            } catch {
-                // Ignore - submission may not exist
-            }
+            } else {
+                // For form-based KYC (AlfredPay path)
+                const kycStatus = await checkAndUpdateKycStatus();
 
-            // Show KYC form if not approved or pending
-            if (kycStatus !== KYC_STATUS.APPROVED && kycStatus !== KYC_STATUS.PENDING) {
-                showKyc = true;
+                // Try to get submission ID for sandbox completion
+                try {
+                    const submission = await api.getKycSubmission(fetch, provider, customer.id);
+                    if (submission) {
+                        kycSubmissionId = submission.submissionId;
+                    }
+                } catch {
+                    // Ignore - submission may not exist
+                }
+
+                // Show KYC form if not approved or pending
+                if (kycStatus !== KYC_STATUS.APPROVED && kycStatus !== KYC_STATUS.PENDING) {
+                    showKyc = true;
+                }
             }
         } catch (err) {
             registrationError = err instanceof Error ? err.message : 'Registration failed';
@@ -115,6 +144,43 @@
             return KYC_STATUS.NOT_STARTED;
         } catch {
             return customer.kycStatus || KYC_STATUS.NOT_STARTED;
+        }
+    }
+
+    async function loadKycIframeUrl(customerId: string) {
+        isLoadingIframeUrl = true;
+        try {
+            kycIframeUrl = await api.getKycIframeUrl(fetch, provider, customerId, walletStore.publicKey ?? undefined);
+        } catch (err) {
+            console.error('Failed to load KYC iframe URL:', err);
+        } finally {
+            isLoadingIframeUrl = false;
+        }
+    }
+
+    async function checkIframeKycStatus(customerId: string): Promise<string> {
+        try {
+            const status = await api.getKycStatus(fetch, provider, customerId, walletStore.publicKey ?? undefined);
+            const mapped = status as KycStatus;
+            customerStore.updateKycStatus(mapped);
+            return mapped;
+        } catch {
+            return KYC_STATUS.NOT_STARTED;
+        }
+    }
+
+    async function handleRefreshIframeKycStatus() {
+        const customer = customerStore.current;
+        if (!customer) return;
+
+        isRefreshingKycStatus = true;
+        try {
+            const status = await checkIframeKycStatus(customer.id);
+            if (status === KYC_STATUS.APPROVED) {
+                showKyc = false;
+            }
+        } finally {
+            isRefreshingKycStatus = false;
         }
     }
 
@@ -227,18 +293,53 @@
                 {/if}
             </div>
         {:else if currentStep === 'kyc'}
-            <KycStatusDisplay
-                {provider}
-                customer={customerStore.current}
-                email={customerStore.current?.email || email}
-                {showKyc}
-                {kycSubmissionId}
-                {isCompletingKyc}
-                onKycComplete={handleKycComplete}
-                onSandboxComplete={handleSandboxComplete}
-                onShowKyc={() => (showKyc = true)}
-                onRefreshStatus={handleRefreshKycStatus}
-            />
+            {#if capabilities.kycFlow === 'iframe'}
+                <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <h2 class="text-lg font-semibold text-gray-900">Complete Verification</h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Complete the verification process below to continue.
+                    </p>
+
+                    {#if isLoadingIframeUrl}
+                        <div class="mt-6 flex items-center justify-center py-8">
+                            <div
+                                class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                            ></div>
+                            <span class="ml-2 text-sm text-gray-500">Loading verification...</span>
+                        </div>
+                    {:else if kycIframeUrl}
+                        <div class="mt-4 overflow-hidden rounded-md border border-gray-200">
+                            <iframe
+                                src={kycIframeUrl}
+                                title="KYC Verification"
+                                class="h-[600px] w-full"
+                                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                            ></iframe>
+                        </div>
+                    {/if}
+
+                    <button
+                        onclick={handleRefreshIframeKycStatus}
+                        disabled={isRefreshingKycStatus}
+                        class="mt-4 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isRefreshingKycStatus ? 'Checking...' : 'Refresh KYC Status'}
+                    </button>
+                </div>
+            {:else}
+                <KycStatusDisplay
+                    {provider}
+                    customer={customerStore.current}
+                    email={customerStore.current?.email || email}
+                    {showKyc}
+                    {kycSubmissionId}
+                    {isCompletingKyc}
+                    onKycComplete={handleKycComplete}
+                    onSandboxComplete={handleSandboxComplete}
+                    onShowKyc={() => (showKyc = true)}
+                    onRefreshStatus={handleRefreshKycStatus}
+                />
+            {/if}
         {:else}
             {@render children()}
         {/if}
