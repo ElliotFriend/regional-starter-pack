@@ -9,6 +9,7 @@ import type { RequestHandler } from './$types';
 import { getAnchor, isValidProvider, AnchorError } from '$lib/anchors';
 import { AlfredPayClient } from '$lib/anchors/alfredpay/client';
 import type { AlfredPayKycFileType } from '$lib/anchors/alfredpay/types';
+import { BlindPayClient } from '$lib/anchors/blindpay/client';
 
 export const GET: RequestHandler = async ({ params, url }) => {
     const { provider } = params;
@@ -23,6 +24,15 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
     try {
         const anchor = getAnchor(provider);
+
+        if (type === 'tos') {
+            if (anchor instanceof BlindPayClient) {
+                const redirectUrl = url.searchParams.get('redirectUrl') || undefined;
+                const tosUrl = await anchor.generateTosUrl(redirectUrl);
+                return json({ url: tosUrl });
+            }
+            throw error(400, { message: 'Provider does not support ToS URL generation' });
+        }
 
         if (type === 'requirements') {
             if (anchor instanceof AlfredPayClient) {
@@ -86,6 +96,17 @@ export const POST: RequestHandler = async ({ params, url, request }) => {
 
     try {
         const anchor = getAnchor(provider);
+
+        // BlindPay receiver creation (combined customer + KYC)
+        if (type === 'receiver') {
+            if (!(anchor instanceof BlindPayClient)) {
+                throw error(400, { message: 'Provider does not support receiver creation' });
+            }
+
+            const body = await request.json();
+            const receiver = await anchor.createReceiver(body);
+            return json(receiver);
+        }
 
         if (!(anchor instanceof AlfredPayClient)) {
             throw error(400, { message: 'Provider does not support KYC submission' });

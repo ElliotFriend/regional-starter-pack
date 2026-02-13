@@ -120,6 +120,16 @@ Usage:
         }
     }
 
+    /** Build the customerId for quote requests. BlindPay expects "receiverId:bankAccountId". */
+    function getQuoteCustomerId(bankAccountId?: string): string | undefined {
+        const customer = customerStore.current;
+        if (!customer) return undefined;
+        if (provider === PROVIDER.BLINDPAY && bankAccountId) {
+            return `${customer.id}:${bankAccountId}`;
+        }
+        return customer.id;
+    }
+
     async function getQuote_() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
@@ -131,7 +141,7 @@ Usage:
                 fromCurrency,
                 toCurrency: CURRENCY.FIAT,
                 amount,
-                customerId: customerStore.current?.id,
+                customerId: getQuoteCustomerId(),
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
             step = 'quote';
@@ -150,7 +160,7 @@ Usage:
                 fromCurrency,
                 toCurrency: CURRENCY.FIAT,
                 amount,
-                customerId: customerStore.current?.id,
+                customerId: getQuoteCustomerId(),
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
@@ -263,7 +273,20 @@ Usage:
             }
 
             const signed = await signWithFreighter(xdr, network);
-            await submitTransaction(signed.signedXdr, network);
+
+            if (provider === PROVIDER.BLINDPAY) {
+                // BlindPay: submit signed XDR back to BlindPay (step 2 of 2)
+                await api.submitSignedPayout(
+                    fetch,
+                    provider,
+                    quote.id,
+                    signed.signedXdr,
+                    walletStore.publicKey,
+                );
+            } else {
+                // Other providers: submit directly to the Stellar network
+                await submitTransaction(signed.signedXdr, network);
+            }
 
             step = 'pending';
             startPolling();

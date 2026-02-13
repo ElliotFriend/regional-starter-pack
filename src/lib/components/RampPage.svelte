@@ -1,8 +1,10 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import type { Snippet } from 'svelte';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
+    import BlindPayReceiverForm from '$lib/components/BlindPayReceiverForm.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { KycStatus } from '$lib/anchors/types';
     import type { AnchorCapabilities } from '$lib/config/regions';
@@ -33,11 +35,33 @@
     let isLoadingIframeUrl = $state(false);
     let isRefreshingKycStatus = $state(false);
 
+    // Redirect KYC state (for providers with kycFlow: 'redirect', e.g. BlindPay)
+    let tosId = $state<string | null>(null);
+    let redirectKycStep = $state<'tos' | 'receiver_form' | 'polling'>('tos');
+    let isRedirectingToTos = $state(false);
+
+    // Detect ToS redirect callback on mount
+    onMount(() => {
+        if (capabilities.kycFlow === 'redirect' && typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const returnedTosId = params.get('tos_id');
+            if (returnedTosId) {
+                tosId = returnedTosId;
+                redirectKycStep = 'receiver_form';
+                showKyc = true;
+                // Clean the URL
+                const url = new URL(window.location.href);
+                url.searchParams.delete('tos_id');
+                window.history.replaceState({}, '', url.toString());
+            }
+        }
+    });
+
     // Hydrate customer from localStorage when wallet connects (or switches)
     $effect(() => {
         const pk = walletStore.publicKey;
         if (pk) {
-            customerStore.load(pk);
+            customerStore.load(pk, provider);
         } else {
             customerStore.clear();
         }
@@ -66,7 +90,11 @@
             });
             customerStore.set(customer);
 
-            if (capabilities.kycFlow === 'iframe') {
+            if (capabilities.kycFlow === 'redirect') {
+                // For redirect-based KYC (BlindPay): redirect to ToS page
+                showKyc = true;
+                redirectKycStep = 'tos';
+            } else if (capabilities.kycFlow === 'iframe') {
                 // For iframe-based KYC, check status and load iframe URL if needed
                 const kycStatus = await checkIframeKycStatus(customer.id);
                 if (kycStatus !== KYC_STATUS.APPROVED) {
@@ -97,6 +125,41 @@
             console.error('Registration failed:', err);
         } finally {
             isRegistering = false;
+        }
+    }
+
+    async function redirectToTos() {
+        isRedirectingToTos = true;
+        try {
+            const tosUrl = await api.getBlindPayTosUrl(fetch, provider, window.location.href);
+            window.location.href = tosUrl;
+        } catch (err) {
+            registrationError = err instanceof Error ? err.message : 'Failed to get ToS URL';
+            isRedirectingToTos = false;
+        }
+    }
+
+    function handleReceiverFormComplete() {
+        // Receiver was created — now poll for KYC approval
+        redirectKycStep = 'polling';
+    }
+
+    async function handleRefreshRedirectKycStatus() {
+        const customer = customerStore.current;
+        if (!customer) return;
+
+        isRefreshingKycStatus = true;
+        try {
+            const status = await api.getKycStatus(fetch, provider, customer.id);
+            const mapped = status as KycStatus;
+            customerStore.updateKycStatus(mapped);
+            if (mapped === KYC_STATUS.APPROVED) {
+                showKyc = false;
+            }
+        } catch (err) {
+            console.error('Failed to refresh KYC status:', err);
+        } finally {
+            isRefreshingKycStatus = false;
         }
     }
 
@@ -293,7 +356,61 @@
                 {/if}
             </div>
         {:else if currentStep === 'kyc'}
-            {#if capabilities.kycFlow === 'iframe'}
+            {#if capabilities.kycFlow === 'redirect'}
+                {#if redirectKycStep === 'tos'}
+                    <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+                        <div
+                            class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
+                        >
+                            <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h2 class="mt-4 text-lg font-semibold text-gray-900">Accept Terms of Service</h2>
+                        <p class="mt-2 text-sm text-gray-500">
+                            You'll be redirected to BlindPay to accept their Terms of Service.
+                            After accepting, you'll return here to complete verification.
+                        </p>
+                        <button
+                            onclick={redirectToTos}
+                            disabled={isRedirectingToTos}
+                            class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            {isRedirectingToTos ? 'Redirecting...' : 'Accept Terms of Service'}
+                        </button>
+                        {#if registrationError}
+                            <p class="mt-2 text-sm text-red-600">{registrationError}</p>
+                        {/if}
+                    </div>
+                {:else if redirectKycStep === 'receiver_form' && tosId}
+                    <BlindPayReceiverForm
+                        {provider}
+                        {tosId}
+                        onComplete={handleReceiverFormComplete}
+                    />
+                {:else if redirectKycStep === 'polling'}
+                    <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+                        <div
+                            class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100"
+                        >
+                            <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h2 class="mt-4 text-lg font-semibold text-gray-900">Verifying Your Identity</h2>
+                        <p class="mt-2 text-sm text-gray-500">
+                            Your verification is being reviewed. This may take a few moments.
+                        </p>
+                        <button
+                            onclick={handleRefreshRedirectKycStatus}
+                            disabled={isRefreshingKycStatus}
+                            class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            {isRefreshingKycStatus ? 'Checking...' : 'Refresh Status'}
+                        </button>
+                    </div>
+                {/if}
+            {:else if capabilities.kycFlow === 'iframe'}
                 <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                     <h2 class="text-lg font-semibold text-gray-900">Complete Verification</h2>
                     <p class="mt-1 text-sm text-gray-500">

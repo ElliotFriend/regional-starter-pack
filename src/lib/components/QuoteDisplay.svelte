@@ -9,12 +9,14 @@
     }
 
     let { quote, onRefresh, isRefreshing = false }: Props = $props();
+    $inspect('quote', quote)
 
     // Common digital assets that should show more decimal places
-    const CRYPTO_CURRENCIES = ['USDC', 'EURC', 'XLM', 'BTC', 'ETH', 'USDT', 'CETES'];
+    const CRYPTO_CURRENCIES = ['USDC', 'EURC', 'XLM', 'BTC', 'ETH', 'USDT', 'CETES', 'USDB'];
 
     /** Strip the issuer from a `CODE:ISSUER` asset string. */
-    function displayCurrency(currency: string): string {
+    function displayCurrency(currency: string | undefined): string {
+        if (!currency) return '???';
         return currency.split(':')[0];
     }
 

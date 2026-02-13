@@ -455,6 +455,73 @@ export async function finalizeKycSubmission(
 }
 
 // =============================================================================
+// BlindPay-specific API
+// =============================================================================
+
+/**
+ * Get a BlindPay ToS acceptance URL
+ */
+export async function getBlindPayTosUrl(
+    fetch: Fetch,
+    provider: string,
+    redirectUrl?: string,
+): Promise<string> {
+    let url = `/api/anchor/${provider}/kyc?type=tos`;
+    if (redirectUrl) url += `&redirectUrl=${encodeURIComponent(redirectUrl)}`;
+    const data = await apiRequest<{ url: string }>(fetch, url);
+    return data.url;
+}
+
+/**
+ * Create a BlindPay receiver (combined customer + KYC submission)
+ */
+export async function createBlindPayReceiver(
+    fetch: Fetch,
+    provider: string,
+    receiverData: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+    return postJson<Record<string, unknown>>(
+        fetch,
+        `/api/anchor/${provider}/kyc?type=receiver`,
+        receiverData,
+    );
+}
+
+/**
+ * Register a blockchain wallet for a BlindPay receiver
+ */
+export async function registerBlockchainWallet(
+    fetch: Fetch,
+    provider: string,
+    receiverId: string,
+    address: string,
+    name?: string,
+): Promise<Record<string, unknown>> {
+    return postJson<Record<string, unknown>>(
+        fetch,
+        `/api/anchor/${provider}/blockchain-wallets`,
+        { receiverId, address, name },
+    );
+}
+
+/**
+ * Submit a signed Stellar payout transaction to BlindPay
+ */
+export async function submitSignedPayout(
+    fetch: Fetch,
+    provider: string,
+    quoteId: string,
+    signedTransaction: string,
+    senderWalletAddress: string,
+): Promise<Record<string, unknown>> {
+    return postJson<Record<string, unknown>>(
+        fetch,
+        `/api/anchor/${provider}/payout-submit`,
+        { quoteId, signedTransaction, senderWalletAddress },
+    );
+}
+
+// =============================================================================
 // Sandbox API (Testing Only)
 // =============================================================================
 

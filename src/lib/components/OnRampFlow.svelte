@@ -57,6 +57,10 @@ Usage:
     let isCheckingBalance = $state(true);
     let isSigning = $state(false);
 
+    // Blockchain wallet registration state (BlindPay-specific)
+    let isRegisteringWallet = $state(false);
+    let walletRegistered = $state(false);
+
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
     // Resolve the Stellar asset from the toCurrency token config
@@ -105,6 +109,16 @@ Usage:
         }
     }
 
+    /** Build the customerId for quote requests. BlindPay expects "receiverId:blockchainWalletId". */
+    function getQuoteCustomerId(): string | undefined {
+        const customer = customerStore.current;
+        if (!customer) return undefined;
+        if (provider === PROVIDER.BLINDPAY && customer.blockchainWalletId) {
+            return `${customer.id}:${customer.blockchainWalletId}`;
+        }
+        return customer.id;
+    }
+
     async function getQuote() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
@@ -116,7 +130,7 @@ Usage:
                 fromCurrency: CURRENCY.FIAT,
                 toCurrency,
                 amount,
-                customerId: customerStore.current?.id,
+                customerId: getQuoteCustomerId(),
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
             step = 'quote';
@@ -135,7 +149,7 @@ Usage:
                 fromCurrency: CURRENCY.FIAT,
                 toCurrency,
                 amount,
-                customerId: customerStore.current?.id,
+                customerId: getQuoteCustomerId(),
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
@@ -215,8 +229,39 @@ Usage:
         error = null;
     }
 
+    async function registerBlockchainWallet() {
+        const customer = customerStore.current;
+        if (!customer || !walletStore.publicKey || customer.blockchainWalletId) {
+            walletRegistered = true;
+            return;
+        }
+
+        isRegisteringWallet = true;
+        try {
+            const result = await api.registerBlockchainWallet(
+                fetch,
+                provider,
+                customer.id,
+                walletStore.publicKey,
+            );
+            const walletId = (result as { id: string }).id;
+            customerStore.set({ ...customer, blockchainWalletId: walletId });
+            walletRegistered = true;
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to register wallet';
+            console.error('Wallet registration failed:', err);
+        } finally {
+            isRegisteringWallet = false;
+        }
+    }
+
     onMount(() => {
         checkTrustlineStatus();
+        if (provider === PROVIDER.BLINDPAY) {
+            registerBlockchainWallet();
+        } else {
+            walletRegistered = true;
+        }
         return () => stopPolling();
     });
 </script>
@@ -272,9 +317,16 @@ Usage:
                 </div>
             </div>
 
+            {#if isRegisteringWallet}
+                <div class="mt-4 flex items-center justify-center rounded-md bg-gray-50 p-3">
+                    <div class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></div>
+                    <span class="ml-2 text-sm text-gray-500">Registering wallet...</span>
+                </div>
+            {/if}
+
             <button
                 onclick={getQuote}
-                disabled={!amount || isGettingQuote || !walletStore.isConnected || !hasTrustline}
+                disabled={!amount || isGettingQuote || !walletStore.isConnected || !hasTrustline || !walletRegistered}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 {isGettingQuote ? 'Getting Quote...' : 'Get Quote'}
@@ -331,20 +383,22 @@ Usage:
                     <div class="mt-6 space-y-4 rounded-md bg-gray-50 p-4">
                         <div>
                             <span class="text-sm text-gray-500">Bank</span>
-                            <p class="font-medium">{pi.bankName}</p>
+                            <p class="font-medium">{pi.bankName || 'N/A'}</p>
                         </div>
                         <div>
                             <span class="text-sm text-gray-500">CLABE</span>
-                            <p class="font-mono font-medium">{pi.clabe}</p>
+                            <p class="font-mono font-medium">{pi.clabe || 'N/A'}</p>
                         </div>
                         <div>
                             <span class="text-sm text-gray-500">Beneficiary</span>
-                            <p class="font-medium">{pi.beneficiary}</p>
+                            <p class="font-medium">{pi.beneficiary || 'N/A'}</p>
                         </div>
-                        <div>
-                            <span class="text-sm text-gray-500">Reference</span>
-                            <p class="font-mono font-medium">{pi.reference}</p>
-                        </div>
+                        {#if pi.reference}
+                            <div>
+                                <span class="text-sm text-gray-500">Reference</span>
+                                <p class="font-mono font-medium">{pi.reference}</p>
+                            </div>
+                        {/if}
                         <div class="border-t border-gray-200 pt-4">
                             <span class="text-sm text-gray-500">Amount</span>
                             <p class="text-2xl font-bold text-indigo-600">

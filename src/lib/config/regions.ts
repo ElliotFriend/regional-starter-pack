@@ -31,7 +31,7 @@ export interface AnchorCapability {
 
 export interface AnchorCapabilities {
     supportsEmailLookup: boolean; // Can find customers by email?
-    kycFlow: 'form' | 'iframe'; // form = AlfredPay-style, iframe = onboarding URL
+    kycFlow: 'form' | 'iframe' | 'redirect'; // form = AlfredPay-style, iframe = onboarding URL, redirect = external ToS acceptance
 }
 
 export interface Anchor {
@@ -79,7 +79,7 @@ export const TOKENS: Record<string, Token> = {
     USDC: {
         symbol: 'USDC',
         name: 'USD Coin',
-        issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN', // Circle USDC issuer on Testnet
+        issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5', // Circle USDC issuer on Testnet
         description: 'A fully-reserved stablecoin pegged 1:1 to the US Dollar',
     },
     XLM: {
@@ -92,6 +92,12 @@ export const TOKENS: Record<string, Token> = {
         name: 'Etherfuse CETES',
         issuer: 'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4', // Etherfuse issuer on Testnet
         description: 'Etherfuse CETES, officially known as Mexican Federal Treasury Certificates, are Mexico\'s oldest short-term debt securities issued by the Ministry of Finance.'
+    },
+    USDB: {
+        symbol: 'USDB',
+        name: 'BlindPay USD',
+        issuer: 'GBWXJPZL5ADAH7T5BP3DBW2V2DFT3URN2VXN2MG26OM4CTOJSDDSPYAN', // BlindPay issuer on Testnet
+        description: 'USDB is a fake ERC20 stablecoin powered by BlindPay to simulate payouts on development instances.'
     },
 };
 
@@ -141,7 +147,28 @@ export const ANCHORS: Record<string, Anchor> = {
                 kycRequired: true,
             },
         },
-    }
+    },
+    blindpay: {
+        id: 'blindpay',
+        name: 'BlindPay',
+        description:
+            'BlindPay is a global payment infrastructure that enables worldwide money transfers using both traditional fiat currencies and stablecoins.',
+        website: 'https://blindpay.com',
+        documentation: 'https://docs.blindpay.com',
+        capabilities: {
+            supportsEmailLookup: false,
+            kycFlow: 'redirect',
+        },
+        regions: {
+            mexico: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['spei'],
+                tokens: ['USDB'],
+                kycRequired: true,
+            },
+        },
+    },
 };
 
 // =============================================================================
@@ -159,7 +186,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Multiple anchors support MXN to USDC conversion.',
         paymentRails: [PAYMENT_RAILS.spei],
-        anchors: ['alfredpay', 'etherfuse'],
+        anchors: ['alfredpay', 'etherfuse', 'blindpay'],
     },
 };
 

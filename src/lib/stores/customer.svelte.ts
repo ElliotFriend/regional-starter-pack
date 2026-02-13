@@ -18,15 +18,16 @@ const STORAGE_PREFIX = 'stellar:customer:';
 function createCustomerStore() {
     let customer = $state<Customer | null>(null);
     let activePublicKey: string | null = null;
+    let activeProvider: string | null = null;
 
-    function storageKey(publicKey: string) {
-        return `${STORAGE_PREFIX}${publicKey}`;
+    function storageKey(provider: string, publicKey: string) {
+        return `${STORAGE_PREFIX}${provider}:${publicKey}`;
     }
 
     /** Write the current customer to localStorage. */
     function persist() {
-        if (!browser || !activePublicKey || !customer) return;
-        localStorage.setItem(storageKey(activePublicKey), JSON.stringify(customer));
+        if (!browser || !activeProvider || !activePublicKey || !customer) return;
+        localStorage.setItem(storageKey(activeProvider, activePublicKey), JSON.stringify(customer));
     }
 
     return {
@@ -46,20 +47,21 @@ function createCustomerStore() {
         },
 
         /**
-         * Hydrate customer state from localStorage for a given wallet.
+         * Hydrate customer state from localStorage for a given wallet and provider.
          * Call this when a wallet connects to restore any previously-stored
-         * customer (and their Etherfuse UUID).
+         * customer for this specific provider.
          */
-        load(publicKey: string) {
+        load(publicKey: string, provider: string) {
             if (!browser) return;
             activePublicKey = publicKey;
+            activeProvider = provider;
 
-            const stored = localStorage.getItem(storageKey(publicKey));
+            const stored = localStorage.getItem(storageKey(provider, publicKey));
             if (stored) {
                 try {
                     customer = JSON.parse(stored);
                 } catch {
-                    localStorage.removeItem(storageKey(publicKey));
+                    localStorage.removeItem(storageKey(provider, publicKey));
                     customer = null;
                 }
             } else {
@@ -85,6 +87,7 @@ function createCustomerStore() {
         clear() {
             customer = null;
             activePublicKey = null;
+            activeProvider = null;
         },
     };
 }

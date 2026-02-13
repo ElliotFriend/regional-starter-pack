@@ -19,6 +19,8 @@ export interface Customer {
     kycStatus: KycStatus;
     /** Bank account ID — generated at registration time for providers that require it (e.g. Etherfuse). */
     bankAccountId?: string;
+    /** Blockchain wallet ID — generated at registration time for providers that require it (e.g. BlindPay). */
+    blockchainWalletId?: string;
     createdAt: string;
     updatedAt: string;
 }
