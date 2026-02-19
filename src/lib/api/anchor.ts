@@ -1,10 +1,11 @@
 /**
  * Anchor API Functions
  *
- * Pure functions for interacting with anchor services (AlfredPay, etc.)
- * These are standalone and can be copied into any SvelteKit project.
+ * Client-side functions that call the `/api/anchor/[provider]/` route handlers.
+ * Used by Svelte components to interact with anchor services (Etherfuse,
+ * AlfredPay, BlindPay) without importing server-side code directly.
  *
- * All functions accept a `fetch` parameter - use the one from SvelteKit's
+ * All functions accept a `fetch` parameter — use the one from SvelteKit's
  * load functions or component context for proper SSR support.
  */
 
