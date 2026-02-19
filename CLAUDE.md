@@ -4,13 +4,13 @@ This is a SvelteKit application for building fiat on/off ramps on the Stellar ne
 
 ## Project Structure
 
-```
+```text
 src/
 ├── lib/
 │   ├── anchors/              # PORTABLE: Framework-agnostic anchor integrations
 │   │   ├── types.ts          # Shared Anchor interface + common types
 │   │   ├── index.ts          # Re-exports (no SvelteKit imports)
-│   │   ├── etherfuse/        # Etherfuse integration (Latin America)
+│   │   ├── etherfuse/        # Etherfuse integration (Mexico)
 │   │   │   ├── client.ts     # EtherfuseClient implements Anchor
 │   │   │   ├── types.ts      # Etherfuse API types
 │   │   │   └── README.md     # Integration documentation
@@ -20,7 +20,8 @@ src/
 │   │   │   └── README.md     # Integration documentation
 │   │   ├── blindpay/         # BlindPay integration (global)
 │   │   │   ├── client.ts     # BlindPayClient implements Anchor
-│   │   │   └── types.ts      # BlindPay API types
+│   │   │   ├── types.ts      # BlindPay API types
+│   │   │   └── README.md     # Integration documentation
 │   │   ├── sep/              # SEP protocol implementations
 │   │   │   ├── sep1.ts       # stellar.toml discovery
 │   │   │   ├── sep10.ts      # Web authentication (JWT)
@@ -214,6 +215,7 @@ All anchor clients return transactions with common statuses from `types.ts`:
 - `completed`, `failed`, `expired`, `cancelled`, `refunded` - terminal
 
 The `OffRampTransaction` type includes optional fields for provider-specific data:
+
 - `signableTransaction` - Pre-built XDR for signing (Etherfuse)
 - `statusPage` - URL to anchor-hosted status page (Etherfuse)
 - `feeBps` / `feeAmount` - Fee info
