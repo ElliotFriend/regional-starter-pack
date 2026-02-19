@@ -6,11 +6,11 @@ Server-side TypeScript client for the [Etherfuse](https://etherfuse.com) anchor 
 
 ## Files
 
-| File        | Purpose                                                             |
-| ----------- | ------------------------------------------------------------------- |
-| `client.ts` | `EtherfuseClient` class - implements the shared `Anchor` interface  |
-| `types.ts`  | Etherfuse-specific request/response types                           |
-| `index.ts`  | Re-exports the client class and all types                           |
+| File        | Purpose                                                            |
+| ----------- | ------------------------------------------------------------------ |
+| `client.ts` | `EtherfuseClient` class - implements the shared `Anchor` interface |
+| `types.ts`  | Etherfuse-specific request/response types                          |
+| `index.ts`  | Re-exports the client class and all types                          |
 
 ## Integration Flow
 
@@ -21,8 +21,8 @@ Every Etherfuse integration follows the same sequence of steps. Both on-ramp and
 3. **Quote** - Request a price quote for the conversion. Quotes expire after **2 minutes**.
 4. **Order creation** - Create an on-ramp or off-ramp order using the quote.
 5. **Fulfillment** - Depends on the direction:
-   - **On-ramp:** The user sends MXN to a CLABE via SPEI. Once Etherfuse confirms receipt, the crypto asset is minted/transferred to the user's Stellar wallet.
-   - **Off-ramp:** Etherfuse prepares a burn transaction (base64 XDR). The user signs it with their wallet (e.g. Freighter) and submits it to the Stellar network. Once confirmed on-chain, Etherfuse transfers MXN to the user's linked bank account.
+    - **On-ramp:** The user sends MXN to a CLABE via SPEI. Once Etherfuse confirms receipt, the crypto asset is minted/transferred to the user's Stellar wallet.
+    - **Off-ramp:** Etherfuse prepares a burn transaction (base64 XDR). The user signs it with their wallet (e.g. Freighter) and submits it to the Stellar network. Once confirmed on-chain, Etherfuse transfers MXN to the user's linked bank account.
 6. **Status polling** - Poll `GET /ramp/order/{id}` to track the order through `created -> funded -> completed`.
 
 ## Supported Assets and Currencies
@@ -250,8 +250,8 @@ try {
     await etherfuse.createOnRamp(input);
 } catch (err) {
     if (err instanceof AnchorError) {
-        console.error(err.message);    // human-readable message
-        console.error(err.code);       // e.g. 'UNKNOWN_ERROR'
+        console.error(err.message); // human-readable message
+        console.error(err.code); // e.g. 'UNKNOWN_ERROR'
         console.error(err.statusCode); // HTTP status code
     }
 }

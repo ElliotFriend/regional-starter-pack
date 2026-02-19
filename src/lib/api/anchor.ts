@@ -151,7 +151,14 @@ export async function getQuote(
     provider: string,
     options: GetQuoteOptions,
 ): Promise<Quote> {
-    const { fromCurrency, toCurrency, amount, direction = 'from', customerId, stellarAddress } = options;
+    const {
+        fromCurrency,
+        toCurrency,
+        amount,
+        direction = 'from',
+        customerId,
+        stellarAddress,
+    } = options;
 
     const body: Record<string, string> = { fromCurrency, toCurrency };
     if (direction === 'from') {
@@ -515,11 +522,11 @@ export async function registerBlockchainWallet(
     address: string,
     name?: string,
 ): Promise<Record<string, unknown>> {
-    return postJson<Record<string, unknown>>(
-        fetch,
-        `/api/anchor/${provider}/blockchain-wallets`,
-        { receiverId, address, name },
-    );
+    return postJson<Record<string, unknown>>(fetch, `/api/anchor/${provider}/blockchain-wallets`, {
+        receiverId,
+        address,
+        name,
+    });
 }
 
 /**
@@ -532,11 +539,11 @@ export async function submitSignedPayout(
     signedTransaction: string,
     senderWalletAddress: string,
 ): Promise<Record<string, unknown>> {
-    return postJson<Record<string, unknown>>(
-        fetch,
-        `/api/anchor/${provider}/payout-submit`,
-        { quoteId, signedTransaction, senderWalletAddress },
-    );
+    return postJson<Record<string, unknown>>(fetch, `/api/anchor/${provider}/payout-submit`, {
+        quoteId,
+        signedTransaction,
+        senderWalletAddress,
+    });
 }
 
 // =============================================================================

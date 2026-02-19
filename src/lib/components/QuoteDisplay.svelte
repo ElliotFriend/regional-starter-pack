@@ -106,7 +106,8 @@
             <div class="flex justify-between text-sm">
                 <span class="text-gray-500">Exchange rate</span>
                 <span class="text-gray-700"
-                    >1 {displayCurrency(quote.fromCurrency)} ≈ {formatAmount(quote.exchangeRate)} {displayCurrency(quote.toCurrency)}</span
+                    >1 {displayCurrency(quote.fromCurrency)} ≈ {formatAmount(quote.exchangeRate)}
+                    {displayCurrency(quote.toCurrency)}</span
                 >
             </div>
 

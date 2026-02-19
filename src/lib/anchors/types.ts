@@ -189,7 +189,11 @@ export interface Anchor {
     createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
     getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
 
-    getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
+    getKycIframeUrl(
+        customerId: string,
+        publicKey?: string,
+        bankAccountId?: string,
+    ): Promise<string>;
     getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
 }
 

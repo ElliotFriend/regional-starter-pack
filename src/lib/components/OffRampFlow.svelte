@@ -66,7 +66,9 @@ Usage:
     let beneficiary = $state('');
 
     // Steps: 'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
-    let step = $state<'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'>('input');
+    let step = $state<
+        'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
+    >('input');
 
     // Asset balance
     let assetBalance = $state('0');
@@ -214,7 +216,8 @@ Usage:
 
             step = 'quote';
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to register bank account or get quote';
+            error =
+                err instanceof Error ? err.message : 'Failed to register bank account or get quote';
         } finally {
             isGettingQuote = false;
         }
@@ -621,7 +624,10 @@ Usage:
                                                 {account.bankName || 'Bank Account'}
                                             </p>
                                             <p class="text-sm text-gray-500">
-                                                {#if account.accountHolderName}{account.accountHolderName} &bull; {/if}{account.accountNumber || account.id.slice(0, 8)}
+                                                {#if account.accountHolderName}{account.accountHolderName}
+                                                    &bull;
+                                                {/if}{account.accountNumber ||
+                                                    account.id.slice(0, 8)}
                                             </p>
                                         </div>
                                     </label>
@@ -745,17 +751,17 @@ Usage:
                         {isGettingQuote ? 'Getting Quote...' : 'Continue'}
                     </button>
                 {:else}
-                <button
-                    onclick={confirmOrder}
-                    disabled={isLoadingAccounts ||
-                        isCreatingTransaction ||
-                        (useNewAccount &&
-                            (!bankName || !clabe || !accountNumber || !beneficiary)) ||
-                        (!useNewAccount && !selectedAccountId)}
-                    class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                    {isCreatingTransaction ? 'Processing...' : 'Confirm & Sign'}
-                </button>
+                    <button
+                        onclick={confirmOrder}
+                        disabled={isLoadingAccounts ||
+                            isCreatingTransaction ||
+                            (useNewAccount &&
+                                (!bankName || !clabe || !accountNumber || !beneficiary)) ||
+                            (!useNewAccount && !selectedAccountId)}
+                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isCreatingTransaction ? 'Processing...' : 'Confirm & Sign'}
+                    </button>
                 {/if}
             </div>
         </div>
@@ -774,19 +780,24 @@ Usage:
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">You're sending</span>
                         <span class="font-medium"
-                            >{formatAmount(transaction.fromAmount)} {displayCurrency(transaction.fromCurrency || quote.fromCurrency)}</span
+                            >{formatAmount(transaction.fromAmount)}
+                            {displayCurrency(transaction.fromCurrency || quote.fromCurrency)}</span
                         >
                     </div>
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">You'll receive</span>
                         <span class="font-medium text-green-600">
-                            {parseFloat(transaction.toAmount || quote.toAmount || '0').toLocaleString()}
+                            {parseFloat(
+                                transaction.toAmount || quote.toAmount || '0',
+                            ).toLocaleString()}
                             {displayCurrency(transaction.toCurrency || quote.toCurrency)}
                         </span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">Order ID</span>
-                        <span class="font-mono text-sm text-gray-700">{transaction.id.slice(0, 8)}...</span>
+                        <span class="font-mono text-sm text-gray-700"
+                            >{transaction.id.slice(0, 8)}...</span
+                        >
                     </div>
                 </div>
             {/if}
@@ -823,13 +834,16 @@ Usage:
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">You sent</span>
                         <span class="font-medium"
-                            >{formatAmount(transaction.fromAmount)} {displayCurrency(transaction.fromCurrency || quote?.fromCurrency)}</span
+                            >{formatAmount(transaction.fromAmount)}
+                            {displayCurrency(transaction.fromCurrency || quote?.fromCurrency)}</span
                         >
                     </div>
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">You'll receive</span>
                         <span class="font-medium text-green-600">
-                            {parseFloat(transaction.toAmount || quote?.toAmount || '0').toLocaleString()}
+                            {parseFloat(
+                                transaction.toAmount || quote?.toAmount || '0',
+                            ).toLocaleString()}
                             {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
                         </span>
                     </div>
@@ -837,7 +851,8 @@ Usage:
                         <div class="flex justify-between">
                             <span class="text-sm text-gray-500">Fee</span>
                             <span class="text-sm text-gray-700">
-                                {transaction.feeAmount} {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
+                                {transaction.feeAmount}
+                                {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
                                 {#if transaction.feeBps}
                                     <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
                                 {/if}
@@ -897,12 +912,15 @@ Usage:
             {#if transaction}
                 <div class="mt-4 space-y-1 text-sm text-gray-600">
                     <p>
-                        Amount: {parseFloat(transaction.toAmount || quote?.toAmount || '0').toLocaleString()}
+                        Amount: {parseFloat(
+                            transaction.toAmount || quote?.toAmount || '0',
+                        ).toLocaleString()}
                         {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
                     </p>
                     {#if transaction.feeAmount}
                         <p>
-                            Fee: {transaction.feeAmount} {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
+                            Fee: {transaction.feeAmount}
+                            {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
                             {#if transaction.feeBps}
                                 <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
                             {/if}

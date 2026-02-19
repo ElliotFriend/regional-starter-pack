@@ -91,9 +91,7 @@ export class EtherfuseClient implements Anchor {
         }
 
         const response = await this.getAssets(this.blockchain, 'mxn', wallet);
-        const identifiers = new Map(
-            response.assets.map((a) => [a.symbol, a.identifier]),
-        );
+        const identifiers = new Map(response.assets.map((a) => [a.symbol, a.identifier]));
 
         return [
             identifiers.get(fromCurrency) ?? fromCurrency,
@@ -305,17 +303,13 @@ export class EtherfuseClient implements Anchor {
         const publicKey = input.publicKey;
 
         try {
-            await this.request<EtherfuseOnboardingResponse>(
-                'POST',
-                '/ramp/onboarding-url',
-                {
-                    customerId,
-                    bankAccountId,
-                    email: input.email,
-                    publicKey,
-                    blockchain: this.blockchain,
-                },
-            );
+            await this.request<EtherfuseOnboardingResponse>('POST', '/ramp/onboarding-url', {
+                customerId,
+                bankAccountId,
+                email: input.email,
+                publicKey,
+                blockchain: this.blockchain,
+            });
 
             const now = new Date().toISOString();
             return {
@@ -332,7 +326,9 @@ export class EtherfuseClient implements Anchor {
                 const match = err.message.match(/see org:\s*([0-9a-f-]+)/i);
                 if (match) {
                     const existingCustomerId = match[1];
-                    console.log(`[Etherfuse] Public key already registered, using existing customer: ${existingCustomerId}`);
+                    console.log(
+                        `[Etherfuse] Public key already registered, using existing customer: ${existingCustomerId}`,
+                    );
 
                     // Fetch the customer's existing bank accounts from Etherfuse
                     let existingBankAccountId: string | undefined;
@@ -340,10 +336,15 @@ export class EtherfuseClient implements Anchor {
                         const accounts = await this.getFiatAccounts(existingCustomerId);
                         if (accounts.length > 0) {
                             existingBankAccountId = accounts[0].id;
-                            console.log(`[Etherfuse] Found existing bank account: ${existingBankAccountId}`);
+                            console.log(
+                                `[Etherfuse] Found existing bank account: ${existingBankAccountId}`,
+                            );
                         }
                     } catch (bankErr) {
-                        console.warn(`[Etherfuse] Could not fetch bank accounts for recovered customer:`, bankErr);
+                        console.warn(
+                            `[Etherfuse] Could not fetch bank accounts for recovered customer:`,
+                            bankErr,
+                        );
                     }
 
                     const now = new Date().toISOString();
@@ -398,7 +399,7 @@ export class EtherfuseClient implements Anchor {
      */
     async getCustomerByEmail(
         _email: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-        _country?: string // eslint-disable-line @typescript-eslint/no-unused-vars
+        _country?: string, // eslint-disable-line @typescript-eslint/no-unused-vars
     ): Promise<Customer | null> {
         throw new AnchorError(
             'Etherfuse does not support customer lookup by email',
@@ -419,7 +420,11 @@ export class EtherfuseClient implements Anchor {
      */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
         const quoteId = crypto.randomUUID();
-        const [sourceAsset, targetAsset] = await this.resolveAssetPair(input.fromCurrency, input.toCurrency, input.stellarAddress || '');
+        const [sourceAsset, targetAsset] = await this.resolveAssetPair(
+            input.fromCurrency,
+            input.toCurrency,
+            input.stellarAddress || '',
+        );
 
         // Determine ramp direction: if the source resolved to a CODE:ISSUER it's crypto → offramp
         const type = sourceAsset.includes(':') ? 'offramp' : 'onramp';
@@ -466,17 +471,13 @@ export class EtherfuseClient implements Anchor {
             }
         }
 
-        const response = await this.request<EtherfuseCreateOnRampResponse>(
-            'POST',
-            '/ramp/order',
-            {
-                orderId,
-                bankAccountId,
-                publicKey: input.stellarAddress,
-                quoteId: input.quoteId,
-                memo: input.memo || undefined,
-            },
-        );
+        const response = await this.request<EtherfuseCreateOnRampResponse>('POST', '/ramp/order', {
+            orderId,
+            bankAccountId,
+            publicKey: input.stellarAddress,
+            quoteId: input.quoteId,
+            memo: input.memo || undefined,
+        });
 
         const { onramp } = response;
 
@@ -612,17 +613,13 @@ export class EtherfuseClient implements Anchor {
             }
         }
 
-        const response = await this.request<EtherfuseCreateOffRampResponse>(
-            'POST',
-            '/ramp/order',
-            {
-                orderId,
-                bankAccountId,
-                publicKey: input.stellarAddress,
-                quoteId: input.quoteId,
-                memo: input.memo || undefined,
-            },
-        );
+        const response = await this.request<EtherfuseCreateOffRampResponse>('POST', '/ramp/order', {
+            orderId,
+            bankAccountId,
+            publicKey: input.stellarAddress,
+            quoteId: input.quoteId,
+            memo: input.memo || undefined,
+        });
 
         const { offramp } = response;
 
@@ -681,7 +678,11 @@ export class EtherfuseClient implements Anchor {
      * @returns The onboarding URL string.
      * @throws {AnchorError} If `publicKey` is missing or on API failure.
      */
-    async getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string> {
+    async getKycIframeUrl(
+        customerId: string,
+        publicKey?: string,
+        bankAccountId?: string,
+    ): Promise<string> {
         if (!publicKey) {
             throw new AnchorError(
                 'publicKey is required for KYC onboarding',
@@ -797,11 +798,9 @@ export class EtherfuseClient implements Anchor {
         publicKey: string,
         documents: EtherfuseKycDocumentRequest[],
     ): Promise<unknown> {
-        return this.request(
-            'POST',
-            `/ramp/customer/${customerId}/kyc/${publicKey}/documents`,
-            { documents },
-        );
+        return this.request('POST', `/ramp/customer/${customerId}/kyc/${publicKey}/documents`, {
+            documents,
+        });
     }
 
     /**

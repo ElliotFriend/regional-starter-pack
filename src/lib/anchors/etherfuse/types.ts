@@ -296,11 +296,7 @@ export interface EtherfuseCustomerResponse {
 }
 
 /** Etherfuse KYC status values. */
-export type EtherfuseKycStatus =
-    | 'not_started'
-    | 'proposed'
-    | 'approved'
-    | 'rejected';
+export type EtherfuseKycStatus = 'not_started' | 'proposed' | 'approved' | 'rejected';
 
 /** Response from `GET /ramp/customer/{id}/kyc/{pubkey}`. */
 export interface EtherfuseKycStatusResponse {
@@ -387,10 +383,7 @@ export interface EtherfuseAssetsResponse {
 // ---------------------------------------------------------------------------
 
 /** Webhook event types sent by Etherfuse. */
-export type EtherfuseWebhookEventType =
-    | 'order_updated'
-    | 'kyc_updated'
-    | 'swap_updated';
+export type EtherfuseWebhookEventType = 'order_updated' | 'kyc_updated' | 'swap_updated';
 
 /** Incoming webhook payload sent by Etherfuse. */
 export interface EtherfuseWebhookPayload {

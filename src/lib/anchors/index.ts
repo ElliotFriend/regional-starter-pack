@@ -5,7 +5,16 @@
 
 import type { Anchor } from './types';
 import { AlfredPayClient } from './alfredpay';
-import { ALFREDPAY_API_KEY, ALFREDPAY_API_SECRET, ALFREDPAY_BASE_URL, ETHERFUSE_API_KEY, ETHERFUSE_BASE_URL, BLINDPAY_API_KEY, BLINDPAY_INSTANCE_ID, BLINDPAY_BASE_URL } from '$env/static/private';
+import {
+    ALFREDPAY_API_KEY,
+    ALFREDPAY_API_SECRET,
+    ALFREDPAY_BASE_URL,
+    ETHERFUSE_API_KEY,
+    ETHERFUSE_BASE_URL,
+    BLINDPAY_API_KEY,
+    BLINDPAY_INSTANCE_ID,
+    BLINDPAY_BASE_URL,
+} from '$env/static/private';
 import { EtherfuseClient } from './etherfuse';
 import { BlindPayClient } from './blindpay';
 

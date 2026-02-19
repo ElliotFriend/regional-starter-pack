@@ -20,7 +20,9 @@ export const POST: RequestHandler = async ({ params, request }) => {
         const anchor = getAnchor(provider);
 
         if (!(anchor instanceof BlindPayClient)) {
-            throw error(400, { message: 'Provider does not support blockchain wallet registration' });
+            throw error(400, {
+                message: 'Provider does not support blockchain wallet registration',
+            });
         }
 
         const body = await request.json();

@@ -246,7 +246,12 @@
 
     async function checkIframeKycStatus(customerId: string): Promise<string> {
         try {
-            const status = await api.getKycStatus(fetch, provider, customerId, walletStore.publicKey ?? undefined);
+            const status = await api.getKycStatus(
+                fetch,
+                provider,
+                customerId,
+                walletStore.publicKey ?? undefined,
+            );
             const mapped = status as KycStatus;
             customerStore.updateKycStatus(mapped);
             return mapped;
@@ -381,18 +386,32 @@
         {:else if currentStep === 'kyc'}
             {#if capabilities.kycFlow === 'redirect'}
                 {#if redirectKycStep === 'tos'}
-                    <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+                    <div
+                        class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                    >
                         <div
                             class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
                         >
-                            <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <svg
+                                class="h-6 w-6 text-indigo-600"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
                             </svg>
                         </div>
-                        <h2 class="mt-4 text-lg font-semibold text-gray-900">Accept Terms of Service</h2>
+                        <h2 class="mt-4 text-lg font-semibold text-gray-900">
+                            Accept Terms of Service
+                        </h2>
                         <p class="mt-2 text-sm text-gray-500">
-                            You'll be redirected to BlindPay to accept their Terms of Service.
-                            After accepting, you'll return here to complete verification.
+                            You'll be redirected to BlindPay to accept their Terms of Service. After
+                            accepting, you'll return here to complete verification.
                         </p>
                         <button
                             onclick={redirectToTos}
@@ -412,15 +431,29 @@
                         onComplete={handleReceiverFormComplete}
                     />
                 {:else if redirectKycStep === 'polling'}
-                    <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+                    <div
+                        class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                    >
                         <div
                             class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100"
                         >
-                            <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <svg
+                                class="h-6 w-6 text-yellow-600"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
                             </svg>
                         </div>
-                        <h2 class="mt-4 text-lg font-semibold text-gray-900">Verifying Your Identity</h2>
+                        <h2 class="mt-4 text-lg font-semibold text-gray-900">
+                            Verifying Your Identity
+                        </h2>
                         <p class="mt-2 text-sm text-gray-500">
                             Your verification is being reviewed. This may take a few moments.
                         </p>
@@ -434,17 +467,30 @@
                     </div>
                 {/if}
             {:else if capabilities.kycFlow === 'iframe'}
-                <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+                <div
+                    class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                >
                     <div
                         class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
                     >
-                        <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <svg
+                            class="h-6 w-6 text-indigo-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
                         </svg>
                     </div>
                     <h2 class="mt-4 text-lg font-semibold text-gray-900">Complete Verification</h2>
                     <p class="mt-2 text-sm text-gray-500">
-                        Complete the onboarding process in the new window, then come back here and check your status.
+                        Complete the onboarding process in the new window, then come back here and
+                        check your status.
                     </p>
 
                     {#if isLoadingIframeUrl}

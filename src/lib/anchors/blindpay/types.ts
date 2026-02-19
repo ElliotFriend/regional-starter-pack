@@ -301,12 +301,7 @@ export interface BlindPayPayoutAuthorizeResponse {
 }
 
 /** BlindPay payout status. */
-export type BlindPayPayoutStatus =
-    | 'pending'
-    | 'processing'
-    | 'completed'
-    | 'failed'
-    | 'refunded';
+export type BlindPayPayoutStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
 
 /** Response from `POST /v1/instances/{id}/payouts/stellar` and `GET /v1/instances/{id}/payouts/{id}`. */
 export interface BlindPayPayoutResponse {

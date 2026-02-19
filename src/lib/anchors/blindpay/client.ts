@@ -293,10 +293,7 @@ export class BlindPayClient implements Anchor {
      * BlindPay does not support receiver lookup by email.
      * @throws {AnchorError} Always — NOT_SUPPORTED.
      */
-    async getCustomerByEmail(
-        _email: string,
-        _country?: string,
-    ): Promise<Customer | null> {
+    async getCustomerByEmail(_email: string, _country?: string): Promise<Customer | null> {
         throw new AnchorError(
             'BlindPay does not support customer lookup by email',
             'NOT_SUPPORTED',
@@ -336,7 +333,10 @@ export class BlindPayClient implements Anchor {
                 },
             );
 
-            const totalFee = (response.flat_fee ?? 0) + (response.partner_fee_amount ?? 0) + (response.billing_fee_amount ?? 0);
+            const totalFee =
+                (response.flat_fee ?? 0) +
+                (response.partner_fee_amount ?? 0) +
+                (response.billing_fee_amount ?? 0);
 
             return {
                 id: response.id,
@@ -344,7 +344,9 @@ export class BlindPayClient implements Anchor {
                 toCurrency: input.toCurrency,
                 fromAmount: this.fromCents(response.sender_amount),
                 toAmount: this.fromCents(response.receiver_amount),
-                exchangeRate: String(response.blindpay_quotation ?? response.commercial_quotation ?? '0'),
+                exchangeRate: String(
+                    response.blindpay_quotation ?? response.commercial_quotation ?? '0',
+                ),
                 fee: this.fromCents(totalFee),
                 expiresAt: new Date(response.expires_at).toISOString(),
                 createdAt: new Date().toISOString(),
@@ -364,7 +366,10 @@ export class BlindPayClient implements Anchor {
                 },
             );
 
-            const totalFee = (response.flat_fee ?? 0) + (response.partner_fee_amount ?? 0) + (response.billing_fee_amount ?? 0);
+            const totalFee =
+                (response.flat_fee ?? 0) +
+                (response.partner_fee_amount ?? 0) +
+                (response.billing_fee_amount ?? 0);
 
             return {
                 id: response.id,
@@ -372,7 +377,9 @@ export class BlindPayClient implements Anchor {
                 toCurrency: input.toCurrency,
                 fromAmount: this.fromCents(response.sender_amount),
                 toAmount: this.fromCents(response.receiver_amount),
-                exchangeRate: String(response.blindpay_quotation ?? response.commercial_quotation ?? '0'),
+                exchangeRate: String(
+                    response.blindpay_quotation ?? response.commercial_quotation ?? '0',
+                ),
                 fee: this.fromCents(totalFee),
                 expiresAt: new Date(response.expires_at).toISOString(),
                 createdAt: new Date().toISOString(),
@@ -533,7 +540,11 @@ export class BlindPayClient implements Anchor {
      * For BlindPay, the "KYC iframe" is actually a redirect to the ToS page.
      * The user accepts ToS first, then submits KYC data via createReceiver.
      */
-    async getKycIframeUrl(_customerId: string, _publicKey?: string, _bankAccountId?: string): Promise<string> {
+    async getKycIframeUrl(
+        _customerId: string,
+        _publicKey?: string,
+        _bankAccountId?: string,
+    ): Promise<string> {
         return this.generateTosUrl();
     }
 
@@ -657,15 +668,11 @@ export class BlindPayClient implements Anchor {
         signedTransaction: string,
         senderWalletAddress: string,
     ): Promise<BlindPayPayoutResponse> {
-        return this.request<BlindPayPayoutResponse>(
-            'POST',
-            this.instancePath('/payouts/stellar'),
-            {
-                quote_id: quoteId,
-                signed_transaction: signedTransaction,
-                sender_wallet_address: senderWalletAddress,
-            },
-        );
+        return this.request<BlindPayPayoutResponse>('POST', this.instancePath('/payouts/stellar'), {
+            quote_id: quoteId,
+            signed_transaction: signedTransaction,
+            sender_wallet_address: senderWalletAddress,
+        });
     }
 
     /**
@@ -708,17 +715,13 @@ export class BlindPayClient implements Anchor {
         network?: string,
         token: string = 'USDC',
     ): Promise<BlindPayQuoteResponse> {
-        return this.request<BlindPayQuoteResponse>(
-            'POST',
-            this.instancePath('/quotes'),
-            {
-                bank_account_id: bankAccountId,
-                currency_type: 'sender',
-                cover_fees: false,
-                request_amount: amountCents,
-                network: network || this.network,
-                token,
-            },
-        );
+        return this.request<BlindPayQuoteResponse>('POST', this.instancePath('/quotes'), {
+            bank_account_id: bankAccountId,
+            currency_type: 'sender',
+            cover_fees: false,
+            request_amount: amountCents,
+            network: network || this.network,
+            token,
+        });
     }
 }

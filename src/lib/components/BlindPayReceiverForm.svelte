@@ -32,7 +32,18 @@
     }
 
     async function handleSubmit() {
-        if (!firstName || !lastName || !email || !phoneNumber || !dateOfBirth || !taxId || !addressLine1 || !city || !stateRegion || !postalCode) {
+        if (
+            !firstName ||
+            !lastName ||
+            !email ||
+            !phoneNumber ||
+            !dateOfBirth ||
+            !taxId ||
+            !addressLine1 ||
+            !city ||
+            !stateRegion ||
+            !postalCode
+        ) {
             error = 'Please fill in all required fields';
             return;
         }
@@ -60,8 +71,10 @@
                 // Placeholder document URLs for development
                 id_doc_country: country,
                 id_doc_type: 'ID_CARD',
-                id_doc_front_file: 'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
-                id_doc_back_file: 'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
+                id_doc_front_file:
+                    'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
+                id_doc_back_file:
+                    'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
                 selfie_file: 'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/selfie.png',
             };
 
@@ -74,9 +87,16 @@
             customerStore.set({
                 id: receiverId,
                 email,
-                kycStatus: kycStatus === 'approved' ? 'approved' : kycStatus === 'rejected' ? 'rejected' : 'pending',
-                createdAt: (result as { created_at: string }).created_at || new Date().toISOString(),
-                updatedAt: (result as { updated_at: string }).updated_at || new Date().toISOString(),
+                kycStatus:
+                    kycStatus === 'approved'
+                        ? 'approved'
+                        : kycStatus === 'rejected'
+                          ? 'rejected'
+                          : 'pending',
+                createdAt:
+                    (result as { created_at: string }).created_at || new Date().toISOString(),
+                updatedAt:
+                    (result as { updated_at: string }).updated_at || new Date().toISOString(),
             });
 
             onComplete();
@@ -95,10 +115,18 @@
         Enter your details to complete identity verification with BlindPay.
     </p>
 
-    <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="mt-6 space-y-4">
+    <form
+        onsubmit={(e) => {
+            e.preventDefault();
+            handleSubmit();
+        }}
+        class="mt-6 space-y-4"
+    >
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label for="bp-firstName" class="block text-sm font-medium text-gray-700">First Name</label>
+                <label for="bp-firstName" class="block text-sm font-medium text-gray-700"
+                    >First Name</label
+                >
                 <input
                     type="text"
                     id="bp-firstName"
@@ -108,7 +136,9 @@
                 />
             </div>
             <div>
-                <label for="bp-lastName" class="block text-sm font-medium text-gray-700">Last Name</label>
+                <label for="bp-lastName" class="block text-sm font-medium text-gray-700"
+                    >Last Name</label
+                >
                 <input
                     type="text"
                     id="bp-lastName"
@@ -131,7 +161,9 @@
         </div>
 
         <div>
-            <label for="bp-phone" class="block text-sm font-medium text-gray-700">Phone Number (E.164)</label>
+            <label for="bp-phone" class="block text-sm font-medium text-gray-700"
+                >Phone Number (E.164)</label
+            >
             <input
                 type="tel"
                 id="bp-phone"
@@ -143,7 +175,8 @@
         </div>
 
         <div>
-            <label for="bp-dob" class="block text-sm font-medium text-gray-700">Date of Birth</label>
+            <label for="bp-dob" class="block text-sm font-medium text-gray-700">Date of Birth</label
+            >
             <input
                 type="date"
                 id="bp-dob"
@@ -154,7 +187,9 @@
         </div>
 
         <div>
-            <label for="bp-taxId" class="block text-sm font-medium text-gray-700">Tax ID (CURP)</label>
+            <label for="bp-taxId" class="block text-sm font-medium text-gray-700"
+                >Tax ID (CURP)</label
+            >
             <input
                 type="text"
                 id="bp-taxId"
@@ -202,7 +237,9 @@
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label for="bp-country" class="block text-sm font-medium text-gray-700">Country</label>
+                <label for="bp-country" class="block text-sm font-medium text-gray-700"
+                    >Country</label
+                >
                 <select
                     id="bp-country"
                     bind:value={country}
@@ -212,7 +249,9 @@
                 </select>
             </div>
             <div>
-                <label for="bp-postal" class="block text-sm font-medium text-gray-700">Postal Code</label>
+                <label for="bp-postal" class="block text-sm font-medium text-gray-700"
+                    >Postal Code</label
+                >
                 <input
                     type="text"
                     id="bp-postal"
@@ -224,8 +263,8 @@
         </div>
 
         <div class="rounded-md bg-amber-50 p-3 text-sm text-amber-700">
-            <strong>Note:</strong> Identity document images use placeholder URLs for development.
-            A file upload integration will be added in a future update.
+            <strong>Note:</strong> Identity document images use placeholder URLs for development. A file
+            upload integration will be added in a future update.
         </div>
 
         <button

@@ -341,14 +341,20 @@ Usage:
 
             {#if isRegisteringWallet}
                 <div class="mt-4 flex items-center justify-center rounded-md bg-gray-50 p-3">
-                    <div class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></div>
+                    <div
+                        class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                    ></div>
                     <span class="ml-2 text-sm text-gray-500">Registering wallet...</span>
                 </div>
             {/if}
 
             <button
                 onclick={getQuote}
-                disabled={!amount || isGettingQuote || !walletStore.isConnected || !hasTrustline || !walletRegistered}
+                disabled={!amount ||
+                    isGettingQuote ||
+                    !walletStore.isConnected ||
+                    !hasTrustline ||
+                    !walletRegistered}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 {isGettingQuote ? 'Getting Quote...' : 'Get Quote'}
@@ -444,14 +450,18 @@ Usage:
                         Simulate a bank transfer being received by the anchor.
                     </p>
                     {#if fiatSimulated}
-                        <p class="mt-3 text-sm font-medium text-green-700">Fiat received simulated successfully.</p>
+                        <p class="mt-3 text-sm font-medium text-green-700">
+                            Fiat received simulated successfully.
+                        </p>
                     {:else}
                         <button
                             onclick={simulateFiatReceived}
                             disabled={isSimulatingFiat}
                             class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                         >
-                            {isSimulatingFiat ? 'Simulating...' : 'Simulate Fiat Received (Sandbox)'}
+                            {isSimulatingFiat
+                                ? 'Simulating...'
+                                : 'Simulate Fiat Received (Sandbox)'}
                         </button>
                     {/if}
                 </div>
@@ -488,10 +498,14 @@ Usage:
 
             {#if transaction}
                 <div class="mt-4 space-y-1 text-sm text-gray-600">
-                    <p>Amount: {transaction.toAmount || quote?.toAmount} {(transaction.toCurrency || quote?.toCurrency || '').split(':')[0]}</p>
+                    <p>
+                        Amount: {transaction.toAmount || quote?.toAmount}
+                        {(transaction.toCurrency || quote?.toCurrency || '').split(':')[0]}
+                    </p>
                     {#if transaction.feeAmount}
                         <p>
-                            Fee: {transaction.feeAmount} {transaction.fromCurrency || quote?.fromCurrency}
+                            Fee: {transaction.feeAmount}
+                            {transaction.fromCurrency || quote?.fromCurrency}
                             {#if transaction.feeBps}
                                 <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
                             {/if}

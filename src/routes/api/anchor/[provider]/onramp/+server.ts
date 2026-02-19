@@ -17,8 +17,16 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     try {
         const body = await request.json();
-        const { customerId, quoteId, stellarAddress, fromCurrency, toCurrency, amount, memo, bankAccountId } =
-            body;
+        const {
+            customerId,
+            quoteId,
+            stellarAddress,
+            fromCurrency,
+            toCurrency,
+            amount,
+            memo,
+            bankAccountId,
+        } = body;
 
         if (!customerId || !quoteId || !stellarAddress || !fromCurrency || !toCurrency || !amount) {
             throw error(400, {
