@@ -28,8 +28,8 @@ export const DEFAULT_COUNTRY = 'MX';
 
 // Provider names
 export const PROVIDER = {
-    ALFREDPAY: 'alfredpay',
     ETHERFUSE: 'etherfuse',
+    ALFREDPAY: 'alfredpay',
     BLINDPAY: 'blindpay',
 } as const;
 

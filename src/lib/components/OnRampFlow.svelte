@@ -8,7 +8,7 @@ request to the anchor that initiates an on-ramp transaction.
 
 Usage:
 ```html
-<OnRampFlow provider="alfredpay" />
+<OnRampFlow provider="etherfuse" />
 ```
 -->
 <script lang="ts">
@@ -38,7 +38,7 @@ Usage:
         toCurrency?: string;
     }
 
-    let { provider = PROVIDER.ALFREDPAY, toCurrency = CURRENCY.USDC }: Props = $props();
+    let { provider = PROVIDER.ETHERFUSE, toCurrency = CURRENCY.USDC }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');

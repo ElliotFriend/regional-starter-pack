@@ -9,7 +9,7 @@ off-ramp transaction, and prompt the user to sign the transaction in freighter.
 
 Usage:
 ```html
-<OffRampFlow provider="alfredpay" />
+<OffRampFlow provider="etherfuse" />
 ```
 -->
 <script lang="ts">
@@ -40,7 +40,7 @@ Usage:
         fromCurrency?: string;
     }
 
-    let { provider = PROVIDER.ALFREDPAY, fromCurrency = CURRENCY.USDC }: Props = $props();
+    let { provider = PROVIDER.ETHERFUSE, fromCurrency = CURRENCY.USDC }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');

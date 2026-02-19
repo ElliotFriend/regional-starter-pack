@@ -188,7 +188,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Multiple anchors support MXN to USDC conversion.',
         paymentRails: [PAYMENT_RAILS.spei],
-        anchors: ['alfredpay', 'etherfuse', 'blindpay'],
+        anchors: ['etherfuse', 'alfredpay', 'blindpay'],
     },
 };
 

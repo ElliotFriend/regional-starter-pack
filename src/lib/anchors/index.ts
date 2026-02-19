@@ -4,21 +4,21 @@
  */
 
 import type { Anchor } from './types';
+import { EtherfuseClient } from './etherfuse';
 import { AlfredPayClient } from './alfredpay';
+import { BlindPayClient } from './blindpay';
 import {
+    ETHERFUSE_API_KEY,
+    ETHERFUSE_BASE_URL,
     ALFREDPAY_API_KEY,
     ALFREDPAY_API_SECRET,
     ALFREDPAY_BASE_URL,
-    ETHERFUSE_API_KEY,
-    ETHERFUSE_BASE_URL,
     BLINDPAY_API_KEY,
     BLINDPAY_INSTANCE_ID,
     BLINDPAY_BASE_URL,
 } from '$env/static/private';
-import { EtherfuseClient } from './etherfuse';
-import { BlindPayClient } from './blindpay';
 
-export type AnchorProvider = 'alfredpay' | 'etherfuse' | 'blindpay';
+export type AnchorProvider = 'etherfuse' | 'alfredpay' | 'blindpay';
 
 const anchorInstances = new Map<AnchorProvider, Anchor>();
 
@@ -31,17 +31,17 @@ export function getAnchor(provider: AnchorProvider): Anchor {
 
     if (!anchor) {
         switch (provider) {
+            case 'etherfuse':
+                anchor = new EtherfuseClient({
+                    apiKey: ETHERFUSE_API_KEY,
+                    baseUrl: ETHERFUSE_BASE_URL,
+                });
+                break;
             case 'alfredpay':
                 anchor = new AlfredPayClient({
                     apiKey: ALFREDPAY_API_KEY,
                     apiSecret: ALFREDPAY_API_SECRET,
                     baseUrl: ALFREDPAY_BASE_URL,
-                });
-                break;
-            case 'etherfuse':
-                anchor = new EtherfuseClient({
-                    apiKey: ETHERFUSE_API_KEY,
-                    baseUrl: ETHERFUSE_BASE_URL,
                 });
                 break;
             case 'blindpay':
@@ -64,12 +64,12 @@ export function getAnchor(provider: AnchorProvider): Anchor {
  * Check if a provider name is valid
  */
 export function isValidProvider(provider: string): provider is AnchorProvider {
-    return ['alfredpay', 'etherfuse', 'blindpay'].includes(provider);
+    return ['etherfuse', 'alfredpay', 'blindpay'].includes(provider);
 }
 
 export * from './types';
-export { AlfredPayClient } from './alfredpay';
 export { EtherfuseClient } from './etherfuse';
+export { AlfredPayClient } from './alfredpay';
 export { BlindPayClient } from './blindpay';
 
 // SEP modules - can be composed to build anchor integrations
