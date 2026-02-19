@@ -14,8 +14,6 @@ export interface EtherfuseConfig {
     baseUrl: string;
     /** Default blockchain for operations. Defaults to `"stellar"`. */
     defaultBlockchain?: string;
-    /** Default Stellar public key for KYC operations. */
-    defaultPublicKey?: string;
 }
 
 // ---------------------------------------------------------------------------

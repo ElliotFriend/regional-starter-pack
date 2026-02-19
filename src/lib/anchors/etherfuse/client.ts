@@ -75,6 +75,11 @@ export class EtherfuseClient implements Anchor {
      * Resolve a currency pair for the Etherfuse API by looking up the full
      * asset identifiers via `GET /ramp/assets` (e.g. `CETES` → `CETES:GCRYUGD5...`).
      * Codes that already contain `:` pass through unchanged.
+     *
+     * @param fromCurrency - Source currency code or `CODE:ISSUER` identifier.
+     * @param toCurrency - Destination currency code or `CODE:ISSUER` identifier.
+     * @param wallet - Stellar public key used to fetch personalized asset data.
+     * @returns A tuple of `[resolvedFrom, resolvedTo]` in `CODE:ISSUER` format.
      */
     private async resolveAssetPair(
         fromCurrency: string,
@@ -160,6 +165,9 @@ export class EtherfuseClient implements Anchor {
 
     /**
      * Map an Etherfuse order status to the shared {@link TransactionStatus}.
+     *
+     * @param status - Raw status string from the Etherfuse API.
+     * @returns The corresponding shared {@link TransactionStatus}.
      */
     private mapOrderStatus(status: EtherfuseOrderStatus): TransactionStatus {
         const statusMap: Record<EtherfuseOrderStatus, TransactionStatus> = {
@@ -175,6 +183,9 @@ export class EtherfuseClient implements Anchor {
 
     /**
      * Map an Etherfuse KYC status to the shared {@link KycStatus}.
+     *
+     * @param status - Raw KYC status string from the Etherfuse API.
+     * @returns The corresponding shared {@link KycStatus}.
      */
     private mapKycStatus(status: string): KycStatus {
         const statusMap: Record<string, KycStatus> = {
@@ -188,6 +199,9 @@ export class EtherfuseClient implements Anchor {
 
     /**
      * Map an on-ramp order response to the shared {@link OnRampTransaction} type.
+     *
+     * @param response - Raw order response from `GET /ramp/order/{id}`.
+     * @returns The mapped {@link OnRampTransaction}.
      */
     private mapOnRampTransaction(response: EtherfuseOrderResponse): OnRampTransaction {
         return {
@@ -222,6 +236,14 @@ export class EtherfuseClient implements Anchor {
 
     /**
      * Map an off-ramp order response to the shared {@link OffRampTransaction} type.
+     *
+     * The `burnTransaction` field from the GET response is mapped to
+     * {@link OffRampTransaction.signableTransaction | signableTransaction}. It may be
+     * `undefined` if the anchor has not yet prepared the transaction for signing.
+     *
+     * @param response - Raw order response from `GET /ramp/order/{id}`.
+     * @param bankAccountInfo - Optional bank details to attach (not returned by the API).
+     * @returns The mapped {@link OffRampTransaction}.
      */
     private mapOffRampTransaction(
         response: EtherfuseOrderResponse,
@@ -265,14 +287,22 @@ export class EtherfuseClient implements Anchor {
      * onboarding URL. The URL is stored internally but not directly returned —
      * use {@link getKycIframeUrl} to retrieve it.
      *
-     * @param input - Customer email and optional country code.
+     * @param input - Customer email and Stellar public key.
      * @returns A {@link Customer} with `kycStatus` set to `"not_started"`.
-     * @throws {AnchorError} On API failure.
+     * @throws {AnchorError} If `publicKey` is missing or on API failure.
      */
     async createCustomer(input: CreateCustomerInput): Promise<Customer> {
+        if (!input.publicKey) {
+            throw new AnchorError(
+                'publicKey is required to create an Etherfuse customer',
+                'MISSING_PUBLIC_KEY',
+                400,
+            );
+        }
+
         const customerId = crypto.randomUUID();
         const bankAccountId = crypto.randomUUID();
-        const publicKey = input.publicKey || this.config.defaultPublicKey || '';
+        const publicKey = input.publicKey;
 
         try {
             await this.request<EtherfuseOnboardingResponse>(
@@ -562,11 +592,13 @@ export class EtherfuseClient implements Anchor {
     /**
      * Create an off-ramp transaction (CETES on Stellar → fiat MXN via SPEI).
      *
-     * The response may include a `signableTransaction` (base64-encoded Stellar
-     * transaction envelope) that the user must sign and submit.
+     * The returned transaction will have `signableTransaction` set to `undefined`
+     * because the Etherfuse API does not include the burn transaction XDR in the
+     * creation response. Poll with {@link getOffRampTransaction} until
+     * `signableTransaction` becomes available, then have the user sign and submit it.
      *
      * @param input - Customer, quote, amount, fiat account ID, and source Stellar address.
-     * @returns The created {@link OffRampTransaction}.
+     * @returns The created {@link OffRampTransaction} (with `signableTransaction: undefined`).
      * @throws {AnchorError} On API failure.
      */
     async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
@@ -644,11 +676,20 @@ export class EtherfuseClient implements Anchor {
      * Calls the onboarding endpoint again to generate a fresh presigned URL.
      *
      * @param customerId - The customer's unique identifier.
+     * @param publicKey - Stellar public key for this customer.
+     * @param bankAccountId - Bank account to associate; a random UUID is generated if omitted.
      * @returns The onboarding URL string.
-     * @throws {AnchorError} On API failure.
+     * @throws {AnchorError} If `publicKey` is missing or on API failure.
      */
     async getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string> {
-        const resolvedPublicKey = publicKey || this.config.defaultPublicKey || '';
+        if (!publicKey) {
+            throw new AnchorError(
+                'publicKey is required for KYC onboarding',
+                'MISSING_PUBLIC_KEY',
+                400,
+            );
+        }
+
         const resolvedBankAccountId = bankAccountId || crypto.randomUUID();
 
         const response = await this.request<EtherfuseOnboardingResponse>(
@@ -657,7 +698,7 @@ export class EtherfuseClient implements Anchor {
             {
                 customerId,
                 bankAccountId: resolvedBankAccountId,
-                publicKey: resolvedPublicKey,
+                publicKey,
                 blockchain: this.blockchain,
             },
         );
@@ -668,16 +709,13 @@ export class EtherfuseClient implements Anchor {
     /**
      * Get the current KYC status for a customer.
      *
-     * Requires the customer's wallet public key, which is taken from
-     * {@link EtherfuseConfig.defaultPublicKey}.
-     *
      * @param customerId - The customer's unique identifier.
+     * @param publicKey - Stellar public key for this customer.
      * @returns The customer's {@link KycStatus}.
-     * @throws {AnchorError} If no public key is configured or the API fails.
+     * @throws {AnchorError} If `publicKey` is missing or the API fails.
      */
     async getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus> {
-        const resolvedPublicKey = publicKey || this.config.defaultPublicKey;
-        if (!resolvedPublicKey) {
+        if (!publicKey) {
             throw new AnchorError(
                 'publicKey is required for KYC status checks',
                 'MISSING_PUBLIC_KEY',
@@ -687,7 +725,7 @@ export class EtherfuseClient implements Anchor {
 
         const response = await this.request<EtherfuseKycStatusResponse>(
             'GET',
-            `/ramp/customer/${customerId}/kyc/${resolvedPublicKey}`,
+            `/ramp/customer/${customerId}/kyc/${publicKey}`,
         );
 
         return this.mapKycStatus(response.status);

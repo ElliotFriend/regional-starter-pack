@@ -106,27 +106,6 @@ export const TOKENS: Record<string, Token> = {
 // =============================================================================
 
 export const ANCHORS: Record<string, Anchor> = {
-    alfredpay: {
-        id: 'alfredpay',
-        name: 'Alfred Pay',
-        description:
-            'Alfred Pay provides fiat on/off ramp services across Latin America, enabling seamless conversion between local currencies and digital assets on the Stellar network.',
-        website: 'https://alfredpay.io',
-        documentation: 'https://alfredpay.readme.io',
-        capabilities: {
-            supportsEmailLookup: true,
-            kycFlow: 'form',
-        },
-        regions: {
-            mexico: {
-                onRamp: true,
-                offRamp: true,
-                paymentRails: ['spei'],
-                tokens: ['USDC'],
-                kycRequired: true,
-            },
-        },
-    },
     etherfuse: {
         id: 'etherfuse',
         name: 'Etherfuse',
@@ -144,6 +123,27 @@ export const ANCHORS: Record<string, Anchor> = {
                 offRamp: true,
                 paymentRails: ['spei'],
                 tokens: ['CETES'],
+                kycRequired: true,
+            },
+        },
+    },
+    alfredpay: {
+        id: 'alfredpay',
+        name: 'Alfred Pay',
+        description:
+            'Alfred Pay provides fiat on/off ramp services across Latin America, enabling seamless conversion between local currencies and digital assets on the Stellar network.',
+        website: 'https://alfredpay.io',
+        documentation: 'https://alfredpay.readme.io',
+        capabilities: {
+            supportsEmailLookup: true,
+            kycFlow: 'form',
+        },
+        regions: {
+            mexico: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['spei'],
+                tokens: ['USDC'],
                 kycRequired: true,
             },
         },
