@@ -41,6 +41,7 @@ import type {
     EtherfuseCustomerResponse,
     EtherfuseQuoteResponse,
     EtherfuseCreateOnRampResponse,
+    EtherfuseCreateOffRampResponse,
     EtherfuseOrderResponse,
     EtherfuseKycStatusResponse,
     EtherfuseBankAccountResponse,
@@ -236,6 +237,8 @@ export class EtherfuseClient implements Anchor {
             toAmount: response.amountInFiat || '',
             toCurrency: '',
             stellarAddress: '',
+            feeBps: response.feeBps,
+            feeAmount: response.feeAmountInFiat,
             bankAccount: {
                 id: response.bankAccountId,
                 bankName: bankAccountInfo?.bankName || '',
@@ -245,6 +248,7 @@ export class EtherfuseClient implements Anchor {
             },
             stellarTxHash: response.confirmedTxSignature,
             signableTransaction: response.burnTransaction,
+            statusPage: response.statusPage,
             createdAt: response.createdAt,
             updatedAt: response.updatedAt,
         };
@@ -542,9 +546,9 @@ export class EtherfuseClient implements Anchor {
             return response.items.map((account) => ({
                 id: account.bankAccountId,
                 type: 'SPEI',
-                accountNumber: account.clabe,
-                bankName: account.bankName,
-                accountHolderName: account.beneficiary,
+                accountNumber: account.abbrClabe,
+                bankName: '',
+                accountHolderName: '',
                 createdAt: account.createdAt,
             }));
         } catch (error) {
@@ -576,22 +580,41 @@ export class EtherfuseClient implements Anchor {
             }
         }
 
-        const response = await this.request<EtherfuseOrderResponse>('POST', '/ramp/order', {
-            orderId,
-            bankAccountId,
-            publicKey: input.stellarAddress,
-            quoteId: input.quoteId,
-            memo: input.memo || undefined,
-        });
-
-        return this.mapOffRampTransaction(response, input.bankAccountInfo
-            ? {
-                  bankName: input.bankAccountInfo.bankName,
-                  clabe: input.bankAccountInfo.clabe,
-                  beneficiary: input.bankAccountInfo.beneficiary,
-              }
-            : undefined,
+        const response = await this.request<EtherfuseCreateOffRampResponse>(
+            'POST',
+            '/ramp/order',
+            {
+                orderId,
+                bankAccountId,
+                publicKey: input.stellarAddress,
+                quoteId: input.quoteId,
+                memo: input.memo || undefined,
+            },
         );
+
+        const { offramp } = response;
+
+        return {
+            id: offramp.orderId,
+            customerId: input.customerId,
+            quoteId: input.quoteId,
+            status: 'pending' as const,
+            fromAmount: input.amount,
+            fromCurrency: input.fromCurrency,
+            toAmount: '',
+            toCurrency: input.toCurrency,
+            stellarAddress: input.stellarAddress,
+            bankAccount: {
+                id: bankAccountId || '',
+                bankName: input.bankAccountInfo?.bankName || '',
+                accountNumber: '',
+                clabe: input.bankAccountInfo?.clabe || '',
+                beneficiary: input.bankAccountInfo?.beneficiary || '',
+            },
+            signableTransaction: undefined,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
     }
 
     /**

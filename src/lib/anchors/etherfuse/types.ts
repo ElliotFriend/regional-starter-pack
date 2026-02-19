@@ -233,6 +233,14 @@ export interface EtherfuseCreateOnRampResponse {
     };
 }
 
+/** Response from `POST /ramp/order` (off-ramp creation). */
+export interface EtherfuseCreateOffRampResponse {
+    offramp: {
+        /** Order ID echoed back. */
+        orderId: string;
+    };
+}
+
 /** Response from `GET /ramp/order/{order_id}`. Unified shape for both on-ramp and off-ramp. */
 export interface EtherfuseOrderResponse {
     /** Unique identifier for the order. */
@@ -320,18 +328,24 @@ export interface EtherfuseBankAccountResponse {
     createdAt: string;
 }
 
-/** A single bank account in the list response. */
+/** A single bank account in the list response from `POST /ramp/customer/{id}/bank-accounts`. */
 export interface EtherfuseBankAccountListItem {
     /** Bank account ID. */
     bankAccountId: string;
-    /** Name of the bank. */
-    bankName: string;
-    /** 18-digit CLABE interbank code. */
-    clabe: string;
-    /** Name of the account beneficiary. */
-    beneficiary: string;
+    /** Customer ID. */
+    customerId: string;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
+    /** ISO 8601 last-update timestamp. */
+    updatedAt: string;
+    /** Abbreviated CLABE (e.g. "1067...8699"). */
+    abbrClabe: string;
+    /** Etherfuse deposit CLABE for receiving funds. */
+    etherfuseDepositClabe: string;
+    /** Whether the account is compliant. */
+    compliant: boolean;
+    /** Account status (e.g. "active"). */
+    status: string;
 }
 
 /** Paginated response from `POST /ramp/customer/{id}/bank-accounts`. */

@@ -51,6 +51,7 @@ Usage:
     let isSigning = $state(false);
     let error = $state<string | null>(null);
     let refreshInterval: ReturnType<typeof setInterval> | null = null;
+    let signableInterval: ReturnType<typeof setInterval> | null = null;
 
     // Saved fiat accounts
     let savedAccounts = $state<SavedFiatAccount[]>([]);
@@ -64,8 +65,8 @@ Usage:
     let clabe = $state('');
     let beneficiary = $state('');
 
-    // Steps: 'input' | 'quote' | 'bank' | 'signing' | 'pending' | 'complete'
-    let step = $state<'input' | 'quote' | 'bank' | 'signing' | 'pending' | 'complete'>('input');
+    // Steps: 'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
+    let step = $state<'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'>('input');
 
     // Asset balance
     let assetBalance = $state('0');
@@ -246,7 +247,7 @@ Usage:
         await loadSavedAccounts();
     }
 
-    async function confirmAndSign() {
+    async function confirmOrder() {
         const customer = customerStore.current;
         if (!quote || !walletStore.publicKey || !customer) return;
 
@@ -299,29 +300,59 @@ Usage:
             }
 
             transaction = tx;
-            step = 'signing';
 
-            // Now sign and send the transaction
-            isSigning = true;
-
-            let xdr: string;
             if (tx.signableTransaction) {
+                // Signable transaction available immediately — go straight to signing
+                await signAndSubmit(tx.signableTransaction);
+            } else if (provider === PROVIDER.ETHERFUSE) {
+                // Etherfuse: burn transaction is not available at creation time —
+                // poll GET /ramp/order/{id} until it appears
+                step = 'awaiting_signable';
+                startPollingForSignable();
+            } else {
+                // Other providers (BlindPay, AlfredPay, etc.): build a payment
+                // transaction locally and sign it directly
+                await signAndSubmit();
+            }
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Transaction failed';
+            step = 'bank'; // Go back to bank details
+        } finally {
+            isCreatingTransaction = false;
+        }
+    }
+
+    /**
+     * Sign the transaction and submit it. If an XDR is provided it is used
+     * directly (pre-built by the anchor, e.g. Etherfuse burn). Otherwise a
+     * payment transaction is built on the fly.
+     */
+    async function signAndSubmit(xdr?: string) {
+        if (!walletStore.publicKey || !quote) return;
+
+        step = 'signing';
+        isSigning = true;
+        error = null;
+
+        try {
+            let envelope: string;
+            if (xdr) {
                 // Use pre-built transaction from the anchor (e.g. Etherfuse burn)
-                xdr = tx.signableTransaction;
+                envelope = xdr;
             } else {
                 // Build a payment transaction to the anchor's receiving address
-                const anchorAddress = tx.stellarAddress;
-                xdr = await buildPaymentTransaction({
+                const anchorAddress = transaction!.stellarAddress;
+                envelope = await buildPaymentTransaction({
                     sourcePublicKey: walletStore.publicKey,
                     destinationPublicKey: anchorAddress,
                     asset: stellarAsset,
                     amount: String(amount),
-                    memo: tx.memo || '',
+                    memo: transaction!.memo || '',
                     network,
                 });
             }
 
-            const signed = await signWithFreighter(xdr, network);
+            const signed = await signWithFreighter(envelope, network);
 
             if (provider === PROVIDER.BLINDPAY) {
                 // BlindPay: submit signed XDR back to BlindPay (step 2 of 2)
@@ -343,8 +374,33 @@ Usage:
             error = err instanceof Error ? err.message : 'Transaction failed';
             step = 'bank'; // Go back to bank details
         } finally {
-            isCreatingTransaction = false;
             isSigning = false;
+        }
+    }
+
+    function startPollingForSignable() {
+        stopPollingForSignable();
+
+        signableInterval = setInterval(async () => {
+            if (!transaction) return;
+
+            try {
+                const updated = await api.getOffRampTransaction(fetch, provider, transaction.id);
+                if (updated?.signableTransaction) {
+                    stopPollingForSignable();
+                    transaction = updated;
+                    await signAndSubmit(updated.signableTransaction);
+                }
+            } catch (err) {
+                console.error('Failed to poll for signable transaction:', err);
+            }
+        }, 5000);
+    }
+
+    function stopPollingForSignable() {
+        if (signableInterval) {
+            clearInterval(signableInterval);
+            signableInterval = null;
         }
     }
 
@@ -393,6 +449,18 @@ Usage:
         error = null;
         step = 'input';
         stopPolling();
+        stopPollingForSignable();
+    }
+
+    /** Strip the issuer from a `CODE:ISSUER` asset string. */
+    function displayCurrency(currency: string | undefined): string {
+        if (!currency) return '';
+        return currency.split(':')[0];
+    }
+
+    /** Format a numeric string to at most 7 decimal places, trimming trailing zeros. */
+    function formatAmount(value: string): string {
+        return parseFloat(parseFloat(value).toFixed(7)).toString();
     }
 
     function clearError() {
@@ -401,7 +469,10 @@ Usage:
 
     onMount(() => {
         checkBalance();
-        return () => stopPolling();
+        return () => {
+            stopPolling();
+            stopPollingForSignable();
+        };
     });
 </script>
 
@@ -422,7 +493,7 @@ Usage:
                             <span class="text-sm text-gray-400">Loading...</span>
                         {:else if hasTrustline}
                             <span class="font-medium"
-                                >{parseFloat(assetBalance).toFixed(2)} {fromCurrency}</span
+                                >{formatAmount(assetBalance)} {displayCurrency(fromCurrency)}</span
                             >
                         {:else}
                             <button
@@ -490,7 +561,7 @@ Usage:
                 {#if provider === PROVIDER.BLINDPAY && selectedAccountId}
                     <!-- BlindPay: bank already registered before quote, go straight to confirm -->
                     <button
-                        onclick={confirmAndSign}
+                        onclick={confirmOrder}
                         disabled={isCreatingTransaction}
                         class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
@@ -547,12 +618,10 @@ Usage:
                                         />
                                         <div class="ml-3">
                                             <p class="text-sm font-medium text-gray-900">
-                                                {account.bankName}
+                                                {account.bankName || 'Bank Account'}
                                             </p>
                                             <p class="text-sm text-gray-500">
-                                                {account.accountHolderName} &bull; ****{account.accountNumber.slice(
-                                                    -4,
-                                                )}
+                                                {#if account.accountHolderName}{account.accountHolderName} &bull; {/if}{account.accountNumber || account.id.slice(0, 8)}
                                             </p>
                                         </div>
                                     </label>
@@ -677,7 +746,7 @@ Usage:
                     </button>
                 {:else}
                 <button
-                    onclick={confirmAndSign}
+                    onclick={confirmOrder}
                     disabled={isLoadingAccounts ||
                         isCreatingTransaction ||
                         (useNewAccount &&
@@ -689,6 +758,38 @@ Usage:
                 </button>
                 {/if}
             </div>
+        </div>
+    {:else if step === 'awaiting_signable'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+            <div
+                class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"
+            ></div>
+            <h2 class="mt-4 text-xl font-semibold text-gray-900">Preparing Your Transaction</h2>
+            <p class="mt-2 text-gray-500">
+                Your order has been created. Waiting for the transaction to be ready for signing...
+            </p>
+
+            {#if transaction && quote}
+                <div class="mt-6 space-y-3 rounded-md bg-gray-50 p-4 text-left">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">You're sending</span>
+                        <span class="font-medium"
+                            >{formatAmount(transaction.fromAmount)} {displayCurrency(transaction.fromCurrency || quote.fromCurrency)}</span
+                        >
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">You'll receive</span>
+                        <span class="font-medium text-green-600">
+                            {parseFloat(transaction.toAmount || quote.toAmount || '0').toLocaleString()}
+                            {displayCurrency(transaction.toCurrency || quote.toCurrency)}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">Order ID</span>
+                        <span class="font-mono text-sm text-gray-700">{transaction.id.slice(0, 8)}...</span>
+                    </div>
+                </div>
+            {/if}
         </div>
     {:else if step === 'signing'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
@@ -722,16 +823,27 @@ Usage:
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">You sent</span>
                         <span class="font-medium"
-                            >{transaction.fromAmount} {transaction.fromCurrency}</span
+                            >{formatAmount(transaction.fromAmount)} {displayCurrency(transaction.fromCurrency || quote?.fromCurrency)}</span
                         >
                     </div>
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">You'll receive</span>
                         <span class="font-medium text-green-600">
-                            {parseFloat(transaction.toAmount).toLocaleString()}
-                            {transaction.toCurrency}
+                            {parseFloat(transaction.toAmount || quote?.toAmount || '0').toLocaleString()}
+                            {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
                         </span>
                     </div>
+                    {#if transaction.feeAmount}
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-500">Fee</span>
+                            <span class="text-sm text-gray-700">
+                                {transaction.feeAmount} {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
+                                {#if transaction.feeBps}
+                                    <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
+                                {/if}
+                            </span>
+                        </div>
+                    {/if}
                     <div class="flex justify-between">
                         <span class="text-sm text-gray-500">Bank</span>
                         <span class="font-medium">{transaction.bankAccount.bankName}</span>
@@ -746,6 +858,16 @@ Usage:
                     <p class="text-center text-sm text-gray-500">
                         This page will update when your transfer is complete.
                     </p>
+                    {#if transaction.statusPage}
+                        <a
+                            href={transaction.statusPage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
+                        >
+                            View on Etherfuse
+                        </a>
+                    {/if}
                 </div>
             </div>
         {/if}
@@ -773,12 +895,20 @@ Usage:
             <p class="mt-2 text-gray-500">Your funds have been sent to your bank account.</p>
 
             {#if transaction}
-                <div class="mt-4 text-sm text-gray-600">
+                <div class="mt-4 space-y-1 text-sm text-gray-600">
                     <p>
-                        Amount: {parseFloat(transaction.toAmount).toLocaleString()}
-                        {transaction.toCurrency}
+                        Amount: {parseFloat(transaction.toAmount || quote?.toAmount || '0').toLocaleString()}
+                        {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
                     </p>
-                    <p class="mt-1">Bank: {transaction.bankAccount.bankName}</p>
+                    {#if transaction.feeAmount}
+                        <p>
+                            Fee: {transaction.feeAmount} {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
+                            {#if transaction.feeBps}
+                                <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
+                            {/if}
+                        </p>
+                    {/if}
+                    <p>Bank: {transaction.bankAccount.bankName}</p>
                 </div>
             {/if}
 

@@ -86,10 +86,14 @@ export interface OffRampTransaction {
     toCurrency: string;
     stellarAddress: string;
     bankAccount: BankAccount;
+    feeBps?: number;
+    feeAmount?: string;
     memo?: string;
     stellarTxHash?: string;
     /** Pre-built transaction envelope (e.g. base64 XDR) for the user to sign. */
     signableTransaction?: string;
+    /** URL to an anchor-hosted status page for this transaction. */
+    statusPage?: string;
     createdAt: string;
     updatedAt: string;
 }
