@@ -4,14 +4,14 @@
  * Configure these values based on your target region and anchor provider.
  */
 
-// Currency codes - Configure based on your target region and asset
+// Default currency codes used by UI components for quote requests.
 export const CURRENCY = {
-    FIAT: 'MXN', // Change to your region's currency (e.g., 'ARS', 'BRL', 'COP')
-    USDC: 'USDC', // Change to your target digital asset (e.g., 'USDC', 'EURC', 'XLM')
+    FIAT: 'MXN',
+    USDC: 'USDC',
 } as const;
 
-// Supported countries for AlfredPay anchor
-// Each country has a code, name, currency, and payment method
+// Countries available in KYC and customer registration forms.
+// Each entry maps a country code to its currency and payment rail.
 export const SUPPORTED_COUNTRIES = [
     { code: 'MX', name: 'Mexico', currency: 'MXN', paymentMethod: 'SPEI' },
     { code: 'AR', name: 'Argentina', currency: 'ARS', paymentMethod: 'COELSA' },

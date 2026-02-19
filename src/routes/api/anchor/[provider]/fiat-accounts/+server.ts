@@ -6,7 +6,8 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAnchor, isValidProvider, AnchorError } from '$lib/anchors';
+import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+import { AnchorError } from '$lib/anchors';
 
 export const POST: RequestHandler = async ({ params, request }) => {
     const { provider } = params;

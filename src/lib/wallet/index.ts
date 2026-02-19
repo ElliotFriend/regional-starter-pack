@@ -6,6 +6,5 @@ export {
     submitTransaction,
     checkTrustline,
     buildTrustlineTransaction,
-    getTransaction,
 } from './stellar';
 export * from './types';

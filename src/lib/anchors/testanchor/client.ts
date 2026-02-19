@@ -25,11 +25,6 @@ import {
 } from '$lib/anchors/sep/sep10';
 
 import { sep6, sep12, sep24, sep31, sep38 } from '$lib/anchors/sep';
-// import * as sep6 from '$lib/anchors/sep/sep6';
-// import * as sep12 from '$lib/anchors/sep/sep12';
-// import * as sep24 from '$lib/anchors/sep/sep24';
-// import * as sep31 from '$lib/anchors/sep/sep31';
-// import * as sep38 from '$lib/anchors/sep/sep38';
 
 import type {
     Sep6Info,

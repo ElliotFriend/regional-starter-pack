@@ -5,7 +5,7 @@
 
 import freighterApi from '@stellar/freighter-api';
 import { WalletError, type StellarNetwork, type SignedTransaction } from './types';
-import { Networks } from '@stellar/stellar-sdk';
+import { getNetworkPassphrase } from './stellar';
 
 const {
     isConnected,
@@ -111,13 +111,6 @@ export async function getFreighterNetwork(): Promise<StellarNetwork> {
         return 'testnet';
     }
     return 'public';
-}
-
-/**
- * Get the network passphrase for a given network
- */
-export function getNetworkPassphrase(network: StellarNetwork): string {
-    return network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
 }
 
 /**

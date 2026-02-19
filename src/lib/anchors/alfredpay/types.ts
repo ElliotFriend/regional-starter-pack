@@ -56,38 +56,6 @@ export interface AlfredPayQuoteRequest {
     metadata?: Record<string, unknown>;
 }
 
-/** Request body for `POST /onramp`. */
-export interface AlfredPayOnRampRequest {
-    /** Customer ID that owns this transaction. */
-    customerId: string;
-    /** Quote ID obtained from `POST /quotes`. */
-    quoteId: string;
-    /** Stellar address to receive the crypto asset. */
-    wallet_address: string;
-    /** Blockchain network — always `"XLM"` for Stellar. */
-    chain: 'XLM';
-}
-
-/** Request body for `POST /offramp`. */
-export interface AlfredPayOffRampRequest {
-    /** Customer ID that owns this transaction. */
-    customerId: string;
-    /** Quote ID obtained from `POST /quotes`. */
-    quoteId: string;
-    /** Stellar address the crypto will be sent from. */
-    wallet_address: string;
-    /** Blockchain network — always `"XLM"` for Stellar. */
-    chain: 'XLM';
-    /** Destination bank account for fiat payout. */
-    bankAccount: {
-        bankName: string;
-        accountNumber: string;
-        /** 18-digit CLABE interbank code. */
-        clabe: string;
-        beneficiary: string;
-    };
-}
-
 // ---------------------------------------------------------------------------
 // API Response Types
 // ---------------------------------------------------------------------------

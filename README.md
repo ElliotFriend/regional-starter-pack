@@ -1,51 +1,120 @@
 # Stellar Regional Starter Pack
 
-A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network. Includes integrations for both **SEP-compliant anchors** and **custom anchor APIs** (like AlfredPay).
+A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network. Includes integrations for three anchor providers -- Etherfuse, AlfredPay, and BlindPay -- as well as a composable SEP protocol library for building against any SEP-compliant anchor.
 
 ## What's Inside
 
 ```text
-src/lib/anchors/          <- PORTABLE: Copy into any project
-├── types.ts              <- Shared Anchor interface
-├── sep/                  <- SEP protocol implementations
-│   ├── sep1.ts           <- Stellar.toml discovery
-│   ├── sep10.ts          <- Web authentication (JWT)
-│   ├── sep6.ts           <- Programmatic deposits/withdrawals
-│   ├── sep12.ts          <- KYC/customer management
-│   ├── sep24.ts          <- Interactive deposits/withdrawals
-│   ├── sep31.ts          <- Cross-border payments
-│   └── sep38.ts          <- Anchor quotes (RFQ)
-├── alfredpay/            <- AlfredPay integration (Mexico, non-SEP)
-│   ├── client.ts         <- Complete API client
-│   └── types.ts          <- AlfredPay-specific types
-└── testanchor/           <- Reference for testanchor.stellar.org
+src/lib/anchors/          <- PORTABLE: Copy into any TypeScript project
+  types.ts                <- Shared Anchor interface + common types
+  etherfuse/              <- Etherfuse integration (Latin America)
+  alfredpay/              <- AlfredPay integration (Mexico)
+  blindpay/               <- BlindPay integration (global)
+  sep/                    <- SEP protocol implementations
+  testanchor/             <- Reference client for testanchor.stellar.org
 
-src/lib/wallet/           <- Freighter wallet integration
-src/lib/stores/           <- Svelte 5 reactive state
+src/lib/server/           <- SvelteKit-specific server code
+  anchorFactory.ts        <- Anchor factory (reads env vars, instantiates clients)
+
+src/lib/wallet/           <- Freighter wallet + Stellar helpers
+src/lib/stores/           <- Svelte 5 reactive state (runes)
+src/lib/components/       <- On/off ramp UI components
+src/lib/config/           <- Region, anchor, and token configuration
 src/routes/               <- SvelteKit pages and API routes
 ```
 
 ## Quick Start
 
 ```bash
-pnpm install    # Install dependencies
-pnpm dev        # Run development server
-pnpm check      # Type check
-pnpm build      # Build for production
+cp .env.example .env      # Configure API keys
+pnpm install              # Install dependencies
+pnpm dev                  # Run development server
+pnpm check                # Type check
+pnpm build                # Build for production
 ```
 
 ---
 
 ## Using the Anchor Library
 
-The `/src/lib/anchors/` directory is designed to be **copy/paste portable**. Pick what you need:
+The `/src/lib/anchors/` directory is **framework-agnostic** and designed to be copied into any TypeScript project. Each anchor client implements a shared `Anchor` interface, so swapping providers requires no changes to your application logic.
 
-### Option 1: SEP-Compliant Anchors
+### The Anchor Interface
 
-For anchors that implement Stellar SEP protocols, copy `/sep/` into your project.
+All custom clients implement this interface from `types.ts`:
 
 ```typescript
-import { fetchStellarToml, authenticate, sep24Deposit } from './anchors/sep';
+interface Anchor {
+    readonly name: string;
+    createCustomer(input: CreateCustomerInput): Promise<Customer>;
+    getCustomer(customerId: string): Promise<Customer | null>;
+    getCustomerByEmail(email: string, country?: string): Promise<Customer | null>;
+    getQuote(input: GetQuoteInput): Promise<Quote>;
+    createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
+    getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
+    registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
+    getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
+    createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
+    getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
+    getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
+    getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
+}
+```
+
+### Anchor Providers
+
+| Provider | Region | Fiat Currency | Token | Payment Rail | KYC Flow |
+| --- | --- | --- | --- | --- | --- |
+| **Etherfuse** | Latin America (MX, AR, BR, CO, CL, BO, DO, US) | MXN, ARS, BRL, COP, CLP, BOB, DOP, USD | CETES | SPEI, COELSA, PIX, ACH | iframe |
+| **AlfredPay** | Mexico | MXN | USDC | SPEI | form |
+| **BlindPay** | Global (Mexico demo) | MXN | USDB | SPEI | redirect |
+
+Each provider has its own directory under `/src/lib/anchors/` with a `README.md` containing detailed setup, usage examples, and flow documentation.
+
+### Example: Etherfuse
+
+```typescript
+import { EtherfuseClient } from './anchors/etherfuse';
+
+const anchor = new EtherfuseClient({
+    apiKey: 'your-api-key',
+    baseUrl: 'https://api.sand.etherfuse.com', // sandbox
+});
+
+// 1. Create customer (returns KYC onboarding URL)
+const customer = await anchor.createCustomer({
+    email: 'user@example.com',
+    publicKey: 'GXYZ...',
+    country: 'MX',
+});
+
+// 2. Get quote (MXN -> CETES)
+const quote = await anchor.getQuote({
+    fromCurrency: 'MXN',
+    toCurrency: 'CETES',
+    fromAmount: '1000',
+    customerId: customer.id,
+    stellarAddress: 'GXYZ...',
+});
+
+// 3. Create on-ramp order
+const onramp = await anchor.createOnRamp({
+    customerId: customer.id,
+    quoteId: quote.id,
+    stellarAddress: 'GXYZ...',
+    fromCurrency: 'MXN',
+    toCurrency: 'CETES',
+    amount: '1000',
+    bankAccountId: customer.bankAccountId!,
+});
+```
+
+### Example: SEP-Compliant Anchors
+
+For anchors that implement Stellar SEP protocols, use the `/sep/` modules directly:
+
+```typescript
+import { fetchStellarToml, authenticate, sep24 } from './anchors/sep';
 
 // 1. Discover anchor endpoints
 const toml = await fetchStellarToml('testanchor.stellar.org');
@@ -62,7 +131,7 @@ const token = await authenticate(
 );
 
 // 3. Start interactive deposit
-const response = await sep24Deposit(toml.TRANSFER_SERVER_SEP0024!, token, {
+const response = await sep24.deposit(toml.TRANSFER_SERVER_SEP0024!, token, {
     asset_code: 'USDC',
     amount: '100',
 });
@@ -70,133 +139,113 @@ const response = await sep24Deposit(toml.TRANSFER_SERVER_SEP0024!, token, {
 window.open(response.url, '_blank');
 ```
 
-### Option 2: Custom Anchor APIs (AlfredPay)
+---
 
-For anchors with their own API (not SEP-compliant), copy `/alfredpay/` and `/types.ts`.
+## Architecture
 
-```typescript
-import { AlfredPayClient } from './anchors/alfredpay';
+### Server-Side Anchor Factory
 
-// Initialize (server-side only)
-const anchor = new AlfredPayClient({
-    apiKey: process.env.ALFREDPAY_API_KEY!,
-    apiSecret: process.env.ALFREDPAY_API_SECRET!,
-    baseUrl: 'https://api-service-co.alfredpay.app/api/v1/third-party-service/penny',
-});
-
-// Create customer
-const customer = await anchor.createCustomer({
-    email: 'user@example.com',
-    stellarAddress: 'GXYZ...',
-    country: 'MX',
-});
-
-// Get quote (MXN → USDC)
-const quote = await anchor.getQuote({
-    fromCurrency: 'MXN',
-    toCurrency: 'USDC',
-    fromAmount: '1000',
-});
-
-// Create on-ramp
-const onramp = await anchor.createOnRamp({
-    customerId: customer.id,
-    quoteId: quote.id,
-    stellarAddress: 'GXYZ...',
-    fromCurrency: 'MXN',
-    toCurrency: 'USDC',
-    amount: '1000',
-});
-
-// User pays via SPEI
-console.log('CLABE:', onramp.paymentInstructions?.clabe);
-console.log('Reference:', onramp.paymentInstructions?.reference);
-```
-
-### The Anchor Interface
-
-All custom clients implement a shared `Anchor` interface for consistency:
+Anchor clients require API keys and should only be instantiated server-side. The factory at `src/lib/server/anchorFactory.ts` reads environment variables and returns configured client instances:
 
 ```typescript
-interface Anchor {
-    createCustomer(input): Promise<Customer>;
-    getCustomer(id): Promise<Customer | null>;
-    getQuote(input): Promise<Quote>;
-    createOnRamp(input): Promise<OnRampTransaction>;
-    createOffRamp(input): Promise<OffRampTransaction>;
-    getKycIframeUrl(customerId): Promise<string>;
-    // ... and more
-}
+// In a +server.ts route handler:
+import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+
+const anchor = getAnchor('etherfuse'); // Returns configured EtherfuseClient
 ```
 
-This means you can swap anchor implementations without changing your application logic.
+This separation keeps the anchor library (`src/lib/anchors/`) portable and free of SvelteKit imports.
+
+### API Routes
+
+All anchor operations are proxied through SvelteKit API routes at `/api/anchor/[provider]/`:
+
+```text
+/api/anchor/[provider]/customers      - Customer creation and lookup
+/api/anchor/[provider]/kyc            - KYC status and iframe URLs
+/api/anchor/[provider]/quotes         - Quote generation
+/api/anchor/[provider]/onramp         - On-ramp order creation and status
+/api/anchor/[provider]/offramp        - Off-ramp order creation and status
+/api/anchor/[provider]/fiat-accounts  - Bank account registration
+/api/anchor/[provider]/sandbox        - Sandbox-only operations (KYC completion, fiat simulation)
+/api/anchor/[provider]/payout-submit  - Payout submission (BlindPay)
+/api/anchor/[provider]/blockchain-wallets - Blockchain wallet registration (BlindPay)
+/api/anchor/webhooks                  - Webhook handler (AlfredPay)
+```
+
+For the test anchor (SEP flows), separate proxy endpoints handle CORS:
+
+```text
+/api/testanchor/sep6   - SEP-6 proxy
+/api/testanchor/sep24  - SEP-24 proxy
+```
+
+### UI Components
+
+The on-ramp and off-ramp flows are implemented as Svelte components:
+
+- `OnRampFlow.svelte` - Fiat to crypto flow (customer -> quote -> payment instructions -> status polling)
+- `OffRampFlow.svelte` - Crypto to fiat flow (customer -> quote -> bank selection -> signing -> status polling)
+- `KycForm.svelte` / `KycIframe.svelte` - KYC collection (form-based or iframe-based depending on provider)
+- `QuoteDisplay.svelte` - Quote summary with countdown timer
+- `WalletConnect.svelte` - Freighter wallet connection
+
+### Pages
+
+```text
+/                       - Home page
+/anchors                - Anchor provider listing
+/anchors/[provider]     - Provider detail page
+/anchors/[provider]/onramp   - On-ramp page
+/anchors/[provider]/offramp  - Off-ramp page
+/regions                - Region listing
+/regions/[region]       - Region detail with available anchors
+/testanchor             - SEP flow demo with testanchor.stellar.org
+```
 
 ---
 
 ## SEP Module Reference
 
-| Module  | Protocol                                      | Description                       |
-| ------- | --------------------------------------------- | --------------------------------- |
-| `sep1`  | [SEP-1](https://stellar.org/protocol/sep-1)   | Stellar.toml discovery            |
-| `sep10` | [SEP-10](https://stellar.org/protocol/sep-10) | Web authentication                |
-| `sep6`  | [SEP-6](https://stellar.org/protocol/sep-6)   | Programmatic deposits/withdrawals |
-| `sep12` | [SEP-12](https://stellar.org/protocol/sep-12) | KYC/customer management           |
-| `sep24` | [SEP-24](https://stellar.org/protocol/sep-24) | Interactive deposits/withdrawals  |
-| `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments             |
-| `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ)               |
+| Module | Protocol | Description |
+| --- | --- | --- |
+| `sep1` | [SEP-1](https://stellar.org/protocol/sep-1) | Stellar.toml discovery |
+| `sep10` | [SEP-10](https://stellar.org/protocol/sep-10) | Web authentication |
+| `sep6` | [SEP-6](https://stellar.org/protocol/sep-6) | Programmatic deposits/withdrawals |
+| `sep12` | [SEP-12](https://stellar.org/protocol/sep-12) | KYC/customer management |
+| `sep24` | [SEP-24](https://stellar.org/protocol/sep-24) | Interactive deposits/withdrawals |
+| `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments |
+| `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ) |
 
-## AlfredPay Reference
-
-AlfredPay provides MXN on/off ramps for Mexico via SPEI bank transfers.
-
-| Method                  | Description                 |
-| ----------------------- | --------------------------- |
-| `createCustomer()`      | Create new customer         |
-| `getQuote()`            | Get exchange rate           |
-| `createOnRamp()`        | Fiat → Crypto (MXN → USDC)  |
-| `createOffRamp()`       | Crypto → Fiat (USDC → MXN)  |
-| `registerFiatAccount()` | Register bank account       |
-| `getKycIframeUrl()`     | Get KYC verification URL    |
-| `submitKycData()`       | Programmatic KYC submission |
-
-See [`/src/lib/anchors/README.md`](src/lib/anchors/README.md) for complete documentation.
-
----
-
-## Demo Pages
-
-### `/testanchor`
-
-Interactive demo using Stellar's test anchor. Test SEP flows without real money on testnet.
-
-### Architecture
-
-```text
-Browser                          Server                         Anchor
-   │                                │                              │
-   │  1. Connect Freighter          │                              │
-   │──────────────────────>│        │                              │
-   │                                │                              │
-   │  2. SEP-10 Auth                │                              │
-   │──────────────────────────────────────────────────────────────>│
-   │<──────────────────────────────────────────────────────────────│
-   │                                │                              │
-   │  3. Deposit (via proxy)        │                              │
-   │───────────────────────>│───────────────────────────────────>│
-   │<───────────────────────│<───────────────────────────────────│
-```
-
-**Note:** Browser requests to anchors typically fail due to CORS. Use server-side proxy endpoints (see `/api/testanchor/`).
+SEP modules are framework-agnostic. They accept an optional `fetchFn` parameter for SSR and depend only on `@stellar/stellar-sdk`.
 
 ---
 
 ## Environment Variables
 
+Copy `.env.example` to `.env` and fill in your API keys:
+
 ```env
-# AlfredPay (Mexico)
-ALFREDPAY_API_KEY=your-api-key
-ALFREDPAY_API_SECRET=your-api-secret
-ALFREDPAY_BASE_URL=https://api-service-co.alfredpay.app/api/v1/third-party-service/penny
+# Etherfuse
+ETHERFUSE_API_KEY=""
+ETHERFUSE_BASE_URL="https://api.sand.etherfuse.com"
+
+# AlfredPay
+ALFREDPAY_API_KEY=""
+ALFREDPAY_API_SECRET=""
+ALFREDPAY_BASE_URL="https://penny-api-restricted-dev.alfredpay.io/api/v1/third-party-service/penny"
+
+# BlindPay
+BLINDPAY_API_KEY=""
+BLINDPAY_INSTANCE_ID=""
+BLINDPAY_BASE_URL="https://api.blindpay.com"
+
+# Webhooks
+ALFREDPAY_WEBHOOK_SECRET=""
+
+# Stellar Network
+PUBLIC_STELLAR_NETWORK="testnet"
+PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 ```
 
 ## Tech Stack
@@ -205,15 +254,18 @@ ALFREDPAY_BASE_URL=https://api-service-co.alfredpay.app/api/v1/third-party-servi
 - **Svelte 5** - UI with runes (`$state`, `$derived`, `$effect`)
 - **TypeScript** - Type safety throughout
 - **Tailwind CSS** - Styling
-- **@stellar/stellar-sdk** - Stellar blockchain
-- **@stellar/freighter-api** - Wallet integration
+- **@stellar/stellar-sdk** - Stellar blockchain interaction
+- **@stellar/freighter-api** - Wallet connection (Freighter browser extension)
 
 ## Adding a New Anchor
 
-1. Create `/src/lib/anchors/[anchor-name]/`
-2. Implement the `Anchor` interface from `types.ts`
-3. Add API route proxies if needed for CORS
-4. Document in `/src/lib/anchors/README.md`
+1. Create `/src/lib/anchors/[anchor-name]/` with `client.ts`, `types.ts`, and `index.ts`
+2. Implement the `Anchor` interface from `../types.ts`
+3. Add the provider to `src/lib/server/anchorFactory.ts` (env vars, factory switch case)
+4. Add the provider to `src/lib/constants.ts` (`PROVIDER` object)
+5. Add the provider to `src/lib/config/regions.ts` (`ANCHORS`, region `anchors` arrays)
+6. Add API route proxies if needed for CORS
+7. Document in `/src/lib/anchors/[anchor-name]/README.md`
 
 ## License
 

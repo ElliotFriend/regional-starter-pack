@@ -181,18 +181,3 @@ export async function buildTrustlineTransaction(options: {
     return transaction.toXDR();
 }
 
-/**
- * Get transaction details
- */
-export async function getTransaction(
-    txHash: string,
-    network: StellarNetwork,
-): Promise<Horizon.ServerApi.TransactionRecord | null> {
-    const server = getHorizonServer(network);
-
-    try {
-        return await server.transactions().transaction(txHash).call();
-    } catch {
-        return null;
-    }
-}

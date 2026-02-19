@@ -5,7 +5,7 @@
  * The browser can't make direct requests to the anchor, so we proxy through the server.
  */
 
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 const SEP24_SERVER = 'https://testanchor.stellar.org/sep24';
@@ -16,7 +16,7 @@ export const POST: RequestHandler = async ({ request }) => {
         const { action, token, ...params } = body;
 
         if (!token) {
-            return json({ error: 'Authentication token is required' }, { status: 401 });
+            throw error(401, { message: 'Authentication token is required' });
         }
 
         let url: string;
@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
                 break;
 
             default:
-                return json({ error: `Unknown action: ${action}` }, { status: 400 });
+                throw error(400, { message: `Unknown action: ${action}` });
         }
 
         // Ensure amount is a string (SEP-24 requirement)

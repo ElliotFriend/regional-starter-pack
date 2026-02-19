@@ -4,7 +4,7 @@
  * Proxies SEP-6 requests to testanchor.stellar.org to avoid CORS issues.
  */
 
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 const SEP6_SERVER = 'https://testanchor.stellar.org/sep6';
@@ -15,7 +15,7 @@ export const POST: RequestHandler = async ({ request }) => {
         const { action, token, ...params } = body;
 
         if (!token) {
-            return json({ error: 'Authentication token is required' }, { status: 401 });
+            throw error(401, { message: 'Authentication token is required' });
         }
 
         let url: string;
@@ -44,7 +44,7 @@ export const POST: RequestHandler = async ({ request }) => {
             }
 
             default:
-                return json({ error: `Unknown action: ${action}` }, { status: 400 });
+                throw error(400, { message: `Unknown action: ${action}` });
         }
 
         console.log('SEP-6 proxy request:', { url });

@@ -1,6 +1,6 @@
 # Stellar Regional Starter Pack - LLM Guide
 
-This is a SvelteKit application for building fiat on/off ramps on the Stellar network. It includes a portable anchor integration library supporting both **SEP-compliant anchors** and **custom anchor APIs** (like AlfredPay).
+This is a SvelteKit application for building fiat on/off ramps on the Stellar network. It includes a portable anchor integration library supporting three anchor providers (Etherfuse, AlfredPay, BlindPay) and a composable SEP protocol library for building against any SEP-compliant anchor.
 
 ## Project Structure
 
@@ -9,7 +9,19 @@ src/
 ├── lib/
 │   ├── anchors/              # PORTABLE: Framework-agnostic anchor integrations
 │   │   ├── types.ts          # Shared Anchor interface + common types
-│   │   ├── sep/              # SEP protocol implementations (for compliant anchors)
+│   │   ├── index.ts          # Re-exports (no SvelteKit imports)
+│   │   ├── etherfuse/        # Etherfuse integration (Latin America)
+│   │   │   ├── client.ts     # EtherfuseClient implements Anchor
+│   │   │   ├── types.ts      # Etherfuse API types
+│   │   │   └── README.md     # Integration documentation
+│   │   ├── alfredpay/        # AlfredPay integration (Mexico)
+│   │   │   ├── client.ts     # AlfredPayClient implements Anchor
+│   │   │   ├── types.ts      # AlfredPay API types
+│   │   │   └── README.md     # Integration documentation
+│   │   ├── blindpay/         # BlindPay integration (global)
+│   │   │   ├── client.ts     # BlindPayClient implements Anchor
+│   │   │   └── types.ts      # BlindPay API types
+│   │   ├── sep/              # SEP protocol implementations
 │   │   │   ├── sep1.ts       # stellar.toml discovery
 │   │   │   ├── sep10.ts      # Web authentication (JWT)
 │   │   │   ├── sep6.ts       # Programmatic deposits/withdrawals
@@ -18,85 +30,154 @@ src/
 │   │   │   ├── sep31.ts      # Cross-border payments
 │   │   │   ├── sep38.ts      # Anchor quotes (RFQ)
 │   │   │   └── types.ts      # SEP-specific types
-│   │   ├── alfredpay/        # AlfredPay integration (Mexico, non-SEP)
-│   │   │   ├── client.ts     # AlfredPayClient implements Anchor interface
-│   │   │   └── types.ts      # AlfredPay API types
-│   │   ├── testanchor/       # Reference for testanchor.stellar.org
-│   │   └── README.md         # Detailed library documentation
+│   │   └── testanchor/       # Reference client for testanchor.stellar.org
 │   │
-│   ├── wallet/               # Freighter wallet integration
-│   └── stores/               # Svelte 5 reactive state (runes)
+│   ├── server/               # SvelteKit-specific server code
+│   │   └── anchorFactory.ts  # Anchor factory (reads $env, instantiates clients)
+│   │
+│   ├── wallet/               # Freighter wallet + Stellar helpers
+│   │   ├── freighter.ts      # Freighter browser extension API
+│   │   ├── stellar.ts        # Horizon, transaction building, trustlines
+│   │   ├── types.ts          # Wallet types
+│   │   └── index.ts          # Re-exports
+│   │
+│   ├── components/           # Svelte 5 UI components
+│   │   ├── OnRampFlow.svelte      # Fiat -> crypto flow
+│   │   ├── OffRampFlow.svelte     # Crypto -> fiat flow
+│   │   ├── KycForm.svelte         # Form-based KYC (AlfredPay)
+│   │   ├── KycIframe.svelte       # Iframe-based KYC (Etherfuse)
+│   │   ├── QuoteDisplay.svelte    # Quote summary with countdown
+│   │   ├── WalletConnect.svelte   # Freighter connection
+│   │   └── ui/                    # Layout components (Header, Footer, etc.)
+│   │
+│   ├── stores/               # Svelte 5 reactive state (runes)
+│   │   ├── wallet.svelte.ts  # Wallet connection state
+│   │   └── customer.svelte.ts # Customer/KYC state
+│   │
+│   ├── config/
+│   │   └── regions.ts        # Region, anchor, token, and payment rail config
+│   │
+│   ├── constants.ts          # App constants (currencies, providers, statuses)
+│   │
+│   └── utils/
+│       └── status.ts         # Transaction status helpers
 │
 ├── routes/
-│   ├── testanchor/           # Test anchor demo page
+│   ├── anchors/              # Anchor listing and per-provider pages
+│   │   ├── +page.svelte      # All anchors listing
+│   │   └── [provider]/       # Dynamic provider routes
+│   │       ├── +page.svelte  # Provider detail
+│   │       ├── onramp/       # On-ramp page
+│   │       └── offramp/      # Off-ramp page
+│   ├── regions/              # Region listing and per-region pages
+│   ├── testanchor/           # Test anchor SEP flow demo
 │   └── api/
-│       └── testanchor/       # CORS proxy endpoints for SEP-6/SEP-24
+│       ├── anchor/           # Anchor API proxies
+│       │   ├── [provider]/   # Per-provider endpoints
+│       │   │   ├── customers/
+│       │   │   ├── kyc/
+│       │   │   ├── quotes/
+│       │   │   ├── onramp/
+│       │   │   ├── offramp/
+│       │   │   ├── fiat-accounts/
+│       │   │   ├── sandbox/
+│       │   │   ├── payout-submit/
+│       │   │   └── blockchain-wallets/
+│       │   └── webhooks/
+│       └── testanchor/       # SEP CORS proxy endpoints
+│           ├── sep6/
+│           └── sep24/
 ```
 
 ## Key Concepts
 
-### Two Types of Anchor Integrations
+### Portability
 
-1. **SEP-Compliant Anchors** (`/sep/`): Use the SEP modules directly. These implement Stellar protocols (SEP-1, 6, 10, 12, 24, 31, 38).
+The `/src/lib/anchors/` directory is **framework-agnostic**. It has no SvelteKit imports, no `$env` references, and depends only on `@stellar/stellar-sdk`. You can copy it into any TypeScript project.
 
-2. **Custom Anchor APIs** (`/alfredpay/`): For anchors with their own APIs (not SEP-compliant), implement the `Anchor` interface from `types.ts`. AlfredPay is the reference implementation.
+The SvelteKit-specific anchor factory lives at `/src/lib/server/anchorFactory.ts`. It reads `$env/static/private` for API keys and instantiates anchor clients. Only `+server.ts` route handlers import from this module.
 
-### The Anchor Interface (`/types.ts`)
+### The Anchor Interface (`/anchors/types.ts`)
 
-All custom anchor clients implement this interface:
+All three anchor clients implement the shared `Anchor` interface:
 
 ```typescript
 interface Anchor {
+    readonly name: string;
     createCustomer(input): Promise<Customer>;
+    getCustomer(id): Promise<Customer | null>;
+    getCustomerByEmail(email, country?): Promise<Customer | null>;
     getQuote(input): Promise<Quote>;
     createOnRamp(input): Promise<OnRampTransaction>;
+    getOnRampTransaction(id): Promise<OnRampTransaction | null>;
+    registerFiatAccount(input): Promise<RegisteredFiatAccount>;
+    getFiatAccounts(customerId): Promise<SavedFiatAccount[]>;
     createOffRamp(input): Promise<OffRampTransaction>;
-    getKycIframeUrl(customerId): Promise<string>;
-    // ... etc
+    getOffRampTransaction(id): Promise<OffRampTransaction | null>;
+    getKycIframeUrl(customerId, publicKey?, bankAccountId?): Promise<string>;
+    getKycStatus(customerId, publicKey?): Promise<KycStatus>;
 }
 ```
 
-This allows swapping anchor implementations without changing application code.
+### Anchor Providers
 
-### AlfredPay Client (`/alfredpay/client.ts`)
+**Etherfuse** (`/anchors/etherfuse/`) - Default provider. Latin America focus. Iframe-based KYC. On-ramp and off-ramp via SPEI (Mexico) and other regional payment rails. Uses CETES token. Off-ramp has deferred signing: the burn transaction XDR is not in the order creation response; it appears when polling `getOffRampTransaction()`.
 
-Complete implementation for AlfredPay (Mexico, MXN via SPEI). Key features:
+**AlfredPay** (`/anchors/alfredpay/`) - Mexico focus. Form-based KYC. On-ramp and off-ramp via SPEI. Uses USDC. Supports email-based customer lookup.
 
-- Customer management with KYC
-- Quotes for MXN ↔ USDC
-- On-ramp: User pays MXN, receives USDC on Stellar
-- Off-ramp: User sends USDC, receives MXN to bank
-- Server-side only (uses API keys)
+**BlindPay** (`/anchors/blindpay/`) - Global. Redirect-based KYC. Uses USDB token. Requires separate blockchain wallet registration. Off-ramp uses a payout submission step instead of Stellar transaction signing.
 
-### SEP Library (`/sep/`)
+### Anchor Factory (`/server/anchorFactory.ts`)
 
-SEP protocol implementations:
+Server-side only. Maps provider names to configured client instances:
 
-- Framework-agnostic (just `@stellar/stellar-sdk`)
+```typescript
+import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+// type AnchorProvider = 'etherfuse' | 'alfredpay' | 'blindpay'
+const anchor = getAnchor('etherfuse');
+```
+
+### SEP Library (`/anchors/sep/`)
+
+SEP protocol implementations for building against any SEP-compliant anchor. Framework-agnostic.
+
 - Optional `fetchFn` parameter for SSR
 - Can be copied into any TypeScript project
+- Depends only on `@stellar/stellar-sdk`
 
 **When modifying SEP modules:**
 
-- Keep them framework-agnostic
+- Keep them framework-agnostic (no SvelteKit imports)
 - Maintain the `fetchFn` parameter pattern
-- Update sep/types.ts for SEP-specific types
-- Update sep/index.ts exports
+- Update `sep/types.ts` for SEP-specific types
+- Update `sep/index.ts` exports
 
 ### CORS Proxy Pattern
 
-Browser requests to anchor endpoints fail due to CORS. The solution:
+Browser requests to anchor APIs fail due to CORS. All anchor operations go through SvelteKit API routes:
 
-1. Create SvelteKit server endpoints (`/api/testanchor/sep6`, `/api/testanchor/sep24`)
-2. Frontend calls local endpoint
-3. Server proxies to anchor
-4. Server returns response to frontend
+1. Frontend calls `/api/anchor/[provider]/[operation]`
+2. Server-side route handler calls `getAnchor(provider)` from `anchorFactory.ts`
+3. Server proxies the request to the anchor API
+4. Server returns the response to the frontend
 
-See `/src/routes/api/testanchor/sep24/+server.ts` for the pattern.
+For SEP flows (test anchor), separate proxy endpoints exist at `/api/testanchor/sep6` and `/api/testanchor/sep24`.
+
+### Off-Ramp Signing Flow
+
+The off-ramp flow differs by provider:
+
+- **Etherfuse**: Order creation returns no signable transaction. The UI enters an `awaiting_signable` state and polls `getOffRampTransaction()` until the `signableTransaction` (burn XDR) appears. Then Freighter signs it and the transaction is submitted to Stellar.
+- **AlfredPay**: The UI builds a USDC payment transaction to the anchor's Stellar address. Freighter signs and submits it.
+- **BlindPay**: Uses a separate payout submission endpoint. No direct Stellar signing by the user.
+
+### Region Configuration (`/config/regions.ts`)
+
+Defines regions, anchors, payment rails, and tokens. The anchor order in all lists is: Etherfuse, AlfredPay, BlindPay.
 
 ### SEP Flow Sequence
 
-Typical on/off ramp flow:
+For SEP-compliant anchors (test anchor demo):
 
 1. **SEP-1**: Discover anchor endpoints from stellar.toml
 2. **SEP-10**: Authenticate user, get JWT token
@@ -105,65 +186,62 @@ Typical on/off ramp flow:
 5. **SEP-6/24**: Initiate deposit or withdrawal
 6. Poll transaction status until complete
 
-### Test Anchor
-
-The `/testanchor` page demonstrates all SEP flows using Stellar's test anchor at `testanchor.stellar.org`. This operates on Stellar testnet with test assets (SRT, USDC).
-
 ## Common Tasks
 
 ### Adding a New Anchor Integration
 
 1. Create directory: `/src/lib/anchors/[anchor-name]/`
-2. Create `client.ts` with anchor-specific logic
-3. Create `types.ts` for anchor-specific types
-4. Create `index.ts` for exports
-5. Add CORS proxy endpoints if needed
+2. Create `client.ts` implementing the `Anchor` interface from `../types.ts`
+3. Create `types.ts` for anchor-specific API types
+4. Create `index.ts` exporting the client and types
+5. Add the provider to `src/lib/server/anchorFactory.ts` (import client, add env vars, add to switch case, add to `AnchorProvider` type)
+6. Add to `src/lib/constants.ts` (`PROVIDER` object)
+7. Add to `src/lib/config/regions.ts` (`ANCHORS` record, region `anchors` arrays)
+8. Add CORS proxy API routes in `/routes/api/` if needed
+9. Document in `/src/lib/anchors/[anchor-name]/README.md`
 
 ### Adding SEP Support
 
 1. Create `/src/lib/anchors/sep/sep[N].ts`
 2. Add types to `sep/types.ts`
 3. Export from `sep/index.ts`
-4. Document in `/src/lib/anchors/README.md`
-
-### Adding a New Custom Anchor (like AlfredPay)
-
-1. Create directory: `/src/lib/anchors/[anchor-name]/`
-2. Create `client.ts` implementing the `Anchor` interface from `../types.ts`
-3. Create `types.ts` for anchor-specific API types
-4. Create `index.ts` exporting the client and types
-5. Add CORS proxy endpoints in `/routes/api/` if needed
-6. Document in `/src/lib/anchors/README.md`
-
-Example structure:
-
-```typescript
-// client.ts
-import type { Anchor, Customer, Quote } from '../types';
-import { AnchorError } from '../types';
-
-export class MyAnchorClient implements Anchor {
-    readonly name = 'myanchor';
-
-    constructor(private config: { apiKey: string }) {}
-
-    async createCustomer(input) {
-        /* ... */
-    }
-    async getQuote(input) {
-        /* ... */
-    }
-    // ... implement all Anchor methods
-}
-```
 
 ### Working with Transactions
 
-All SEP modules use common transaction statuses from `types.ts`:
+All anchor clients return transactions with common statuses from `types.ts`:
 
-- `pending_*` statuses indicate in-progress
-- `completed`, `error`, `expired`, `refunded` are terminal
-- Use `pollTransaction` helpers for status updates
+- `pending`, `processing` - in-progress
+- `completed`, `failed`, `expired`, `cancelled`, `refunded` - terminal
+
+The `OffRampTransaction` type includes optional fields for provider-specific data:
+- `signableTransaction` - Pre-built XDR for signing (Etherfuse)
+- `statusPage` - URL to anchor-hosted status page (Etherfuse)
+- `feeBps` / `feeAmount` - Fee info
+
+## Environment Variables
+
+```env
+# Etherfuse
+ETHERFUSE_API_KEY=""
+ETHERFUSE_BASE_URL="https://api.sand.etherfuse.com"
+
+# AlfredPay
+ALFREDPAY_API_KEY=""
+ALFREDPAY_API_SECRET=""
+ALFREDPAY_BASE_URL="https://penny-api-restricted-dev.alfredpay.io/api/v1/third-party-service/penny"
+
+# BlindPay
+BLINDPAY_API_KEY=""
+BLINDPAY_INSTANCE_ID=""
+BLINDPAY_BASE_URL="https://api.blindpay.com"
+
+# Webhooks
+ALFREDPAY_WEBHOOK_SECRET=""
+
+# Stellar (public, accessible client-side)
+PUBLIC_STELLAR_NETWORK="testnet"
+PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+```
 
 ## Tech Stack
 
@@ -172,14 +250,6 @@ All SEP modules use common transaction statuses from `types.ts`:
 - **Tailwind CSS** for styling
 - **@stellar/stellar-sdk** for Stellar blockchain
 - **@stellar/freighter-api** for wallet connection
-
-## Environment Variables
-
-```env
-ALFREDPAY_API_KEY=your-api-key
-ALFREDPAY_API_SECRET=your-api-secret
-ALFREDPAY_BASE_URL=https://api-service-co.alfredpay.app/api/v1/third-party-service/penny
-```
 
 ---
 
