@@ -65,7 +65,7 @@ interface Anchor {
 
 | Provider | Region | Fiat Currency | Token | Payment Rail | KYC Flow |
 | --- | --- | --- | --- | --- | --- |
-| **Etherfuse** | Latin America (MX, AR, BR, CO, CL, BO, DO, US) | MXN, ARS, BRL, COP, CLP, BOB, DOP, USD | CETES | SPEI, COELSA, PIX, ACH | iframe |
+| **Etherfuse** | Mexico | MXN | CETES | SPEI | iframe |
 | **AlfredPay** | Mexico | MXN | USDC | SPEI | form |
 | **BlindPay** | Global (Mexico demo) | MXN | USDB | SPEI | redirect |
 
