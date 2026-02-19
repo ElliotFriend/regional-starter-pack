@@ -14,6 +14,7 @@ import type {
     OnRampTransaction,
     OffRampTransaction,
     SavedFiatAccount,
+    RegisteredFiatAccount,
 } from '$lib/anchors/types';
 import type {
     AlfredPayKycRequirementsResponse,
@@ -301,6 +302,21 @@ export async function getFiatAccounts(
     }
 }
 
+/**
+ * Register a new fiat account (bank account) for a customer
+ */
+export async function registerFiatAccount(
+    fetch: Fetch,
+    provider: string,
+    customerId: string,
+    bankAccount: { bankName: string; accountNumber: string; clabe: string; beneficiary: string },
+): Promise<RegisteredFiatAccount> {
+    return postJson<RegisteredFiatAccount>(fetch, `/api/anchor/${provider}/fiat-accounts`, {
+        customerId,
+        ...bankAccount,
+    });
+}
+
 // =============================================================================
 // KYC API
 // =============================================================================
@@ -372,9 +388,11 @@ export async function getKycIframeUrl(
     provider: string,
     customerId: string,
     publicKey?: string,
+    bankAccountId?: string,
 ): Promise<string> {
     let url = `/api/anchor/${provider}/kyc?customerId=${customerId}&type=iframe`;
     if (publicKey) url += `&publicKey=${encodeURIComponent(publicKey)}`;
+    if (bankAccountId) url += `&bankAccountId=${encodeURIComponent(bankAccountId)}`;
     const data = await apiRequest<{ url: string }>(fetch, url);
     return data.url;
 }
@@ -537,4 +555,21 @@ export async function completeKycSandbox(
         action: 'completeKyc',
         submissionId,
     });
+}
+
+/**
+ * Simulate fiat received for an on-ramp order in sandbox mode (testing only).
+ * Returns the HTTP status code from the anchor API (200, 400, or 404).
+ */
+export async function simulateFiatReceived(
+    fetch: Fetch,
+    provider: string,
+    orderId: string,
+): Promise<number> {
+    const result = await postJson<{ success: boolean; statusCode: number }>(
+        fetch,
+        `/api/anchor/${provider}/sandbox`,
+        { action: 'simulateFiatReceived', orderId },
+    );
+    return result.statusCode;
 }

@@ -133,6 +133,13 @@ Usage:
     async function getQuote_() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
+        // BlindPay requires bank_account_id for payout quotes — collect bank details first
+        if (provider === PROVIDER.BLINDPAY) {
+            step = 'bank';
+            await loadSavedAccounts();
+            return;
+        }
+
         isGettingQuote = true;
         error = null;
 
@@ -160,11 +167,53 @@ Usage:
                 fromCurrency,
                 toCurrency: CURRENCY.FIAT,
                 amount,
-                customerId: getQuoteCustomerId(),
+                customerId: getQuoteCustomerId(selectedAccountId ?? undefined),
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to refresh quote';
+        } finally {
+            isGettingQuote = false;
+        }
+    }
+
+    /**
+     * BlindPay off-ramp: register bank account (if new), then get quote with bank_account_id.
+     * Called from the bank step when BlindPay needs bank details before quoting.
+     */
+    async function handleBlindPayBankContinue() {
+        const customer = customerStore.current;
+        if (!customer) return;
+
+        if (!useNewAccount && !selectedAccountId) return;
+        if (useNewAccount && (!clabe || !beneficiary)) return;
+
+        error = null;
+        isGettingQuote = true;
+
+        try {
+            if (useNewAccount) {
+                const result = await api.registerFiatAccount(fetch, provider, customer.id, {
+                    bankName,
+                    accountNumber,
+                    clabe,
+                    beneficiary,
+                });
+                selectedAccountId = result.id;
+                useNewAccount = false;
+            }
+
+            quote = await api.getQuote(fetch, provider, {
+                fromCurrency,
+                toCurrency: CURRENCY.FIAT,
+                amount,
+                customerId: getQuoteCustomerId(selectedAccountId!),
+                stellarAddress: walletStore.publicKey ?? undefined,
+            });
+
+            step = 'quote';
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to register bank account or get quote';
         } finally {
             isGettingQuote = false;
         }
@@ -314,7 +363,8 @@ Usage:
                         stopPolling();
                     } else if (
                         updated.status === TX_STATUS.FAILED ||
-                        updated.status === TX_STATUS.EXPIRED
+                        updated.status === TX_STATUS.EXPIRED ||
+                        updated.status === TX_STATUS.CANCELLED
                     ) {
                         stopPolling();
                     }
@@ -437,12 +487,23 @@ Usage:
                 >
                     Cancel
                 </button>
-                <button
-                    onclick={proceedToBankDetails}
-                    class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                >
-                    Continue to Bank Details
-                </button>
+                {#if provider === PROVIDER.BLINDPAY && selectedAccountId}
+                    <!-- BlindPay: bank already registered before quote, go straight to confirm -->
+                    <button
+                        onclick={confirmAndSign}
+                        disabled={isCreatingTransaction}
+                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isCreatingTransaction ? 'Processing...' : 'Confirm & Sign'}
+                    </button>
+                {:else}
+                    <button
+                        onclick={proceedToBankDetails}
+                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                        Continue to Bank Details
+                    </button>
+                {/if}
             </div>
         </div>
     {:else if step === 'bank'}
@@ -597,11 +658,24 @@ Usage:
 
             <div class="mt-6 flex gap-3">
                 <button
-                    onclick={() => (step = 'quote')}
+                    onclick={() => (step = quote ? 'quote' : 'input')}
                     class="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                     Back
                 </button>
+                {#if provider === PROVIDER.BLINDPAY && !quote}
+                    <!-- BlindPay: bank step is before quote — continue to get quote -->
+                    <button
+                        onclick={handleBlindPayBankContinue}
+                        disabled={isLoadingAccounts ||
+                            isGettingQuote ||
+                            (useNewAccount && (!clabe || !beneficiary)) ||
+                            (!useNewAccount && !selectedAccountId)}
+                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isGettingQuote ? 'Getting Quote...' : 'Continue'}
+                    </button>
+                {:else}
                 <button
                     onclick={confirmAndSign}
                     disabled={isLoadingAccounts ||
@@ -613,6 +687,7 @@ Usage:
                 >
                     {isCreatingTransaction ? 'Processing...' : 'Confirm & Sign'}
                 </button>
+                {/if}
             </div>
         </div>
     {:else if step === 'signing'}

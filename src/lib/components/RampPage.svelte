@@ -67,6 +67,23 @@
         }
     });
 
+    // Auto-load iframe KYC URL when customer is loaded but KYC isn't complete
+    let iframeAutoLoaded = false;
+    $effect(() => {
+        const customer = customerStore.current;
+        if (
+            customer?.id &&
+            capabilities.kycFlow === 'iframe' &&
+            customer.kycStatus !== KYC_STATUS.APPROVED &&
+            !iframeAutoLoaded
+        ) {
+            iframeAutoLoaded = true;
+            showKyc = true;
+            checkIframeKycStatus(customer.id);
+            loadKycIframeUrl(customer.id);
+        }
+    });
+
     // Derived step based on wallet/customer/kyc state
     let currentStep = $derived.by(() => {
         if (!walletStore.isConnected) return 'connect';
@@ -213,7 +230,13 @@
     async function loadKycIframeUrl(customerId: string) {
         isLoadingIframeUrl = true;
         try {
-            kycIframeUrl = await api.getKycIframeUrl(fetch, provider, customerId, walletStore.publicKey ?? undefined);
+            kycIframeUrl = await api.getKycIframeUrl(
+                fetch,
+                provider,
+                customerId,
+                walletStore.publicKey ?? undefined,
+                customerStore.current?.bankAccountId ?? undefined,
+            );
         } catch (err) {
             console.error('Failed to load KYC iframe URL:', err);
         } finally {
@@ -411,34 +434,39 @@
                     </div>
                 {/if}
             {:else if capabilities.kycFlow === 'iframe'}
-                <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                    <h2 class="text-lg font-semibold text-gray-900">Complete Verification</h2>
-                    <p class="mt-1 text-sm text-gray-500">
-                        Complete the verification process below to continue.
+                <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+                    <div
+                        class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
+                    >
+                        <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </div>
+                    <h2 class="mt-4 text-lg font-semibold text-gray-900">Complete Verification</h2>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Complete the onboarding process in the new window, then come back here and check your status.
                     </p>
 
                     {#if isLoadingIframeUrl}
-                        <div class="mt-6 flex items-center justify-center py-8">
+                        <div class="mt-6 flex items-center justify-center py-4">
                             <div
                                 class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
                             ></div>
-                            <span class="ml-2 text-sm text-gray-500">Loading verification...</span>
+                            <span class="ml-2 text-sm text-gray-500">Loading...</span>
                         </div>
                     {:else if kycIframeUrl}
-                        <div class="mt-4 overflow-hidden rounded-md border border-gray-200">
-                            <iframe
-                                src={kycIframeUrl}
-                                title="KYC Verification"
-                                class="h-[600px] w-full"
-                                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                            ></iframe>
-                        </div>
+                        <button
+                            onclick={() => window.open(kycIframeUrl!, '_blank')}
+                            class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                            Open Verification
+                        </button>
                     {/if}
 
                     <button
                         onclick={handleRefreshIframeKycStatus}
                         disabled={isRefreshingKycStatus}
-                        class="mt-4 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        class="mt-4 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
                         {isRefreshingKycStatus ? 'Checking...' : 'Refresh KYC Status'}
                     </button>

@@ -68,7 +68,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
         }
 
         if (type === 'iframe') {
-            const iframeUrl = await anchor.getKycIframeUrl(customerId!, publicKey);
+            const bankAccountId = url.searchParams.get('bankAccountId') || undefined;
+            const iframeUrl = await anchor.getKycIframeUrl(customerId!, publicKey, bankAccountId);
             return json({ url: iframeUrl });
         }
 

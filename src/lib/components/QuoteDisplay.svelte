@@ -9,7 +9,6 @@
     }
 
     let { quote, onRefresh, isRefreshing = false }: Props = $props();
-    $inspect('quote', quote)
 
     // Common digital assets that should show more decimal places
     const CRYPTO_CURRENCIES = ['USDC', 'EURC', 'XLM', 'BTC', 'ETH', 'USDT', 'CETES', 'USDB'];

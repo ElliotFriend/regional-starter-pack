@@ -60,6 +60,8 @@ Usage:
     // Blockchain wallet registration state (BlindPay-specific)
     let isRegisteringWallet = $state(false);
     let walletRegistered = $state(false);
+    let isSimulatingFiat = $state(false);
+    let fiatSimulated = $state(false);
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
@@ -70,7 +72,6 @@ Usage:
             ? getStellarAsset(tokenConfig.symbol, tokenConfig.issuer)
             : getUsdcAsset(PUBLIC_USDC_ISSUER);
     });
-    $inspect('stellarAsset', stellarAsset)
 
     async function checkTrustlineStatus() {
         if (!walletStore.publicKey) return;
@@ -200,7 +201,8 @@ Usage:
                         stopPolling();
                     } else if (
                         updated.status === TX_STATUS.FAILED ||
-                        updated.status === TX_STATUS.EXPIRED
+                        updated.status === TX_STATUS.EXPIRED ||
+                        updated.status === TX_STATUS.CANCELLED
                     ) {
                         stopPolling();
                     }
@@ -223,6 +225,26 @@ Usage:
         error = null;
         step = 'input';
         stopPolling();
+    }
+
+    async function simulateFiatReceived() {
+        if (!transaction) return;
+
+        isSimulatingFiat = true;
+        try {
+            const statusCode = await api.simulateFiatReceived(fetch, provider, transaction.id);
+            if (statusCode === 200) {
+                fiatSimulated = true;
+            } else if (statusCode === 404) {
+                error = 'Order not found';
+            } else {
+                error = `Simulation failed (${statusCode}): order may be in the wrong status or not an on-ramp order`;
+            }
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to simulate fiat received';
+        } finally {
+            isSimulatingFiat = false;
+        }
     }
 
     function clearError() {
@@ -416,6 +438,24 @@ Usage:
                     </p>
                 </div>
 
+                <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
+                    <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
+                    <p class="mt-1 text-xs text-amber-700">
+                        Simulate a bank transfer being received by the anchor.
+                    </p>
+                    {#if fiatSimulated}
+                        <p class="mt-3 text-sm font-medium text-green-700">Fiat received simulated successfully.</p>
+                    {:else}
+                        <button
+                            onclick={simulateFiatReceived}
+                            disabled={isSimulatingFiat}
+                            class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                        >
+                            {isSimulatingFiat ? 'Simulating...' : 'Simulate Fiat Received (Sandbox)'}
+                        </button>
+                    {/if}
+                </div>
+
                 <div class="mt-6">
                     <p class="text-center text-sm text-gray-500">
                         Waiting for payment confirmation... This page will update automatically.
@@ -447,8 +487,16 @@ Usage:
             <p class="mt-2 text-gray-500">Your digital assets have been sent to your wallet.</p>
 
             {#if transaction}
-                <div class="mt-4 text-sm text-gray-600">
-                    <p>Amount: {transaction.toAmount} {transaction.toCurrency}</p>
+                <div class="mt-4 space-y-1 text-sm text-gray-600">
+                    <p>Amount: {transaction.toAmount || quote?.toAmount} {(transaction.toCurrency || quote?.toCurrency || '').split(':')[0]}</p>
+                    {#if transaction.feeAmount}
+                        <p>
+                            Fee: {transaction.feeAmount} {transaction.fromCurrency || quote?.fromCurrency}
+                            {#if transaction.feeBps}
+                                <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
+                            {/if}
+                        </p>
+                    {/if}
                     {#if transaction.stellarTxHash}
                         <p class="mt-1">
                             <a

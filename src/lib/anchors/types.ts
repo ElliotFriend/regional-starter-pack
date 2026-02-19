@@ -11,7 +11,8 @@ export type TransactionStatus =
     | 'completed'
     | 'failed'
     | 'expired'
-    | 'cancelled';
+    | 'cancelled'
+    | 'refunded';
 
 export interface Customer {
     id: string;
@@ -59,6 +60,8 @@ export interface OnRampTransaction {
     toCurrency: string;
     stellarAddress: string;
     paymentInstructions?: PaymentInstructions;
+    feeBps?: number;
+    feeAmount?: string;
     stellarTxHash?: string;
     createdAt: string;
     updatedAt: string;
@@ -182,7 +185,7 @@ export interface Anchor {
     createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
     getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
 
-    getKycIframeUrl(customerId: string, publicKey?: string): Promise<string>;
+    getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
     getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
 }
 

@@ -32,7 +32,6 @@ import type {
     RegisteredFiatAccount,
     SavedFiatAccount,
     KycStatus,
-    PaymentInstructions,
     TransactionStatus,
 } from '../types';
 import { AnchorError } from '../types';
@@ -41,8 +40,8 @@ import type {
     EtherfuseOnboardingResponse,
     EtherfuseCustomerResponse,
     EtherfuseQuoteResponse,
-    EtherfuseOnRampOrderResponse,
-    EtherfuseOffRampOrderResponse,
+    EtherfuseCreateOnRampResponse,
+    EtherfuseOrderResponse,
     EtherfuseKycStatusResponse,
     EtherfuseBankAccountResponse,
     EtherfuseBankAccountListResponse,
@@ -51,7 +50,6 @@ import type {
     EtherfuseOrderStatus,
     EtherfuseKycIdentityRequest,
     EtherfuseKycDocumentRequest,
-    EtherfuseDepositDetails,
 } from './types';
 
 /**
@@ -145,9 +143,14 @@ export class EtherfuseClient implements Anchor {
             );
         }
 
-        const data = await response.json();
-        console.log(`[Etherfuse] Response:`, JSON.stringify(data));
-        return data as T;
+        const text = await response.text();
+        console.log(`[Etherfuse] Response:`, text || '(empty)');
+
+        if (!text) {
+            return undefined as T;
+        }
+
+        return JSON.parse(text) as T;
     }
 
     // =========================================================================
@@ -163,7 +166,8 @@ export class EtherfuseClient implements Anchor {
             funded: 'processing',
             completed: 'completed',
             failed: 'failed',
-            expired: 'expired',
+            refunded: 'refunded',
+            canceled: 'cancelled',
         };
         return statusMap[status] || 'pending';
     }
@@ -182,39 +186,34 @@ export class EtherfuseClient implements Anchor {
     }
 
     /**
-     * Map Etherfuse deposit details to the shared {@link PaymentInstructions} type.
-     */
-    private mapPaymentInstructions(details: EtherfuseDepositDetails): PaymentInstructions {
-        return {
-            type: 'spei',
-            bankName: details.bankName,
-            accountNumber: '',
-            clabe: details.depositClabe,
-            beneficiary: details.beneficiary,
-            reference: details.reference,
-            amount: details.amount,
-            currency: details.currency,
-        };
-    }
-
-    /**
      * Map an on-ramp order response to the shared {@link OnRampTransaction} type.
      */
-    private mapOnRampTransaction(response: EtherfuseOnRampOrderResponse): OnRampTransaction {
+    private mapOnRampTransaction(response: EtherfuseOrderResponse): OnRampTransaction {
         return {
             id: response.orderId,
             customerId: response.customerId,
-            quoteId: response.quoteId,
+            quoteId: '',
             status: this.mapOrderStatus(response.status),
-            fromAmount: response.fromAmount,
-            fromCurrency: response.fromCurrency,
-            toAmount: response.toAmount,
-            toCurrency: response.toCurrency,
-            stellarAddress: response.stellarAddress,
-            paymentInstructions: response.depositDetails
-                ? this.mapPaymentInstructions(response.depositDetails)
+            fromAmount: response.amountInFiat || '',
+            fromCurrency: '',
+            toAmount: response.amountInTokens || '',
+            toCurrency: '',
+            stellarAddress: '',
+            feeBps: response.feeBps,
+            feeAmount: response.feeAmountInFiat,
+            paymentInstructions: response.depositClabe
+                ? {
+                      type: 'spei' as const,
+                      bankName: '',
+                      accountNumber: '',
+                      clabe: response.depositClabe,
+                      beneficiary: '',
+                      reference: '',
+                      amount: response.amountInFiat || '',
+                      currency: '',
+                  }
                 : undefined,
-            stellarTxHash: response.stellarTxHash,
+            stellarTxHash: response.confirmedTxSignature,
             createdAt: response.createdAt,
             updatedAt: response.updatedAt,
         };
@@ -224,19 +223,19 @@ export class EtherfuseClient implements Anchor {
      * Map an off-ramp order response to the shared {@link OffRampTransaction} type.
      */
     private mapOffRampTransaction(
-        response: EtherfuseOffRampOrderResponse,
+        response: EtherfuseOrderResponse,
         bankAccountInfo?: { bankName: string; clabe: string; beneficiary: string },
     ): OffRampTransaction {
         return {
             id: response.orderId,
             customerId: response.customerId,
-            quoteId: response.quoteId,
+            quoteId: '',
             status: this.mapOrderStatus(response.status),
-            fromAmount: response.fromAmount,
-            fromCurrency: response.fromCurrency,
-            toAmount: response.toAmount,
-            toCurrency: response.toCurrency,
-            stellarAddress: response.stellarAddress,
+            fromAmount: response.amountInTokens || '',
+            fromCurrency: '',
+            toAmount: response.amountInFiat || '',
+            toCurrency: '',
+            stellarAddress: '',
             bankAccount: {
                 id: response.bankAccountId,
                 bankName: bankAccountInfo?.bankName || '',
@@ -244,7 +243,7 @@ export class EtherfuseClient implements Anchor {
                 clabe: bankAccountInfo?.clabe || '',
                 beneficiary: bankAccountInfo?.beneficiary || '',
             },
-            stellarTxHash: response.stellarTxHash,
+            stellarTxHash: response.confirmedTxSignature,
             signableTransaction: response.burnTransaction,
             createdAt: response.createdAt,
             updatedAt: response.updatedAt,
@@ -272,7 +271,7 @@ export class EtherfuseClient implements Anchor {
         const publicKey = input.publicKey || this.config.defaultPublicKey || '';
 
         try {
-            const response = await this.request<EtherfuseOnboardingResponse>(
+            await this.request<EtherfuseOnboardingResponse>(
                 'POST',
                 '/ramp/onboarding-url',
                 {
@@ -286,7 +285,7 @@ export class EtherfuseClient implements Anchor {
 
             const now = new Date().toISOString();
             return {
-                id: response.customerId,
+                id: customerId,
                 email: input.email,
                 kycStatus: 'not_started',
                 bankAccountId,
@@ -433,15 +432,43 @@ export class EtherfuseClient implements Anchor {
             }
         }
 
-        const response = await this.request<EtherfuseOnRampOrderResponse>('POST', '/ramp/order', {
-            orderId,
-            bankAccountId,
-            publicKey: input.stellarAddress,
-            quoteId: input.quoteId,
-            memo: input.memo || undefined,
-        });
+        const response = await this.request<EtherfuseCreateOnRampResponse>(
+            'POST',
+            '/ramp/order',
+            {
+                orderId,
+                bankAccountId,
+                publicKey: input.stellarAddress,
+                quoteId: input.quoteId,
+                memo: input.memo || undefined,
+            },
+        );
 
-        return this.mapOnRampTransaction(response);
+        const { onramp } = response;
+
+        return {
+            id: onramp.orderId,
+            customerId: input.customerId,
+            quoteId: input.quoteId,
+            status: 'pending' as const,
+            fromAmount: input.amount,
+            fromCurrency: input.fromCurrency,
+            toAmount: '',
+            toCurrency: input.toCurrency,
+            stellarAddress: input.stellarAddress,
+            paymentInstructions: {
+                type: 'spei' as const,
+                bankName: '',
+                accountNumber: '',
+                clabe: onramp.depositClabe,
+                beneficiary: '',
+                reference: '',
+                amount: onramp.depositAmount,
+                currency: input.fromCurrency,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
     }
 
     /**
@@ -452,7 +479,7 @@ export class EtherfuseClient implements Anchor {
      */
     async getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null> {
         try {
-            const response = await this.request<EtherfuseOnRampOrderResponse>(
+            const response = await this.request<EtherfuseOrderResponse>(
                 'GET',
                 `/ramp/order/${transactionId}`,
             );
@@ -549,7 +576,7 @@ export class EtherfuseClient implements Anchor {
             }
         }
 
-        const response = await this.request<EtherfuseOffRampOrderResponse>('POST', '/ramp/order', {
+        const response = await this.request<EtherfuseOrderResponse>('POST', '/ramp/order', {
             orderId,
             bankAccountId,
             publicKey: input.stellarAddress,
@@ -575,7 +602,7 @@ export class EtherfuseClient implements Anchor {
      */
     async getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null> {
         try {
-            const response = await this.request<EtherfuseOffRampOrderResponse>(
+            const response = await this.request<EtherfuseOrderResponse>(
                 'GET',
                 `/ramp/order/${transactionId}`,
             );
@@ -597,21 +624,22 @@ export class EtherfuseClient implements Anchor {
      * @returns The onboarding URL string.
      * @throws {AnchorError} On API failure.
      */
-    async getKycIframeUrl(customerId: string, publicKey?: string): Promise<string> {
+    async getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string> {
         const resolvedPublicKey = publicKey || this.config.defaultPublicKey || '';
+        const resolvedBankAccountId = bankAccountId || crypto.randomUUID();
 
         const response = await this.request<EtherfuseOnboardingResponse>(
             'POST',
             '/ramp/onboarding-url',
             {
                 customerId,
-                email: '', // Not required for URL generation
+                bankAccountId: resolvedBankAccountId,
                 publicKey: resolvedPublicKey,
                 blockchain: this.blockchain,
             },
         );
 
-        return response.onboardingUrl;
+        return response.presigned_url;
     }
 
     /**
@@ -753,12 +781,24 @@ export class EtherfuseClient implements Anchor {
      * Useful for testing on-ramp flows without sending real SPEI transfers.
      *
      * @param orderId - The order to simulate payment for.
-     * @throws {AnchorError} On API failure.
+     * @returns The HTTP status code from the Etherfuse API (200, 400, or 404).
      */
-    async simulateFiatReceived(orderId: string): Promise<void> {
-        await this.request<{ message: string }>(
-            'POST',
-            `/ramp/order/${orderId}/simulate-fiat-received`,
-        );
+    async simulateFiatReceived(orderId: string): Promise<number> {
+        const url = `${this.config.baseUrl}/ramp/order/fiat_received`;
+        console.log(`[Etherfuse] POST ${url}`, JSON.stringify({ orderId }));
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: this.config.apiKey,
+            },
+            body: JSON.stringify({ orderId }),
+        });
+
+        const text = await response.text();
+        console.log(`[Etherfuse] Response (${response.status}):`, text || '(empty)');
+
+        return response.status;
     }
 }

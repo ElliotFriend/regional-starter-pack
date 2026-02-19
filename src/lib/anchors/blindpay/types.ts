@@ -297,7 +297,7 @@ export interface BlindPayPayinQuoteResponse {
 /** Response from `POST /v1/instances/{id}/payouts/stellar/authorize`. */
 export interface BlindPayPayoutAuthorizeResponse {
     /** The Stellar transaction XDR for the user to sign. */
-    transaction: string;
+    transaction_hash: string;
 }
 
 /** BlindPay payout status. */

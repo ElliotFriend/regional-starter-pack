@@ -427,8 +427,8 @@ export class BlindPayClient implements Anchor {
                 type: 'spei_bitso',
                 name: input.bankAccount.beneficiary,
                 beneficiary_name: input.bankAccount.beneficiary,
-                spei_protocol: '0',
-                spei_institution_code: '0',
+                spei_protocol: 'clabe',
+                spei_institution_code: `40${input.bankAccount.clabe.slice(0, 3)}`,
                 spei_clabe: input.bankAccount.clabe,
             },
         );
@@ -503,7 +503,7 @@ export class BlindPayClient implements Anchor {
                 clabe: input.bankAccountInfo?.clabe || '',
                 beneficiary: input.bankAccountInfo?.beneficiary || '',
             },
-            signableTransaction: response.transaction,
+            signableTransaction: response.transaction_hash,
             createdAt: now,
             updatedAt: now,
         };
@@ -533,7 +533,7 @@ export class BlindPayClient implements Anchor {
      * For BlindPay, the "KYC iframe" is actually a redirect to the ToS page.
      * The user accepts ToS first, then submits KYC data via createReceiver.
      */
-    async getKycIframeUrl(_customerId: string, _publicKey?: string): Promise<string> {
+    async getKycIframeUrl(_customerId: string, _publicKey?: string, _bankAccountId?: string): Promise<string> {
         return this.generateTosUrl();
     }
 

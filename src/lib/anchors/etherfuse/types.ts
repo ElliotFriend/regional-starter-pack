@@ -162,10 +162,8 @@ export interface EtherfuseKycDocumentRequest {
 
 /** Response from `POST /ramp/onboarding-url`. */
 export interface EtherfuseOnboardingResponse {
-    /** Customer ID echoed back. */
-    customerId: string;
     /** Presigned onboarding URL for KYC and agreement acceptance. */
-    onboardingUrl: string;
+    presigned_url: string;
 }
 
 /** Response from `POST /ramp/quote`. */
@@ -204,7 +202,8 @@ export type EtherfuseOrderStatus =
     | 'funded'
     | 'completed'
     | 'failed'
-    | 'expired';
+    | 'refunded'
+    | 'canceled';
 
 /** SPEI payment details included in on-ramp order responses. */
 export interface EtherfuseDepositDetails {
@@ -222,70 +221,58 @@ export interface EtherfuseDepositDetails {
     currency: string;
 }
 
-/** Response from `POST /ramp/order` (on-ramp). */
-export interface EtherfuseOnRampOrderResponse {
-    /** Order ID echoed back. */
-    orderId: string;
-    /** Customer ID. */
-    customerId: string;
-    /** Quote ID. */
-    quoteId: string;
-    /** Order type. */
-    orderType: 'on-ramp';
-    /** Current order status. */
-    status: EtherfuseOrderStatus;
-    /** Fiat amount being sent. */
-    fromAmount: string;
-    /** Fiat currency code. */
-    fromCurrency: string;
-    /** Crypto amount to be received. */
-    toAmount: string;
-    /** Crypto asset in `CODE:ISSUER` format. */
-    toCurrency: string;
-    /** Stellar address that will receive the crypto. */
-    stellarAddress: string;
-    /** SPEI deposit instructions for funding the order. */
-    depositDetails: EtherfuseDepositDetails;
-    /** Stellar transaction hash, if available. */
-    stellarTxHash?: string;
-    /** ISO 8601 creation timestamp. */
-    createdAt: string;
-    /** ISO 8601 last-update timestamp. */
-    updatedAt: string;
+/** Response from `POST /ramp/order` (on-ramp creation). */
+export interface EtherfuseCreateOnRampResponse {
+    onramp: {
+        /** Order ID echoed back. */
+        orderId: string;
+        /** CLABE for SPEI deposit. */
+        depositClabe: string;
+        /** Amount to deposit. */
+        depositAmount: string;
+    };
 }
 
-/** Response from `POST /ramp/order` (off-ramp). */
-export interface EtherfuseOffRampOrderResponse {
-    /** Order ID echoed back. */
+/** Response from `GET /ramp/order/{order_id}`. Unified shape for both on-ramp and off-ramp. */
+export interface EtherfuseOrderResponse {
+    /** Unique identifier for the order. */
     orderId: string;
-    /** Customer ID. */
+    /** ID of the customer who placed the order. */
     customerId: string;
-    /** Quote ID. */
-    quoteId: string;
-    /** Order type. */
-    orderType: 'off-ramp';
-    /** Current order status. */
-    status: EtherfuseOrderStatus;
-    /** Crypto amount being sent. */
-    fromAmount: string;
-    /** Crypto asset in `CODE:ISSUER` format. */
-    fromCurrency: string;
-    /** Fiat amount to be received. */
-    toAmount: string;
-    /** Fiat currency code. */
-    toCurrency: string;
-    /** Stellar address sending the crypto. */
-    stellarAddress: string;
-    /** Bank account ID for fiat payout. */
-    bankAccountId: string;
-    /** Base64-encoded Stellar transaction envelope for the user to sign and submit. */
-    burnTransaction?: string;
-    /** Stellar transaction hash, if available. */
-    stellarTxHash?: string;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
     updatedAt: string;
+    /** ISO 8601 deletion timestamp, if applicable. */
+    deletedAt?: string;
+    /** ISO 8601 completion timestamp. */
+    completedAt?: string;
+    /** Amount in fiat currency (MXN). */
+    amountInFiat?: string;
+    /** Amount in crypto tokens. */
+    amountInTokens?: string;
+    /** Blockchain transaction hash when crypto transfer is confirmed. */
+    confirmedTxSignature?: string;
+    /** ID of the wallet used for the order. */
+    walletId: string;
+    /** ID of the bank account used for the order. */
+    bankAccountId: string;
+    /** Encoded transaction for the user to sign (off-ramp orders). */
+    burnTransaction?: string;
+    /** Optional memo for the order. */
+    memo?: string;
+    /** CLABE number for deposit (on-ramp orders only). */
+    depositClabe?: string;
+    /** Order type. */
+    orderType: 'onramp' | 'offramp';
+    /** Current order status. */
+    status: EtherfuseOrderStatus;
+    /** URL to the order status page. */
+    statusPage: string;
+    /** Fee in basis points (e.g. 20 = 0.20%). */
+    feeBps?: number;
+    /** Fee amount collected in fiat currency. */
+    feeAmountInFiat?: string;
 }
 
 /** Response from `GET /ramp/customer/{id}`. */

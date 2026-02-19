@@ -1,11 +1,47 @@
 /**
  * Fiat Accounts API endpoint
  * GET: List saved fiat accounts for a customer
+ * POST: Register a new fiat account (bank account) for a customer
  */
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getAnchor, isValidProvider, AnchorError } from '$lib/anchors';
+
+export const POST: RequestHandler = async ({ params, request }) => {
+    const { provider } = params;
+
+    if (!isValidProvider(provider)) {
+        throw error(400, { message: `Invalid provider: ${provider}` });
+    }
+
+    try {
+        const body = await request.json();
+        const { customerId, bankName, accountNumber, clabe, beneficiary } = body;
+
+        if (!customerId || !clabe || !beneficiary) {
+            throw error(400, { message: 'customerId, clabe, and beneficiary are required' });
+        }
+
+        const anchor = getAnchor(provider);
+        const result = await anchor.registerFiatAccount({
+            customerId,
+            bankAccount: {
+                bankName: bankName || '',
+                accountNumber: accountNumber || '',
+                clabe,
+                beneficiary,
+            },
+        });
+
+        return json(result, { status: 201 });
+    } catch (err) {
+        if (err instanceof AnchorError) {
+            throw error(err.statusCode, { message: err.message });
+        }
+        throw err;
+    }
+};
 
 export const GET: RequestHandler = async ({ params, url }) => {
     const { provider } = params;
