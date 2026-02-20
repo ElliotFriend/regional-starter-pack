@@ -20,5 +20,10 @@
     connectMessage="Connect your Freighter wallet to get started."
     capabilities={anchor.capabilities}
 >
-    <OnRampFlow provider={anchor.id} {toCurrency} {fiatCurrency} capabilities={anchor.capabilities} />
+    <OnRampFlow
+        provider={anchor.id}
+        {toCurrency}
+        {fiatCurrency}
+        capabilities={anchor.capabilities}
+    />
 </RampPage>

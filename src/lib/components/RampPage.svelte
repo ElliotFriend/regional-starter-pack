@@ -186,7 +186,9 @@
 
         try {
             const status = await api.getKycStatus(
-                fetch, provider, customer.id,
+                fetch,
+                provider,
+                customer.id,
                 walletStore.publicKey ?? undefined,
             );
             const mapped = status as KycStatus;

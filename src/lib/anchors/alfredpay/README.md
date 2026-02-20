@@ -38,12 +38,12 @@ readonly capabilities: AnchorCapabilities = {
 };
 ```
 
-| Flag | Effect |
-| --- | --- |
-| `emailLookup` | The UI attempts to find existing customers by email before creating new ones |
+| Flag              | Effect                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `emailLookup`     | The UI attempts to find existing customers by email before creating new ones                                                    |
 | `kycFlow: 'form'` | The UI renders an inline KYC form (`KycForm.svelte`) and uses the KYC submission API for status tracking and sandbox completion |
-| `sandbox` | Sandbox controls (e.g. "Complete KYC" sandbox button) are shown in the UI |
-| `displayName` | Used in UI labels like "View on Alfred Pay" |
+| `sandbox`         | Sandbox controls (e.g. "Complete KYC" sandbox button) are shown in the UI                                                       |
+| `displayName`     | Used in UI labels like "View on Alfred Pay"                                                                                     |
 
 ## Core Flows
 

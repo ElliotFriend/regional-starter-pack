@@ -180,4 +180,3 @@ export async function buildTrustlineTransaction(options: {
 
     return transaction.toXDR();
 }
-

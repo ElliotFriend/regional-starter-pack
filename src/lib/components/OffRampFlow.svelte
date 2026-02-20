@@ -43,7 +43,12 @@ Usage:
         capabilities?: AnchorCapabilities;
     }
 
-    let { provider = 'etherfuse', fromCurrency = 'USDC', fiatCurrency = 'MXN', capabilities }: Props = $props();
+    let {
+        provider = 'etherfuse',
+        fromCurrency = 'USDC',
+        fiatCurrency = 'MXN',
+        capabilities,
+    }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');
@@ -732,8 +737,7 @@ Usage:
                         onclick={confirmOrder}
                         disabled={isLoadingAccounts ||
                             isCreatingTransaction ||
-                            (useNewAccount &&
-                                (!bankName || !clabe || !beneficiary)) ||
+                            (useNewAccount && (!bankName || !clabe || !beneficiary)) ||
                             (!useNewAccount && !selectedAccountId)}
                         class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >

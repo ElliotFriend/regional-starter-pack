@@ -6,11 +6,11 @@ Server-side TypeScript client for the [BlindPay](https://blindpay.com) anchor AP
 
 ## Files
 
-| File        | Purpose                                                           |
-| ----------- | ----------------------------------------------------------------- |
+| File        | Purpose                                                            |
+| ----------- | ------------------------------------------------------------------ |
 | `client.ts` | `BlindPayClient` class -- implements the shared `Anchor` interface |
-| `types.ts`  | BlindPay-specific request/response types                          |
-| `index.ts`  | Re-exports the client class and all types                         |
+| `types.ts`  | BlindPay-specific request/response types                           |
+| `index.ts`  | Re-exports the client class and all types                          |
 
 ## Capabilities
 
@@ -31,16 +31,16 @@ readonly capabilities: AnchorCapabilities = {
 };
 ```
 
-| Flag | Effect |
-| --- | --- |
-| `kycFlow: 'redirect'` | The UI redirects the user to an external KYC/ToS page instead of rendering inline |
-| `requiresTos` | A ToS acceptance step is shown before customer creation |
-| `requiresBankBeforeQuote` | Off-ramp flow collects bank account details before requesting a quote |
-| `requiresBlockchainWalletRegistration` | On-ramp flow registers a blockchain wallet after customer creation, before quoting |
-| `compositeQuoteCustomerId` | The quote step builds a `customerId:resourceId` composite string for the API |
-| `requiresAnchorPayoutSubmission` | After signing the off-ramp XDR, the signed transaction is submitted back to BlindPay (not directly to Stellar) |
-| `sandbox` | Sandbox controls are shown in the UI (payins auto-complete after 30s on dev instances) |
-| `displayName` | Used in UI labels like "View on BlindPay" |
+| Flag                                   | Effect                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `kycFlow: 'redirect'`                  | The UI redirects the user to an external KYC/ToS page instead of rendering inline                              |
+| `requiresTos`                          | A ToS acceptance step is shown before customer creation                                                        |
+| `requiresBankBeforeQuote`              | Off-ramp flow collects bank account details before requesting a quote                                          |
+| `requiresBlockchainWalletRegistration` | On-ramp flow registers a blockchain wallet after customer creation, before quoting                             |
+| `compositeQuoteCustomerId`             | The quote step builds a `customerId:resourceId` composite string for the API                                   |
+| `requiresAnchorPayoutSubmission`       | After signing the off-ramp XDR, the signed transaction is submitted back to BlindPay (not directly to Stellar) |
+| `sandbox`                              | Sandbox controls are shown in the UI (payins auto-complete after 30s on dev instances)                         |
+| `displayName`                          | Used in UI labels like "View on BlindPay"                                                                      |
 
 ## Key Differences from Other Anchors
 
@@ -68,21 +68,21 @@ Every BlindPay integration follows this sequence:
 
 ## Supported Currencies and Payment Rails
 
-| Country | Currency | Payment Method | Speed |
-| --- | --- | --- | --- |
-| Mexico | MXN | SPEI | Instant |
-| United States | USD | ACH / Wire / RTP | Instant to 2 days |
-| Brazil | BRL | PIX | Instant |
-| Argentina | ARS | Transfers 3.0 | Instant |
-| Colombia | COP | ACH COP | ~1 business day |
-| Global | Various | SWIFT | ~5 business days |
+| Country       | Currency | Payment Method   | Speed             |
+| ------------- | -------- | ---------------- | ----------------- |
+| Mexico        | MXN      | SPEI             | Instant           |
+| United States | USD      | ACH / Wire / RTP | Instant to 2 days |
+| Brazil        | BRL      | PIX              | Instant           |
+| Argentina     | ARS      | Transfers 3.0    | Instant           |
+| Colombia      | COP      | ACH COP          | ~1 business day   |
+| Global        | Various  | SWIFT            | ~5 business days  |
 
 ## Supported Networks and Tokens
 
-| Environment | Network | Tokens |
-| --- | --- | --- |
+| Environment | Network           | Tokens            |
+| ----------- | ----------------- | ----------------- |
 | Development | `stellar_testnet` | USDB (test token) |
-| Production | `stellar` | USDC |
+| Production  | `stellar`         | USDC              |
 
 ## Setup
 
@@ -289,11 +289,7 @@ const tx = await blindpay.createOffRamp({
 // The UI signs tx.signableTransaction using the Freighter wallet
 
 // Step 3: Submit the signed transaction back to BlindPay
-const payout = await blindpay.submitSignedPayout(
-    payoutQuote.id,
-    signedXdr,
-    stellarAddress,
-);
+const payout = await blindpay.submitSignedPayout(payoutQuote.id, signedXdr, stellarAddress);
 // payout.status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded'
 
 // Poll for status updates
@@ -320,32 +316,32 @@ try {
 
 Common error codes from BlindPay:
 
-| Code | Meaning |
-| --- | --- |
-| `TERMS_NOT_ACCEPTED` | Receiver needs to accept updated ToS |
-| `quote_expired` | Quote older than 5 minutes |
-| `insufficient_balance` | Wallet doesn't have enough tokens |
-| `kyc_not_approved` | Receiver KYC still pending or rejected |
+| Code                   | Meaning                                |
+| ---------------------- | -------------------------------------- |
+| `TERMS_NOT_ACCEPTED`   | Receiver needs to accept updated ToS   |
+| `quote_expired`        | Quote older than 5 minutes             |
+| `insufficient_balance` | Wallet doesn't have enough tokens      |
+| `kyc_not_approved`     | Receiver KYC still pending or rejected |
 
 Methods that look up a single resource (`getCustomer`, `getOnRampTransaction`, `getOffRampTransaction`) return `null` instead of throwing when the resource is not found (HTTP 404).
 
 ## Development vs Production
 
-| Feature | Development | Production |
-| --- | --- | --- |
-| KYC | Auto-approved | Manual/automatic review |
-| Payouts | Simulated (no real fiat) | Real bank transfers |
-| Payins | Auto-completed after 30s | Real fiat deposits required |
-| Token | USDB (test stablecoin) | USDC |
-| Network | `stellar_testnet` | `stellar` |
+| Feature | Development              | Production                  |
+| ------- | ------------------------ | --------------------------- |
+| KYC     | Auto-approved            | Manual/automatic review     |
+| Payouts | Simulated (no real fiat) | Real bank transfers         |
+| Payins  | Auto-completed after 30s | Real fiat deposits required |
+| Token   | USDB (test stablecoin)   | USDC                        |
+| Network | `stellar_testnet`        | `stellar`                   |
 
 ### Testing Scenarios
 
-| Amount | Result |
-| --- | --- |
+| Amount     | Result            |
+| ---------- | ----------------- |
 | Any amount | Success (default) |
-| $666.00 | Failed |
-| $777.00 | Refunded |
+| $666.00    | Failed            |
+| $777.00    | Refunded          |
 
 Use first name `"Fail"` when creating receivers to simulate KYC rejection.
 

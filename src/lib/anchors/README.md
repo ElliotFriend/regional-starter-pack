@@ -241,16 +241,22 @@ const tx = await sep24.pollTransaction(getSep24Endpoint(toml)!, token, response.
 Create a new directory and implement the `Anchor` interface:
 
 ```typescript
-import type { Anchor, AnchorCapabilities, Customer, Quote, CreateCustomerInput /* ... */ } from 'path/to/anchors/types';
+import type {
+    Anchor,
+    AnchorCapabilities,
+    Customer,
+    Quote,
+    CreateCustomerInput /* ... */,
+} from 'path/to/anchors/types';
 import { AnchorError } from 'path/to/anchors/types';
 
 export class MyAnchorClient implements Anchor {
     readonly name = 'myanchor';
     readonly capabilities: AnchorCapabilities = {
         kycUrl: true,
-        kycFlow: 'iframe',          // 'form' | 'iframe' | 'redirect'
-        sandbox: true,               // enable sandbox simulation UI
-        displayName: 'My Anchor',    // shown in UI labels
+        kycFlow: 'iframe', // 'form' | 'iframe' | 'redirect'
+        sandbox: true, // enable sandbox simulation UI
+        displayName: 'My Anchor', // shown in UI labels
         // deferredOffRampSigning: false,
         // requiresBankBeforeQuote: false,
         // requiresBlockchainWalletRegistration: false,
@@ -289,7 +295,12 @@ export class MyAnchorClient implements Anchor {
 ### SEP-1: Stellar.toml Discovery
 
 ```typescript
-import { fetchStellarToml, getSep10Endpoint, getSep24Endpoint, supportsSep } from 'path/to/anchors/sep';
+import {
+    fetchStellarToml,
+    getSep10Endpoint,
+    getSep24Endpoint,
+    supportsSep,
+} from 'path/to/anchors/sep';
 
 const toml = await fetchStellarToml('anchor.example.com');
 
@@ -423,10 +434,10 @@ interface OffRampTransaction {
     id: string;
     status: TransactionStatus;
     // ... standard fields ...
-    signableTransaction?: string;  // Pre-built XDR for signing (Etherfuse)
-    statusPage?: string;           // Anchor-hosted status page URL (Etherfuse)
-    feeBps?: number;               // Fee in basis points
-    feeAmount?: string;            // Fee as a string amount
+    signableTransaction?: string; // Pre-built XDR for signing (Etherfuse)
+    statusPage?: string; // Anchor-hosted status page URL (Etherfuse)
+    feeBps?: number; // Fee in basis points
+    feeAmount?: string; // Fee as a string amount
 }
 ```
 

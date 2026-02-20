@@ -75,12 +75,12 @@ readonly capabilities: AnchorCapabilities = {
 };
 ```
 
-| Flag | Effect |
-| --- | --- |
-| `kycFlow: 'iframe'` | The UI renders an iframe with the KYC URL from `getKycUrl()` |
+| Flag                     | Effect                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `kycFlow: 'iframe'`      | The UI renders an iframe with the KYC URL from `getKycUrl()`                                      |
 | `deferredOffRampSigning` | Off-ramp enters a polling state after order creation, waiting for `signableTransaction` to appear |
-| `sandbox` | Sandbox controls (e.g. "Simulate Fiat Received") are shown in the UI |
-| `displayName` | Used in UI labels like "View on Etherfuse" |
+| `sandbox`                | Sandbox controls (e.g. "Simulate Fiat Received") are shown in the UI                              |
+| `displayName`            | Used in UI labels like "View on Etherfuse"                                                        |
 
 ## Core Flows
 

@@ -61,30 +61,30 @@ Every function takes SvelteKit's `fetch` as its first argument and a provider na
 
 ## Functions
 
-| Function | Route | Description |
-| --- | --- | --- |
-| `getCustomerByEmail` | `GET /customers` | Look up customer by email |
-| `createCustomer` | `POST /customers` | Create a new customer |
-| `getOrCreateCustomer` | GET then POST `/customers` | Find or create, respects `supportsEmailLookup` |
-| `getQuote` | `POST /quotes` | Get a price quote |
-| `createOnRamp` | `POST /onramp` | Start a fiat-to-crypto transaction |
-| `getOnRampTransaction` | `GET /onramp` | Poll on-ramp status |
-| `createOffRamp` | `POST /offramp` | Start a crypto-to-fiat transaction |
-| `getOffRampTransaction` | `GET /offramp` | Poll off-ramp status |
-| `getFiatAccounts` | `GET /fiat-accounts` | List saved bank accounts |
-| `registerFiatAccount` | `POST /fiat-accounts` | Register a bank account |
-| `getKycStatus` | `GET /kyc?type=status` | Check KYC status |
-| `getKycUrl` | `GET /kyc?type=iframe` | Get KYC/onboarding URL |
-| `getKycRequirements` | `GET /kyc?type=requirements` | Get required KYC fields (AlfredPay) |
-| `submitKycData` | `POST /kyc?type=data` | Submit KYC data (AlfredPay) |
-| `submitKycFile` | `POST /kyc?type=file` | Upload KYC document (AlfredPay) |
-| `finalizeKycSubmission` | `POST /kyc?type=submit` | Finalize KYC for review (AlfredPay) |
-| `getBlindPayTosUrl` | `GET /kyc?type=tos` | Get ToS acceptance URL (BlindPay) |
-| `createBlindPayReceiver` | `POST /kyc?type=receiver` | Create receiver with KYC (BlindPay) |
-| `registerBlockchainWallet` | `POST /blockchain-wallets` | Register a wallet (BlindPay) |
-| `submitSignedPayout` | `POST /payout-submit` | Submit signed XDR (BlindPay) |
-| `completeKycSandbox` | `POST /sandbox` | Auto-approve KYC (sandbox only) |
-| `simulateFiatReceived` | `POST /sandbox` | Simulate SPEI payment (sandbox only) |
+| Function                   | Route                        | Description                                    |
+| -------------------------- | ---------------------------- | ---------------------------------------------- |
+| `getCustomerByEmail`       | `GET /customers`             | Look up customer by email                      |
+| `createCustomer`           | `POST /customers`            | Create a new customer                          |
+| `getOrCreateCustomer`      | GET then POST `/customers`   | Find or create, respects `supportsEmailLookup` |
+| `getQuote`                 | `POST /quotes`               | Get a price quote                              |
+| `createOnRamp`             | `POST /onramp`               | Start a fiat-to-crypto transaction             |
+| `getOnRampTransaction`     | `GET /onramp`                | Poll on-ramp status                            |
+| `createOffRamp`            | `POST /offramp`              | Start a crypto-to-fiat transaction             |
+| `getOffRampTransaction`    | `GET /offramp`               | Poll off-ramp status                           |
+| `getFiatAccounts`          | `GET /fiat-accounts`         | List saved bank accounts                       |
+| `registerFiatAccount`      | `POST /fiat-accounts`        | Register a bank account                        |
+| `getKycStatus`             | `GET /kyc?type=status`       | Check KYC status                               |
+| `getKycUrl`                | `GET /kyc?type=iframe`       | Get KYC/onboarding URL                         |
+| `getKycRequirements`       | `GET /kyc?type=requirements` | Get required KYC fields (AlfredPay)            |
+| `submitKycData`            | `POST /kyc?type=data`        | Submit KYC data (AlfredPay)                    |
+| `submitKycFile`            | `POST /kyc?type=file`        | Upload KYC document (AlfredPay)                |
+| `finalizeKycSubmission`    | `POST /kyc?type=submit`      | Finalize KYC for review (AlfredPay)            |
+| `getBlindPayTosUrl`        | `GET /kyc?type=tos`          | Get ToS acceptance URL (BlindPay)              |
+| `createBlindPayReceiver`   | `POST /kyc?type=receiver`    | Create receiver with KYC (BlindPay)            |
+| `registerBlockchainWallet` | `POST /blockchain-wallets`   | Register a wallet (BlindPay)                   |
+| `submitSignedPayout`       | `POST /payout-submit`        | Submit signed XDR (BlindPay)                   |
+| `completeKycSandbox`       | `POST /sandbox`              | Auto-approve KYC (sandbox only)                |
+| `simulateFiatReceived`     | `POST /sandbox`              | Simulate SPEI payment (sandbox only)           |
 
 All routes are prefixed with `/api/anchor/[provider]`.
 

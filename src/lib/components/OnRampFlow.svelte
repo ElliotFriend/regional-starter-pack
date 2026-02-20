@@ -40,7 +40,12 @@ Usage:
         capabilities?: AnchorCapabilities;
     }
 
-    let { provider = 'etherfuse', toCurrency = 'USDC', fiatCurrency = 'MXN', capabilities }: Props = $props();
+    let {
+        provider = 'etherfuse',
+        toCurrency = 'USDC',
+        fiatCurrency = 'MXN',
+        capabilities,
+    }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');
@@ -434,7 +439,8 @@ Usage:
                         <div class="border-t border-gray-200 pt-4">
                             <span class="text-sm text-gray-500">Amount</span>
                             <p class="text-2xl font-bold text-indigo-600">
-                                {parseFloat(pi.amount).toLocaleString()} {pi.currency}
+                                {parseFloat(pi.amount).toLocaleString()}
+                                {pi.currency}
                             </p>
                         </div>
                     </div>

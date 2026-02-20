@@ -64,11 +64,11 @@ interface Anchor {
 
 ### Anchor Providers
 
-| Provider | Region | Fiat Currency | Token | Payment Rail | KYC Flow |
-| --- | --- | --- | --- | --- | --- |
-| **Etherfuse** | Mexico | MXN | CETES | SPEI | iframe |
-| **AlfredPay** | Mexico | MXN | USDC | SPEI | form |
-| **BlindPay** | Global (Mexico demo) | MXN | USDB | SPEI | redirect |
+| Provider      | Region               | Fiat Currency | Token | Payment Rail | KYC Flow |
+| ------------- | -------------------- | ------------- | ----- | ------------ | -------- |
+| **Etherfuse** | Mexico               | MXN           | CETES | SPEI         | iframe   |
+| **AlfredPay** | Mexico               | MXN           | USDC  | SPEI         | form     |
+| **BlindPay**  | Global (Mexico demo) | MXN           | USDB  | SPEI         | redirect |
 
 Each provider has its own directory under `/src/lib/anchors/` with a `README.md` containing detailed setup, usage examples, and flow documentation.
 
@@ -208,15 +208,15 @@ The on-ramp and off-ramp flows are implemented as Svelte components:
 
 ## SEP Module Reference
 
-| Module | Protocol | Description |
-| --- | --- | --- |
-| `sep1` | [SEP-1](https://stellar.org/protocol/sep-1) | Stellar.toml discovery |
-| `sep10` | [SEP-10](https://stellar.org/protocol/sep-10) | Web authentication |
-| `sep6` | [SEP-6](https://stellar.org/protocol/sep-6) | Programmatic deposits/withdrawals |
-| `sep12` | [SEP-12](https://stellar.org/protocol/sep-12) | KYC/customer management |
-| `sep24` | [SEP-24](https://stellar.org/protocol/sep-24) | Interactive deposits/withdrawals |
-| `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments |
-| `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ) |
+| Module  | Protocol                                      | Description                       |
+| ------- | --------------------------------------------- | --------------------------------- |
+| `sep1`  | [SEP-1](https://stellar.org/protocol/sep-1)   | Stellar.toml discovery            |
+| `sep10` | [SEP-10](https://stellar.org/protocol/sep-10) | Web authentication                |
+| `sep6`  | [SEP-6](https://stellar.org/protocol/sep-6)   | Programmatic deposits/withdrawals |
+| `sep12` | [SEP-12](https://stellar.org/protocol/sep-12) | KYC/customer management           |
+| `sep24` | [SEP-24](https://stellar.org/protocol/sep-24) | Interactive deposits/withdrawals  |
+| `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments             |
+| `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ)               |
 
 SEP modules are framework-agnostic. They accept an optional `fetchFn` parameter for SSR and depend only on `@stellar/stellar-sdk`.
 
