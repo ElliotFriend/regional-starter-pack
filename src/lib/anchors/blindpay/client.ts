@@ -63,6 +63,13 @@ export class BlindPayClient implements Anchor {
         kycUrl: true,
         requiresTos: true,
         requiresOffRampSigning: true,
+        kycFlow: 'redirect',
+        requiresBankBeforeQuote: true,
+        requiresBlockchainWalletRegistration: true,
+        requiresAnchorPayoutSubmission: true,
+        compositeQuoteCustomerId: true,
+        sandbox: true,
+        displayName: 'BlindPay',
     };
     private readonly config: BlindPayConfig;
     private readonly network: string;

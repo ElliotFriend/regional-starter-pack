@@ -28,17 +28,19 @@ Usage:
     import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
     import type { StellarNetwork } from '$lib/wallet/types';
     import { getStatusColor } from '$lib/utils/status';
-    import { PROVIDER, CURRENCY, TX_STATUS } from '$lib/constants';
-    import { getToken } from '$lib/config/regions';
+    import { TX_STATUS } from '$lib/constants';
+    import { getToken } from '$lib/config/tokens';
     import * as api from '$lib/api/anchor';
-    import type { Quote, OnRampTransaction } from '$lib/anchors/types';
+    import type { Quote, OnRampTransaction, AnchorCapabilities } from '$lib/anchors/types';
 
     interface Props {
         provider?: string;
         toCurrency?: string;
+        fiatCurrency?: string;
+        capabilities?: AnchorCapabilities;
     }
 
-    let { provider = PROVIDER.ETHERFUSE, toCurrency = CURRENCY.USDC }: Props = $props();
+    let { provider = 'etherfuse', toCurrency = 'USDC', fiatCurrency = 'MXN', capabilities }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');
@@ -114,7 +116,7 @@ Usage:
     function getQuoteCustomerId(): string | undefined {
         const customer = customerStore.current;
         if (!customer) return undefined;
-        if (provider === PROVIDER.BLINDPAY && customer.blockchainWalletId) {
+        if (capabilities?.compositeQuoteCustomerId && customer.blockchainWalletId) {
             return `${customer.id}:${customer.blockchainWalletId}`;
         }
         return customer.id;
@@ -128,7 +130,7 @@ Usage:
 
         try {
             quote = await api.getQuote(fetch, provider, {
-                fromCurrency: CURRENCY.FIAT,
+                fromCurrency: fiatCurrency,
                 toCurrency,
                 amount,
                 customerId: getQuoteCustomerId(),
@@ -147,7 +149,7 @@ Usage:
         isGettingQuote = true;
         try {
             quote = await api.getQuote(fetch, provider, {
-                fromCurrency: CURRENCY.FIAT,
+                fromCurrency: fiatCurrency,
                 toCurrency,
                 amount,
                 customerId: getQuoteCustomerId(),
@@ -279,7 +281,7 @@ Usage:
 
     onMount(() => {
         checkTrustlineStatus();
-        if (provider === PROVIDER.BLINDPAY) {
+        if (capabilities?.requiresBlockchainWalletRegistration) {
             registerBlockchainWallet();
         } else {
             walletRegistered = true;
@@ -409,18 +411,20 @@ Usage:
                 {#if transaction.paymentInstructions}
                     {@const pi = transaction.paymentInstructions}
                     <div class="mt-6 space-y-4 rounded-md bg-gray-50 p-4">
-                        <div>
-                            <span class="text-sm text-gray-500">Bank</span>
-                            <p class="font-medium">{pi.bankName || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <span class="text-sm text-gray-500">CLABE</span>
-                            <p class="font-mono font-medium">{pi.clabe || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <span class="text-sm text-gray-500">Beneficiary</span>
-                            <p class="font-medium">{pi.beneficiary || 'N/A'}</p>
-                        </div>
+                        {#if pi.type === 'spei'}
+                            <div>
+                                <span class="text-sm text-gray-500">Bank</span>
+                                <p class="font-medium">{pi.bankName || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500">CLABE</span>
+                                <p class="font-mono font-medium">{pi.clabe || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500">Beneficiary</span>
+                                <p class="font-medium">{pi.beneficiary || 'N/A'}</p>
+                            </div>
+                        {/if}
                         {#if pi.reference}
                             <div>
                                 <span class="text-sm text-gray-500">Reference</span>
@@ -430,8 +434,7 @@ Usage:
                         <div class="border-t border-gray-200 pt-4">
                             <span class="text-sm text-gray-500">Amount</span>
                             <p class="text-2xl font-bold text-indigo-600">
-                                {parseFloat(pi.amount).toLocaleString()}
-                                {transaction.fromCurrency}
+                                {parseFloat(pi.amount).toLocaleString()} {pi.currency}
                             </p>
                         </div>
                     </div>
@@ -444,27 +447,29 @@ Usage:
                     </p>
                 </div>
 
-                <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
-                    <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
-                    <p class="mt-1 text-xs text-amber-700">
-                        Simulate a bank transfer being received by the anchor.
-                    </p>
-                    {#if fiatSimulated}
-                        <p class="mt-3 text-sm font-medium text-green-700">
-                            Fiat received simulated successfully.
+                {#if capabilities?.sandbox}
+                    <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
+                        <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
+                        <p class="mt-1 text-xs text-amber-700">
+                            Simulate a bank transfer being received by the anchor.
                         </p>
-                    {:else}
-                        <button
-                            onclick={simulateFiatReceived}
-                            disabled={isSimulatingFiat}
-                            class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                        >
-                            {isSimulatingFiat
-                                ? 'Simulating...'
-                                : 'Simulate Fiat Received (Sandbox)'}
-                        </button>
-                    {/if}
-                </div>
+                        {#if fiatSimulated}
+                            <p class="mt-3 text-sm font-medium text-green-700">
+                                Fiat received simulated successfully.
+                            </p>
+                        {:else}
+                            <button
+                                onclick={simulateFiatReceived}
+                                disabled={isSimulatingFiat}
+                                class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                            >
+                                {isSimulatingFiat
+                                    ? 'Simulating...'
+                                    : 'Simulate Fiat Received (Sandbox)'}
+                            </button>
+                        {/if}
+                    </div>
+                {/if}
 
                 <div class="mt-6">
                     <p class="text-center text-sm text-gray-500">

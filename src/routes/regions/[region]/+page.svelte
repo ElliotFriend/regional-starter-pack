@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getToken } from '$lib/config/regions';
+    import { getToken } from '$lib/config/tokens';
     import type { PageProps } from './$types';
 
     // we use `$props()` in SvelteKit to "grab" the various data that's been

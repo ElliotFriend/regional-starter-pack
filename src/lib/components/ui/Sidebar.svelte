@@ -1,10 +1,11 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import type { Region, Anchor } from '$lib/config/regions';
+    import type { Region } from '$lib/config/regions';
+    import type { AnchorProfile } from '$lib/config/anchors';
 
     interface Props {
         regions: Region[];
-        anchors: Anchor[];
+        anchors: AnchorProfile[];
     }
 
     let { regions, anchors }: Props = $props();

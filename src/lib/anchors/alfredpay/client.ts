@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { AlfredPayClient } from '$lib/anchors/alfredpay';
+ * import { AlfredPayClient } from 'path/to/anchors/alfredpay';
  *
  * const alfred = new AlfredPayClient({
  *     apiKey: process.env.ALFREDPAY_API_KEY,
@@ -69,6 +69,9 @@ export class AlfredPayClient implements Anchor {
     readonly capabilities: AnchorCapabilities = {
         emailLookup: true,
         kycUrl: true,
+        kycFlow: 'form',
+        sandbox: true,
+        displayName: 'Alfred Pay',
     };
     private readonly config: AlfredPayConfig;
 

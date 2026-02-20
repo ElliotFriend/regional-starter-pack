@@ -56,9 +56,12 @@ src/
 │   │   └── customer.svelte.ts # Customer/KYC state
 │   │
 │   ├── config/
-│   │   └── regions.ts        # Region, anchor, token, and payment rail config
+│   │   ├── anchors.ts        # Anchor profiles + AnchorCapability type
+│   │   ├── regions.ts        # Region definitions + cross-lookup helpers
+│   │   ├── tokens.ts         # Token definitions
+│   │   └── rails.ts          # Payment rail definitions
 │   │
-│   ├── constants.ts          # App constants (currencies, providers, statuses)
+│   ├── constants.ts          # App constants (providers, statuses)
 │   │
 │   └── utils/
 │       └── status.ts         # Transaction status helpers
@@ -121,13 +124,26 @@ interface Anchor {
 }
 ```
 
+### AnchorCapabilities
+
+The `AnchorCapabilities` interface (in `anchors/types.ts`) carries both runtime and UI capability flags. Flow components use these flags instead of provider-name checks:
+
+- `kycFlow`: `'form'` | `'iframe'` | `'redirect'` — determines KYC presentation
+- `deferredOffRampSigning`: anchor provides signable XDR via polling (not at creation time)
+- `requiresBankBeforeQuote`: off-ramp requires bank account selection before quoting
+- `requiresBlockchainWalletRegistration`: on-ramp requires wallet registration step
+- `requiresAnchorPayoutSubmission`: off-ramp uses anchor payout endpoint instead of direct Stellar submission
+- `compositeQuoteCustomerId`: quote API expects `customerId:resourceId` format
+- `sandbox`: anchor supports sandbox simulation
+- `displayName`: human-readable name for UI labels
+
 ### Anchor Providers
 
-**Etherfuse** (`/anchors/etherfuse/`) - Default provider. Latin America focus. Iframe-based KYC. On-ramp and off-ramp via SPEI (Mexico) and other regional payment rails. Uses CETES token. Off-ramp has deferred signing: the burn transaction XDR is not in the order creation response; it appears when polling `getOffRampTransaction()`.
+**Etherfuse** (`/anchors/etherfuse/`) - Default provider. Latin America focus. Iframe-based KYC (`kycFlow: 'iframe'`). On-ramp and off-ramp via SPEI (Mexico) and other regional payment rails. Uses CETES token. Off-ramp has deferred signing (`deferredOffRampSigning: true`): the burn transaction XDR is not in the order creation response; it appears when polling `getOffRampTransaction()`.
 
-**AlfredPay** (`/anchors/alfredpay/`) - Mexico focus. Form-based KYC. On-ramp and off-ramp via SPEI. Uses USDC. Supports email-based customer lookup.
+**AlfredPay** (`/anchors/alfredpay/`) - Mexico focus. Form-based KYC (`kycFlow: 'form'`). On-ramp and off-ramp via SPEI. Uses USDC. Supports email-based customer lookup (`emailLookup: true`).
 
-**BlindPay** (`/anchors/blindpay/`) - Global. Redirect-based KYC. Uses USDB token. Requires separate blockchain wallet registration. Off-ramp uses a payout submission step instead of Stellar transaction signing.
+**BlindPay** (`/anchors/blindpay/`) - Global. Redirect-based KYC (`kycFlow: 'redirect'`). Uses USDB token. Requires separate blockchain wallet registration (`requiresBlockchainWalletRegistration: true`). Off-ramp uses a payout submission step (`requiresAnchorPayoutSubmission: true`) instead of Stellar transaction signing. Requires bank account before quoting (`requiresBankBeforeQuote: true`).
 
 ### Anchor Factory (`/server/anchorFactory.ts`)
 
@@ -173,9 +189,16 @@ The off-ramp flow differs by provider:
 - **AlfredPay**: The UI builds a USDC payment transaction to the anchor's Stellar address. Freighter signs and submits it.
 - **BlindPay**: Uses a separate payout submission endpoint. No direct Stellar signing by the user.
 
-### Region Configuration (`/config/regions.ts`)
+### Configuration (`/config/`)
 
-Defines regions, anchors, payment rails, and tokens. The anchor order in all lists is: Etherfuse, AlfredPay, BlindPay.
+Config is split across four files with no barrel `index.ts`:
+
+- **`tokens.ts`** — `Token` type, `TOKENS` data, `getToken()` helper
+- **`rails.ts`** — `PaymentRail` type, `PAYMENT_RAILS` data, `getPaymentRail()` helper
+- **`anchors.ts`** — `AnchorProfile` type (config-side, distinct from the runtime `Anchor` interface), `ANCHORS` data, `getAnchor()`, `getAllAnchors()`
+- **`regions.ts`** — `Region` type, `REGIONS` data, `getRegion()`, `getAllRegions()`, `getAnchorsForRegion()`, `getRegionsForAnchor()`
+
+The anchor order in all lists is: Etherfuse, AlfredPay, BlindPay. Fiat currency is derived from region config (`region.currency`) and passed as a prop to flow components — not hardcoded.
 
 ### SEP Flow Sequence
 
@@ -193,14 +216,15 @@ For SEP-compliant anchors (test anchor demo):
 ### Adding a New Anchor Integration
 
 1. Create directory: `/src/lib/anchors/[anchor-name]/`
-2. Create `client.ts` implementing the `Anchor` interface from `../types.ts`
+2. Create `client.ts` implementing the `Anchor` interface from `../types.ts` — set all relevant `AnchorCapabilities` flags
 3. Create `types.ts` for anchor-specific API types
 4. Create `index.ts` exporting the client and types
 5. Add the provider to `src/lib/server/anchorFactory.ts` (import client, add env vars, add to switch case, add to `AnchorProvider` type)
 6. Add to `src/lib/constants.ts` (`PROVIDER` object)
-7. Add to `src/lib/config/regions.ts` (`ANCHORS` record, region `anchors` arrays)
-8. Add CORS proxy API routes in `/routes/api/` if needed
-9. Document in `/src/lib/anchors/[anchor-name]/README.md`
+7. Add to `src/lib/config/anchors.ts` (`ANCHORS` record with matching `AnchorCapabilities`)
+8. Add to `src/lib/config/regions.ts` (region `anchors` arrays)
+9. Add CORS proxy API routes in `/routes/api/` if needed
+10. Document in `/src/lib/anchors/[anchor-name]/README.md`
 
 ### Adding SEP Support
 

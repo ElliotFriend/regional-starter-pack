@@ -224,6 +224,22 @@ export interface AnchorCapabilities {
     requiresTos?: boolean;
     /** Whether off-ramp transactions require wallet-side signing (XDR). */
     requiresOffRampSigning?: boolean;
+    /** KYC presentation style. */
+    kycFlow?: 'form' | 'iframe' | 'redirect';
+    /** Whether the anchor requires bank account selection before quoting (off-ramp). */
+    requiresBankBeforeQuote?: boolean;
+    /** Whether the anchor requires blockchain wallet registration before on-ramp. */
+    requiresBlockchainWalletRegistration?: boolean;
+    /** Whether the anchor sends a signable XDR via a deferred polling step. */
+    deferredOffRampSigning?: boolean;
+    /** Whether the anchor uses a separate payout submission endpoint instead of direct Stellar submission. */
+    requiresAnchorPayoutSubmission?: boolean;
+    /** Whether the anchor uses a composite `customerId:resourceId` format for quotes. */
+    compositeQuoteCustomerId?: boolean;
+    /** Whether the anchor has sandbox simulation support. */
+    sandbox?: boolean;
+    /** Human-readable display name (for UI labels like "View on {name}"). */
+    displayName?: string;
 }
 
 // =============================================================================

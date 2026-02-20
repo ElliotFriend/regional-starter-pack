@@ -1,4 +1,5 @@
-import { getAllAnchors, getAllRegions } from '$lib/config/regions';
+import { getAllAnchors } from '$lib/config/anchors';
+import { getAllRegions } from '$lib/config/regions';
 import type { LayoutLoad } from './$types';
 
 /**

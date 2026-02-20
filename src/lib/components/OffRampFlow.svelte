@@ -31,16 +31,19 @@ Usage:
     import type { StellarNetwork } from '$lib/wallet/types';
     import type { Quote, OffRampTransaction, SavedFiatAccount } from '$lib/anchors/types';
     import { getStatusColor } from '$lib/utils/status';
-    import { PROVIDER, CURRENCY, TX_STATUS } from '$lib/constants';
-    import { getToken } from '$lib/config/regions';
+    import { TX_STATUS } from '$lib/constants';
+    import { getToken } from '$lib/config/tokens';
     import * as api from '$lib/api/anchor';
+    import type { AnchorCapabilities } from '$lib/anchors/types';
 
     interface Props {
         provider?: string;
         fromCurrency?: string;
+        fiatCurrency?: string;
+        capabilities?: AnchorCapabilities;
     }
 
-    let { provider = PROVIDER.ETHERFUSE, fromCurrency = CURRENCY.USDC }: Props = $props();
+    let { provider = 'etherfuse', fromCurrency = 'USDC', fiatCurrency = 'MXN', capabilities }: Props = $props();
 
     // Local state for this flow
     let amount = $state('');
@@ -61,7 +64,6 @@ Usage:
 
     // Bank account details (for new accounts)
     let bankName = $state('');
-    let accountNumber = $state('');
     let clabe = $state('');
     let beneficiary = $state('');
 
@@ -127,7 +129,7 @@ Usage:
     function getQuoteCustomerId(bankAccountId?: string): string | undefined {
         const customer = customerStore.current;
         if (!customer) return undefined;
-        if (provider === PROVIDER.BLINDPAY && bankAccountId) {
+        if (capabilities?.compositeQuoteCustomerId && bankAccountId) {
             return `${customer.id}:${bankAccountId}`;
         }
         return customer.id;
@@ -136,8 +138,8 @@ Usage:
     async function getQuote_() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
-        // BlindPay requires bank_account_id for payout quotes — collect bank details first
-        if (provider === PROVIDER.BLINDPAY) {
+        // Some providers require bank account selection before quoting — collect bank details first
+        if (capabilities?.requiresBankBeforeQuote) {
             step = 'bank';
             await loadSavedAccounts();
             return;
@@ -149,7 +151,7 @@ Usage:
         try {
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency,
-                toCurrency: CURRENCY.FIAT,
+                toCurrency: fiatCurrency,
                 amount,
                 customerId: getQuoteCustomerId(),
                 stellarAddress: walletStore.publicKey ?? undefined,
@@ -168,7 +170,7 @@ Usage:
         try {
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency,
-                toCurrency: CURRENCY.FIAT,
+                toCurrency: fiatCurrency,
                 amount,
                 customerId: getQuoteCustomerId(selectedAccountId ?? undefined),
                 stellarAddress: walletStore.publicKey ?? undefined,
@@ -181,10 +183,10 @@ Usage:
     }
 
     /**
-     * BlindPay off-ramp: register bank account (if new), then get quote with bank_account_id.
-     * Called from the bank step when BlindPay needs bank details before quoting.
+     * Register bank account (if new), then get quote with bank_account_id.
+     * Called from the bank step when the provider needs bank details before quoting.
      */
-    async function handleBlindPayBankContinue() {
+    async function handleBankThenQuote() {
         const customer = customerStore.current;
         if (!customer) return;
 
@@ -198,7 +200,6 @@ Usage:
             if (useNewAccount) {
                 const result = await api.registerFiatAccount(fetch, provider, customer.id, {
                     bankName,
-                    accountNumber,
                     clabe,
                     beneficiary,
                 });
@@ -208,7 +209,7 @@ Usage:
 
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency,
-                toCurrency: CURRENCY.FIAT,
+                toCurrency: fiatCurrency,
                 amount,
                 customerId: getQuoteCustomerId(selectedAccountId!),
                 stellarAddress: walletStore.publicKey ?? undefined,
@@ -256,7 +257,7 @@ Usage:
 
         // Validate: either selected account or new account details
         if (!useNewAccount && !selectedAccountId) return;
-        if (useNewAccount && (!bankName || !accountNumber || !clabe || !beneficiary)) return;
+        if (useNewAccount && (!bankName || !clabe || !beneficiary)) return;
 
         isCreatingTransaction = true;
         error = null;
@@ -299,9 +300,9 @@ Usage:
             if (tx.signableTransaction) {
                 // Signable transaction available immediately — go straight to signing
                 await signAndSubmit(tx.signableTransaction);
-            } else if (provider === PROVIDER.ETHERFUSE) {
-                // Etherfuse: burn transaction is not available at creation time —
-                // poll GET /ramp/order/{id} until it appears
+            } else if (capabilities?.deferredOffRampSigning) {
+                // Deferred signing: burn transaction is not available at creation time —
+                // poll the transaction until it appears
                 step = 'awaiting_signable';
                 startPollingForSignable();
             } else {
@@ -349,8 +350,8 @@ Usage:
 
             const signed = await signWithFreighter(envelope, network);
 
-            if (provider === PROVIDER.BLINDPAY) {
-                // BlindPay: submit signed XDR back to BlindPay (step 2 of 2)
+            if (capabilities?.requiresAnchorPayoutSubmission) {
+                // Submit signed XDR back to the anchor (step 2 of 2)
                 await api.submitSignedPayout(
                     fetch,
                     provider,
@@ -436,7 +437,6 @@ Usage:
         quote = null;
         transaction = null;
         bankName = '';
-        accountNumber = '';
         clabe = '';
         beneficiary = '';
         selectedAccountId = null;
@@ -553,8 +553,8 @@ Usage:
                 >
                     Cancel
                 </button>
-                {#if provider === PROVIDER.BLINDPAY && selectedAccountId}
-                    <!-- BlindPay: bank already registered before quote, go straight to confirm -->
+                {#if capabilities?.requiresBankBeforeQuote && selectedAccountId}
+                    <!-- Bank already registered before quote, go straight to confirm -->
                     <button
                         onclick={confirmOrder}
                         disabled={isCreatingTransaction}
@@ -691,21 +691,6 @@ Usage:
 
                             <div>
                                 <label
-                                    for="accountNumber"
-                                    class="block text-sm font-medium text-gray-700"
-                                    >Account Number</label
-                                >
-                                <input
-                                    type="text"
-                                    id="accountNumber"
-                                    bind:value={accountNumber}
-                                    placeholder="1234567890"
-                                    class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label
                                     for="beneficiary"
                                     class="block text-sm font-medium text-gray-700"
                                     >Beneficiary Name</label
@@ -730,10 +715,10 @@ Usage:
                 >
                     Back
                 </button>
-                {#if provider === PROVIDER.BLINDPAY && !quote}
-                    <!-- BlindPay: bank step is before quote — continue to get quote -->
+                {#if capabilities?.requiresBankBeforeQuote && !quote}
+                    <!-- Bank step is before quote — continue to get quote -->
                     <button
-                        onclick={handleBlindPayBankContinue}
+                        onclick={handleBankThenQuote}
                         disabled={isLoadingAccounts ||
                             isGettingQuote ||
                             (useNewAccount && (!clabe || !beneficiary)) ||
@@ -748,7 +733,7 @@ Usage:
                         disabled={isLoadingAccounts ||
                             isCreatingTransaction ||
                             (useNewAccount &&
-                                (!bankName || !clabe || !accountNumber || !beneficiary)) ||
+                                (!bankName || !clabe || !beneficiary)) ||
                             (!useNewAccount && !selectedAccountId)}
                         class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
@@ -878,7 +863,7 @@ Usage:
                             rel="noopener noreferrer"
                             class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
                         >
-                            View on Etherfuse
+                            View on {capabilities?.displayName || 'Anchor'}
                         </a>
                     {/if}
                 </div>

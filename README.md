@@ -19,7 +19,7 @@ src/lib/server/           <- SvelteKit-specific server code
 src/lib/wallet/           <- Freighter wallet + Stellar helpers
 src/lib/stores/           <- Svelte 5 reactive state (runes)
 src/lib/components/       <- On/off ramp UI components
-src/lib/config/           <- Region, anchor, and token configuration
+src/lib/config/           <- Anchors, regions, tokens, and payment rail configuration
 src/routes/               <- SvelteKit pages and API routes
 ```
 
@@ -261,12 +261,13 @@ PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 ## Adding a New Anchor
 
 1. Create `/src/lib/anchors/[anchor-name]/` with `client.ts`, `types.ts`, and `index.ts`
-2. Implement the `Anchor` interface from `../types.ts`
+2. Implement the `Anchor` interface from `../types.ts` — set all relevant `AnchorCapabilities` flags
 3. Add the provider to `src/lib/server/anchorFactory.ts` (env vars, factory switch case)
 4. Add the provider to `src/lib/constants.ts` (`PROVIDER` object)
-5. Add the provider to `src/lib/config/regions.ts` (`ANCHORS`, region `anchors` arrays)
-6. Add API route proxies if needed for CORS
-7. Document in `/src/lib/anchors/[anchor-name]/README.md`
+5. Add the provider to `src/lib/config/anchors.ts` (`ANCHORS` record with matching capabilities)
+6. Add the provider to `src/lib/config/regions.ts` (region `anchors` arrays)
+7. Add API route proxies if needed for CORS
+8. Document in `/src/lib/anchors/[anchor-name]/README.md`
 
 ## License
 

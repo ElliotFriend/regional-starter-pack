@@ -7,7 +7,7 @@
     import BlindPayReceiverForm from '$lib/components/BlindPayReceiverForm.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { KycStatus } from '$lib/anchors/types';
-    import type { AnchorUiCapabilities } from '$lib/config/regions';
+    import type { AnchorCapabilities } from '$lib/anchors/types';
     import * as api from '$lib/api/anchor';
 
     interface Props {
@@ -15,7 +15,7 @@
         title: string;
         description: string;
         connectMessage: string;
-        capabilities: AnchorUiCapabilities;
+        capabilities: AnchorCapabilities;
         children: Snippet;
     }
 
@@ -102,7 +102,7 @@
         try {
             // Get or create customer — skip email lookup for providers that don't support it
             const customer = await api.getOrCreateCustomer(fetch, provider, email, country, {
-                supportsEmailLookup: capabilities.supportsEmailLookup,
+                supportsEmailLookup: capabilities.emailLookup,
                 publicKey: walletStore.publicKey,
             });
             customerStore.set(customer);
@@ -180,48 +180,18 @@
         }
     }
 
-    async function checkAndUpdateKycStatus(): Promise<string> {
+    async function checkAndUpdateKycStatus(): Promise<KycStatus> {
         const customer = customerStore.current;
         if (!customer) return KYC_STATUS.NOT_STARTED;
 
         try {
-            const submission = await api.getKycSubmission(fetch, provider, customer.id);
-
-            if (submission) {
-                const statusResponse = await api.getKycSubmissionStatus(
-                    fetch,
-                    provider,
-                    customer.id,
-                    submission.submissionId,
-                );
-
-                // Map AlfredPay status to our status
-                const status = statusResponse.status.toUpperCase();
-                let kycStatus: KycStatus;
-                switch (status) {
-                    case 'COMPLETED':
-                        kycStatus = KYC_STATUS.APPROVED;
-                        break;
-                    case 'FAILED':
-                        kycStatus = KYC_STATUS.REJECTED;
-                        break;
-                    case 'CREATED':
-                    case 'IN_REVIEW':
-                        kycStatus = KYC_STATUS.PENDING;
-                        break;
-                    case 'UPDATE_REQUIRED':
-                        kycStatus = KYC_STATUS.UPDATE_REQUIRED;
-                        break;
-                    default:
-                        kycStatus = KYC_STATUS.NOT_STARTED;
-                }
-
-                customerStore.updateKycStatus(kycStatus);
-                return kycStatus;
-            }
-
-            customerStore.updateKycStatus(KYC_STATUS.NOT_STARTED);
-            return KYC_STATUS.NOT_STARTED;
+            const status = await api.getKycStatus(
+                fetch, provider, customer.id,
+                walletStore.publicKey ?? undefined,
+            );
+            const mapped = status as KycStatus;
+            customerStore.updateKycStatus(mapped);
+            return mapped;
         } catch {
             return customer.kycStatus || KYC_STATUS.NOT_STARTED;
         }
@@ -282,7 +252,7 @@
         await checkAndUpdateKycStatus();
         // Capture the submission ID so the sandbox completion button is available
         const customer = customerStore.current;
-        if (customer && !kycSubmissionId) {
+        if (capabilities.kycFlow === 'form' && customer && !kycSubmissionId) {
             try {
                 const submission = await api.getKycSubmission(fetch, provider, customer.id);
                 if (submission) {

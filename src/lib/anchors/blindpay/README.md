@@ -12,6 +12,36 @@ Server-side TypeScript client for the [BlindPay](https://blindpay.com) anchor AP
 | `types.ts`  | BlindPay-specific request/response types                          |
 | `index.ts`  | Re-exports the client class and all types                         |
 
+## Capabilities
+
+`BlindPayClient` declares the following `AnchorCapabilities` flags. UI components use these flags instead of provider-name checks to determine behavior.
+
+```typescript
+readonly capabilities: AnchorCapabilities = {
+    kycUrl: true,                             // Supports URL-based KYC (redirect to ToS)
+    requiresTos: true,                        // Requires separate ToS acceptance step
+    requiresOffRampSigning: true,             // Off-ramp requires wallet-side XDR signing
+    kycFlow: 'redirect',                      // KYC is presented via redirect to external page
+    requiresBankBeforeQuote: true,            // Off-ramp requires bank account before quoting
+    requiresBlockchainWalletRegistration: true, // On-ramp requires wallet registration step
+    requiresAnchorPayoutSubmission: true,     // Signed XDR submitted back to BlindPay, not Stellar
+    compositeQuoteCustomerId: true,           // Quote API expects "customerId:resourceId" format
+    sandbox: true,                            // Sandbox simulation available
+    displayName: 'BlindPay',                  // Human-readable name for UI labels
+};
+```
+
+| Flag | Effect |
+| --- | --- |
+| `kycFlow: 'redirect'` | The UI redirects the user to an external KYC/ToS page instead of rendering inline |
+| `requiresTos` | A ToS acceptance step is shown before customer creation |
+| `requiresBankBeforeQuote` | Off-ramp flow collects bank account details before requesting a quote |
+| `requiresBlockchainWalletRegistration` | On-ramp flow registers a blockchain wallet after customer creation, before quoting |
+| `compositeQuoteCustomerId` | The quote step builds a `customerId:resourceId` composite string for the API |
+| `requiresAnchorPayoutSubmission` | After signing the off-ramp XDR, the signed transaction is submitted back to BlindPay (not directly to Stellar) |
+| `sandbox` | Sandbox controls are shown in the UI (payins auto-complete after 30s on dev instances) |
+| `displayName` | Used in UI labels like "View on BlindPay" |
+
 ## Key Differences from Other Anchors
 
 - **Amounts are in cents** (integers). The client converts to/from decimal strings internally.
@@ -57,7 +87,7 @@ Every BlindPay integration follows this sequence:
 ## Setup
 
 ```typescript
-import { BlindPayClient } from '$lib/anchors/blindpay';
+import { BlindPayClient } from 'path/to/anchors/blindpay';
 
 const blindpay = new BlindPayClient({
     apiKey: process.env.BLINDPAY_API_KEY,
@@ -275,7 +305,7 @@ const updated = await blindpay.getOffRampTransaction(payout.id);
 All methods throw `AnchorError` on failure:
 
 ```typescript
-import { AnchorError } from '$lib/anchors/types';
+import { AnchorError } from 'path/to/anchors/types';
 
 try {
     await blindpay.createOnRamp(input);
@@ -321,4 +351,4 @@ Use first name `"Fail"` when creating receivers to simulate KYC rejection.
 
 ## Anchor Interface
 
-`BlindPayClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. See the parent `anchors/` directory for the full interface definition.
+`BlindPayClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. Its `AnchorCapabilities` flags drive the UI behavior — see the [Capabilities](#capabilities) section above. See the parent `anchors/` directory for the full interface definition.

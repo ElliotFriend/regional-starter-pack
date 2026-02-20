@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { getPaymentRail, getToken } from '$lib/config/regions';
+    import { getPaymentRail } from '$lib/config/rails';
+    import { getToken } from '$lib/config/tokens';
     import type { PageProps } from './$types';
 
     // we use `$props()` in SvelteKit to "grab" the various data that's been

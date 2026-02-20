@@ -4,7 +4,7 @@
 
     import type { PageProps } from './$types';
     const { data }: PageProps = $props();
-    const { anchor } = $derived(data);
+    const { anchor, fiatCurrency } = $derived(data);
 
     // Derive the source token from the anchor's first region config
     const fromCurrency = $derived.by(() => {
@@ -20,5 +20,5 @@
     connectMessage="Connect your Freighter wallet to get started."
     capabilities={anchor.capabilities}
 >
-    <OffRampFlow provider={anchor.id} {fromCurrency} />
+    <OffRampFlow provider={anchor.id} {fromCurrency} {fiatCurrency} capabilities={anchor.capabilities} />
 </RampPage>

@@ -1,5 +1,6 @@
 import type { LayoutLoad } from './$types';
-import { getAnchor, getRegionsForAnchor } from '$lib/config/regions';
+import { getAnchor } from '$lib/config/anchors';
+import { getRegionsForAnchor, getRegion } from '$lib/config/regions';
 import { error } from '@sveltejs/kit';
 
 /**
@@ -27,9 +28,14 @@ export const load: LayoutLoad = ({ params }) => {
         cap.tokens.forEach((t) => tokens.add(t));
     });
 
+    const firstRegionId = Object.keys(anchor.regions)[0];
+    const region = firstRegionId ? getRegion(firstRegionId) : undefined;
+    const fiatCurrency = region?.currency ?? 'MXN';
+
     return {
         anchor,
         regions: getRegionsForAnchor(anchorId),
         tokens,
+        fiatCurrency,
     };
 };

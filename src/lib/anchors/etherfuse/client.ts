@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { EtherfuseClient } from '$lib/anchors/etherfuse';
+ * import { EtherfuseClient } from 'path/to/anchors/etherfuse';
  *
  * const etherfuse = new EtherfuseClient({
  *     apiKey: process.env.ETHERFUSE_API_KEY,
@@ -66,6 +66,10 @@ export class EtherfuseClient implements Anchor {
     readonly capabilities: AnchorCapabilities = {
         kycUrl: true,
         requiresOffRampSigning: true,
+        kycFlow: 'iframe',
+        deferredOffRampSigning: true,
+        sandbox: true,
+        displayName: 'Etherfuse',
     };
     private readonly config: EtherfuseConfig;
     private readonly blockchain: string;

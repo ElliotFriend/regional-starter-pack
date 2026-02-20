@@ -48,7 +48,7 @@ Fees are calculated in basis points (bps) on the output amount and are included 
 ## Setup
 
 ```typescript
-import { EtherfuseClient } from '$lib/anchors/etherfuse';
+import { EtherfuseClient } from 'path/to/anchors/etherfuse';
 
 const etherfuse = new EtherfuseClient({
     apiKey: process.env.ETHERFUSE_API_KEY,
@@ -59,6 +59,28 @@ const etherfuse = new EtherfuseClient({
 Optional config fields:
 
 - `defaultBlockchain` - defaults to `"stellar"`.
+
+## Capabilities
+
+`EtherfuseClient` declares the following `AnchorCapabilities` flags. UI components use these flags instead of provider-name checks to determine behavior.
+
+```typescript
+readonly capabilities: AnchorCapabilities = {
+    kycUrl: true,                   // Supports URL-based KYC (iframe/redirect)
+    requiresOffRampSigning: true,   // Off-ramp requires wallet-side XDR signing
+    kycFlow: 'iframe',              // KYC is presented in an iframe
+    deferredOffRampSigning: true,   // Signable XDR arrives via polling, not at creation time
+    sandbox: true,                  // Sandbox simulation endpoints available
+    displayName: 'Etherfuse',       // Human-readable name for UI labels
+};
+```
+
+| Flag | Effect |
+| --- | --- |
+| `kycFlow: 'iframe'` | The UI renders an iframe with the KYC URL from `getKycUrl()` |
+| `deferredOffRampSigning` | Off-ramp enters a polling state after order creation, waiting for `signableTransaction` to appear |
+| `sandbox` | Sandbox controls (e.g. "Simulate Fiat Received") are shown in the UI |
+| `displayName` | Used in UI labels like "View on Etherfuse" |
 
 ## Core Flows
 
@@ -244,7 +266,7 @@ const { assets } = await etherfuse.getAssets('stellar', 'mxn', walletPublicKey);
 All methods throw `AnchorError` on failure:
 
 ```typescript
-import { AnchorError } from '$lib/anchors/types';
+import { AnchorError } from 'path/to/anchors/types';
 
 try {
     await etherfuse.createOnRamp(input);
@@ -273,4 +295,4 @@ This is useful for testing the on-ramp flow end-to-end without sending real SPEI
 
 ## Anchor Interface
 
-`EtherfuseClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. See the parent `anchors/` directory for the full interface definition.
+`EtherfuseClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. Its `AnchorCapabilities` flags drive the UI behavior — see the [Capabilities](#capabilities) section above. See the parent `anchors/` directory for the full interface definition.

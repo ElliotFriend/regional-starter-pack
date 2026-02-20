@@ -4,12 +4,6 @@
  * Configure these values based on your target region and anchor provider.
  */
 
-// Default currency codes used by UI components for quote requests.
-export const CURRENCY = {
-    FIAT: 'MXN',
-    USDC: 'USDC',
-} as const;
-
 // Countries available in KYC and customer registration forms.
 // Each entry maps a country code to its currency and payment rail.
 export const SUPPORTED_COUNTRIES = [

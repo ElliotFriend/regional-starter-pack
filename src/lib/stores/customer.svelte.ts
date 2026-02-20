@@ -11,7 +11,6 @@
 
 import { browser } from '$app/environment';
 import type { Customer, KycStatus } from '$lib/anchors/types';
-import { KYC_STATUS } from '$lib/constants';
 
 const STORAGE_PREFIX = 'stellar:customer:';
 
@@ -34,16 +33,6 @@ function createCustomerStore() {
         /** The current customer, or null if not logged in */
         get current() {
             return customer;
-        },
-
-        /** Whether a customer is loaded */
-        get isLoggedIn() {
-            return customer !== null;
-        },
-
-        /** Whether the customer's KYC is approved */
-        get isKycApproved() {
-            return customer?.kycStatus === KYC_STATUS.APPROVED;
         },
 
         /**

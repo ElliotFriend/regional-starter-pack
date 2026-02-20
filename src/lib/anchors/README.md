@@ -4,7 +4,7 @@ A portable, framework-agnostic TypeScript library for integrating fiat on/off ra
 
 ## What's in This Library
 
-```
+```text
 anchors/
 ├── types.ts              # Shared Anchor interface + common types
 ├── index.ts              # Re-exports (no framework imports)
@@ -18,7 +18,8 @@ anchors/
 │   └── README.md         # Detailed integration docs
 ├── blindpay/             # BlindPay integration (global)
 │   ├── client.ts         # BlindPayClient implements Anchor
-│   └── types.ts          # BlindPay API types
+│   ├── types.ts          # BlindPay API types
+│   └── README.md         # Detailed integration docs
 ├── sep/                  # SEP protocol implementations
 │   ├── sep1.ts           # stellar.toml discovery
 │   ├── sep10.ts          # Web authentication
@@ -82,10 +83,12 @@ interface Anchor {
 
 ### Etherfuse
 
-Latin America focus. Iframe-based KYC. On-ramp and off-ramp via SPEI (Mexico) and other regional rails. Uses CETES token.
+Mexico focus. Iframe-based KYC. On-ramp and off-ramp via SPEI. Uses CETES token.
+
+**Capabilities:** `kycFlow: 'iframe'`, `kycUrl`, `requiresOffRampSigning`, `deferredOffRampSigning`, `sandbox`, `displayName: 'Etherfuse'`
 
 ```typescript
-import { EtherfuseClient } from './anchors/etherfuse';
+import { EtherfuseClient } from 'path/to/anchors/etherfuse';
 
 const anchor = new EtherfuseClient({
     apiKey: process.env.ETHERFUSE_API_KEY!,
@@ -123,16 +126,18 @@ const onramp = await anchor.createOnRamp({
 });
 ```
 
-**Off-ramp note:** Etherfuse off-ramp uses deferred signing. The `createOffRamp()` response does **not** include the burn transaction XDR. You must poll `getOffRampTransaction()` until `signableTransaction` appears, then sign it with the user's wallet and submit to Stellar.
+**Off-ramp note:** Etherfuse off-ramp uses deferred signing (`deferredOffRampSigning: true`). The `createOffRamp()` response does **not** include the burn transaction XDR. You must poll `getOffRampTransaction()` until `signableTransaction` appears, then sign it with the user's wallet and submit to Stellar.
 
 See [`etherfuse/README.md`](etherfuse/README.md) for complete documentation.
 
 ### AlfredPay
 
-Mexico focus. Form-based KYC. On-ramp and off-ramp via SPEI. Uses USDC. Supports email-based customer lookup.
+Latin America focus. Form-based KYC. On-ramp and off-ramp via SPEI. Uses USDC. Supports email-based customer lookup.
+
+**Capabilities:** `kycFlow: 'form'`, `emailLookup`, `kycUrl`, `sandbox`, `displayName: 'Alfred Pay'`
 
 ```typescript
-import { AlfredPayClient } from './anchors/alfredpay';
+import { AlfredPayClient } from 'path/to/anchors/alfredpay';
 
 const anchor = new AlfredPayClient({
     apiKey: process.env.ALFREDPAY_API_KEY!,
@@ -174,8 +179,10 @@ See [`alfredpay/README.md`](alfredpay/README.md) for complete documentation incl
 
 Global coverage. Redirect-based KYC. Uses USDB token. Requires separate blockchain wallet registration. Off-ramp uses a payout submission step rather than direct Stellar transaction signing.
 
+**Capabilities:** `kycFlow: 'redirect'`, `kycUrl`, `requiresTos`, `requiresOffRampSigning`, `requiresBankBeforeQuote`, `requiresBlockchainWalletRegistration`, `requiresAnchorPayoutSubmission`, `compositeQuoteCustomerId`, `sandbox`, `displayName: 'BlindPay'`
+
 ```typescript
-import { BlindPayClient } from './anchors/blindpay';
+import { BlindPayClient } from 'path/to/anchors/blindpay';
 
 const anchor = new BlindPayClient({
     apiKey: process.env.BLINDPAY_API_KEY!,
@@ -196,8 +203,8 @@ import {
     getSep10Endpoint,
     getSep24Endpoint,
     authenticate,
-} from './anchors/sep';
-import { sep24 } from './anchors/sep';
+} from 'path/to/anchors/sep';
+import { sep24 } from 'path/to/anchors/sep';
 
 // 1. Discover anchor endpoints
 const toml = await fetchStellarToml('testanchor.stellar.org');
@@ -234,12 +241,22 @@ const tx = await sep24.pollTransaction(getSep24Endpoint(toml)!, token, response.
 Create a new directory and implement the `Anchor` interface:
 
 ```typescript
-import type { Anchor, Customer, Quote, CreateCustomerInput /* ... */ } from '../types';
-import { AnchorError } from '../types';
+import type { Anchor, AnchorCapabilities, Customer, Quote, CreateCustomerInput /* ... */ } from 'path/to/anchors/types';
+import { AnchorError } from 'path/to/anchors/types';
 
 export class MyAnchorClient implements Anchor {
     readonly name = 'myanchor';
-    readonly capabilities = { kycUrl: true };
+    readonly capabilities: AnchorCapabilities = {
+        kycUrl: true,
+        kycFlow: 'iframe',          // 'form' | 'iframe' | 'redirect'
+        sandbox: true,               // enable sandbox simulation UI
+        displayName: 'My Anchor',    // shown in UI labels
+        // deferredOffRampSigning: false,
+        // requiresBankBeforeQuote: false,
+        // requiresBlockchainWalletRegistration: false,
+        // requiresAnchorPayoutSubmission: false,
+        // compositeQuoteCustomerId: false,
+    };
 
     constructor(private config: { apiKey: string; baseUrl: string }) {}
 
@@ -272,7 +289,7 @@ export class MyAnchorClient implements Anchor {
 ### SEP-1: Stellar.toml Discovery
 
 ```typescript
-import { fetchStellarToml, getSep10Endpoint, getSep24Endpoint, supportsSep } from './sep';
+import { fetchStellarToml, getSep10Endpoint, getSep24Endpoint, supportsSep } from 'path/to/anchors/sep';
 
 const toml = await fetchStellarToml('anchor.example.com');
 
@@ -284,7 +301,7 @@ if (supportsSep(toml, 24)) {
 ### SEP-10: Web Authentication
 
 ```typescript
-import { authenticate, isTokenExpired, createAuthHeaders } from './sep';
+import { authenticate, isTokenExpired, createAuthHeaders } from 'path/to/anchors/sep';
 
 const token = await authenticate(config, publicKey, signerFn);
 
@@ -298,7 +315,7 @@ const headers = createAuthHeaders(token);
 ### SEP-6: Programmatic Deposits/Withdrawals
 
 ```typescript
-import { sep6 } from './sep';
+import { sep6 } from 'path/to/anchors/sep';
 
 const deposit = await sep6.deposit(server, token, {
     asset_code: 'USDC',
@@ -311,7 +328,7 @@ console.log('Instructions:', deposit.instructions);
 ### SEP-12: KYC Management
 
 ```typescript
-import { sep12 } from './sep';
+import { sep12 } from 'path/to/anchors/sep';
 
 const customer = await sep12.getCustomer(kycServer, token, { type: 'sep6-deposit' });
 
@@ -327,7 +344,7 @@ if (customer.status === 'NEEDS_INFO') {
 ### SEP-24: Interactive Deposits/Withdrawals
 
 ```typescript
-import { sep24 } from './sep';
+import { sep24 } from 'path/to/anchors/sep';
 
 const response = await sep24.deposit(server, token, { asset_code: 'USDC' });
 window.open(response.url, '_blank');
@@ -340,7 +357,7 @@ const tx = await sep24.pollTransaction(server, token, response.id, {
 ### SEP-31: Cross-Border Payments
 
 ```typescript
-import { sep31 } from './sep';
+import { sep31 } from 'path/to/anchors/sep';
 
 const tx = await sep31.postTransaction(server, token, {
     amount: '100',
@@ -355,7 +372,7 @@ const tx = await sep31.postTransaction(server, token, {
 ### SEP-38: Quotes
 
 ```typescript
-import { sep38 } from './sep';
+import { sep38 } from 'path/to/anchors/sep';
 
 // Indicative price (no auth)
 const price = await sep38.getPrice(quoteServer, {
@@ -416,7 +433,7 @@ interface OffRampTransaction {
 ### Error Handling
 
 ```typescript
-import { AnchorError } from './types';
+import { AnchorError } from 'path/to/anchors/types';
 
 try {
     await anchor.createOnRamp({ ... });

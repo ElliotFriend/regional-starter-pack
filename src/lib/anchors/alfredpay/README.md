@@ -15,7 +15,7 @@ Server-side TypeScript client for the [Alfred Pay](https://alfredpay.io) anchor 
 ## Setup
 
 ```typescript
-import { AlfredPayClient } from '$lib/anchors/alfredpay';
+import { AlfredPayClient } from 'path/to/anchors/alfredpay';
 
 const alfred = new AlfredPayClient({
     apiKey: process.env.ALFREDPAY_API_KEY,
@@ -23,6 +23,27 @@ const alfred = new AlfredPayClient({
     baseUrl: process.env.ALFREDPAY_BASE_URL,
 });
 ```
+
+## Capabilities
+
+`AlfredPayClient` declares the following `AnchorCapabilities` flags. UI components use these flags instead of provider-name checks to determine behavior.
+
+```typescript
+readonly capabilities: AnchorCapabilities = {
+    emailLookup: true,    // Supports looking up customers by email
+    kycUrl: true,         // Supports URL-based KYC
+    kycFlow: 'form',      // KYC is presented as an inline form
+    sandbox: true,        // Sandbox simulation endpoints available
+    displayName: 'Alfred Pay', // Human-readable name for UI labels
+};
+```
+
+| Flag | Effect |
+| --- | --- |
+| `emailLookup` | The UI attempts to find existing customers by email before creating new ones |
+| `kycFlow: 'form'` | The UI renders an inline KYC form (`KycForm.svelte`) and uses the KYC submission API for status tracking and sandbox completion |
+| `sandbox` | Sandbox controls (e.g. "Complete KYC" sandbox button) are shown in the UI |
+| `displayName` | Used in UI labels like "View on Alfred Pay" |
 
 ## Core Flows
 
@@ -171,7 +192,7 @@ const accounts = await alfred.getFiatAccounts(customerId);
 All methods throw `AnchorError` on failure:
 
 ```typescript
-import { AnchorError } from '$lib/anchors/types';
+import { AnchorError } from 'path/to/anchors/types';
 
 try {
     await alfred.createOnRamp(input);
@@ -205,4 +226,4 @@ await alfred.completeKycSandbox(submissionId);
 
 ## Anchor Interface
 
-`AlfredPayClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. See the parent `anchors/` directory for the full interface definition.
+`AlfredPayClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. Its `AnchorCapabilities` flags drive the UI behavior — see the [Capabilities](#capabilities) section above. See the parent `anchors/` directory for the full interface definition.
