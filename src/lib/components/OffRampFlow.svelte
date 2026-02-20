@@ -18,6 +18,7 @@ Usage:
     import { customerStore } from '$lib/stores/customer.svelte';
     import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
+    import DevBox from '$lib/components/ui/DevBox.svelte';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import {
         buildPaymentTransaction,
@@ -935,14 +936,16 @@ Usage:
 
 <!-- For Developers -->
 <section class="mx-auto mt-8 max-w-lg">
-    <div class="rounded-lg bg-gray-900 p-8 text-white">
-        <h2 class="mb-4 text-2xl font-bold">For Developers</h2>
-        <a
-            href="https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/components/OffRampFlow.svelte"
-            target="_blank"
-            class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-        >
-            View Component Source Code
-        </a>
-    </div>
+    <DevBox
+        items={[
+            {
+                text: 'View OffRampFlow component source',
+                link: 'https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/components/OffRampFlow.svelte',
+            },
+            {
+                text: 'View anchor API proxy routes',
+                link: 'https://github.com/ElliotFriend/regional-starter-pack/tree/main/src/routes/api/anchor',
+            },
+        ]}
+    />
 </section>

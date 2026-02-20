@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getPaymentRail } from '$lib/config/rails';
     import { getToken } from '$lib/config/tokens';
+    import DevBox from '$lib/components/ui/DevBox.svelte';
     import type { PageProps } from './$types';
 
     // we use `$props()` in SvelteKit to "grab" the various data that's been
@@ -9,6 +10,21 @@
     const { data }: PageProps = $props();
     // pull out the pieces of data as `$derived()` state.
     const { anchor, regions, tokens } = $derived(data);
+
+    const devBoxItems = $derived.by(() => {
+        if (!anchor) return [];
+        const items: { text: string; link?: string }[] = [
+            { text: `View ${anchor.name} client source code`, link: `https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/anchors/${anchor.id}` },
+            { text: `${anchor.name} API documentation`, link: anchor.links.documentation },
+        ];
+        if (anchor.capabilities.sandbox) {
+            items.push({ text: 'Sandbox environment available for testing' });
+        }
+        if (anchor.capabilities.kycFlow) {
+            items.push({ text: `KYC flow: ${anchor.capabilities.kycFlow}` });
+        }
+        return items;
+    });
 </script>
 
 {#if anchor}
@@ -17,23 +33,17 @@
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900">{anchor.name}</h1>
             <p class="mt-2 text-gray-600">{anchor.description}</p>
-            <div class="flex flex-row gap-6">
-                <a
-                    href={anchor.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
-                >
-                    {anchor.website} &rarr;
-                </a>
-                <a
-                    href={anchor.documentation}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
-                >
-                    {anchor.documentation} &rarr;
-                </a>
+            <div class="mt-3 flex flex-row flex-wrap gap-2">
+                {#each Object.entries(anchor.links) as [label, url]}
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50"
+                    >
+                        {label}
+                    </a>
+                {/each}
             </div>
         </div>
 
@@ -174,85 +184,47 @@
             </div>
         </section>
 
+        <!-- Integration Flow -->
+        {#if anchor.integrationFlow}
+            <section class="mb-8">
+                <h2 class="mb-4 text-xl font-semibold text-gray-900">Integration Flow</h2>
+                <p class="mb-2">These are the steps you (as a developer) can expect to implement as you work with {anchor.name}.</p>
+                <div class="grid gap-6 md:grid-cols-2">
+                    <div class="rounded-lg border border-gray-200 bg-white p-6">
+                        <h3 class="mb-3 font-semibold text-green-700">On-Ramp (Fiat &rarr; Crypto)</h3>
+                        <ol class="space-y-3">
+                            {#each anchor.integrationFlow.onRamp as step, i}
+                                <li class="flex gap-3">
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold text-green-700">{i + 1}</span>
+                                    <div>
+                                        <p class="font-medium text-gray-900">{step.title}</p>
+                                        <p class="text-sm text-gray-500">{step.description}</p>
+                                    </div>
+                                </li>
+                            {/each}
+                        </ol>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white p-6">
+                        <h3 class="mb-3 font-semibold text-blue-700">Off-Ramp (Crypto &rarr; Fiat)</h3>
+                        <ol class="space-y-3">
+                            {#each anchor.integrationFlow.offRamp as step, i}
+                                <li class="flex gap-3">
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{i + 1}</span>
+                                    <div>
+                                        <p class="font-medium text-gray-900">{step.title}</p>
+                                        <p class="text-sm text-gray-500">{step.description}</p>
+                                    </div>
+                                </li>
+                            {/each}
+                        </ol>
+                    </div>
+                </div>
+            </section>
+        {/if}
+
         <!-- For Developers -->
         <section class="mb-8">
-            <div class="rounded-lg bg-gray-900 p-8 text-white">
-                <h2 class="text-2xl font-bold">For Developers</h2>
-                <div class="mt-2 text-gray-300">
-                    <ul class="space-y-3 text-sm">
-                        <li class="flex items-start gap-2">
-                            <svg
-                                class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                            <span>KYC verification required for all transactions</span>
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <svg
-                                class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                            <span
-                                >Sandbox API keys available - use example keys <a
-                                    class="text-indigo-400 hover:text-indigo-500"
-                                    href="https://alfredpay.readme.io/reference/post_customers-create-1"
-                                    target="_blank">from the docs</a
-                                ></span
-                            >
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <svg
-                                class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                            <span>Sandbox environment available for testing</span>
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <svg
-                                class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                            <span>Webhook support for transaction status updates</span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
+            <DevBox items={devBoxItems} />
         </section>
 
         <!-- Back Link -->

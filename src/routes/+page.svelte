@@ -1,10 +1,15 @@
+<script lang="ts">
+    import DevBox from '$lib/components/ui/DevBox.svelte';
+</script>
+
 <div class="text-center">
     <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-        Regional Starter Pack
+        Stellar Regional Starter Pack
     </h1>
     <p class="mx-auto mt-4 max-w-2xl text-lg text-gray-500">
-        A reference implementation for building fiat on/off ramps on the Stellar network. Connect
-        local payment rails to digital assets through regulated anchor providers.
+        A toolkit and reference implementation for building fiat on/off ramps on the Stellar
+        network. Includes a portable anchor library, three pre-built integrations, and a composable
+        SEP protocol library.
     </p>
     <div class="mt-8 flex justify-center gap-4">
         <a
@@ -22,46 +27,49 @@
     </div>
 </div>
 
-<!-- What is This -->
+<!-- What's Inside -->
 <section class="mt-16">
     <div class="rounded-lg border border-gray-200 bg-white p-8">
-        <h2 class="text-2xl font-bold text-gray-900">What is This?</h2>
-        <p class="mt-4 text-gray-600">
-            The Regional Starter Pack demonstrates how to interact with anchor on/off ramp
-            functionality using the Stellar network. It provides working examples of integrating
-            with anchor providers to enable users to convert between local currencies and digital
-            assets.
-        </p>
-        <div class="mt-6 grid gap-6 md:grid-cols-3">
+        <h2 class="text-2xl font-bold text-gray-900">What's Inside</h2>
+        <div class="mt-6 grid gap-6 md:grid-cols-2">
             <div class="rounded-lg bg-gray-50 p-4">
-                <h3 class="font-semibold text-gray-900">On-Ramp</h3>
+                <h3 class="font-semibold text-gray-900">Portable Anchor Library</h3>
                 <p class="mt-2 text-sm text-gray-600">
-                    Deposit local currency via bank transfer and receive digital assets in your
-                    Stellar wallet.
+                    Framework-agnostic TypeScript clients in <code
+                        class="rounded bg-gray-200 px-1">src/lib/anchors/</code
+                    >. No SvelteKit imports — copy into any project.
                 </p>
             </div>
             <div class="rounded-lg bg-gray-50 p-4">
-                <h3 class="font-semibold text-gray-900">Off-Ramp</h3>
+                <h3 class="font-semibold text-gray-900">Three Pre-Built Integrations</h3>
                 <p class="mt-2 text-sm text-gray-600">
-                    Send digital assets from your Stellar wallet and receive local currency in your
-                    bank account.
+                    Etherfuse, AlfredPay, and BlindPay — each implementing the shared <code
+                        class="rounded bg-gray-200 px-1">Anchor</code
+                    > interface with different capabilities.
                 </p>
             </div>
             <div class="rounded-lg bg-gray-50 p-4">
-                <h3 class="font-semibold text-gray-900">Anchors</h3>
+                <h3 class="font-semibold text-gray-900">SEP Protocol Library</h3>
                 <p class="mt-2 text-sm text-gray-600">
-                    Regulated entities that bridge traditional finance and the Stellar blockchain in
-                    specific regions.
+                    Composable implementations of SEP-1, 6, 10, 12, 24, 31, and 38 for building
+                    against any SEP-compliant anchor.
+                </p>
+            </div>
+            <div class="rounded-lg bg-gray-50 p-4">
+                <h3 class="font-semibold text-gray-900">Live Demos</h3>
+                <p class="mt-2 text-sm text-gray-600">
+                    Working on-ramp and off-ramp flows you can test right now with each anchor
+                    provider in sandbox mode.
                 </p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- How It Works -->
+<!-- How to Use It -->
 <section class="mt-16">
     <div class="rounded-lg border border-gray-200 bg-white p-8">
-        <h2 class="text-2xl font-bold text-gray-900">How It Works</h2>
+        <h2 class="text-2xl font-bold text-gray-900">How to Use It</h2>
 
         <div class="mt-8 grid gap-8 md:grid-cols-4">
             <div class="text-center">
@@ -70,9 +78,9 @@
                 >
                     1
                 </div>
-                <h3 class="mt-4 font-semibold text-gray-900">Choose Region</h3>
+                <h3 class="mt-4 font-semibold text-gray-900">Clone & Configure</h3>
                 <p class="mt-2 text-sm text-gray-500">
-                    Select a region to see available anchors and payment options.
+                    Clone the repo and add your anchor API keys to the environment.
                 </p>
             </div>
 
@@ -82,8 +90,11 @@
                 >
                     2
                 </div>
-                <h3 class="mt-4 font-semibold text-gray-900">Connect Wallet</h3>
-                <p class="mt-2 text-sm text-gray-500">Connect a Stellar wallet to get started.</p>
+                <h3 class="mt-4 font-semibold text-gray-900">Try the Demos</h3>
+                <p class="mt-2 text-sm text-gray-500">
+                    Run the app and test on-ramp and off-ramp flows with each anchor in sandbox
+                    mode.
+                </p>
             </div>
 
             <div class="text-center">
@@ -92,8 +103,11 @@
                 >
                     3
                 </div>
-                <h3 class="mt-4 font-semibold text-gray-900">Verify Identity</h3>
-                <p class="mt-2 text-sm text-gray-500">Complete KYC verification with the anchor.</p>
+                <h3 class="mt-4 font-semibold text-gray-900">Copy the Library</h3>
+                <p class="mt-2 text-sm text-gray-500">
+                    Copy <code class="rounded bg-gray-100 px-1 text-xs">src/lib/anchors/</code> into
+                    your own TypeScript project.
+                </p>
             </div>
 
             <div class="text-center">
@@ -102,9 +116,10 @@
                 >
                     4
                 </div>
-                <h3 class="mt-4 font-semibold text-gray-900">Transfer</h3>
+                <h3 class="mt-4 font-semibold text-gray-900">Build Your Own</h3>
                 <p class="mt-2 text-sm text-gray-500">
-                    On-ramp or off-ramp using local payment rails.
+                    Implement the shared <code class="rounded bg-gray-100 px-1 text-xs">Anchor</code
+                    > interface for your own use case.
                 </p>
             </div>
         </div>
@@ -113,78 +128,17 @@
 
 <!-- For Developers -->
 <section class="mt-16">
-    <div class="rounded-lg bg-gray-900 p-8 text-white">
-        <h2 class="text-2xl font-bold">For Developers</h2>
-        <p class="mt-2 text-gray-300">
-            This is a reference implementation built with SvelteKit. The code is designed to be
-            modular and copy-paste friendly.
-        </p>
-        <ul class="mt-4 space-y-2 text-sm text-gray-300">
-            <li class="flex items-center gap-2">
-                <svg
-                    class="h-5 w-5 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-                Standalone API functions in
-                <code class="rounded bg-gray-800 px-1">$lib/api/anchor.ts</code>
-            </li>
-            <li class="flex items-center gap-2">
-                <svg
-                    class="h-5 w-5 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-                Reusable Svelte 5 components with runes
-            </li>
-            <li class="flex items-center gap-2">
-                <svg
-                    class="h-5 w-5 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-                Freighter wallet integration
-            </li>
-            <li class="flex items-center gap-2">
-                <svg
-                    class="h-5 w-5 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-                Server-side API routes for secure anchor communication
-            </li>
-        </ul>
-    </div>
+    <DevBox
+        items={[
+            {
+                text: 'View source on GitHub',
+                link: 'https://github.com/ElliotFriend/regional-starter-pack',
+            },
+            {
+                text: 'Portable anchor library — copy src/lib/anchors/ into any TypeScript project',
+            },
+            { text: 'Built with SvelteKit, Svelte 5, and Tailwind CSS' },
+            { text: 'SEP protocol library included (SEP-1, 6, 10, 12, 24, 31, 38)' },
+        ]}
+    />
 </section>
