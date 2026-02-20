@@ -10,12 +10,12 @@ export interface WalletInfo {
 }
 
 export class WalletError extends Error {
-    constructor(
-        message: string,
-        public code: WalletErrorCode,
-    ) {
+    code: WalletErrorCode;
+
+    constructor(message: string, code: WalletErrorCode) {
         super(message);
         this.name = 'WalletError';
+        this.code = code;
     }
 }
 

@@ -272,12 +272,13 @@ export interface Anchor {
 }
 
 export class AnchorError extends Error {
-    constructor(
-        message: string,
-        public code: string,
-        public statusCode: number = 500,
-    ) {
+    code: string;
+    statusCode: number;
+
+    constructor(message: string, code: string, statusCode: number = 500) {
         super(message);
         this.name = 'AnchorError';
+        this.code = code;
+        this.statusCode = statusCode;
     }
 }

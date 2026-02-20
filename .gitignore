@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 # AI tooling
 .agents/
 .claude/
+
+# DX test project (temporary)
+/_*-test/
