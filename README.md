@@ -46,9 +46,10 @@ All custom clients implement this interface from `types.ts`:
 ```typescript
 interface Anchor {
     readonly name: string;
+    readonly capabilities: AnchorCapabilities;
     createCustomer(input: CreateCustomerInput): Promise<Customer>;
     getCustomer(customerId: string): Promise<Customer | null>;
-    getCustomerByEmail(email: string, country?: string): Promise<Customer | null>;
+    getCustomerByEmail?(email: string, country?: string): Promise<Customer | null>;
     getQuote(input: GetQuoteInput): Promise<Quote>;
     createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
     getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
@@ -56,7 +57,7 @@ interface Anchor {
     getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
     createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
     getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
-    getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
+    getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
     getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
 }
 ```

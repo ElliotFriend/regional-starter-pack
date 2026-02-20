@@ -105,9 +105,10 @@ All three anchor clients implement the shared `Anchor` interface:
 ```typescript
 interface Anchor {
     readonly name: string;
+    readonly capabilities: AnchorCapabilities;
     createCustomer(input): Promise<Customer>;
     getCustomer(id): Promise<Customer | null>;
-    getCustomerByEmail(email, country?): Promise<Customer | null>;
+    getCustomerByEmail?(email, country?): Promise<Customer | null>;
     getQuote(input): Promise<Quote>;
     createOnRamp(input): Promise<OnRampTransaction>;
     getOnRampTransaction(id): Promise<OnRampTransaction | null>;
@@ -115,7 +116,7 @@ interface Anchor {
     getFiatAccounts(customerId): Promise<SavedFiatAccount[]>;
     createOffRamp(input): Promise<OffRampTransaction>;
     getOffRampTransaction(id): Promise<OffRampTransaction | null>;
-    getKycIframeUrl(customerId, publicKey?, bankAccountId?): Promise<string>;
+    getKycUrl?(customerId, publicKey?, bankAccountId?): Promise<string>;
     getKycStatus(customerId, publicKey?): Promise<KycStatus>;
 }
 ```

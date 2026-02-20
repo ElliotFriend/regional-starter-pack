@@ -83,7 +83,7 @@ Lookup an existing customer:
 const customer = await etherfuse.getCustomer(customerId); // returns null if not found
 ```
 
-> **Note:** `getCustomerByEmail()` is not supported by Etherfuse and will throw an `AnchorError` with status 501.
+> **Note:** `getCustomerByEmail()` is not implemented by Etherfuse. The method is optional on the `Anchor` interface.
 
 ### 2. KYC Verification
 
@@ -92,7 +92,7 @@ Etherfuse supports two KYC approaches:
 **Redirect-based (recommended):** Generate a presigned URL and redirect the user. They complete identity verification and link a bank account within the Etherfuse UI.
 
 ```typescript
-const url = await etherfuse.getKycIframeUrl(customerId, publicKey, bankAccountId);
+const url = await etherfuse.getKycUrl(customerId, publicKey, bankAccountId);
 // Redirect or embed the URL for the user to complete KYC and accept agreements
 ```
 
@@ -186,11 +186,11 @@ User burns crypto tokens on Stellar and receives MXN to their bank account. The 
 // Register the user's bank account (if not already registered)
 const account = await etherfuse.registerFiatAccount({
     customerId: customer.id,
-    bankAccount: {
+    account: {
+        type: 'spei',
         bankName: 'BBVA',
         clabe: '012345678901234567',
         beneficiary: 'Jane Doe',
-        accountNumber: '', // not required by Etherfuse
     },
 });
 

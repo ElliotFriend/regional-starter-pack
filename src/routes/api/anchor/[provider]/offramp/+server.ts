@@ -27,7 +27,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
             amount,
             bankAccount,
             fiatAccountId: existingFiatAccountId,
-            bankAccountInfo,
             memo,
         } = body;
 
@@ -47,38 +46,29 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
         const anchor = getAnchor(provider);
         let fiatAccountId: string;
-        let bankInfo: {
-            bankName: string;
-            accountNumber: string;
-            clabe: string;
-            beneficiary: string;
-        };
 
         if (existingFiatAccountId) {
             // Use existing fiat account
             fiatAccountId = existingFiatAccountId;
-            bankInfo = bankAccountInfo || {
-                bankName: '',
-                accountNumber: '',
-                clabe: '',
-                beneficiary: '',
-            };
         } else {
             // Register new fiat account
-            const { bankName, accountNumber, clabe, beneficiary } = bankAccount;
-            if (!bankName || !accountNumber || !clabe || !beneficiary) {
+            const { bankName, clabe, beneficiary } = bankAccount;
+            if (!clabe || !beneficiary) {
                 throw error(400, {
-                    message:
-                        'bankAccount must include bankName, accountNumber, clabe, and beneficiary',
+                    message: 'bankAccount must include clabe and beneficiary',
                 });
             }
 
             const fiatAccount = await anchor.registerFiatAccount({
                 customerId,
-                bankAccount: { bankName, accountNumber, clabe, beneficiary },
+                account: {
+                    type: 'spei',
+                    clabe,
+                    bankName: bankName || undefined,
+                    beneficiary,
+                },
             });
             fiatAccountId = fiatAccount.id;
-            bankInfo = { bankName, accountNumber, clabe, beneficiary };
         }
 
         // Create the offramp transaction
@@ -91,7 +81,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
             amount,
             fiatAccountId,
             memo,
-            bankAccountInfo: bankInfo,
         });
 
         return json(transaction, { status: 201 });

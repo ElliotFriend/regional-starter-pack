@@ -74,7 +74,7 @@ Every function takes SvelteKit's `fetch` as its first argument and a provider na
 | `getFiatAccounts` | `GET /fiat-accounts` | List saved bank accounts |
 | `registerFiatAccount` | `POST /fiat-accounts` | Register a bank account |
 | `getKycStatus` | `GET /kyc?type=status` | Check KYC status |
-| `getKycIframeUrl` | `GET /kyc?type=iframe` | Get KYC/ToS iframe URL |
+| `getKycUrl` | `GET /kyc?type=iframe` | Get KYC/onboarding URL |
 | `getKycRequirements` | `GET /kyc?type=requirements` | Get required KYC fields (AlfredPay) |
 | `submitKycData` | `POST /kyc?type=data` | Submit KYC data (AlfredPay) |
 | `submitKycFile` | `POST /kyc?type=file` | Upload KYC document (AlfredPay) |

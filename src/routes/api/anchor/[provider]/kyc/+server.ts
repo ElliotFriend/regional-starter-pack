@@ -1,6 +1,6 @@
 /**
  * KYC API endpoint
- * GET: Get KYC iframe URL, status, or requirements
+ * GET: Get KYC URL, status, or requirements
  * POST: Submit KYC data or files
  */
 
@@ -27,6 +27,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
         const anchor = getAnchor(provider);
 
         if (type === 'tos') {
+            // BlindPay-specific: ToS URL generation
             if (anchor instanceof BlindPayClient) {
                 const redirectUrl = url.searchParams.get('redirectUrl') || undefined;
                 const tosUrl = await anchor.generateTosUrl(redirectUrl);
@@ -36,6 +37,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
         }
 
         if (type === 'requirements') {
+            // AlfredPay-specific: KYC requirements
             if (anchor instanceof AlfredPayClient) {
                 const requirements = await anchor.getKycRequirements(country);
                 return json(requirements);
@@ -47,6 +49,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
             if (!customerId) {
                 throw error(400, { message: 'customerId query parameter is required' });
             }
+            // AlfredPay-specific: KYC submission lookup
             if (anchor instanceof AlfredPayClient) {
                 const submission = await anchor.getKycSubmission(customerId);
                 return json({ submission });
@@ -61,6 +64,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
                     message: 'customerId and submissionId query parameters are required',
                 });
             }
+            // AlfredPay-specific: KYC submission status
             if (anchor instanceof AlfredPayClient) {
                 const status = await anchor.getKycSubmissionStatus(customerId, submissionId);
                 return json(status);
@@ -69,9 +73,12 @@ export const GET: RequestHandler = async ({ params, url }) => {
         }
 
         if (type === 'iframe') {
+            if (!anchor.getKycUrl) {
+                throw error(501, { message: 'Provider does not support KYC URL generation' });
+            }
             const bankAccountId = url.searchParams.get('bankAccountId') || undefined;
-            const iframeUrl = await anchor.getKycIframeUrl(customerId!, publicKey, bankAccountId);
-            return json({ url: iframeUrl });
+            const kycUrl = await anchor.getKycUrl(customerId!, publicKey, bankAccountId);
+            return json({ url: kycUrl });
         }
 
         // Default: return status

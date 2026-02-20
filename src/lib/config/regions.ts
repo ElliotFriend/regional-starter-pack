@@ -29,7 +29,7 @@ export interface AnchorCapability {
     maxAmount?: string;
 }
 
-export interface AnchorCapabilities {
+export interface AnchorUiCapabilities {
     supportsEmailLookup: boolean; // Can find customers by email?
     kycFlow: 'form' | 'iframe' | 'redirect'; // form = AlfredPay-style, iframe = onboarding URL, redirect = external ToS acceptance
 }
@@ -41,7 +41,7 @@ export interface Anchor {
     website: string;
     documentation: string;
     logo?: string;
-    capabilities: AnchorCapabilities;
+    capabilities: AnchorUiCapabilities;
     regions: Record<string, AnchorCapability>; // keyed by region ID
 }
 

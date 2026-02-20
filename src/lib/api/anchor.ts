@@ -239,19 +239,12 @@ export interface CreateOffRampOptions {
     memo?: string;
     // For new bank account registration
     bankAccount?: {
-        bankName: string;
-        accountNumber: string;
+        bankName?: string;
         clabe: string;
         beneficiary: string;
     };
     // For existing fiat account
     fiatAccountId?: string;
-    bankAccountInfo?: {
-        bankName: string;
-        accountNumber: string;
-        clabe: string;
-        beneficiary: string;
-    };
 }
 
 /**
@@ -317,11 +310,11 @@ export async function registerFiatAccount(
     fetch: Fetch,
     provider: string,
     customerId: string,
-    bankAccount: { bankName: string; accountNumber: string; clabe: string; beneficiary: string },
+    account: { bankName?: string; clabe: string; beneficiary: string },
 ): Promise<RegisteredFiatAccount> {
     return postJson<RegisteredFiatAccount>(fetch, `/api/anchor/${provider}/fiat-accounts`, {
         customerId,
-        ...bankAccount,
+        ...account,
     });
 }
 
@@ -389,9 +382,9 @@ export async function getKycStatus(
 }
 
 /**
- * Get the KYC iframe URL for embedded verification
+ * Get the KYC URL for embedded or redirect-based verification
  */
-export async function getKycIframeUrl(
+export async function getKycUrl(
     fetch: Fetch,
     provider: string,
     customerId: string,

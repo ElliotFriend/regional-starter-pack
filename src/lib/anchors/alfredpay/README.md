@@ -48,7 +48,7 @@ const byEmail = await alfred.getCustomerByEmail(email); // returns null if not f
 Get an iframe URL for the user to complete identity verification:
 
 ```typescript
-const iframeUrl = await alfred.getKycIframeUrl(customerId);
+const iframeUrl = await alfred.getKycUrl(customerId);
 ```
 
 Or submit KYC data programmatically:
@@ -134,9 +134,9 @@ User sends USDC on Stellar and receives MXN to their bank account.
 // Register the user's bank account first
 const account = await alfred.registerFiatAccount({
     customerId: customer.id,
-    bankAccount: {
+    account: {
+        type: 'spei',
         bankName: 'BANCO_CODE',
-        accountNumber: '1234567890',
         clabe: '012345678901234567',
         beneficiary: 'Jane Doe',
     },

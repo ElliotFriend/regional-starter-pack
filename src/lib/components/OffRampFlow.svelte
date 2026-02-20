@@ -275,15 +275,13 @@ Usage:
                     amount: quote.fromAmount,
                     bankAccount: {
                         bankName,
-                        accountNumber,
                         clabe,
                         beneficiary,
                     },
                 });
             } else {
                 // Use existing fiat account
-                const selectedAccount = savedAccounts.find((a) => a.id === selectedAccountId);
-                if (!selectedAccount) return;
+                if (!selectedAccountId) return;
 
                 tx = await api.createOffRamp(fetch, provider, {
                     customerId: customer.id,
@@ -292,13 +290,7 @@ Usage:
                     fromCurrency: quote.fromCurrency,
                     toCurrency: quote.toCurrency,
                     amount: quote.fromAmount,
-                    fiatAccountId: selectedAccountId!,
-                    bankAccountInfo: {
-                        bankName: selectedAccount.bankName,
-                        accountNumber: selectedAccount.accountNumber,
-                        clabe: '',
-                        beneficiary: selectedAccount.accountHolderName,
-                    },
+                    fiatAccountId: selectedAccountId,
                 });
             }
 
@@ -859,14 +851,20 @@ Usage:
                             </span>
                         </div>
                     {/if}
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-500">Bank</span>
-                        <span class="font-medium">{transaction.bankAccount.bankName}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-500">CLABE</span>
-                        <span class="font-mono text-sm">{transaction.bankAccount.clabe}</span>
-                    </div>
+                    {#if transaction.fiatAccount?.bankName}
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-500">Bank</span>
+                            <span class="font-medium">{transaction.fiatAccount.bankName}</span>
+                        </div>
+                    {/if}
+                    {#if transaction.fiatAccount?.accountIdentifier}
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-500">CLABE</span>
+                            <span class="font-mono text-sm"
+                                >{transaction.fiatAccount.accountIdentifier}</span
+                            >
+                        </div>
+                    {/if}
                 </div>
 
                 <div class="mt-6">
@@ -926,7 +924,9 @@ Usage:
                             {/if}
                         </p>
                     {/if}
-                    <p>Bank: {transaction.bankAccount.bankName}</p>
+                    {#if transaction.fiatAccount?.bankName}
+                        <p>Bank: {transaction.fiatAccount.bankName}</p>
+                    {/if}
                 </div>
             {/if}
 

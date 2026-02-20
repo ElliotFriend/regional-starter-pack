@@ -51,6 +51,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
     try {
         const anchor = getAnchor(provider);
+
+        if (!anchor.getCustomerByEmail) {
+            throw error(501, { message: 'Provider does not support customer lookup by email' });
+        }
+
         const customer = await anchor.getCustomerByEmail(email, country);
 
         if (!customer) {

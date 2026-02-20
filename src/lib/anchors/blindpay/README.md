@@ -134,7 +134,7 @@ const status = await blindpay.getKycStatus(receiverId);
 // 'not_started' | 'pending' | 'approved' | 'rejected'
 ```
 
-> **Note:** `getCustomerByEmail()` is not supported by BlindPay and will throw an `AnchorError`.
+> **Note:** `getCustomerByEmail()` is not implemented by BlindPay. The method is optional on the `Anchor` interface.
 
 ### 3. Register a Blockchain Wallet (for On-Ramp)
 
@@ -162,11 +162,11 @@ Required before creating payout quotes.
 ```typescript
 const account = await blindpay.registerFiatAccount({
     customerId: receiverId,
-    bankAccount: {
+    account: {
+        type: 'spei',
         bankName: 'BBVA',
         clabe: '012345678901234567',
         beneficiary: 'Jane Doe',
-        accountNumber: '', // not required for SPEI
     },
 });
 // account.id -- e.g. "ba_000000000000", needed for payout quotes

@@ -50,11 +50,12 @@ All three provider clients implement this interface from `types.ts`:
 ```typescript
 interface Anchor {
     readonly name: string;
+    readonly capabilities: AnchorCapabilities;
 
     // Customer management
     createCustomer(input: CreateCustomerInput): Promise<Customer>;
     getCustomer(customerId: string): Promise<Customer | null>;
-    getCustomerByEmail(email: string, country?: string): Promise<Customer | null>;
+    getCustomerByEmail?(email: string, country?: string): Promise<Customer | null>;
 
     // Quotes
     getQuote(input: GetQuoteInput): Promise<Quote>;
@@ -70,7 +71,7 @@ interface Anchor {
     getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
 
     // KYC
-    getKycIframeUrl(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
+    getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
     getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
 }
 ```
@@ -99,7 +100,7 @@ const customer = await anchor.createCustomer({
 });
 
 // KYC via iframe
-const kycUrl = await anchor.getKycIframeUrl(customer.id, 'GXYZ...', customer.bankAccountId);
+const kycUrl = await anchor.getKycUrl!(customer.id, 'GXYZ...', customer.bankAccountId);
 
 // Get quote (MXN -> CETES)
 const quote = await anchor.getQuote({
@@ -238,6 +239,7 @@ import { AnchorError } from '../types';
 
 export class MyAnchorClient implements Anchor {
     readonly name = 'myanchor';
+    readonly capabilities = { kycUrl: true };
 
     constructor(private config: { apiKey: string; baseUrl: string }) {}
 

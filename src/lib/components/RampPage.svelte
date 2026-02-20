@@ -7,7 +7,7 @@
     import BlindPayReceiverForm from '$lib/components/BlindPayReceiverForm.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { KycStatus } from '$lib/anchors/types';
-    import type { AnchorCapabilities } from '$lib/config/regions';
+    import type { AnchorUiCapabilities } from '$lib/config/regions';
     import * as api from '$lib/api/anchor';
 
     interface Props {
@@ -15,7 +15,7 @@
         title: string;
         description: string;
         connectMessage: string;
-        capabilities: AnchorCapabilities;
+        capabilities: AnchorUiCapabilities;
         children: Snippet;
     }
 
@@ -230,7 +230,7 @@
     async function loadKycIframeUrl(customerId: string) {
         isLoadingIframeUrl = true;
         try {
-            kycIframeUrl = await api.getKycIframeUrl(
+            kycIframeUrl = await api.getKycUrl(
                 fetch,
                 provider,
                 customerId,
@@ -275,8 +275,23 @@
         }
     }
 
-    function handleKycComplete() {
+    async function handleKycComplete() {
         showKyc = false;
+        // After KYC form submission, update the store with the actual status from the API
+        // so KycStatusDisplay shows the "Pending" view instead of re-prompting.
+        await checkAndUpdateKycStatus();
+        // Capture the submission ID so the sandbox completion button is available
+        const customer = customerStore.current;
+        if (customer && !kycSubmissionId) {
+            try {
+                const submission = await api.getKycSubmission(fetch, provider, customer.id);
+                if (submission) {
+                    kycSubmissionId = submission.submissionId;
+                }
+            } catch {
+                // Ignore — submission lookup may fail
+            }
+        }
     }
 
     async function handleSandboxComplete() {

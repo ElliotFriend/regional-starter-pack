@@ -20,6 +20,7 @@
 
 import type {
     Anchor,
+    AnchorCapabilities,
     Customer,
     Quote,
     OnRampTransaction,
@@ -62,6 +63,10 @@ import type {
  */
 export class EtherfuseClient implements Anchor {
     readonly name = 'etherfuse';
+    readonly capabilities: AnchorCapabilities = {
+        kycUrl: true,
+        requiresOffRampSigning: true,
+    };
     private readonly config: EtherfuseConfig;
     private readonly blockchain: string;
 
@@ -217,11 +222,7 @@ export class EtherfuseClient implements Anchor {
             paymentInstructions: response.depositClabe
                 ? {
                       type: 'spei' as const,
-                      bankName: '',
-                      accountNumber: '',
                       clabe: response.depositClabe,
-                      beneficiary: '',
-                      reference: '',
                       amount: response.amountInFiat || '',
                       currency: '',
                   }
@@ -240,13 +241,9 @@ export class EtherfuseClient implements Anchor {
      * `undefined` if the anchor has not yet prepared the transaction for signing.
      *
      * @param response - Raw order response from `GET /ramp/order/{id}`.
-     * @param bankAccountInfo - Optional bank details to attach (not returned by the API).
      * @returns The mapped {@link OffRampTransaction}.
      */
-    private mapOffRampTransaction(
-        response: EtherfuseOrderResponse,
-        bankAccountInfo?: { bankName: string; clabe: string; beneficiary: string },
-    ): OffRampTransaction {
+    private mapOffRampTransaction(response: EtherfuseOrderResponse): OffRampTransaction {
         return {
             id: response.orderId,
             customerId: response.customerId,
@@ -259,13 +256,13 @@ export class EtherfuseClient implements Anchor {
             stellarAddress: '',
             feeBps: response.feeBps,
             feeAmount: response.feeAmountInFiat,
-            bankAccount: {
-                id: response.bankAccountId,
-                bankName: bankAccountInfo?.bankName || '',
-                accountNumber: '',
-                clabe: bankAccountInfo?.clabe || '',
-                beneficiary: bankAccountInfo?.beneficiary || '',
-            },
+            fiatAccount: response.bankAccountId
+                ? {
+                      id: response.bankAccountId,
+                      type: 'spei',
+                      label: 'Bank Account',
+                  }
+                : undefined,
             stellarTxHash: response.confirmedTxSignature,
             signableTransaction: response.burnTransaction,
             statusPage: response.statusPage,
@@ -283,7 +280,7 @@ export class EtherfuseClient implements Anchor {
      *
      * Generates a partner-side UUID for the customer and requests a presigned
      * onboarding URL. The URL is stored internally but not directly returned —
-     * use {@link getKycIframeUrl} to retrieve it.
+     * use {@link getKycUrl} to retrieve it.
      *
      * @param input - Customer email and Stellar public key.
      * @returns A {@link Customer} with `kycStatus` set to `"not_started"`.
@@ -390,25 +387,6 @@ export class EtherfuseClient implements Anchor {
     }
 
     /**
-     * Look up a customer by email.
-     *
-     * Etherfuse does not support customer lookup by email. This method always
-     * throws an {@link AnchorError} with status 501.
-     *
-     * @throws {AnchorError} Always — NOT_SUPPORTED.
-     */
-    async getCustomerByEmail(
-        _email: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-        _country?: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-    ): Promise<Customer | null> {
-        throw new AnchorError(
-            'Etherfuse does not support customer lookup by email',
-            'NOT_SUPPORTED',
-            501,
-        );
-    }
-
-    /**
      * Request a currency conversion quote.
      *
      * Generates a partner-side UUID for the quote. Currency codes for crypto
@@ -493,11 +471,7 @@ export class EtherfuseClient implements Anchor {
             stellarAddress: input.stellarAddress,
             paymentInstructions: {
                 type: 'spei' as const,
-                bankName: '',
-                accountNumber: '',
                 clabe: onramp.depositClabe,
-                beneficiary: '',
-                reference: '',
                 amount: onramp.depositAmount,
                 currency: input.fromCurrency,
             },
@@ -532,7 +506,7 @@ export class EtherfuseClient implements Anchor {
      *
      * Generates a partner-side UUID for the bank account.
      *
-     * @param input - Customer ID and bank account details.
+     * @param input - Customer ID and fiat account details.
      * @returns The newly registered {@link RegisteredFiatAccount}.
      * @throws {AnchorError} On API failure.
      */
@@ -545,9 +519,9 @@ export class EtherfuseClient implements Anchor {
             {
                 bankAccountId,
                 customerId: input.customerId,
-                bankName: input.bankAccount.bankName,
-                clabe: input.bankAccount.clabe,
-                beneficiary: input.bankAccount.beneficiary,
+                bankName: input.account.bankName || '',
+                clabe: input.account.clabe,
+                beneficiary: input.account.beneficiary,
             },
         );
 
@@ -633,13 +607,13 @@ export class EtherfuseClient implements Anchor {
             toAmount: '',
             toCurrency: input.toCurrency,
             stellarAddress: input.stellarAddress,
-            bankAccount: {
-                id: bankAccountId || '',
-                bankName: input.bankAccountInfo?.bankName || '',
-                accountNumber: '',
-                clabe: input.bankAccountInfo?.clabe || '',
-                beneficiary: input.bankAccountInfo?.beneficiary || '',
-            },
+            fiatAccount: bankAccountId
+                ? {
+                      id: bankAccountId,
+                      type: 'spei',
+                      label: 'Bank Account',
+                  }
+                : undefined,
             signableTransaction: undefined,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -678,7 +652,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The onboarding URL string.
      * @throws {AnchorError} If `publicKey` is missing or on API failure.
      */
-    async getKycIframeUrl(
+    async getKycUrl(
         customerId: string,
         publicKey?: string,
         bankAccountId?: string,

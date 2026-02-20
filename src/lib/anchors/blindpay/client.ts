@@ -15,6 +15,7 @@
 
 import type {
     Anchor,
+    AnchorCapabilities,
     Customer,
     Quote,
     OnRampTransaction,
@@ -58,6 +59,11 @@ import type {
  */
 export class BlindPayClient implements Anchor {
     readonly name = 'blindpay';
+    readonly capabilities: AnchorCapabilities = {
+        kycUrl: true,
+        requiresTos: true,
+        requiresOffRampSigning: true,
+    };
     private readonly config: BlindPayConfig;
     private readonly network: string;
 
@@ -144,10 +150,7 @@ export class BlindPayClient implements Anchor {
             paymentInstructions: response.clabe
                 ? {
                       type: 'spei',
-                      bankName: '',
-                      accountNumber: '',
                       clabe: response.clabe,
-                      beneficiary: '',
                       reference: response.memo_code || '',
                       amount: this.fromCents(response.sender_amount),
                       currency: response.currency || 'MXN',
@@ -175,13 +178,6 @@ export class BlindPayClient implements Anchor {
             toAmount: this.fromCents(response.receiver_amount),
             toCurrency: response.receiver_currency,
             stellarAddress: response.sender_wallet_address,
-            bankAccount: {
-                id: '',
-                bankName: '',
-                accountNumber: '',
-                clabe: '',
-                beneficiary: '',
-            },
             stellarTxHash: response.blockchain_tx_hash,
             signableTransaction,
             createdAt: response.created_at,
@@ -285,20 +281,6 @@ export class BlindPayClient implements Anchor {
             }
             throw error;
         }
-    }
-
-    /**
-     * Look up a customer by email.
-     *
-     * BlindPay does not support receiver lookup by email.
-     * @throws {AnchorError} Always — NOT_SUPPORTED.
-     */
-    async getCustomerByEmail(_email: string, _country?: string): Promise<Customer | null> {
-        throw new AnchorError(
-            'BlindPay does not support customer lookup by email',
-            'NOT_SUPPORTED',
-            501,
-        );
     }
 
     /**
@@ -432,11 +414,11 @@ export class BlindPayClient implements Anchor {
             this.instancePath(`/receivers/${input.customerId}/bank-accounts`),
             {
                 type: 'spei_bitso',
-                name: input.bankAccount.beneficiary,
-                beneficiary_name: input.bankAccount.beneficiary,
+                name: input.account.beneficiary,
+                beneficiary_name: input.account.beneficiary,
                 spei_protocol: 'clabe',
-                spei_institution_code: `40${input.bankAccount.clabe.slice(0, 3)}`,
-                spei_clabe: input.bankAccount.clabe,
+                spei_institution_code: `40${input.account.clabe.slice(0, 3)}`,
+                spei_clabe: input.account.clabe,
             },
         );
 
@@ -503,13 +485,6 @@ export class BlindPayClient implements Anchor {
             toAmount: '',
             toCurrency: input.toCurrency,
             stellarAddress: input.stellarAddress,
-            bankAccount: {
-                id: input.fiatAccountId,
-                bankName: input.bankAccountInfo?.bankName || '',
-                accountNumber: input.bankAccountInfo?.accountNumber || '',
-                clabe: input.bankAccountInfo?.clabe || '',
-                beneficiary: input.bankAccountInfo?.beneficiary || '',
-            },
             signableTransaction: response.transaction_hash,
             createdAt: now,
             updatedAt: now,
@@ -540,7 +515,7 @@ export class BlindPayClient implements Anchor {
      * For BlindPay, the "KYC iframe" is actually a redirect to the ToS page.
      * The user accepts ToS first, then submits KYC data via createReceiver.
      */
-    async getKycIframeUrl(
+    async getKycUrl(
         _customerId: string,
         _publicKey?: string,
         _bankAccountId?: string,

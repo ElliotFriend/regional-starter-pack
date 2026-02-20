@@ -21,6 +21,7 @@
 
 import type {
     Anchor,
+    AnchorCapabilities,
     Customer,
     Quote,
     OnRampTransaction,
@@ -34,7 +35,6 @@ import type {
     SavedFiatAccount,
     KycStatus,
     PaymentInstructions,
-    BankAccount,
 } from '../types';
 import { AnchorError } from '../types';
 import type {
@@ -66,6 +66,10 @@ import type {
  */
 export class AlfredPayClient implements Anchor {
     readonly name = 'alfredpay';
+    readonly capabilities: AnchorCapabilities = {
+        emailLookup: true,
+        kycUrl: true,
+    };
     private readonly config: AlfredPayConfig;
 
     /** @param config - API credentials and base URL. */
@@ -178,9 +182,8 @@ export class AlfredPayClient implements Anchor {
     ): PaymentInstructions {
         return {
             type: 'spei',
-            bankName: instructions.bankName,
-            accountNumber: '',
             clabe: instructions.clabe,
+            bankName: instructions.bankName,
             beneficiary: instructions.accountHolderName,
             reference: instructions.reference,
             amount: amount,
@@ -264,12 +267,8 @@ export class AlfredPayClient implements Anchor {
     /**
      * Map an off-ramp response to the shared {@link OffRampTransaction} type.
      * @param response - Raw API response from `POST /offramp` or `GET /offramp/:id`.
-     * @param bankAccountInfo - Optional bank details to attach (the API response only includes the fiat account ID).
      */
-    private mapOffRampTransaction(
-        response: AlfredPayOffRampResponse,
-        bankAccountInfo?: Omit<BankAccount, 'id'>,
-    ): OffRampTransaction {
+    private mapOffRampTransaction(response: AlfredPayOffRampResponse): OffRampTransaction {
         const statusMap: Record<string, OffRampTransaction['status']> = {
             CREATED: 'pending',
             PENDING: 'pending',
@@ -290,13 +289,13 @@ export class AlfredPayClient implements Anchor {
             toAmount: response.toAmount,
             toCurrency: response.toCurrency,
             stellarAddress: response.depositAddress,
-            bankAccount: {
-                id: response.fiatAccountId,
-                bankName: bankAccountInfo?.bankName || '',
-                accountNumber: bankAccountInfo?.accountNumber || '',
-                clabe: bankAccountInfo?.clabe || '',
-                beneficiary: bankAccountInfo?.beneficiary || '',
-            },
+            fiatAccount: response.fiatAccountId
+                ? {
+                      id: response.fiatAccountId,
+                      type: 'spei',
+                      label: 'SPEI Account',
+                  }
+                : undefined,
             memo: response.memo,
             stellarTxHash: response.txHash,
             createdAt: response.createdAt,
@@ -480,14 +479,14 @@ export class AlfredPayClient implements Anchor {
             customerId: input.customerId,
             type: 'SPEI',
             fiatAccountFields: {
-                accountNumber: input.bankAccount.accountNumber,
+                accountNumber: input.account.clabe,
                 accountType: 'CHECKING',
-                accountName: input.bankAccount.beneficiary,
-                accountBankCode: input.bankAccount.bankName,
-                accountAlias: input.bankAccount.beneficiary,
-                networkIdentifier: input.bankAccount.clabe,
+                accountName: input.account.beneficiary,
+                accountBankCode: input.account.bankName || '',
+                accountAlias: input.account.beneficiary,
+                networkIdentifier: input.account.clabe,
                 metadata: {
-                    accountHolderName: input.bankAccount.beneficiary,
+                    accountHolderName: input.account.beneficiary,
                 },
             },
             isExternal: true,
@@ -557,7 +556,7 @@ export class AlfredPayClient implements Anchor {
             memo: input.memo || '',
             originAddress: input.stellarAddress,
         });
-        return this.mapOffRampTransaction(response, input.bankAccountInfo);
+        return this.mapOffRampTransaction(response);
     }
 
     /**
@@ -588,7 +587,7 @@ export class AlfredPayClient implements Anchor {
      * @returns The iframe URL string.
      * @throws {AnchorError} On API failure.
      */
-    async getKycIframeUrl(customerId: string, country: string = 'MX'): Promise<string> {
+    async getKycUrl(customerId: string, country: string = 'MX'): Promise<string> {
         const response = await this.request<{ verification_url: string; submissionId: string }>(
             'GET',
             `/customers/${customerId}/kyc/${country}/url`,
