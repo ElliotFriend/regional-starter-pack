@@ -16,24 +16,23 @@ Usage:
     import { onMount } from 'svelte';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
-    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
+    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
+    import QuoteStep from '$lib/components/ramp/QuoteStep.svelte';
+    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
+    import FiatAccountStep from '$lib/components/ramp/FiatAccountStep.svelte';
+    import { resolveStellarAsset } from '$lib/utils/stellar-asset';
+    import { getQuoteCustomerId } from '$lib/utils/quote';
+    import { displayCurrency, formatAmount } from '$lib/utils/currency';
     import { signWithFreighter } from '$lib/wallet/freighter';
-    import {
-        buildPaymentTransaction,
-        submitTransaction,
-        getUsdcAsset,
-        getStellarAsset,
-        checkTrustline,
-        buildTrustlineTransaction,
-    } from '$lib/wallet/stellar';
+    import { buildPaymentTransaction, submitTransaction } from '$lib/wallet/stellar';
     import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
     import type { StellarNetwork } from '$lib/wallet/types';
     import type { Quote, OffRampTransaction, SavedFiatAccount } from '$lib/anchors/types';
     import { getStatusColor } from '$lib/utils/status';
     import { TX_STATUS } from '$lib/constants';
-    import { getToken } from '$lib/config/tokens';
     import * as api from '$lib/api/anchor';
     import type { AnchorCapabilities } from '$lib/anchors/types';
 
@@ -78,68 +77,13 @@ Usage:
         'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
     >('input');
 
-    // Asset balance
+    // Trustline + balance state (updated by TrustlineStatus callback)
     let assetBalance = $state('0');
     let hasTrustline = $state(false);
-    let isCheckingBalance = $state(true);
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
-    // Resolve the Stellar asset from the fromCurrency token config
-    const stellarAsset = $derived.by(() => {
-        const tokenConfig = getToken(fromCurrency);
-        return tokenConfig?.issuer
-            ? getStellarAsset(tokenConfig.symbol, tokenConfig.issuer)
-            : getUsdcAsset(PUBLIC_USDC_ISSUER);
-    });
-
-    async function checkBalance() {
-        if (!walletStore.publicKey) return;
-
-        isCheckingBalance = true;
-        try {
-            const result = await checkTrustline(walletStore.publicKey, stellarAsset, network);
-            hasTrustline = result.hasTrustline;
-            assetBalance = result.balance;
-        } catch (e) {
-            console.error('Failed to check balance:', e);
-        } finally {
-            isCheckingBalance = false;
-        }
-    }
-
-    async function addTrustline() {
-        if (!walletStore.publicKey) return;
-
-        isSigning = true;
-        try {
-            const xdr = await buildTrustlineTransaction({
-                sourcePublicKey: walletStore.publicKey,
-                asset: stellarAsset,
-                network,
-            });
-
-            const signed = await signWithFreighter(xdr, network);
-            await submitTransaction(signed.signedXdr, network);
-
-            // Refresh balance
-            await checkBalance();
-        } catch (e) {
-            console.error('Failed to add trustline:', e);
-        } finally {
-            isSigning = false;
-        }
-    }
-
-    /** Build the customerId for quote requests. BlindPay expects "receiverId:bankAccountId". */
-    function getQuoteCustomerId(bankAccountId?: string): string | undefined {
-        const customer = customerStore.current;
-        if (!customer) return undefined;
-        if (capabilities?.compositeQuoteCustomerId && bankAccountId) {
-            return `${customer.id}:${bankAccountId}`;
-        }
-        return customer.id;
-    }
+    const stellarAsset = $derived(resolveStellarAsset(fromCurrency, PUBLIC_USDC_ISSUER));
 
     async function getQuote_() {
         if (!amount || isNaN(parseFloat(amount))) return;
@@ -155,11 +99,14 @@ Usage:
         error = null;
 
         try {
+            const customer = customerStore.current;
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency,
                 toCurrency: fiatCurrency,
                 amount,
-                customerId: getQuoteCustomerId(),
+                customerId: customer
+                    ? getQuoteCustomerId(customer.id, capabilities)
+                    : undefined,
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
             step = 'quote';
@@ -174,11 +121,14 @@ Usage:
         if (!amount) return;
         isGettingQuote = true;
         try {
+            const customer = customerStore.current;
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency,
                 toCurrency: fiatCurrency,
                 amount,
-                customerId: getQuoteCustomerId(selectedAccountId ?? undefined),
+                customerId: customer
+                    ? getQuoteCustomerId(customer.id, capabilities, selectedAccountId ?? undefined)
+                    : undefined,
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
@@ -217,7 +167,7 @@ Usage:
                 fromCurrency,
                 toCurrency: fiatCurrency,
                 amount,
-                customerId: getQuoteCustomerId(selectedAccountId!),
+                customerId: getQuoteCustomerId(customer.id, capabilities, selectedAccountId!),
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
 
@@ -453,23 +403,41 @@ Usage:
         stopPollingForSignable();
     }
 
-    /** Strip the issuer from a `CODE:ISSUER` asset string. */
-    function displayCurrency(currency: string | undefined): string {
-        if (!currency) return '';
-        return currency.split(':')[0];
-    }
-
-    /** Format a numeric string to at most 7 decimal places, trimming trailing zeros. */
-    function formatAmount(value: string): string {
-        return parseFloat(parseFloat(value).toFixed(7)).toString();
-    }
-
     function clearError() {
         error = null;
     }
 
+    /** Handle the quote step confirm action — either go to bank details or confirm order directly. */
+    function handleQuoteConfirm() {
+        if (capabilities?.requiresBankBeforeQuote && selectedAccountId) {
+            confirmOrder();
+        } else {
+            proceedToBankDetails();
+        }
+    }
+
+    /** Label for the quote step confirm button. */
+    const quoteConfirmLabel = $derived(
+        capabilities?.requiresBankBeforeQuote && selectedAccountId
+            ? 'Confirm & Sign'
+            : 'Continue to Bank Details',
+    );
+
+    /** Handle the bank step back button. */
+    function handleBankBack() {
+        step = quote ? 'quote' : 'input';
+    }
+
+    /** Handle the bank step submit — either get quote first or confirm order. */
+    function handleBankSubmit() {
+        if (capabilities?.requiresBankBeforeQuote && !quote) {
+            handleBankThenQuote();
+        } else {
+            confirmOrder();
+        }
+    }
+
     onMount(() => {
-        checkBalance();
         return () => {
             stopPolling();
             stopPollingForSignable();
@@ -486,267 +454,54 @@ Usage:
                 account.
             </p>
 
-            {#if walletStore.isConnected}
-                <div class="mt-4 rounded-md bg-gray-50 p-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500">Your Balance</span>
-                        {#if isCheckingBalance}
-                            <span class="text-sm text-gray-400">Loading...</span>
-                        {:else if hasTrustline}
-                            <span class="font-medium"
-                                >{formatAmount(assetBalance)} {displayCurrency(fromCurrency)}</span
-                            >
-                        {:else}
-                            <button
-                                onclick={addTrustline}
-                                disabled={isSigning}
-                                class="text-sm text-indigo-600 hover:text-indigo-800"
-                            >
-                                {isSigning ? 'Adding...' : 'Add Trustline'}
-                            </button>
-                        {/if}
-                    </div>
-                </div>
-            {/if}
+            <TrustlineStatus
+                {stellarAsset}
+                {network}
+                showBalance
+                balanceCurrency={fromCurrency}
+                onStatusChange={(s) => {
+                    hasTrustline = s.hasTrustline;
+                    assetBalance = s.balance;
+                }}
+            />
 
-            <div class="mt-6">
-                <label for="amount" class="block text-sm font-medium text-gray-700"
-                    >Amount ({fromCurrency})</label
-                >
-                <input
-                    type="number"
-                    id="amount"
-                    bind:value={amount}
-                    placeholder="100"
-                    min="1"
-                    step="1"
-                    max={assetBalance}
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                />
-                {#if parseFloat(amount) > parseFloat(assetBalance)}
-                    <p class="mt-1 text-sm text-red-600">Insufficient balance</p>
-                {/if}
-            </div>
-
-            <button
-                onclick={getQuote_}
-                disabled={!amount ||
-                    isGettingQuote ||
-                    !walletStore.isConnected ||
-                    !hasTrustline ||
-                    parseFloat(amount) > parseFloat(assetBalance)}
-                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                {isGettingQuote ? 'Getting Quote...' : 'Get Quote'}
-            </button>
-
-            {#if !walletStore.isConnected}
-                <p class="mt-2 text-center text-sm text-gray-500">
-                    Please connect your wallet first.
-                </p>
-            {/if}
+            <AmountInput
+                bind:amount
+                label="Amount ({fromCurrency})"
+                placeholder="100"
+                maxAmount={assetBalance}
+                isWalletConnected={walletStore.isConnected}
+                {hasTrustline}
+                {isGettingQuote}
+                onSubmit={getQuote_}
+            />
         </div>
     {:else if step === 'quote'}
-        <div class="space-y-4">
-            {#if quote}
-                <QuoteDisplay {quote} onRefresh={refreshQuote} isRefreshing={isGettingQuote} />
-            {/if}
-
-            <div class="flex gap-3">
-                <button
-                    onclick={reset}
-                    class="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                {#if capabilities?.requiresBankBeforeQuote && selectedAccountId}
-                    <!-- Bank already registered before quote, go straight to confirm -->
-                    <button
-                        onclick={confirmOrder}
-                        disabled={isCreatingTransaction}
-                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {isCreatingTransaction ? 'Processing...' : 'Confirm & Sign'}
-                    </button>
-                {:else}
-                    <button
-                        onclick={proceedToBankDetails}
-                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                    >
-                        Continue to Bank Details
-                    </button>
-                {/if}
-            </div>
-        </div>
+        <QuoteStep
+            {quote}
+            isRefreshing={isGettingQuote}
+            isConfirming={isCreatingTransaction}
+            confirmLabel={quoteConfirmLabel}
+            onRefresh={refreshQuote}
+            onCancel={reset}
+            onConfirm={handleQuoteConfirm}
+        />
     {:else if step === 'bank'}
-        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 class="text-xl font-semibold text-gray-900">Bank Account</h2>
-            <p class="mt-1 text-sm text-gray-500">Select where you want to receive your funds.</p>
-
-            {#if isLoadingAccounts}
-                <div class="mt-6 flex items-center justify-center py-8">
-                    <div
-                        class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
-                    ></div>
-                    <span class="ml-2 text-sm text-gray-500">Loading saved accounts...</span>
-                </div>
-            {:else}
-                <div class="mt-6 space-y-4">
-                    {#if savedAccounts.length > 0}
-                        <div>
-                            <p class="mb-2 block text-sm font-medium text-gray-700">
-                                Saved Accounts
-                            </p>
-                            <div class="space-y-2">
-                                {#each savedAccounts as account (account.id)}
-                                    <label
-                                        class="flex cursor-pointer items-center rounded-lg border p-3 transition-colors {selectedAccountId ===
-                                            account.id && !useNewAccount
-                                            ? 'border-indigo-500 bg-indigo-50'
-                                            : 'border-gray-200 hover:border-gray-300'}"
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="fiatAccount"
-                                            value={account.id}
-                                            checked={selectedAccountId === account.id &&
-                                                !useNewAccount}
-                                            onchange={() => {
-                                                selectedAccountId = account.id;
-                                                useNewAccount = false;
-                                            }}
-                                            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <div class="ml-3">
-                                            <p class="text-sm font-medium text-gray-900">
-                                                {account.bankName || 'Bank Account'}
-                                            </p>
-                                            <p class="text-sm text-gray-500">
-                                                {#if account.accountHolderName}{account.accountHolderName}
-                                                    &bull;
-                                                {/if}{account.accountNumber ||
-                                                    account.id.slice(0, 8)}
-                                            </p>
-                                        </div>
-                                    </label>
-                                {/each}
-
-                                <label
-                                    class="flex cursor-pointer items-center rounded-lg border p-3 transition-colors {useNewAccount
-                                        ? 'border-indigo-500 bg-indigo-50'
-                                        : 'border-gray-200 hover:border-gray-300'}"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="fiatAccount"
-                                        value="new"
-                                        checked={useNewAccount}
-                                        onchange={() => {
-                                            useNewAccount = true;
-                                            selectedAccountId = null;
-                                        }}
-                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
-                                    />
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-gray-900">
-                                            Use a new account
-                                        </p>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                    {/if}
-
-                    {#if useNewAccount || savedAccounts.length === 0}
-                        <div
-                            class="space-y-4 {savedAccounts.length > 0
-                                ? 'border-t border-gray-200 pt-4'
-                                : ''}"
-                        >
-                            {#if savedAccounts.length > 0}
-                                <p class="text-sm font-medium text-gray-700">New Account Details</p>
-                            {/if}
-
-                            <div>
-                                <label
-                                    for="bankName"
-                                    class="block text-sm font-medium text-gray-700">Bank Name</label
-                                >
-                                <input
-                                    type="text"
-                                    id="bankName"
-                                    bind:value={bankName}
-                                    placeholder="BBVA, Santander, etc."
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="clabe" class="block text-sm font-medium text-gray-700"
-                                    >CLABE (18 digits)</label
-                                >
-                                <input
-                                    type="text"
-                                    id="clabe"
-                                    bind:value={clabe}
-                                    placeholder="012180001234567890"
-                                    maxlength="18"
-                                    class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label
-                                    for="beneficiary"
-                                    class="block text-sm font-medium text-gray-700"
-                                    >Beneficiary Name</label
-                                >
-                                <input
-                                    type="text"
-                                    id="beneficiary"
-                                    bind:value={beneficiary}
-                                    placeholder="Full name as it appears on the account"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                />
-                            </div>
-                        </div>
-                    {/if}
-                </div>
-            {/if}
-
-            <div class="mt-6 flex gap-3">
-                <button
-                    onclick={() => (step = quote ? 'quote' : 'input')}
-                    class="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Back
-                </button>
-                {#if capabilities?.requiresBankBeforeQuote && !quote}
-                    <!-- Bank step is before quote — continue to get quote -->
-                    <button
-                        onclick={handleBankThenQuote}
-                        disabled={isLoadingAccounts ||
-                            isGettingQuote ||
-                            (useNewAccount && (!clabe || !beneficiary)) ||
-                            (!useNewAccount && !selectedAccountId)}
-                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {isGettingQuote ? 'Getting Quote...' : 'Continue'}
-                    </button>
-                {:else}
-                    <button
-                        onclick={confirmOrder}
-                        disabled={isLoadingAccounts ||
-                            isCreatingTransaction ||
-                            (useNewAccount && (!bankName || !clabe || !beneficiary)) ||
-                            (!useNewAccount && !selectedAccountId)}
-                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {isCreatingTransaction ? 'Processing...' : 'Confirm & Sign'}
-                    </button>
-                {/if}
-            </div>
-        </div>
+        <FiatAccountStep
+            {savedAccounts}
+            {isLoadingAccounts}
+            bind:selectedAccountId
+            bind:useNewAccount
+            bind:bankName
+            bind:clabe
+            bind:beneficiary
+            isBankBeforeQuote={capabilities?.requiresBankBeforeQuote ?? false}
+            hasQuote={quote !== null}
+            {isGettingQuote}
+            {isCreatingTransaction}
+            onBack={handleBankBack}
+            onSubmit={handleBankSubmit}
+        />
     {:else if step === 'awaiting_signable'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
             <div
@@ -875,58 +630,14 @@ Usage:
             </div>
         {/if}
     {:else if step === 'complete'}
-        <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
-            >
-                <svg
-                    class="h-6 w-6 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    ></path>
-                </svg>
-            </div>
-
-            <h2 class="mt-4 text-xl font-semibold text-gray-900">Transfer Complete!</h2>
-            <p class="mt-2 text-gray-500">Your funds have been sent to your bank account.</p>
-
-            {#if transaction}
-                <div class="mt-4 space-y-1 text-sm text-gray-600">
-                    <p>
-                        Amount: {parseFloat(
-                            transaction.toAmount || quote?.toAmount || '0',
-                        ).toLocaleString()}
-                        {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
-                    </p>
-                    {#if transaction.feeAmount}
-                        <p>
-                            Fee: {transaction.feeAmount}
-                            {displayCurrency(transaction.toCurrency || quote?.toCurrency)}
-                            {#if transaction.feeBps}
-                                <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
-                            {/if}
-                        </p>
-                    {/if}
-                    {#if transaction.fiatAccount?.bankName}
-                        <p>Bank: {transaction.fiatAccount.bankName}</p>
-                    {/if}
-                </div>
-            {/if}
-
-            <button
-                onclick={reset}
-                class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-                Start New Transaction
-            </button>
-        </div>
+        <CompletionStep
+            title="Transfer Complete!"
+            message="Your funds have been sent to your bank account."
+            {transaction}
+            {quote}
+            {network}
+            onReset={reset}
+        />
     {/if}
 
     {#if error}

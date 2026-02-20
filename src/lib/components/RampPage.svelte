@@ -285,175 +285,93 @@
     }
 </script>
 
-<div>
-    <h1 class="text-2xl font-bold text-gray-900">{title}</h1>
-    <p class="mt-2 text-gray-500">{description}</p>
+<h1 class="text-2xl font-bold text-gray-900">{title}</h1>
+<p class="mt-2 text-gray-500">{description}</p>
 
-    <div class="mt-8">
-        {#if currentStep === 'connect'}
+<div class="mt-8">
+    {#if currentStep === 'connect'}
+        <div
+            class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+        >
             <div
-                class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
             >
-                <div
-                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
+                <svg
+                    class="h-6 w-6 text-indigo-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                 >
-                    <svg
-                        class="h-6 w-6 text-indigo-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                        ></path>
-                    </svg>
-                </div>
-                <h2 class="mt-4 text-lg font-semibold text-gray-900">Connect Your Wallet</h2>
-                <p class="mt-2 text-sm text-gray-500">{connectMessage}</p>
-                <button
-                    onclick={() => walletStore.connect()}
-                    disabled={walletStore.isConnecting}
-                    class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                    {walletStore.isConnecting ? 'Connecting...' : 'Connect Freighter'}
-                </button>
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    ></path>
+                </svg>
             </div>
-        {:else if currentStep === 'register'}
-            <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 class="text-lg font-semibold text-gray-900">Create Account</h2>
-                <p class="mt-1 text-sm text-gray-500">
-                    Enter your details to create an account or access your existing one.
-                </p>
+            <h2 class="mt-4 text-lg font-semibold text-gray-900">Connect Your Wallet</h2>
+            <p class="mt-2 text-sm text-gray-500">{connectMessage}</p>
+            <button
+                onclick={() => walletStore.connect()}
+                disabled={walletStore.isConnecting}
+                class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+                {walletStore.isConnecting ? 'Connecting...' : 'Connect Freighter'}
+            </button>
+        </div>
+    {:else if currentStep === 'register'}
+        <div class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Create Account</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Enter your details to create an account or access your existing one.
+            </p>
 
-                <div class="mt-6 space-y-4">
-                    <div>
-                        <label for="country" class="block text-sm font-medium text-gray-700"
-                            >Country</label
-                        >
-                        <select
-                            id="country"
-                            bind:value={country}
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                        >
-                            {#each SUPPORTED_COUNTRIES as c (c.code)}
-                                <option value={c.code}>{c.name}</option>
-                            {/each}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700"
-                            >Email Address</label
-                        >
-                        <input
-                            type="email"
-                            id="email"
-                            bind:value={email}
-                            placeholder="you@example.com"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                        />
-                    </div>
+            <div class="mt-6 space-y-4">
+                <div>
+                    <label for="country" class="block text-sm font-medium text-gray-700"
+                        >Country</label
+                    >
+                    <select
+                        id="country"
+                        bind:value={country}
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    >
+                        {#each SUPPORTED_COUNTRIES as c (c.code)}
+                            <option value={c.code}>{c.name}</option>
+                        {/each}
+                    </select>
                 </div>
 
-                <button
-                    onclick={registerCustomer}
-                    disabled={!email || isRegistering}
-                    class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                    {isRegistering ? 'Processing...' : 'Continue'}
-                </button>
-
-                {#if registrationError}
-                    <p class="mt-2 text-sm text-red-600">{registrationError}</p>
-                {/if}
-            </div>
-        {:else if currentStep === 'kyc'}
-            {#if capabilities.kycFlow === 'redirect'}
-                {#if redirectKycStep === 'tos'}
-                    <div
-                        class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700"
+                        >Email Address</label
                     >
-                        <div
-                            class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
-                        >
-                            <svg
-                                class="h-6 w-6 text-indigo-600"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                            </svg>
-                        </div>
-                        <h2 class="mt-4 text-lg font-semibold text-gray-900">
-                            Accept Terms of Service
-                        </h2>
-                        <p class="mt-2 text-sm text-gray-500">
-                            You'll be redirected to BlindPay to accept their Terms of Service. After
-                            accepting, you'll return here to complete verification.
-                        </p>
-                        <button
-                            onclick={redirectToTos}
-                            disabled={isRedirectingToTos}
-                            class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            {isRedirectingToTos ? 'Redirecting...' : 'Accept Terms of Service'}
-                        </button>
-                        {#if registrationError}
-                            <p class="mt-2 text-sm text-red-600">{registrationError}</p>
-                        {/if}
-                    </div>
-                {:else if redirectKycStep === 'receiver_form' && tosId}
-                    <BlindPayReceiverForm
-                        {provider}
-                        {tosId}
-                        onComplete={handleReceiverFormComplete}
+                    <input
+                        type="email"
+                        id="email"
+                        bind:value={email}
+                        placeholder="you@example.com"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                     />
-                {:else if redirectKycStep === 'polling'}
-                    <div
-                        class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
-                    >
-                        <div
-                            class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100"
-                        >
-                            <svg
-                                class="h-6 w-6 text-yellow-600"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                            </svg>
-                        </div>
-                        <h2 class="mt-4 text-lg font-semibold text-gray-900">
-                            Verifying Your Identity
-                        </h2>
-                        <p class="mt-2 text-sm text-gray-500">
-                            Your verification is being reviewed. This may take a few moments.
-                        </p>
-                        <button
-                            onclick={handleRefreshRedirectKycStatus}
-                            disabled={isRefreshingKycStatus}
-                            class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            {isRefreshingKycStatus ? 'Checking...' : 'Refresh Status'}
-                        </button>
-                    </div>
-                {/if}
-            {:else if capabilities.kycFlow === 'iframe'}
+                </div>
+            </div>
+
+            <button
+                onclick={registerCustomer}
+                disabled={!email || isRegistering}
+                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+                {isRegistering ? 'Processing...' : 'Continue'}
+            </button>
+
+            {#if registrationError}
+                <p class="mt-2 text-sm text-red-600">{registrationError}</p>
+            {/if}
+        </div>
+    {:else if currentStep === 'kyc'}
+        {#if capabilities.kycFlow === 'redirect'}
+            {#if redirectKycStep === 'tos'}
                 <div
                     class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
                 >
@@ -470,56 +388,136 @@
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-width="2"
-                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
                         </svg>
                     </div>
-                    <h2 class="mt-4 text-lg font-semibold text-gray-900">Complete Verification</h2>
+                    <h2 class="mt-4 text-lg font-semibold text-gray-900">
+                        Accept Terms of Service
+                    </h2>
                     <p class="mt-2 text-sm text-gray-500">
-                        Complete the onboarding process in the new window, then come back here and
-                        check your status.
+                        You'll be redirected to BlindPay to accept their Terms of Service. After
+                        accepting, you'll return here to complete verification.
                     </p>
-
-                    {#if isLoadingIframeUrl}
-                        <div class="mt-6 flex items-center justify-center py-4">
-                            <div
-                                class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
-                            ></div>
-                            <span class="ml-2 text-sm text-gray-500">Loading...</span>
-                        </div>
-                    {:else if kycIframeUrl}
-                        <button
-                            onclick={() => window.open(kycIframeUrl!, '_blank')}
-                            class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                        >
-                            Open Verification
-                        </button>
-                    {/if}
-
                     <button
-                        onclick={handleRefreshIframeKycStatus}
-                        disabled={isRefreshingKycStatus}
-                        class="mt-4 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        onclick={redirectToTos}
+                        disabled={isRedirectingToTos}
+                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
-                        {isRefreshingKycStatus ? 'Checking...' : 'Refresh KYC Status'}
+                        {isRedirectingToTos ? 'Redirecting...' : 'Accept Terms of Service'}
+                    </button>
+                    {#if registrationError}
+                        <p class="mt-2 text-sm text-red-600">{registrationError}</p>
+                    {/if}
+                </div>
+            {:else if redirectKycStep === 'receiver_form' && tosId}
+                <BlindPayReceiverForm
+                    {provider}
+                    {tosId}
+                    onComplete={handleReceiverFormComplete}
+                />
+            {:else if redirectKycStep === 'polling'}
+                <div
+                    class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                >
+                    <div
+                        class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100"
+                    >
+                        <svg
+                            class="h-6 w-6 text-yellow-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="mt-4 text-lg font-semibold text-gray-900">
+                        Verifying Your Identity
+                    </h2>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Your verification is being reviewed. This may take a few moments.
+                    </p>
+                    <button
+                        onclick={handleRefreshRedirectKycStatus}
+                        disabled={isRefreshingKycStatus}
+                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isRefreshingKycStatus ? 'Checking...' : 'Refresh Status'}
                     </button>
                 </div>
-            {:else}
-                <KycStatusDisplay
-                    {provider}
-                    customer={customerStore.current}
-                    email={customerStore.current?.email || email}
-                    {showKyc}
-                    {kycSubmissionId}
-                    {isCompletingKyc}
-                    onKycComplete={handleKycComplete}
-                    onSandboxComplete={handleSandboxComplete}
-                    onShowKyc={() => (showKyc = true)}
-                    onRefreshStatus={handleRefreshKycStatus}
-                />
             {/if}
+        {:else if capabilities.kycFlow === 'iframe'}
+            <div
+                class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+            >
+                <div
+                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
+                >
+                    <svg
+                        class="h-6 w-6 text-indigo-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                    </svg>
+                </div>
+                <h2 class="mt-4 text-lg font-semibold text-gray-900">Complete Verification</h2>
+                <p class="mt-2 text-sm text-gray-500">
+                    Complete the onboarding process in the new window, then come back here and
+                    check your status.
+                </p>
+
+                {#if isLoadingIframeUrl}
+                    <div class="mt-6 flex items-center justify-center py-4">
+                        <div
+                            class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                        ></div>
+                        <span class="ml-2 text-sm text-gray-500">Loading...</span>
+                    </div>
+                {:else if kycIframeUrl}
+                    <button
+                        onclick={() => window.open(kycIframeUrl!, '_blank')}
+                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                        Open Verification
+                    </button>
+                {/if}
+
+                <button
+                    onclick={handleRefreshIframeKycStatus}
+                    disabled={isRefreshingKycStatus}
+                    class="mt-4 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    {isRefreshingKycStatus ? 'Checking...' : 'Refresh KYC Status'}
+                </button>
+            </div>
         {:else}
-            {@render children()}
+            <KycStatusDisplay
+                {provider}
+                customer={customerStore.current}
+                email={customerStore.current?.email || email}
+                {showKyc}
+                {kycSubmissionId}
+                {isCompletingKyc}
+                onKycComplete={handleKycComplete}
+                onSandboxComplete={handleSandboxComplete}
+                onShowKyc={() => (showKyc = true)}
+                onRefreshStatus={handleRefreshKycStatus}
+            />
         {/if}
-    </div>
+    {:else}
+        {@render children()}
+    {/if}
 </div>

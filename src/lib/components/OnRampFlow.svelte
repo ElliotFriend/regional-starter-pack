@@ -15,22 +15,18 @@ Usage:
     import { onMount } from 'svelte';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
-    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import {
-        submitTransaction,
-        getUsdcAsset,
-        getStellarAsset,
-        checkTrustline,
-        buildTrustlineTransaction,
-    } from '$lib/wallet/stellar';
+    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
+    import QuoteStep from '$lib/components/ramp/QuoteStep.svelte';
+    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
+    import { resolveStellarAsset } from '$lib/utils/stellar-asset';
+    import { getQuoteCustomerId } from '$lib/utils/quote';
     import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
     import type { StellarNetwork } from '$lib/wallet/types';
     import { getStatusColor } from '$lib/utils/status';
     import { TX_STATUS } from '$lib/constants';
-    import { getToken } from '$lib/config/tokens';
     import * as api from '$lib/api/anchor';
     import type { Quote, OnRampTransaction, AnchorCapabilities } from '$lib/anchors/types';
 
@@ -60,10 +56,8 @@ Usage:
     // Steps: 'input' | 'quote' | 'payment' | 'complete'
     let step = $state<'input' | 'quote' | 'payment' | 'complete'>('input');
 
-    // Trustline state
+    // Trustline state (updated by TrustlineStatus callback)
     let hasTrustline = $state(false);
-    let isCheckingBalance = $state(true);
-    let isSigning = $state(false);
 
     // Blockchain wallet registration state (BlindPay-specific)
     let isRegisteringWallet = $state(false);
@@ -73,60 +67,7 @@ Usage:
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
-    // Resolve the Stellar asset from the toCurrency token config
-    const stellarAsset = $derived.by(() => {
-        const tokenConfig = getToken(toCurrency);
-        return tokenConfig?.issuer
-            ? getStellarAsset(tokenConfig.symbol, tokenConfig.issuer)
-            : getUsdcAsset(PUBLIC_USDC_ISSUER);
-    });
-
-    async function checkTrustlineStatus() {
-        if (!walletStore.publicKey) return;
-
-        isCheckingBalance = true;
-        try {
-            const result = await checkTrustline(walletStore.publicKey, stellarAsset, network);
-            hasTrustline = result.hasTrustline;
-        } catch (e) {
-            console.error('Failed to check trustline:', e);
-        } finally {
-            isCheckingBalance = false;
-        }
-    }
-
-    async function addTrustline() {
-        if (!walletStore.publicKey) return;
-
-        isSigning = true;
-        try {
-            const xdr = await buildTrustlineTransaction({
-                sourcePublicKey: walletStore.publicKey,
-                asset: stellarAsset,
-                network,
-            });
-
-            const signed = await signWithFreighter(xdr, network);
-            await submitTransaction(signed.signedXdr, network);
-
-            // Refresh trustline status
-            await checkTrustlineStatus();
-        } catch (e) {
-            console.error('Failed to add trustline:', e);
-        } finally {
-            isSigning = false;
-        }
-    }
-
-    /** Build the customerId for quote requests. BlindPay expects "receiverId:blockchainWalletId". */
-    function getQuoteCustomerId(): string | undefined {
-        const customer = customerStore.current;
-        if (!customer) return undefined;
-        if (capabilities?.compositeQuoteCustomerId && customer.blockchainWalletId) {
-            return `${customer.id}:${customer.blockchainWalletId}`;
-        }
-        return customer.id;
-    }
+    const stellarAsset = $derived(resolveStellarAsset(toCurrency, PUBLIC_USDC_ISSUER));
 
     async function getQuote() {
         if (!amount || isNaN(parseFloat(amount))) return;
@@ -135,11 +76,14 @@ Usage:
         error = null;
 
         try {
+            const customer = customerStore.current;
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency: fiatCurrency,
                 toCurrency,
                 amount,
-                customerId: getQuoteCustomerId(),
+                customerId: customer
+                    ? getQuoteCustomerId(customer.id, capabilities, customer.blockchainWalletId)
+                    : undefined,
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
             step = 'quote';
@@ -154,11 +98,14 @@ Usage:
         if (!amount) return;
         isGettingQuote = true;
         try {
+            const customer = customerStore.current;
             quote = await api.getQuote(fetch, provider, {
                 fromCurrency: fiatCurrency,
                 toCurrency,
                 amount,
-                customerId: getQuoteCustomerId(),
+                customerId: customer
+                    ? getQuoteCustomerId(customer.id, capabilities, customer.blockchainWalletId)
+                    : undefined,
                 stellarAddress: walletStore.publicKey ?? undefined,
             });
         } catch (err) {
@@ -183,7 +130,6 @@ Usage:
                 fromCurrency: quote.fromCurrency,
                 toCurrency: quote.toCurrency,
                 amount: quote.fromAmount,
-                // bankAccountId: customer,
             });
             step = 'payment';
             startPolling();
@@ -286,7 +232,6 @@ Usage:
     }
 
     onMount(() => {
-        checkTrustlineStatus();
         if (capabilities?.requiresBlockchainWalletRegistration) {
             registerBlockchainWallet();
         } else {
@@ -304,98 +249,45 @@ Usage:
                 Enter the amount of local currency you want to convert to digital assets.
             </p>
 
-            {#if walletStore.isConnected}
-                <div class="mt-4 rounded-md bg-gray-50 p-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500">Trustline Status</span>
-                        {#if isCheckingBalance}
-                            <span class="text-sm text-gray-400">Checking...</span>
-                        {:else if hasTrustline}
-                            <span class="text-sm font-medium text-green-600">Ready</span>
-                        {:else}
-                            <button
-                                onclick={addTrustline}
-                                disabled={isSigning}
-                                class="text-sm text-indigo-600 hover:text-indigo-800"
-                            >
-                                {isSigning ? 'Adding...' : 'Add Trustline'}
-                            </button>
-                        {/if}
-                    </div>
-                </div>
-            {/if}
+            <TrustlineStatus
+                {stellarAsset}
+                {network}
+                onStatusChange={(s) => {
+                    hasTrustline = s.hasTrustline;
+                }}
+            />
 
-            <div class="mt-6">
-                <label for="amount" class="block text-sm font-medium text-gray-700"
-                    >Amount (Local Currency)</label
-                >
-                <div class="mt-1 flex rounded-md shadow-sm">
-                    <span
-                        class="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 text-gray-500 sm:text-sm"
-                    >
-                        $
-                    </span>
-                    <input
-                        type="number"
-                        id="amount"
-                        bind:value={amount}
-                        placeholder="1000"
-                        min="100"
-                        step="100"
-                        class="block w-full flex-1 rounded-none rounded-r-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-            </div>
-
-            {#if isRegisteringWallet}
-                <div class="mt-4 flex items-center justify-center rounded-md bg-gray-50 p-3">
-                    <div
-                        class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
-                    ></div>
-                    <span class="ml-2 text-sm text-gray-500">Registering wallet...</span>
-                </div>
-            {/if}
-
-            <button
-                onclick={getQuote}
-                disabled={!amount ||
-                    isGettingQuote ||
-                    !walletStore.isConnected ||
-                    !hasTrustline ||
-                    !walletRegistered}
-                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            <AmountInput
+                bind:amount
+                label="Amount (Local Currency)"
+                placeholder="1000"
+                inputPrefix="$"
+                isWalletConnected={walletStore.isConnected}
+                {hasTrustline}
+                {isGettingQuote}
+                additionalDisabled={!walletRegistered}
+                onSubmit={getQuote}
             >
-                {isGettingQuote ? 'Getting Quote...' : 'Get Quote'}
-            </button>
-
-            {#if !walletStore.isConnected}
-                <p class="mt-2 text-center text-sm text-gray-500">
-                    Please connect your wallet first.
-                </p>
-            {/if}
+                {#if isRegisteringWallet}
+                    <div class="mt-4 flex items-center justify-center rounded-md bg-gray-50 p-3">
+                        <div
+                            class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                        ></div>
+                        <span class="ml-2 text-sm text-gray-500">Registering wallet...</span>
+                    </div>
+                {/if}
+            </AmountInput>
         </div>
     {:else if step === 'quote'}
-        <div class="space-y-4">
-            {#if quote}
-                <QuoteDisplay {quote} onRefresh={refreshQuote} isRefreshing={isGettingQuote} />
-            {/if}
-
-            <div class="flex gap-3">
-                <button
-                    onclick={reset}
-                    class="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    onclick={confirmQuote}
-                    disabled={isCreatingTransaction}
-                    class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                    {isCreatingTransaction ? 'Processing...' : 'Confirm & Get Payment Details'}
-                </button>
-            </div>
-        </div>
+        <QuoteStep
+            {quote}
+            isRefreshing={isGettingQuote}
+            isConfirming={isCreatingTransaction}
+            confirmLabel="Confirm & Get Payment Details"
+            onRefresh={refreshQuote}
+            onCancel={reset}
+            onConfirm={confirmQuote}
+        />
     {:else if step === 'payment'}
         {#if transaction}
             <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -486,65 +378,14 @@ Usage:
             </div>
         {/if}
     {:else if step === 'complete'}
-        <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
-            >
-                <svg
-                    class="h-6 w-6 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    ></path>
-                </svg>
-            </div>
-
-            <h2 class="mt-4 text-xl font-semibold text-gray-900">Transaction Complete!</h2>
-            <p class="mt-2 text-gray-500">Your digital assets have been sent to your wallet.</p>
-
-            {#if transaction}
-                <div class="mt-4 space-y-1 text-sm text-gray-600">
-                    <p>
-                        Amount: {transaction.toAmount || quote?.toAmount}
-                        {(transaction.toCurrency || quote?.toCurrency || '').split(':')[0]}
-                    </p>
-                    {#if transaction.feeAmount}
-                        <p>
-                            Fee: {transaction.feeAmount}
-                            {transaction.fromCurrency || quote?.fromCurrency}
-                            {#if transaction.feeBps}
-                                <span class="text-gray-400">({transaction.feeBps / 100}%)</span>
-                            {/if}
-                        </p>
-                    {/if}
-                    {#if transaction.stellarTxHash}
-                        <p class="mt-1">
-                            <a
-                                href="https://stellar.expert/explorer/{walletStore.network}/tx/{transaction.stellarTxHash}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-indigo-600 hover:text-indigo-800"
-                            >
-                                View on Stellar Expert
-                            </a>
-                        </p>
-                    {/if}
-                </div>
-            {/if}
-
-            <button
-                onclick={reset}
-                class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-                Start New Transaction
-            </button>
-        </div>
+        <CompletionStep
+            title="Transaction Complete!"
+            message="Your digital assets have been sent to your wallet."
+            {transaction}
+            {quote}
+            {network}
+            onReset={reset}
+        />
     {/if}
 
     {#if error}

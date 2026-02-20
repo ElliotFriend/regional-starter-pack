@@ -1,6 +1,8 @@
 <script lang="ts">
     import type { Quote } from '$lib/anchors/types';
     import { onMount } from 'svelte';
+    import { displayCurrency, formatAmount, formatCurrency } from '$lib/utils/currency';
+    import { calculateExpiresIn } from '$lib/utils/quote';
 
     interface Props {
         quote: Quote;
@@ -9,47 +11,6 @@
     }
 
     let { quote, onRefresh, isRefreshing = false }: Props = $props();
-
-    // Common digital assets that should show more decimal places
-    const CRYPTO_CURRENCIES = ['USDC', 'EURC', 'XLM', 'BTC', 'ETH', 'USDT', 'CETES', 'USDB'];
-
-    /** Strip the issuer from a `CODE:ISSUER` asset string. */
-    function displayCurrency(currency: string | undefined): string {
-        if (!currency) return '???';
-        return currency.split(':')[0];
-    }
-
-    /** Format a numeric string to at most 7 decimal places, trimming trailing zeros. */
-    function formatAmount(value: string): string {
-        return parseFloat(parseFloat(value).toFixed(7)).toString();
-    }
-
-    function formatCurrency(amount: string, currency: string): string {
-        const code = displayCurrency(currency);
-        // For digital assets, show up to 7 decimal places (only as many as needed)
-        if (CRYPTO_CURRENCIES.includes(code)) {
-            return `${formatAmount(amount)} ${code}`;
-        }
-        // For fiat currencies, use locale formatting with 2 decimal places
-        const num = parseFloat(amount);
-        return `${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${code}`;
-    }
-
-    function calculateExpiresIn(expiresAt: string): string {
-        const expires = new Date(expiresAt);
-        const now = new Date();
-        const diffMs = expires.getTime() - now.getTime();
-
-        if (diffMs <= 0) return 'Expired';
-
-        const minutes = Math.floor(diffMs / 60000);
-        const seconds = Math.floor((diffMs % 60000) / 1000);
-
-        if (minutes > 0) {
-            return `${minutes}m ${seconds}s`;
-        }
-        return `${seconds}s`;
-    }
 
     // Use a tick counter to force re-computation
     let tick = $state(0);
@@ -69,10 +30,7 @@
         return calculateExpiresIn(quote.expiresAt);
     });
 
-    let isExpired = $derived.by(() => {
-        void tick;
-        return new Date(quote.expiresAt) <= new Date();
-    });
+    let isExpired = $derived(expiresIn === '0s' || expiresIn === 'Expired');
 </script>
 
 <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">

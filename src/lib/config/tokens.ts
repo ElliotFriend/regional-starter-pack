@@ -42,3 +42,7 @@ export const TOKENS: Record<string, Token> = {
 export function getToken(symbol: string): Token | undefined {
     return TOKENS[symbol];
 }
+
+export function getAllTokenSymbols(): string[] {
+    return Object.values(TOKENS).map((token) => token.symbol);
+}
