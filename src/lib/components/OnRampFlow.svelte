@@ -207,7 +207,7 @@ Usage:
 
     async function registerBlockchainWallet() {
         const customer = customerStore.current;
-        if (!customer || !walletStore.publicKey || customer.blockchainWalletId) {
+        if (!customer || !customer.id || !walletStore.publicKey || customer.blockchainWalletId) {
             walletRegistered = true;
             return;
         }

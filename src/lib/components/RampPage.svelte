@@ -163,7 +163,7 @@
 
     async function handleRefreshRedirectKycStatus() {
         const customer = customerStore.current;
-        if (!customer) return;
+        if (!customer || !customer.id) return;
 
         isRefreshingKycStatus = true;
         try {

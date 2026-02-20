@@ -120,7 +120,7 @@ export async function getOrCreateCustomer(
     country: string = 'MX',
     options?: { supportsEmailLookup?: boolean; publicKey?: string },
 ): Promise<Customer> {
-    const supportsEmailLookup = options?.supportsEmailLookup ?? true;
+    const supportsEmailLookup = options?.supportsEmailLookup ?? false;
 
     if (supportsEmailLookup) {
         const existing = await getCustomerByEmail(fetch, provider, email, country);

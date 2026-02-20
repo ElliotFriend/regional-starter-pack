@@ -32,6 +32,12 @@ Issues that appear across multiple rounds get tracked here to identify patterns.
 5. Both files are saved here under a descriptive directory name
 6. The test project scaffold is disposable — the reports are the deliverable
 
+## Blocked / Waiting
+
+| Provider | Issue | What Works | What's Blocked | Status |
+|----------|-------|------------|----------------|--------|
+| BlindPay | USDB testnet token issuer is wrong on BlindPay's side | Customer creation, KYC (ToS + receiver), blockchain wallet registration | On-ramp: the transaction returned by their `/v1/instances/{instance_id}/create-asset-trustline` endpoint fails because the USDB issuer doesn't match testnet. Can't proceed past trustline creation. | Waiting on BlindPay fix |
+
 ## Ideas for Future Rounds
 
 - ~~**Next.js + BlindPay**~~ — Done (round 2)

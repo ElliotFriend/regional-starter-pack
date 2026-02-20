@@ -253,11 +253,16 @@ export class BlindPayClient implements Anchor {
      * BlindPay's actual receiver creation requires tos_id + full KYC data,
      * which doesn't fit the simple CreateCustomerInput. The real receiver is
      * created via {@link createReceiver} called from the KYC API route.
+     *
+     * The stub uses an empty ID because BlindPay receiver IDs are 15-character
+     * strings (e.g. `re_Du878zVwJKhe`) assigned by the API. Generating a fake
+     * UUID here would cause 400 errors if passed to downstream API calls
+     * (registerBlockchainWallet, getQuote, etc.) before receiver creation.
      */
     async createCustomer(input: CreateCustomerInput): Promise<Customer> {
         const now = new Date().toISOString();
         return {
-            id: crypto.randomUUID(),
+            id: '',
             email: input.email,
             kycStatus: 'not_started',
             createdAt: now,
