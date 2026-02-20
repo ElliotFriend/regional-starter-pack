@@ -2,6 +2,12 @@
 
 A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network. Includes integrations for three anchor providers -- Etherfuse, AlfredPay, and BlindPay -- as well as a composable SEP protocol library for building against any SEP-compliant anchor.
 
+## TL;DR: The Most Important Thing
+
+This demo is a fully functional application that you can test out and interact with and (usually) even get some Testnet tokens from the onramp simulations! But, it's also a tool and a resource.
+
+**The [`/src/lib/anchors/`](./src/lib/anchors/) directory contains a portable, drop-in anchor integration that should work out-of-the-box!** Copy that directory (or just parts of it) into any TypeScript project you're building, and your project can interact with any of the anchors. Super easy. Barely an inconvenience!
+
 ## What's Inside
 
 ```text
