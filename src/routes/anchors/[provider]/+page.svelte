@@ -78,6 +78,31 @@
     </div>
 </div>
 
+<!-- Known Issues -->
+{#if anchor.knownIssues && anchor.knownIssues.length > 0}
+    <div class="mb-8 rounded-lg border border-red-200 bg-red-50 p-5">
+        <h3 class="mb-2 text-sm font-semibold text-red-800">Known Issues</h3>
+        <ul class="space-y-1 text-sm text-red-900">
+            {#each anchor.knownIssues as issue}
+                <li class="flex gap-2">
+                    <span class="mt-0.5 shrink-0 text-red-400">&bull;</span>
+                    <span>
+                        {issue.text}
+                        {#if issue.link}
+                            <a
+                                href={issue.link}
+                                class="text-red-700 underline hover:no-underline"
+                                target="_blank"
+                                rel="noopener noreferrer">More info</a
+                            >
+                        {/if}
+                    </span>
+                </li>
+            {/each}
+        </ul>
+    </div>
+{/if}
+
 <!-- Supported Tokens -->
 <section class="mb-8">
     <h2 class="mb-4 text-xl font-semibold text-gray-900">Supported Digital Assets</h2>

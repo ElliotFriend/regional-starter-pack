@@ -33,6 +33,11 @@ export interface IntegrationFlow {
     offRamp: IntegrationStep[];
 }
 
+export interface KnownIssue {
+    text: string;
+    link?: string;
+}
+
 export interface AnchorProfile {
     id: string;
     name: string;
@@ -40,6 +45,7 @@ export interface AnchorProfile {
     links: Record<string, string>;
     logo?: string;
     capabilities: AnchorCapabilities;
+    knownIssues?: KnownIssue[];
     regions: Record<string, AnchorCapability>; // keyed by region ID
     devOnboarding?: DevOnboardingStep[];
     integrationFlow?: IntegrationFlow;
@@ -56,6 +62,14 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             documentation: 'https://docs.etherfuse.com',
             'sandbox app': 'https://devnet.etherfuse.com',
         },
+        knownIssues: [
+            {
+                text: 'An API error currently exists where a customer\'s "Terms and Conditions" are not automatically flipped to "accepted". User creation and KYC flow works, but this blocks onramp transactions for your users from being created successfully.',
+            },
+            {
+                text: 'If you try to create your customers through API calls, submitting the various "agreements" via POST requests to Etherfuse currently fails with a 406 error. This blocks customer KYC via these API methods. The Onboarding URL approach still works (up to the issue noted above).',
+            },
+        ],
         capabilities: {
             kycUrl: true,
             requiresOffRampSigning: true,
@@ -144,6 +158,11 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             website: 'https://alfredpay.io',
             documentation: 'https://alfredpay.readme.io',
         },
+        knownIssues: [
+            {
+                text: 'The Alfred Pay sandbox allows for testing the customer creation and on-boarding process. However, the sandbox environment does not submit Testnet transactions, meaning tokens will not land the Testnet wallet of your users.',
+            },
+        ],
         capabilities: {
             emailLookup: true,
             kycUrl: true,
@@ -231,6 +250,11 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             documentation: 'https://docs.blindpay.com',
             dashboard: 'https://app.blindpay.com',
         },
+        knownIssues: [
+            {
+                text: "USDB Testnet token issuer is incorrect on BlindPay's side — on-ramp blocked past trustline creation.",
+            },
+        ],
         capabilities: {
             kycUrl: true,
             requiresTos: true,
