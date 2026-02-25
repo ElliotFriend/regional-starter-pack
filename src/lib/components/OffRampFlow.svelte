@@ -9,11 +9,12 @@ off-ramp transaction, and prompt the user to sign the transaction in freighter.
 
 Usage:
 ```html
-<OffRampFlow provider="etherfuse" />
+<OffRampFlow />
 ```
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
@@ -29,29 +30,25 @@ Usage:
     import { buildPaymentTransaction, submitTransaction } from '$lib/wallet/stellar';
     import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
     import type { StellarNetwork } from '$lib/wallet/types';
-    import type { Quote, OffRampTransaction, SavedFiatAccount } from '$lib/anchors/types';
+    import type {
+        Quote,
+        OffRampTransaction,
+        SavedFiatAccount,
+        TokenInfo,
+    } from '$lib/anchors/types';
     import { getStatusColor } from '$lib/utils/status';
     import { TX_STATUS } from '$lib/constants';
     import * as api from '$lib/api/anchor';
-    import type { AnchorCapabilities } from '$lib/anchors/types';
 
-    interface Props {
-        provider?: string;
-        fromCurrency?: string;
-        fiatCurrency?: string;
-        capabilities?: AnchorCapabilities;
-        tokenIssuer?: string;
-        displayName?: string;
-    }
-
-    let {
-        provider = 'etherfuse',
-        fromCurrency = 'USDC',
-        fiatCurrency = 'MXN',
-        capabilities,
-        tokenIssuer,
-        displayName,
-    }: Props = $props();
+    const provider = $derived(page.data.anchor.id);
+    const fromCurrency = $derived(page.data.primaryToken);
+    const fiatCurrency = $derived(page.data.fiatCurrency);
+    const capabilities = $derived(page.data.capabilities);
+    const displayName = $derived(page.data.displayName);
+    const tokenIssuer = $derived(
+        page.data.supportedTokens.find((t: TokenInfo) => t.symbol === page.data.primaryToken)
+            ?.issuer,
+    );
 
     // Local state for this flow
     let amount = $state('');
@@ -86,7 +83,9 @@ Usage:
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
-    const stellarAsset = $derived(resolveStellarAsset(fromCurrency, tokenIssuer, PUBLIC_USDC_ISSUER));
+    const stellarAsset = $derived(
+        resolveStellarAsset(fromCurrency, tokenIssuer, PUBLIC_USDC_ISSUER),
+    );
 
     async function getQuote_() {
         if (!amount || isNaN(parseFloat(amount))) return;

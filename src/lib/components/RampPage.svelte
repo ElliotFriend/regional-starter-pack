@@ -1,25 +1,24 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import type { Snippet } from 'svelte';
+    import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import BlindPayReceiverForm from '$lib/components/BlindPayReceiverForm.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
-    import type { KycStatus } from '$lib/anchors/types';
-    import type { AnchorCapabilities } from '$lib/anchors/types';
+    import type { AnchorCapabilities, KycStatus } from '$lib/anchors/types';
     import * as api from '$lib/api/anchor';
 
     interface Props {
-        provider: string;
-        title: string;
-        description: string;
-        connectMessage: string;
-        capabilities: AnchorCapabilities;
         children: Snippet;
     }
 
-    let { provider, title, description, connectMessage, capabilities, children }: Props = $props();
+    let { children }: Props = $props();
+
+    const direction = $derived<'onramp' | 'offramp'>(page.data.direction);
+    const provider: string = $derived(page.data.anchor.id);
+    const capabilities: AnchorCapabilities = $derived(page.data.capabilities);
 
     // Local UI state
     let email = $state('');
@@ -285,8 +284,22 @@
     }
 </script>
 
-<h1 class="text-2xl font-bold text-gray-900">{title}</h1>
-<p class="mt-2 text-gray-500">{description}</p>
+<h1 class="text-2xl font-bold text-gray-900">
+    {#if direction === 'onramp'}
+        On-Ramp with {page.data.anchor.name}
+    {:else}
+        Off-Ramp with {page.data.anchor.name}
+    {/if}
+</h1>
+<p class="mt-2 text-gray-500">
+    {#if direction === 'onramp'}
+        Transfer local currency via bank transfer and receive digital assets directly to your
+        Stellar wallet.
+    {:else}
+        Send digital assets from your Stellar wallet and receive local currency directly to your
+        bank account.
+    {/if}
+</p>
 
 <div class="mt-8">
     {#if currentStep === 'connect'}
@@ -311,7 +324,7 @@
                 </svg>
             </div>
             <h2 class="mt-4 text-lg font-semibold text-gray-900">Connect Your Wallet</h2>
-            <p class="mt-2 text-sm text-gray-500">{connectMessage}</p>
+            <p class="mt-2 text-sm text-gray-500">Connect your Freighter wallet to get started.</p>
             <button
                 onclick={() => walletStore.connect()}
                 disabled={walletStore.isConnecting}

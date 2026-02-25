@@ -20,7 +20,5 @@ export function resolveStellarAsset(
     issuer: string | undefined,
     usdcIssuer: string,
 ): Asset {
-    return issuer
-        ? getStellarAsset(currencySymbol, issuer)
-        : getUsdcAsset(usdcIssuer);
+    return issuer ? getStellarAsset(currencySymbol, issuer) : getUsdcAsset(usdcIssuer);
 }

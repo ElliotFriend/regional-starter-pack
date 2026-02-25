@@ -8,11 +8,12 @@ request to the anchor that initiates an on-ramp transaction.
 
 Usage:
 ```html
-<OnRampFlow provider="etherfuse" />
+<OnRampFlow />
 ```
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
@@ -27,23 +28,16 @@ Usage:
     import { getStatusColor } from '$lib/utils/status';
     import { TX_STATUS } from '$lib/constants';
     import * as api from '$lib/api/anchor';
-    import type { Quote, OnRampTransaction, AnchorCapabilities } from '$lib/anchors/types';
+    import type { Quote, OnRampTransaction, TokenInfo } from '$lib/anchors/types';
 
-    interface Props {
-        provider?: string;
-        toCurrency?: string;
-        fiatCurrency?: string;
-        capabilities?: AnchorCapabilities;
-        tokenIssuer?: string;
-    }
-
-    let {
-        provider = 'etherfuse',
-        toCurrency = 'USDC',
-        fiatCurrency = 'MXN',
-        capabilities,
-        tokenIssuer,
-    }: Props = $props();
+    const provider = $derived(page.data.anchor.id);
+    const toCurrency = $derived(page.data.primaryToken);
+    const fiatCurrency = $derived(page.data.fiatCurrency);
+    const capabilities = $derived(page.data.capabilities);
+    const tokenIssuer = $derived(
+        page.data.supportedTokens.find((t: TokenInfo) => t.symbol === page.data.primaryToken)
+            ?.issuer,
+    );
 
     // Local state for this flow
     let amount = $state('');
