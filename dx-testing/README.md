@@ -14,15 +14,15 @@ Developer experience testing for the portable anchor library. Each round has an 
 
 Issues that appear across multiple rounds get tracked here to identify patterns.
 
-| Issue                                                                                                             | Rounds Seen                                       | Status                               |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------ |
-| `erasableSyntaxOnly` — parameter properties in `AnchorError`/`WalletError`                                        | react-etherfuse                                   | **Fixed** (before round 2)           |
-| Barrel `anchors/index.ts` breaks selective copying                                                                | react-etherfuse, nextjs-blindpay, express-backend | **Fixed** (barrel deleted)           |
-| `wallet/` not called out as portable in docs                                                                      | react-etherfuse                                   | **Fixed** (README updated)           |
-| No usage guidance for non-SvelteKit consumers                                                                     | react-etherfuse                                   | **Fixed** (README updated)           |
+| Issue                                                                                                             | Rounds Seen                                       | Status                                       |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------- |
+| `erasableSyntaxOnly` — parameter properties in `AnchorError`/`WalletError`                                        | react-etherfuse                                   | **Fixed** (before round 2)                   |
+| Barrel `anchors/index.ts` breaks selective copying                                                                | react-etherfuse, nextjs-blindpay, express-backend | **Fixed** (barrel deleted)                   |
+| `wallet/` not called out as portable in docs                                                                      | react-etherfuse                                   | **Fixed** (README updated)                   |
+| No usage guidance for non-SvelteKit consumers                                                                     | react-etherfuse                                   | **Fixed** (README updated)                   |
 | Token config (`config/tokens.ts`) not portable (`$lib` paths)                                                     | react-etherfuse, nextjs-blindpay                  | **Fixed** (token data on `Anchor` interface) |
-| Composite customer ID (`customerId:resourceId`) is a leaky abstraction                                            | nextjs-blindpay                                   | **Fixed** (`resourceId` field added) |
-| `createCustomer()` stub generates invalid receiver IDs (UUID instead of 15-char `re_` format) — causes 400 errors | nextjs-blindpay                                   | **Fixed** (empty ID instead of UUID) |
+| Composite customer ID (`customerId:resourceId`) is a leaky abstraction                                            | nextjs-blindpay                                   | **Fixed** (`resourceId` field added)         |
+| `createCustomer()` stub generates invalid receiver IDs (UUID instead of 15-char `re_` format) — causes 400 errors | nextjs-blindpay                                   | **Fixed** (empty ID instead of UUID)         |
 
 ## How a Round Works
 
