@@ -121,13 +121,13 @@ const onramp = await anchor.createOnRamp({
 For anchors that implement Stellar SEP protocols, use the `/sep/` modules directly:
 
 ```typescript
-import { fetchStellarToml, authenticate, sep24 } from './anchors/sep';
+import { sep1, sep10, sep24 } from './anchors/sep';
 
 // 1. Discover anchor endpoints
-const toml = await fetchStellarToml('testanchor.stellar.org');
+const toml = await sep1.fetchStellarToml('testanchor.stellar.org');
 
 // 2. Authenticate
-const token = await authenticate(
+const token = await sep10.authenticate(
     {
         authEndpoint: toml.WEB_AUTH_ENDPOINT!,
         serverSigningKey: toml.SIGNING_KEY!,

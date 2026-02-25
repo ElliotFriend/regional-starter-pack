@@ -23,7 +23,7 @@
     const { data }: PageProps = $props();
 
     // Pre-loaded from +page.ts load function
-    const client = $derived(data.client)
+    const client = $derived(data.client);
     const initialized = $derived(!!data.tomlInfo);
     const tomlInfo = $derived(data.tomlInfo);
 
@@ -46,13 +46,13 @@
 
     // Get limits for current asset + transfer type (from SEP-24 details)
     async function getCurrentLimits() {
-        const sep24Info = await data.sep24Info
+        const sep24Info = await data.sep24Info;
         if (!sep24Info) return null;
         const assets = transferType === 'deposit' ? sep24Info.deposit : sep24Info.withdraw;
         const info = assets?.[selectedAsset];
         if (!info?.enabled) return null;
         return { min: info.min_amount, max: info.max_amount };
-    };
+    }
 
     // Results
     let sep6Result = $state<Sep6DepositResponse | Sep6WithdrawResponse | null>(null);
@@ -118,7 +118,7 @@
         }
     }
 
-    onDestroy(stopListening)
+    onDestroy(stopListening);
 
     // Authenticate with the anchor
     async function authenticate() {
@@ -615,7 +615,8 @@
                             {#if currentLimits}
                                 <p class="mt-1 text-xs text-gray-500">
                                     {#if currentLimits.min != null && currentLimits.max != null}
-                                        Range: {currentLimits.min} – {currentLimits.max} {selectedAsset}
+                                        Range: {currentLimits.min} – {currentLimits.max}
+                                        {selectedAsset}
                                     {:else if currentLimits.max != null}
                                         Max: {currentLimits.max} {selectedAsset}
                                     {:else if currentLimits.min != null}
