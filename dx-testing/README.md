@@ -41,7 +41,7 @@ Issues that appear across multiple rounds get tracked here to identify patterns.
 
 ## Ideas for Future Rounds
 
-- ~~**Next.js + BlindPay**~~ — Done (round 2)
-- ~~**Express/Node backend**~~ — Done (round 3)
-- **SEP flow** — Tests the SEP modules (`sep/`) against `testanchor.stellar.org` from a plain TypeScript project. Exercises a completely different integration path.
-- **AlfredPay + form KYC** — Tests the `kycFlow: 'form'` path and email-based customer lookup (`getCustomerByEmail`).
+- [x] **Next.js + BlindPay** — Done (round 2)
+- [x] **Express/Node backend** — Done (round 3)
+- [ ] **SEP flow** — Tests the SEP modules (`sep/`) against `testanchor.stellar.org` from a plain TypeScript project. Exercises a completely different integration path.
+- [ ] **AlfredPay + form KYC** — Tests the `kycFlow: 'form'` path and email-based customer lookup (`getCustomerByEmail`).
