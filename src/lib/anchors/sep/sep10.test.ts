@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { decodeToken, isTokenExpired, createAuthHeaders, validateChallenge } from './sep10';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../../test-setup';
+import {
+    decodeToken,
+    isTokenExpired,
+    createAuthHeaders,
+    validateChallenge,
+    getChallenge,
+    signChallenge,
+    submitChallenge,
+} from './sep10';
+import type { Sep10Config, Sep10SignerFn } from './sep10';
+import { SepApiError } from './types';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
 // Helper to create a fake JWT with a given payload
@@ -223,5 +235,178 @@ describe('validateChallenge', () => {
         );
         expect(result.valid).toBe(false);
         expect(result.error).toContain('Failed to parse');
+    });
+});
+
+// =============================================================================
+// HTTP Functions (MSW-based tests)
+// =============================================================================
+
+const AUTH_ENDPOINT = 'https://testanchor.stellar.org/auth';
+
+describe('getChallenge', () => {
+    const config: Sep10Config = {
+        authEndpoint: AUTH_ENDPOINT,
+        serverSigningKey: 'GBDYDBJKQBJK6VUSBE4L7UH4BQ65YNQERGRETFEQSXYHV2QAV7UACC5',
+        networkPassphrase: StellarSdk.Networks.TESTNET,
+    };
+    const account = 'GABC1234567890ABCDEFG';
+
+    it('sends GET request with account query param and returns challenge', async () => {
+        const mockChallenge = {
+            transaction: 'AAAA...base64xdr',
+            network_passphrase: StellarSdk.Networks.TESTNET,
+        };
+
+        server.use(
+            http.get(AUTH_ENDPOINT, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('account')).toBe(account);
+                return HttpResponse.json(mockChallenge);
+            }),
+        );
+
+        const result = await getChallenge(config, account);
+        expect(result).toEqual(mockChallenge);
+        expect(result.transaction).toBe('AAAA...base64xdr');
+    });
+
+    it('includes memo query param when provided', async () => {
+        server.use(
+            http.get(AUTH_ENDPOINT, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('account')).toBe(account);
+                expect(url.searchParams.get('memo')).toBe('12345');
+                return HttpResponse.json({
+                    transaction: 'xdr',
+                    network_passphrase: StellarSdk.Networks.TESTNET,
+                });
+            }),
+        );
+
+        await getChallenge(config, account, { memo: '12345' });
+    });
+
+    it('includes client_domain query param when provided', async () => {
+        server.use(
+            http.get(AUTH_ENDPOINT, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('client_domain')).toBe('myapp.example.com');
+                return HttpResponse.json({
+                    transaction: 'xdr',
+                    network_passphrase: StellarSdk.Networks.TESTNET,
+                });
+            }),
+        );
+
+        await getChallenge(config, account, { clientDomain: 'myapp.example.com' });
+    });
+
+    it('includes home_domain query param when config has homeDomain', async () => {
+        const configWithDomain: Sep10Config = {
+            ...config,
+            homeDomain: 'testanchor.stellar.org',
+        };
+
+        server.use(
+            http.get(AUTH_ENDPOINT, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('home_domain')).toBe('testanchor.stellar.org');
+                return HttpResponse.json({
+                    transaction: 'xdr',
+                    network_passphrase: StellarSdk.Networks.TESTNET,
+                });
+            }),
+        );
+
+        await getChallenge(configWithDomain, account);
+    });
+
+    it('throws SepApiError on error response', async () => {
+        server.use(
+            http.get(AUTH_ENDPOINT, () => {
+                return HttpResponse.json({ error: 'Account not found' }, { status: 404 });
+            }),
+        );
+
+        const err = await getChallenge(config, account).catch((e) => e);
+        expect(err).toBeInstanceOf(SepApiError);
+        expect(err.status).toBe(404);
+        expect(err.message).toBe('Account not found');
+    });
+
+    it('throws SepApiError with fallback message on non-JSON error', async () => {
+        server.use(
+            http.get(AUTH_ENDPOINT, () => {
+                return new HttpResponse('Internal Server Error', { status: 500 });
+            }),
+        );
+
+        const err = await getChallenge(config, account).catch((e) => e);
+        expect(err).toBeInstanceOf(SepApiError);
+        expect(err.status).toBe(500);
+        expect(err.message).toContain('500');
+    });
+});
+
+describe('signChallenge', () => {
+    it('calls the signer function and returns the signed XDR', async () => {
+        const mockSigner: Sep10SignerFn = async (xdr, passphrase) => {
+            expect(xdr).toBe('challenge-xdr');
+            expect(passphrase).toBe(StellarSdk.Networks.TESTNET);
+            return 'signed-xdr-result';
+        };
+
+        const result = await signChallenge(
+            'challenge-xdr',
+            StellarSdk.Networks.TESTNET,
+            mockSigner,
+        );
+        expect(result).toBe('signed-xdr-result');
+    });
+
+    it('propagates errors from the signer function', async () => {
+        const failingSigner: Sep10SignerFn = async () => {
+            throw new Error('User rejected signing');
+        };
+
+        await expect(
+            signChallenge('challenge-xdr', StellarSdk.Networks.TESTNET, failingSigner),
+        ).rejects.toThrow('User rejected signing');
+    });
+});
+
+describe('submitChallenge', () => {
+    it('sends POST with signed XDR and returns token response', async () => {
+        const mockTokenResponse = { token: 'jwt-token-abc123' };
+
+        server.use(
+            http.post(AUTH_ENDPOINT, async ({ request }) => {
+                expect(request.headers.get('Content-Type')).toBe('application/json');
+                const body = (await request.json()) as { transaction: string };
+                expect(body.transaction).toBe('signed-xdr');
+                return HttpResponse.json(mockTokenResponse);
+            }),
+        );
+
+        const result = await submitChallenge(AUTH_ENDPOINT, 'signed-xdr');
+        expect(result).toEqual(mockTokenResponse);
+        expect(result.token).toBe('jwt-token-abc123');
+    });
+
+    it('throws SepApiError on error response', async () => {
+        server.use(
+            http.post(AUTH_ENDPOINT, () => {
+                return HttpResponse.json(
+                    { error: 'Invalid signature' },
+                    { status: 401 },
+                );
+            }),
+        );
+
+        const err = await submitChallenge(AUTH_ENDPOINT, 'bad-xdr').catch((e) => e);
+        expect(err).toBeInstanceOf(SepApiError);
+        expect(err.status).toBe(401);
+        expect(err.message).toBe('Invalid signature');
     });
 });

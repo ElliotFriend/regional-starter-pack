@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../../test-setup';
 import {
     isComplete,
     isPendingUser,
@@ -7,7 +9,14 @@ import {
     isRefunded,
     isInProgress,
     getStatusDescription,
+    getInfo,
+    deposit,
+    withdraw,
+    getTransaction,
+    getTransactionByStellarId,
+    getTransactions,
 } from './sep6';
+import { SepApiError } from './types';
 import type { TransactionStatus } from './types';
 
 describe('isComplete', () => {
@@ -125,5 +134,272 @@ describe('getStatusDescription', () => {
     it('returns the status itself as fallback for unknown status', () => {
         const desc = getStatusDescription('unknown_status' as TransactionStatus);
         expect(desc).toBe('unknown_status');
+    });
+});
+
+// =============================================================================
+// HTTP Functions (MSW-based tests)
+// =============================================================================
+
+const TRANSFER_SERVER = 'https://testanchor.stellar.org/sep6';
+const TOKEN = 'test-jwt-token';
+
+describe('getInfo', () => {
+    it('returns SEP-6 info on success', async () => {
+        const mockInfo = {
+            deposit: { USDC: { enabled: true } },
+            withdraw: { USDC: { enabled: true } },
+            fee: { enabled: true },
+        };
+
+        server.use(
+            http.get(`${TRANSFER_SERVER}/info`, () => {
+                return HttpResponse.json(mockInfo);
+            }),
+        );
+
+        const result = await getInfo(TRANSFER_SERVER);
+        expect(result).toEqual(mockInfo);
+    });
+
+    it('throws SepApiError on 400 with error body', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/info`, () => {
+                return HttpResponse.json({ error: 'Bad request' }, { status: 400 });
+            }),
+        );
+
+        await expect(getInfo(TRANSFER_SERVER)).rejects.toThrow(SepApiError);
+        await expect(getInfo(TRANSFER_SERVER)).rejects.toThrow('Bad request');
+    });
+
+    it('throws SepApiError on 500 with non-JSON error body', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/info`, () => {
+                return new HttpResponse('Internal Server Error', { status: 500 });
+            }),
+        );
+
+        const err = await getInfo(TRANSFER_SERVER).catch((e) => e);
+        expect(err).toBeInstanceOf(SepApiError);
+        expect(err.status).toBe(500);
+        expect(err.message).toContain('500');
+    });
+});
+
+describe('deposit', () => {
+    it('sends auth header and request params as query params', async () => {
+        const mockResponse = {
+            how: 'Make a SPEI transfer to the following account',
+            id: 'dep-123',
+            eta: 3600,
+        };
+
+        server.use(
+            http.get(`${TRANSFER_SERVER}/deposit`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(request.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+                expect(url.searchParams.get('asset_code')).toBe('USDC');
+                expect(url.searchParams.get('account')).toBe('GABC123');
+                return HttpResponse.json(mockResponse);
+            }),
+        );
+
+        const result = await deposit(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            account: 'GABC123',
+        });
+        expect(result).toEqual(mockResponse);
+    });
+
+    it('omits undefined fields from query params', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/deposit`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.has('memo')).toBe(false);
+                expect(url.searchParams.has('email_address')).toBe(false);
+                expect(url.searchParams.get('asset_code')).toBe('USDC');
+                return HttpResponse.json({ how: 'instructions', id: 'dep-456' });
+            }),
+        );
+
+        await deposit(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            account: 'GABC123',
+            memo: undefined,
+            email_address: undefined,
+        });
+    });
+
+    it('throws SepApiError on error response', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/deposit`, () => {
+                return HttpResponse.json({ error: 'Unsupported asset' }, { status: 400 });
+            }),
+        );
+
+        await expect(
+            deposit(TRANSFER_SERVER, TOKEN, { asset_code: 'INVALID', account: 'GABC123' }),
+        ).rejects.toThrow('Unsupported asset');
+    });
+});
+
+describe('withdraw', () => {
+    it('sends auth header and request params as query params', async () => {
+        const mockResponse = {
+            account_id: 'GANCHOR_ACCOUNT',
+            memo_type: 'text' as const,
+            memo: 'withdraw-123',
+            id: 'wd-123',
+        };
+
+        server.use(
+            http.get(`${TRANSFER_SERVER}/withdraw`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(request.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+                expect(url.searchParams.get('asset_code')).toBe('USDC');
+                expect(url.searchParams.get('type')).toBe('bank_account');
+                return HttpResponse.json(mockResponse);
+            }),
+        );
+
+        const result = await withdraw(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            type: 'bank_account',
+        });
+        expect(result).toEqual(mockResponse);
+    });
+
+    it('throws SepApiError on error response', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/withdraw`, () => {
+                return HttpResponse.json({ error: 'Withdrawal not supported' }, { status: 400 });
+            }),
+        );
+
+        await expect(
+            withdraw(TRANSFER_SERVER, TOKEN, { asset_code: 'USDC', type: 'bank_account' }),
+        ).rejects.toThrow('Withdrawal not supported');
+    });
+});
+
+describe('getTransaction', () => {
+    it('returns unwrapped transaction on success', async () => {
+        const mockTransaction = {
+            id: 'tx-123',
+            kind: 'deposit',
+            status: 'completed',
+            amount_in: '100.00',
+        };
+
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transaction`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(request.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+                expect(url.searchParams.get('id')).toBe('tx-123');
+                return HttpResponse.json({ transaction: mockTransaction });
+            }),
+        );
+
+        const result = await getTransaction(TRANSFER_SERVER, TOKEN, 'tx-123');
+        expect(result).toEqual(mockTransaction);
+        expect(result.id).toBe('tx-123');
+    });
+
+    it('throws SepApiError on 404', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transaction`, () => {
+                return HttpResponse.json({ error: 'Transaction not found' }, { status: 404 });
+            }),
+        );
+
+        const err = await getTransaction(TRANSFER_SERVER, TOKEN, 'nonexistent').catch((e) => e);
+        expect(err).toBeInstanceOf(SepApiError);
+        expect(err.status).toBe(404);
+        expect(err.message).toBe('Transaction not found');
+    });
+});
+
+describe('getTransactionByStellarId', () => {
+    it('returns unwrapped transaction on success', async () => {
+        const mockTransaction = {
+            id: 'tx-456',
+            kind: 'withdrawal',
+            status: 'pending_anchor',
+        };
+
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transaction`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('stellar_transaction_id')).toBe('stellar-hash-abc');
+                return HttpResponse.json({ transaction: mockTransaction });
+            }),
+        );
+
+        const result = await getTransactionByStellarId(TRANSFER_SERVER, TOKEN, 'stellar-hash-abc');
+        expect(result).toEqual(mockTransaction);
+    });
+
+    it('throws SepApiError on error', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transaction`, () => {
+                return HttpResponse.json({ error: 'Not found' }, { status: 404 });
+            }),
+        );
+
+        await expect(
+            getTransactionByStellarId(TRANSFER_SERVER, TOKEN, 'bad-id'),
+        ).rejects.toThrow(SepApiError);
+    });
+});
+
+describe('getTransactions', () => {
+    it('returns transactions array with query params', async () => {
+        const mockTransactions = [
+            { id: 'tx-1', kind: 'deposit', status: 'completed' },
+            { id: 'tx-2', kind: 'deposit', status: 'pending_anchor' },
+        ];
+
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(request.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+                expect(url.searchParams.get('asset_code')).toBe('USDC');
+                expect(url.searchParams.get('kind')).toBe('deposit');
+                expect(url.searchParams.get('limit')).toBe('10');
+                return HttpResponse.json({ transactions: mockTransactions });
+            }),
+        );
+
+        const result = await getTransactions(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            kind: 'deposit',
+            limit: 10,
+        });
+        expect(result).toEqual(mockTransactions);
+        expect(result).toHaveLength(2);
+    });
+
+    it('returns empty array when no transactions', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transactions`, () => {
+                return HttpResponse.json({ transactions: [] });
+            }),
+        );
+
+        const result = await getTransactions(TRANSFER_SERVER, TOKEN, { asset_code: 'USDC' });
+        expect(result).toEqual([]);
+    });
+
+    it('throws SepApiError on error', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transactions`, () => {
+                return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }),
+        );
+
+        await expect(
+            getTransactions(TRANSFER_SERVER, TOKEN, { asset_code: 'USDC' }),
+        ).rejects.toThrow(SepApiError);
     });
 });

@@ -661,4 +661,1202 @@ describe('AlfredPayClient', () => {
             }
         });
     });
+
+    // ==========================================================================
+    // Edge case tests
+    // ==========================================================================
+
+    describe('request() edge cases', () => {
+        it('falls back to status code message when error body is empty', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/customers/create`, () => {
+                    return new HttpResponse('', {
+                        status: 502,
+                        headers: { 'Content-Type': 'text/plain' },
+                    });
+                }),
+            );
+
+            try {
+                await client.createCustomer({ email: 'user@example.com' });
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.message).toBe('AlfredPay API error: 502');
+                expect(anchorError.code).toBe('UNKNOWN_ERROR');
+                expect(anchorError.statusCode).toBe(502);
+            }
+        });
+
+        it('uses optional chaining fallbacks when error field is null', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/customers/create`, () => {
+                    return HttpResponse.json({ error: null }, { status: 422 });
+                }),
+            );
+
+            try {
+                await client.createCustomer({ email: 'user@example.com' });
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                // error?.message is undefined, error?.code is undefined
+                // Falls through to errorText which is the JSON string
+                expect(anchorError.message).toBe('{"error":null}');
+                expect(anchorError.code).toBe('UNKNOWN_ERROR');
+                expect(anchorError.statusCode).toBe(422);
+            }
+        });
+
+        it('uses optional chaining fallbacks when error field is missing', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/customers/create`, () => {
+                    return HttpResponse.json({ unexpected: 'shape' }, { status: 400 });
+                }),
+            );
+
+            try {
+                await client.createCustomer({ email: 'user@example.com' });
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.message).toBe('{"unexpected":"shape"}');
+                expect(anchorError.code).toBe('UNKNOWN_ERROR');
+                expect(anchorError.statusCode).toBe(400);
+            }
+        });
+
+        it('uses UNKNOWN_ERROR code when error has message but no code', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/customers/create`, () => {
+                    return HttpResponse.json(
+                        { error: { message: 'something went wrong' } },
+                        { status: 400 },
+                    );
+                }),
+            );
+
+            try {
+                await client.createCustomer({ email: 'user@example.com' });
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.message).toBe('something went wrong');
+                expect(anchorError.code).toBe('UNKNOWN_ERROR');
+                expect(anchorError.statusCode).toBe(400);
+            }
+        });
+    });
+
+    describe('mapQuote() fee edge cases', () => {
+        it('returns totalFee "0.00" when fees array is empty', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, () => {
+                    return HttpResponse.json({
+                        quoteId: 'quote-empty-fees',
+                        fromCurrency: 'MXN',
+                        toCurrency: 'USDC',
+                        fromAmount: '500.00',
+                        toAmount: '27.50',
+                        rate: '0.055',
+                        expiration: '2025-01-01T01:00:00Z',
+                        fees: [],
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                fromAmount: '500.00',
+            });
+
+            expect(quote.fee).toBe('0.00');
+        });
+
+        it('correctly sums a single fee item', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, () => {
+                    return HttpResponse.json({
+                        quoteId: 'quote-single-fee',
+                        fromCurrency: 'MXN',
+                        toCurrency: 'USDC',
+                        fromAmount: '500.00',
+                        toAmount: '27.50',
+                        rate: '0.055',
+                        expiration: '2025-01-01T01:00:00Z',
+                        fees: [{ type: 'commissionFee', amount: '3.75', currency: 'MXN' }],
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                fromAmount: '500.00',
+            });
+
+            expect(quote.fee).toBe('3.75');
+        });
+
+        it('returns totalFee "0.00" when fees have string "0" amounts', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, () => {
+                    return HttpResponse.json({
+                        quoteId: 'quote-zero-fees',
+                        fromCurrency: 'MXN',
+                        toCurrency: 'USDC',
+                        fromAmount: '500.00',
+                        toAmount: '27.50',
+                        rate: '0.055',
+                        expiration: '2025-01-01T01:00:00Z',
+                        fees: [
+                            { type: 'commissionFee', amount: '0', currency: 'MXN' },
+                            { type: 'processingFee', amount: '0', currency: 'MXN' },
+                        ],
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                fromAmount: '500.00',
+            });
+
+            expect(quote.fee).toBe('0.00');
+        });
+    });
+
+    describe('mapOnRampTransaction() edge cases', () => {
+        it('falls back to pending for unknown status values', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/onramp`, () => {
+                    return HttpResponse.json({
+                        transaction: {
+                            transactionId: 'onramp-unknown',
+                            customerId: 'cust-123',
+                            quoteId: 'quote-001',
+                            status: 'SOME_UNKNOWN_STATUS',
+                            fromAmount: '1000.00',
+                            fromCurrency: 'MXN',
+                            toAmount: '55.00',
+                            toCurrency: 'USDC',
+                            depositAddress: 'GABCD1234STELLAR',
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                            txHash: null,
+                            memo: '',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-01T00:00:00Z',
+                        },
+                        fiatPaymentInstructions: {
+                            paymentType: 'SPEI',
+                            clabe: '012345678901234567',
+                            reference: 'REF-001',
+                            expirationDate: '2025-01-01T01:00:00Z',
+                            paymentDescription: 'Fund on-ramp',
+                            bankName: 'STP',
+                            accountHolderName: 'Alfred Pay SA',
+                        },
+                    });
+                }),
+            );
+
+            const tx = await client.createOnRamp({
+                customerId: 'cust-123',
+                quoteId: 'quote-001',
+                stellarAddress: 'GABCD1234STELLAR',
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                amount: '1000.00',
+                memo: '',
+            });
+
+            expect(tx.status).toBe('pending');
+        });
+
+        it('maps missing txHash to undefined', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/onramp`, () => {
+                    return HttpResponse.json({
+                        transaction: {
+                            transactionId: 'onramp-no-hash',
+                            customerId: 'cust-123',
+                            quoteId: 'quote-001',
+                            status: 'CREATED',
+                            fromAmount: '1000.00',
+                            fromCurrency: 'MXN',
+                            toAmount: '55.00',
+                            toCurrency: 'USDC',
+                            depositAddress: 'GABCD1234STELLAR',
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                            txHash: null,
+                            memo: '',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-01T00:00:00Z',
+                        },
+                        fiatPaymentInstructions: {
+                            paymentType: 'SPEI',
+                            clabe: '012345678901234567',
+                            reference: 'REF-001',
+                            expirationDate: '2025-01-01T01:00:00Z',
+                            paymentDescription: 'Fund on-ramp',
+                            bankName: 'STP',
+                            accountHolderName: 'Alfred Pay SA',
+                        },
+                    });
+                }),
+            );
+
+            const tx = await client.createOnRamp({
+                customerId: 'cust-123',
+                quoteId: 'quote-001',
+                stellarAddress: 'GABCD1234STELLAR',
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                amount: '1000.00',
+                memo: '',
+            });
+
+            expect(tx.stellarTxHash).toBeUndefined();
+        });
+
+        it('maps payment instructions with missing/null fields', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/onramp`, () => {
+                    return HttpResponse.json({
+                        transaction: {
+                            transactionId: 'onramp-null-instr',
+                            customerId: 'cust-123',
+                            quoteId: 'quote-001',
+                            status: 'CREATED',
+                            fromAmount: '1000.00',
+                            fromCurrency: 'MXN',
+                            toAmount: '55.00',
+                            toCurrency: 'USDC',
+                            depositAddress: 'GABCD1234STELLAR',
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                            txHash: null,
+                            memo: '',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-01T00:00:00Z',
+                        },
+                        fiatPaymentInstructions: {
+                            paymentType: 'SPEI',
+                            clabe: null,
+                            reference: null,
+                            expirationDate: null,
+                            paymentDescription: null,
+                            bankName: null,
+                            accountHolderName: null,
+                        },
+                    });
+                }),
+            );
+
+            const tx = await client.createOnRamp({
+                customerId: 'cust-123',
+                quoteId: 'quote-001',
+                stellarAddress: 'GABCD1234STELLAR',
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                amount: '1000.00',
+                memo: '',
+            });
+
+            expect(tx.paymentInstructions).toBeDefined();
+            expect(tx.paymentInstructions!.clabe).toBeNull();
+            expect(tx.paymentInstructions!.bankName).toBeNull();
+            expect(tx.paymentInstructions!.beneficiary).toBeNull();
+            expect(tx.paymentInstructions!.reference).toBeNull();
+            expect(tx.paymentInstructions!.amount).toBe('1000.00');
+            expect(tx.paymentInstructions!.currency).toBe('MXN');
+        });
+    });
+
+    describe('mapOnRampFlatTransaction() edge cases', () => {
+        it('falls back to pending for unknown status values', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/onramp/onramp-unknown-flat`, () => {
+                    return HttpResponse.json({
+                        transactionId: 'onramp-unknown-flat',
+                        customerId: 'cust-123',
+                        quoteId: 'quote-001',
+                        status: 'REFUNDED',
+                        fromAmount: '1000.00',
+                        fromCurrency: 'MXN',
+                        toAmount: '55.00',
+                        toCurrency: 'USDC',
+                        depositAddress: 'GABCD1234STELLAR',
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                        txHash: null,
+                        memo: '',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-01T00:00:00Z',
+                        fiatPaymentInstructions: {
+                            paymentType: 'SPEI',
+                            clabe: '012345678901234567',
+                            reference: 'REF-001',
+                            expirationDate: '2025-01-01T01:00:00Z',
+                            paymentDescription: 'Fund on-ramp',
+                            bankName: 'STP',
+                            accountHolderName: 'Alfred Pay SA',
+                        },
+                    });
+                }),
+            );
+
+            const tx = await client.getOnRampTransaction('onramp-unknown-flat');
+
+            expect(tx).not.toBeNull();
+            expect(tx!.status).toBe('pending');
+        });
+    });
+
+    describe('mapOffRampTransaction() edge cases', () => {
+        it('defaults quoteId to empty string when quote field is null', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/offramp/offramp-no-quote`, () => {
+                    return HttpResponse.json({
+                        transactionId: 'offramp-no-quote',
+                        customerId: 'cust-123',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-01T00:00:00Z',
+                        fromCurrency: 'USDC',
+                        toCurrency: 'MXN',
+                        fromAmount: '50.00',
+                        toAmount: '900.00',
+                        chain: 'XLM',
+                        status: 'CREATED',
+                        fiatAccountId: 'fiat-001',
+                        depositAddress: 'GXYZ9876STELLAR',
+                        expiration: '2025-01-01T02:00:00Z',
+                        memo: 'memo',
+                        quote: null,
+                    });
+                }),
+            );
+
+            const tx = await client.getOffRampTransaction('offramp-no-quote');
+
+            expect(tx).not.toBeNull();
+            expect(tx!.quoteId).toBe('');
+        });
+
+        it('sets fiatAccount to undefined when fiatAccountId is null', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/offramp/offramp-no-fiat`, () => {
+                    return HttpResponse.json({
+                        transactionId: 'offramp-no-fiat',
+                        customerId: 'cust-123',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-01T00:00:00Z',
+                        fromCurrency: 'USDC',
+                        toCurrency: 'MXN',
+                        fromAmount: '50.00',
+                        toAmount: '900.00',
+                        chain: 'XLM',
+                        status: 'CREATED',
+                        fiatAccountId: null,
+                        depositAddress: 'GXYZ9876STELLAR',
+                        expiration: '2025-01-01T02:00:00Z',
+                        memo: 'memo',
+                    });
+                }),
+            );
+
+            const tx = await client.getOffRampTransaction('offramp-no-fiat');
+
+            expect(tx).not.toBeNull();
+            expect(tx!.fiatAccount).toBeUndefined();
+        });
+
+        it('sets fiatAccount to undefined when fiatAccountId is empty string', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/offramp/offramp-empty-fiat`, () => {
+                    return HttpResponse.json({
+                        transactionId: 'offramp-empty-fiat',
+                        customerId: 'cust-123',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-01T00:00:00Z',
+                        fromCurrency: 'USDC',
+                        toCurrency: 'MXN',
+                        fromAmount: '50.00',
+                        toAmount: '900.00',
+                        chain: 'XLM',
+                        status: 'CREATED',
+                        fiatAccountId: '',
+                        depositAddress: 'GXYZ9876STELLAR',
+                        expiration: '2025-01-01T02:00:00Z',
+                        memo: 'memo',
+                    });
+                }),
+            );
+
+            const tx = await client.getOffRampTransaction('offramp-empty-fiat');
+
+            expect(tx).not.toBeNull();
+            expect(tx!.fiatAccount).toBeUndefined();
+        });
+
+        it('falls back to pending for unknown status values', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/offramp/offramp-unknown`, () => {
+                    return HttpResponse.json({
+                        transactionId: 'offramp-unknown',
+                        customerId: 'cust-123',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-01T00:00:00Z',
+                        fromCurrency: 'USDC',
+                        toCurrency: 'MXN',
+                        fromAmount: '50.00',
+                        toAmount: '900.00',
+                        chain: 'XLM',
+                        status: 'SOME_UNKNOWN_STATUS',
+                        fiatAccountId: 'fiat-001',
+                        depositAddress: 'GXYZ9876STELLAR',
+                        expiration: '2025-01-01T02:00:00Z',
+                        memo: 'memo',
+                    });
+                }),
+            );
+
+            const tx = await client.getOffRampTransaction('offramp-unknown');
+
+            expect(tx).not.toBeNull();
+            expect(tx!.status).toBe('pending');
+        });
+    });
+
+    describe('createCustomer() edge cases', () => {
+        it('sends explicit country parameter override instead of default MX', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/customers/create`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.country).toBe('BR');
+                    expect(body.email).toBe('user@example.com');
+                    expect(body.type).toBe('INDIVIDUAL');
+
+                    return HttpResponse.json({
+                        customerId: 'cust-br-001',
+                        createdAt: '2025-01-01T00:00:00Z',
+                    });
+                }),
+            );
+
+            const customer = await client.createCustomer({
+                email: 'user@example.com',
+                country: 'BR',
+            });
+
+            expect(customer.id).toBe('cust-br-001');
+        });
+    });
+
+    describe('getCustomer() edge cases', () => {
+        it('re-throws non-404 errors', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/cust-500`, () => {
+                    return HttpResponse.json(
+                        { error: { code: 'INTERNAL_ERROR', message: 'Server error' } },
+                        { status: 500 },
+                    );
+                }),
+            );
+
+            try {
+                await client.getCustomer('cust-500');
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.statusCode).toBe(500);
+                expect(anchorError.message).toBe('Server error');
+            }
+        });
+    });
+
+    describe('getCustomerByEmail() edge cases', () => {
+        it('re-throws non-404 errors', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/find/error%40example.com/MX`, () => {
+                    return HttpResponse.json(
+                        { error: { code: 'RATE_LIMIT', message: 'Too many requests' } },
+                        { status: 429 },
+                    );
+                }),
+            );
+
+            try {
+                await client.getCustomerByEmail('error@example.com', 'MX');
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.statusCode).toBe(429);
+                expect(anchorError.message).toBe('Too many requests');
+            }
+        });
+    });
+
+    describe('getQuote() edge cases', () => {
+        it('sends both fromAmount and toAmount when both are provided', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.fromAmount).toBe('1000.00');
+                    expect(body.toAmount).toBe('55.00');
+                    expect(body.fromCurrency).toBe('MXN');
+                    expect(body.toCurrency).toBe('USDC');
+
+                    return HttpResponse.json({
+                        quoteId: 'quote-both',
+                        fromCurrency: 'MXN',
+                        toCurrency: 'USDC',
+                        fromAmount: '1000.00',
+                        toAmount: '55.00',
+                        rate: '0.055',
+                        expiration: '2025-01-01T01:00:00Z',
+                        fees: [],
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                fromAmount: '1000.00',
+                toAmount: '55.00',
+            });
+
+            expect(quote.id).toBe('quote-both');
+        });
+
+        it('sends request body with neither fromAmount nor toAmount when both are omitted', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.fromAmount).toBeUndefined();
+                    expect(body.toAmount).toBeUndefined();
+                    expect(body.fromCurrency).toBe('MXN');
+                    expect(body.toCurrency).toBe('USDC');
+                    expect(body.chain).toBe('XLM');
+                    expect(body.paymentMethodType).toBe('SPEI');
+
+                    return HttpResponse.json({
+                        quoteId: 'quote-neither',
+                        fromCurrency: 'MXN',
+                        toCurrency: 'USDC',
+                        fromAmount: '0.00',
+                        toAmount: '0.00',
+                        rate: '0.055',
+                        expiration: '2025-01-01T01:00:00Z',
+                        fees: [],
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+            });
+
+            expect(quote.id).toBe('quote-neither');
+        });
+    });
+
+    describe('createOnRamp() edge cases', () => {
+        it('sends empty string for memo when memo is undefined', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/onramp`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.memo).toBe('');
+
+                    return HttpResponse.json({
+                        transaction: {
+                            transactionId: 'onramp-no-memo',
+                            customerId: 'cust-123',
+                            quoteId: 'quote-001',
+                            status: 'CREATED',
+                            fromAmount: '1000.00',
+                            fromCurrency: 'MXN',
+                            toAmount: '55.00',
+                            toCurrency: 'USDC',
+                            depositAddress: 'GABCD1234STELLAR',
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                            txHash: null,
+                            memo: '',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-01T00:00:00Z',
+                        },
+                        fiatPaymentInstructions: {
+                            paymentType: 'SPEI',
+                            clabe: '012345678901234567',
+                            reference: 'REF-001',
+                            expirationDate: '2025-01-01T01:00:00Z',
+                            paymentDescription: 'Fund on-ramp',
+                            bankName: 'STP',
+                            accountHolderName: 'Alfred Pay SA',
+                        },
+                    });
+                }),
+            );
+
+            const tx = await client.createOnRamp({
+                customerId: 'cust-123',
+                quoteId: 'quote-001',
+                stellarAddress: 'GABCD1234STELLAR',
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                amount: '1000.00',
+                // memo intentionally omitted
+            });
+
+            expect(tx.id).toBe('onramp-no-memo');
+        });
+    });
+
+    describe('getFiatAccounts() edge cases', () => {
+        it('returns empty array for successful response with empty array', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/fiatAccounts`, () => {
+                    return HttpResponse.json([]);
+                }),
+            );
+
+            const accounts = await client.getFiatAccounts('cust-123');
+            expect(accounts).toEqual([]);
+        });
+
+        it('falls back to accountName when metadata and accountAlias are both undefined', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/fiatAccounts`, () => {
+                    return HttpResponse.json([
+                        {
+                            fiatAccountId: 'fiat-003',
+                            type: 'SPEI',
+                            accountNumber: '012345678901234569',
+                            accountType: 'CHECKING',
+                            accountName: 'Final Fallback Name',
+                            bankName: 'Santander',
+                            createdAt: '2025-01-03T00:00:00Z',
+                            isExternal: true,
+                        },
+                    ]);
+                }),
+            );
+
+            const accounts = await client.getFiatAccounts('cust-123');
+
+            expect(accounts).toHaveLength(1);
+            expect(accounts[0].accountHolderName).toBe('Final Fallback Name');
+        });
+
+        it('returns undefined accountHolderName when all name fields are undefined', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/fiatAccounts`, () => {
+                    return HttpResponse.json([
+                        {
+                            fiatAccountId: 'fiat-004',
+                            type: 'SPEI',
+                            accountNumber: '012345678901234570',
+                            accountType: 'CHECKING',
+                            bankName: 'Citibanamex',
+                            createdAt: '2025-01-04T00:00:00Z',
+                            isExternal: true,
+                        },
+                    ]);
+                }),
+            );
+
+            const accounts = await client.getFiatAccounts('cust-123');
+
+            expect(accounts).toHaveLength(1);
+            expect(accounts[0].accountHolderName).toBeUndefined();
+        });
+
+        it('re-throws non-404 errors', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/fiatAccounts`, () => {
+                    return HttpResponse.json(
+                        { error: { code: 'INTERNAL_ERROR', message: 'Database error' } },
+                        { status: 500 },
+                    );
+                }),
+            );
+
+            try {
+                await client.getFiatAccounts('cust-123');
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.statusCode).toBe(500);
+                expect(anchorError.message).toBe('Database error');
+            }
+        });
+    });
+
+    describe('createOffRamp() edge cases', () => {
+        it('sends empty string for memo when memo is undefined', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/offramp`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.memo).toBe('');
+
+                    return HttpResponse.json({
+                        transactionId: 'offramp-no-memo',
+                        customerId: 'cust-123',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-01T00:00:00Z',
+                        fromCurrency: 'USDC',
+                        toCurrency: 'MXN',
+                        fromAmount: '50.00',
+                        toAmount: '900.00',
+                        chain: 'XLM',
+                        status: 'CREATED',
+                        fiatAccountId: 'fiat-001',
+                        depositAddress: 'GXYZ9876STELLAR',
+                        expiration: '2025-01-01T02:00:00Z',
+                        memo: '',
+                    });
+                }),
+            );
+
+            const tx = await client.createOffRamp({
+                customerId: 'cust-123',
+                quoteId: 'quote-002',
+                stellarAddress: 'GXYZ9876STELLAR',
+                fromCurrency: 'USDC',
+                toCurrency: 'MXN',
+                amount: '50.00',
+                fiatAccountId: 'fiat-001',
+                // memo intentionally omitted
+            });
+
+            expect(tx.id).toBe('offramp-no-memo');
+        });
+    });
+
+    describe('getOffRampTransaction() edge cases', () => {
+        it('re-throws non-404 errors', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/offramp/offramp-500`, () => {
+                    return HttpResponse.json(
+                        { error: { code: 'INTERNAL_ERROR', message: 'Server failure' } },
+                        { status: 500 },
+                    );
+                }),
+            );
+
+            try {
+                await client.getOffRampTransaction('offramp-500');
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.statusCode).toBe(500);
+                expect(anchorError.message).toBe('Server failure');
+            }
+        });
+    });
+
+    describe('getKycUrl() edge cases', () => {
+        it('returns undefined when response has missing verification_url', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/cust-123/kyc/MX/url`, () => {
+                    return HttpResponse.json({
+                        submissionId: 'sub-001',
+                    });
+                }),
+            );
+
+            const url = await client.getKycUrl('cust-123');
+            expect(url).toBeUndefined();
+        });
+    });
+
+    describe('submitKycFile', () => {
+        it('uploads a file and returns the file response', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(
+                    `${BASE_URL}/customers/cust-123/kyc/sub-001/files`,
+                    async ({ request }) => {
+                        expect(request.headers.get('api-key')).toBe(API_KEY);
+                        expect(request.headers.get('api-secret')).toBe(API_SECRET);
+
+                        // Verify it is a FormData request (no Content-Type: application/json)
+                        const contentType = request.headers.get('Content-Type');
+                        expect(contentType).toContain('multipart/form-data');
+
+                        return HttpResponse.json({
+                            fileId: 'file-001',
+                            fileType: 'National ID Front',
+                            status: 'UPLOADED',
+                        });
+                    },
+                ),
+            );
+
+            const file = new Blob(['fake-image-data'], { type: 'image/jpeg' });
+            const result = await client.submitKycFile(
+                'cust-123',
+                'sub-001',
+                'National ID Front',
+                file,
+                'id-front.jpg',
+            );
+
+            expect(result.fileId).toBe('file-001');
+            expect(result.fileType).toBe('National ID Front');
+            expect(result.status).toBe('UPLOADED');
+        });
+
+        it('throws AnchorError on upload failure', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(
+                    `${BASE_URL}/customers/cust-123/kyc/sub-001/files`,
+                    () => {
+                        return HttpResponse.json(
+                            { error: { code: 'FILE_TOO_LARGE', message: 'File exceeds size limit' } },
+                            { status: 413 },
+                        );
+                    },
+                ),
+            );
+
+            const file = new Blob(['fake-image-data'], { type: 'image/jpeg' });
+
+            try {
+                await client.submitKycFile(
+                    'cust-123',
+                    'sub-001',
+                    'Selfie',
+                    file,
+                    'selfie.jpg',
+                );
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(AnchorError);
+                const anchorError = error as AnchorError;
+                expect(anchorError.message).toBe('File exceeds size limit');
+                expect(anchorError.code).toBe('FILE_TOO_LARGE');
+                expect(anchorError.statusCode).toBe(413);
+            }
+        });
+    });
+
+    describe('getKycSubmission', () => {
+        it('returns the KYC submission for a customer', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/kyc/cust-123`, () => {
+                    return HttpResponse.json({
+                        submissionId: 'sub-001',
+                        status: 'IN_REVIEW',
+                        createdAt: '2025-01-01T00:00:00Z',
+                    });
+                }),
+            );
+
+            const submission = await client.getKycSubmission('cust-123');
+
+            expect(submission).not.toBeNull();
+            expect(submission!.submissionId).toBe('sub-001');
+            expect(submission!.status).toBe('IN_REVIEW');
+            expect(submission!.createdAt).toBe('2025-01-01T00:00:00Z');
+        });
+
+        it('returns null when no submission exists (404)', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/kyc/cust-no-sub`, () => {
+                    return HttpResponse.json(
+                        { error: { code: 'NOT_FOUND', message: 'No submission found' } },
+                        { status: 404 },
+                    );
+                }),
+            );
+
+            const submission = await client.getKycSubmission('cust-no-sub');
+            expect(submission).toBeNull();
+        });
+    });
+
+    describe('getKycSubmissionStatus', () => {
+        it('returns the KYC submission status', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/cust-123/kyc/sub-001/status`, () => {
+                    return HttpResponse.json({
+                        submissionId: 'sub-001',
+                        status: 'COMPLETED',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-02T00:00:00Z',
+                    });
+                }),
+            );
+
+            const result = await client.getKycSubmissionStatus('cust-123', 'sub-001');
+
+            expect(result.submissionId).toBe('sub-001');
+            expect(result.status).toBe('COMPLETED');
+            expect(result.createdAt).toBe('2025-01-01T00:00:00Z');
+            expect(result.updatedAt).toBe('2025-01-02T00:00:00Z');
+        });
+    });
+
+    describe('getKycRequirements', () => {
+        it('returns KYC requirements for a given country', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/kycRequirements`, ({ request }) => {
+                    const url = new URL(request.url);
+                    expect(url.searchParams.get('country')).toBe('BR');
+
+                    return HttpResponse.json({
+                        country: 'BR',
+                        requirements: {
+                            personal: [
+                                { name: 'firstName', required: true, type: 'string' },
+                                { name: 'lastName', required: true, type: 'string' },
+                            ],
+                            documents: [
+                                {
+                                    name: 'National ID Front',
+                                    required: true,
+                                    type: 'file',
+                                    description: 'Front of national ID',
+                                },
+                            ],
+                        },
+                    });
+                }),
+            );
+
+            const requirements = await client.getKycRequirements('BR');
+
+            expect(requirements.country).toBe('BR');
+            expect(requirements.requirements.personal).toHaveLength(2);
+            expect(requirements.requirements.personal[0].name).toBe('firstName');
+            expect(requirements.requirements.documents).toHaveLength(1);
+            expect(requirements.requirements.documents[0].name).toBe('National ID Front');
+        });
+
+        it('defaults to MX when country is not provided', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/kycRequirements`, ({ request }) => {
+                    const url = new URL(request.url);
+                    expect(url.searchParams.get('country')).toBe('MX');
+
+                    return HttpResponse.json({
+                        country: 'MX',
+                        requirements: {
+                            personal: [{ name: 'firstName', required: true, type: 'string' }],
+                            documents: [{ name: 'Selfie', required: true, type: 'file' }],
+                        },
+                    });
+                }),
+            );
+
+            const requirements = await client.getKycRequirements();
+
+            expect(requirements.country).toBe('MX');
+        });
+    });
+
+    describe('submitKycData', () => {
+        it('submits KYC personal data and returns the submission response', async () => {
+            const client = createClient();
+
+            const kycData = {
+                firstName: 'Juan',
+                lastName: 'Perez',
+                dateOfBirth: '1990-01-15',
+                country: 'MX',
+                city: 'Mexico City',
+                state: 'CDMX',
+                address: '123 Reforma Ave',
+                zipCode: '06600',
+                nationalities: ['MX'],
+                email: 'juan@example.com',
+                dni: 'CURP123456789',
+            };
+
+            server.use(
+                http.post(`${BASE_URL}/customers/cust-123/kyc`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.kycSubmission).toEqual(kycData);
+
+                    return HttpResponse.json({
+                        submissionId: 'sub-002',
+                        status: 'CREATED',
+                        createdAt: '2025-01-01T00:00:00Z',
+                    });
+                }),
+            );
+
+            const result = await client.submitKycData('cust-123', kycData);
+
+            expect(result.submissionId).toBe('sub-002');
+            expect(result.status).toBe('CREATED');
+            expect(result.createdAt).toBe('2025-01-01T00:00:00Z');
+        });
+    });
+
+    describe('finalizeKycSubmission', () => {
+        it('finalizes a KYC submission without error', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(
+                    `${BASE_URL}/customers/cust-123/kyc/sub-001/submit`,
+                    () => {
+                        return HttpResponse.json({ message: 'Submission finalized' });
+                    },
+                ),
+            );
+
+            // Should complete without throwing
+            await expect(
+                client.finalizeKycSubmission('cust-123', 'sub-001'),
+            ).resolves.toBeUndefined();
+        });
+    });
+
+    describe('sendSandboxWebhook', () => {
+        it('sends a sandbox webhook event', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/webhooks`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.referenceId).toBe('tx-001');
+                    expect(body.eventType).toBe('ONRAMP');
+                    expect(body.status).toBe('COMPLETED');
+                    expect(body.metadata).toEqual({ extra: 'data' });
+
+                    return HttpResponse.json({ message: 'Webhook sent' });
+                }),
+            );
+
+            // Should complete without throwing
+            await expect(
+                client.sendSandboxWebhook({
+                    referenceId: 'tx-001',
+                    eventType: 'ONRAMP',
+                    status: 'COMPLETED',
+                    metadata: { extra: 'data' },
+                }),
+            ).resolves.toBeUndefined();
+        });
+    });
+
+    describe('completeKycSandbox', () => {
+        it('sends a KYC COMPLETED webhook for the given submission', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/webhooks`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.referenceId).toBe('sub-sandbox-001');
+                    expect(body.eventType).toBe('KYC');
+                    expect(body.status).toBe('COMPLETED');
+                    expect(body.metadata).toBeNull();
+
+                    return HttpResponse.json({ message: 'Webhook sent' });
+                }),
+            );
+
+            // Should complete without throwing
+            await expect(
+                client.completeKycSandbox('sub-sandbox-001'),
+            ).resolves.toBeUndefined();
+        });
+    });
 });

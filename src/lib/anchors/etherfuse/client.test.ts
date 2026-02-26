@@ -725,3 +725,1014 @@ describe('request error handling', () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// request() edge cases
+// ---------------------------------------------------------------------------
+
+describe('request() edge cases', () => {
+    it('returns undefined for 200 response with empty body', async () => {
+        const client = createClient();
+
+        // Use getAssets() because it directly returns the request() result
+        // without accessing properties on it, so we can verify the empty body
+        // handling in isolation.
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                return new HttpResponse('', { status: 200 });
+            }),
+        );
+
+        const result = await client.getAssets('stellar', 'mxn');
+        expect(result).toBeUndefined();
+    });
+
+    it('falls back to status code message when error body fields are all empty', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/err-empty-fields`, () => {
+                return HttpResponse.json(
+                    { error: { code: '', message: '' } },
+                    { status: 422 },
+                );
+            }),
+        );
+
+        try {
+            await client.getCustomer('err-empty-fields');
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            // message is empty string, errorText is the JSON string, so falls through to errorText
+            expect(anchorErr.message).toBe('{"error":{"code":"","message":""}}');
+            expect(anchorErr.code).toBe('UNKNOWN_ERROR'); // empty code falls back
+            expect(anchorErr.statusCode).toBe(422);
+        }
+    });
+
+    it('falls back to UNKNOWN_ERROR when error response has missing error.code', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/err-no-code`, () => {
+                return HttpResponse.json(
+                    { error: { message: 'Something went wrong' } },
+                    { status: 400 },
+                );
+            }),
+        );
+
+        try {
+            await client.getCustomer('err-no-code');
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.message).toBe('Something went wrong');
+            expect(anchorErr.code).toBe('UNKNOWN_ERROR');
+            expect(anchorErr.statusCode).toBe(400);
+        }
+    });
+
+    it('handles error response where error field is null via optional chaining fallbacks', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/err-null-error`, () => {
+                return HttpResponse.json(
+                    { error: null },
+                    { status: 500 },
+                );
+            }),
+        );
+
+        try {
+            await client.getCustomer('err-null-error');
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            // error?.message is undefined, errorText is '{"error":null}', so message falls through to errorText
+            expect(anchorErr.message).toBe('{"error":null}');
+            expect(anchorErr.code).toBe('UNKNOWN_ERROR'); // error?.code is undefined
+            expect(anchorErr.statusCode).toBe(500);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// createCustomer() 409 recovery edge cases
+// ---------------------------------------------------------------------------
+
+describe('createCustomer() 409 recovery edge cases', () => {
+    it('re-throws original error when 409 message does not match regex pattern', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.json(
+                    {
+                        error: {
+                            code: 'CONFLICT',
+                            message: 'Duplicate entry without any org reference',
+                        },
+                    },
+                    { status: 409 },
+                );
+            }),
+        );
+
+        try {
+            await client.createCustomer({
+                email: 'alice@example.com',
+                publicKey: 'GABCDEF',
+            });
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.statusCode).toBe(409);
+            expect(anchorErr.message).toBe('Duplicate entry without any org reference');
+        }
+    });
+
+    it('continues with undefined bankAccountId when getFiatAccounts() throws during 409 recovery', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.json(
+                    {
+                        error: {
+                            code: 'CONFLICT',
+                            message: 'Customer already exists, see org: aaa-bbb-ccc-ddd-eee',
+                        },
+                    },
+                    { status: 409 },
+                );
+            }),
+            http.post(`${BASE_URL}/ramp/customer/aaa-bbb-ccc-ddd-eee/bank-accounts`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'INTERNAL_ERROR', message: 'DB failure' } },
+                    { status: 500 },
+                );
+            }),
+        );
+
+        const customer = await client.createCustomer({
+            email: 'alice@example.com',
+            publicKey: 'GABCDEF',
+        });
+
+        expect(customer.id).toBe('aaa-bbb-ccc-ddd-eee');
+        expect(customer.email).toBe('alice@example.com');
+        expect(customer.bankAccountId).toBeUndefined();
+    });
+
+    it('sets bankAccountId to undefined when 409 recovery returns empty accounts array', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.json(
+                    {
+                        error: {
+                            code: 'CONFLICT',
+                            message: 'Customer already exists, see org: aaa-bbb-ccc-ddd-eee',
+                        },
+                    },
+                    { status: 409 },
+                );
+            }),
+            http.post(`${BASE_URL}/ramp/customer/aaa-bbb-ccc-ddd-eee/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [],
+                    totalItems: 0,
+                    pageSize: 10,
+                    pageNumber: 0,
+                    totalPages: 0,
+                });
+            }),
+        );
+
+        const customer = await client.createCustomer({
+            email: 'alice@example.com',
+            publicKey: 'GABCDEF',
+        });
+
+        expect(customer.id).toBe('aaa-bbb-ccc-ddd-eee');
+        expect(customer.bankAccountId).toBeUndefined();
+    });
+
+    it('re-throws non-409 AnchorError (e.g. 400)', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.json(
+                    {
+                        error: {
+                            code: 'BAD_REQUEST',
+                            message: 'Invalid email format',
+                        },
+                    },
+                    { status: 400 },
+                );
+            }),
+        );
+
+        try {
+            await client.createCustomer({
+                email: 'invalid',
+                publicKey: 'GABCDEF',
+            });
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.statusCode).toBe(400);
+            expect(anchorErr.code).toBe('BAD_REQUEST');
+            expect(anchorErr.message).toBe('Invalid email format');
+        }
+    });
+
+    it('re-throws non-AnchorError exceptions', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.error();
+            }),
+        );
+
+        await expect(
+            client.createCustomer({
+                email: 'alice@example.com',
+                publicKey: 'GABCDEF',
+            }),
+        ).rejects.toThrow();
+
+        // Verify it's NOT an AnchorError (it's a fetch TypeError)
+        try {
+            await client.createCustomer({
+                email: 'alice@example.com',
+                publicKey: 'GABCDEF',
+            });
+        } catch (err) {
+            expect(err).not.toBeInstanceOf(AnchorError);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mapOrderStatus() unknown status
+// ---------------------------------------------------------------------------
+
+describe('mapOrderStatus() unknown status', () => {
+    it('falls back to pending for unknown/unmapped status string', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-unknown-status`, () => {
+                return HttpResponse.json({
+                    orderId: 'order-unknown-status',
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                    amountInFiat: '1000',
+                    amountInTokens: '50',
+                    walletId: 'wallet-1',
+                    bankAccountId: 'bank-1',
+                    orderType: 'onramp',
+                    status: 'some_unknown_status',
+                    statusPage: 'https://status.test/order',
+                });
+            }),
+        );
+
+        const tx = await client.getOnRampTransaction('order-unknown-status');
+        expect(tx).not.toBeNull();
+        expect(tx!.status).toBe('pending');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mapKycStatus() unknown status
+// ---------------------------------------------------------------------------
+
+describe('mapKycStatus() unknown status', () => {
+    it('falls back to not_started for unknown/unmapped KYC status', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/cust-1/kyc/GABCDEF`, () => {
+                return HttpResponse.json({
+                    customerId: 'cust-1',
+                    publicKey: 'GABCDEF',
+                    status: 'some_weird_status',
+                    updatedAt: '2025-06-01T00:00:00Z',
+                });
+            }),
+        );
+
+        const status = await client.getKycStatus('cust-1', 'GABCDEF');
+        expect(status).toBe('not_started');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mapOnRampTransaction() edge cases
+// ---------------------------------------------------------------------------
+
+describe('mapOnRampTransaction() edge cases', () => {
+    it('returns undefined paymentInstructions when depositClabe is missing', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-no-clabe`, () => {
+                return HttpResponse.json({
+                    orderId: 'order-no-clabe',
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                    amountInFiat: '1000',
+                    amountInTokens: '50',
+                    walletId: 'wallet-1',
+                    bankAccountId: 'bank-1',
+                    orderType: 'onramp',
+                    status: 'created',
+                    statusPage: 'https://status.test/order',
+                });
+            }),
+        );
+
+        const tx = await client.getOnRampTransaction('order-no-clabe');
+        expect(tx).not.toBeNull();
+        expect(tx!.paymentInstructions).toBeUndefined();
+    });
+
+    it('uses empty string fallbacks for missing optional fields (amountInFiat, amountInTokens)', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-no-amounts`, () => {
+                return HttpResponse.json({
+                    orderId: 'order-no-amounts',
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                    walletId: 'wallet-1',
+                    bankAccountId: 'bank-1',
+                    orderType: 'onramp',
+                    status: 'created',
+                    statusPage: 'https://status.test/order',
+                    // amountInFiat and amountInTokens are intentionally absent
+                });
+            }),
+        );
+
+        const tx = await client.getOnRampTransaction('order-no-amounts');
+        expect(tx).not.toBeNull();
+        expect(tx!.fromAmount).toBe(''); // amountInFiat || ''
+        expect(tx!.toAmount).toBe('');   // amountInTokens || ''
+        expect(tx!.feeBps).toBeUndefined();
+        expect(tx!.feeAmount).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mapOffRampTransaction() edge cases
+// ---------------------------------------------------------------------------
+
+describe('mapOffRampTransaction() edge cases', () => {
+    it('returns undefined fiatAccount when bankAccountId is missing', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-no-bank`, () => {
+                return HttpResponse.json({
+                    orderId: 'order-no-bank',
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                    amountInFiat: '1000',
+                    amountInTokens: '50',
+                    walletId: 'wallet-1',
+                    bankAccountId: '',
+                    orderType: 'offramp',
+                    status: 'created',
+                    statusPage: 'https://status.test/order-no-bank',
+                });
+            }),
+        );
+
+        const tx = await client.getOffRampTransaction('order-no-bank');
+        expect(tx).not.toBeNull();
+        expect(tx!.fiatAccount).toBeUndefined(); // empty string is falsy
+    });
+
+    it('populates signableTransaction when burnTransaction is present', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-with-burn`, () => {
+                return HttpResponse.json({
+                    orderId: 'order-with-burn',
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                    amountInFiat: '500',
+                    amountInTokens: '25',
+                    walletId: 'wallet-1',
+                    bankAccountId: 'bank-1',
+                    burnTransaction: 'AAAA...XDR_BASE64_ENVELOPE...ZZZZ',
+                    orderType: 'offramp',
+                    status: 'funded',
+                    statusPage: 'https://status.test/order-with-burn',
+                    feeBps: 15,
+                    feeAmountInFiat: '1.50',
+                });
+            }),
+        );
+
+        const tx = await client.getOffRampTransaction('order-with-burn');
+        expect(tx).not.toBeNull();
+        expect(tx!.signableTransaction).toBe('AAAA...XDR_BASE64_ENVELOPE...ZZZZ');
+        expect(tx!.status).toBe('processing'); // funded -> processing
+        expect(tx!.fiatAccount).toEqual({
+            id: 'bank-1',
+            type: 'spei',
+            label: 'Bank Account',
+        });
+    });
+
+    it('returns undefined signableTransaction when burnTransaction is absent', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-no-burn`, () => {
+                return HttpResponse.json({
+                    orderId: 'order-no-burn',
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                    amountInFiat: '500',
+                    amountInTokens: '25',
+                    walletId: 'wallet-1',
+                    bankAccountId: 'bank-1',
+                    orderType: 'offramp',
+                    status: 'created',
+                    statusPage: 'https://status.test/order-no-burn',
+                });
+            }),
+        );
+
+        const tx = await client.getOffRampTransaction('order-no-burn');
+        expect(tx).not.toBeNull();
+        expect(tx!.signableTransaction).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getQuote() edge cases
+// ---------------------------------------------------------------------------
+
+describe('getQuote() edge cases', () => {
+    it('sends empty string when both fromAmount and toAmount are undefined', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                return HttpResponse.json({
+                    assets: [
+                        { symbol: 'CETES', identifier: 'CETES:GCRYUGD5ISSUER', name: 'CETES Token', currency: null, balance: null, image: null },
+                        { symbol: 'MXN', identifier: 'MXN', name: 'Mexican Peso', currency: 'MXN', balance: null, image: null },
+                    ],
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/quote`, async ({ request }) => {
+                capturedBody = await request.json() as Record<string, unknown>;
+                return HttpResponse.json({
+                    quoteId: 'quote-empty-amt',
+                    customerId: '',
+                    blockchain: 'stellar',
+                    quoteAssets: { type: 'onramp', sourceAsset: 'MXN', targetAsset: 'CETES:GCRYUGD5ISSUER' },
+                    sourceAmount: '0',
+                    destinationAmount: '0',
+                    destinationAmountAfterFee: null,
+                    exchangeRate: '0.05',
+                    feeBps: null,
+                    feeAmount: null,
+                    expiresAt: '2025-07-01T00:00:00Z',
+                    createdAt: '2025-06-30T00:00:00Z',
+                    updatedAt: '2025-06-30T00:00:00Z',
+                });
+            }),
+        );
+
+        const quote = await client.getQuote({
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            // Both fromAmount and toAmount intentionally omitted
+            stellarAddress: 'GABCDEF',
+        });
+
+        expect(capturedBody).toBeDefined();
+        expect(capturedBody!.sourceAmount).toBe('');
+        expect(quote.id).toBe('quote-empty-amt');
+    });
+
+    it('falls back to destinationAmount when destinationAmountAfterFee is null', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                return HttpResponse.json({
+                    assets: [
+                        { symbol: 'CETES', identifier: 'CETES:GCRYUGD5ISSUER', name: 'CETES Token', currency: null, balance: null, image: null },
+                        { symbol: 'MXN', identifier: 'MXN', name: 'Mexican Peso', currency: 'MXN', balance: null, image: null },
+                    ],
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/quote`, () => {
+                return HttpResponse.json({
+                    quoteId: 'quote-no-after-fee',
+                    customerId: 'cust-1',
+                    blockchain: 'stellar',
+                    quoteAssets: { type: 'onramp', sourceAsset: 'MXN', targetAsset: 'CETES:GCRYUGD5ISSUER' },
+                    sourceAmount: '1000',
+                    destinationAmount: '50',
+                    destinationAmountAfterFee: null,
+                    exchangeRate: '0.05',
+                    feeBps: '100',
+                    feeAmount: null,
+                    expiresAt: '2025-07-01T00:00:00Z',
+                    createdAt: '2025-06-30T00:00:00Z',
+                    updatedAt: '2025-06-30T00:00:00Z',
+                });
+            }),
+        );
+
+        const quote = await client.getQuote({
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            fromAmount: '1000',
+            customerId: 'cust-1',
+            stellarAddress: 'GABCDEF',
+        });
+
+        expect(quote.toAmount).toBe('50'); // falls back to destinationAmount
+    });
+
+    it('defaults fee to 0 when feeAmount is null', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                return HttpResponse.json({
+                    assets: [
+                        { symbol: 'CETES', identifier: 'CETES:GCRYUGD5ISSUER', name: 'CETES Token', currency: null, balance: null, image: null },
+                        { symbol: 'MXN', identifier: 'MXN', name: 'Mexican Peso', currency: 'MXN', balance: null, image: null },
+                    ],
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/quote`, () => {
+                return HttpResponse.json({
+                    quoteId: 'quote-no-fee',
+                    customerId: 'cust-1',
+                    blockchain: 'stellar',
+                    quoteAssets: { type: 'onramp', sourceAsset: 'MXN', targetAsset: 'CETES:GCRYUGD5ISSUER' },
+                    sourceAmount: '1000',
+                    destinationAmount: '50',
+                    destinationAmountAfterFee: '50',
+                    exchangeRate: '0.05',
+                    feeBps: null,
+                    feeAmount: null,
+                    expiresAt: '2025-07-01T00:00:00Z',
+                    createdAt: '2025-06-30T00:00:00Z',
+                    updatedAt: '2025-06-30T00:00:00Z',
+                });
+            }),
+        );
+
+        const quote = await client.getQuote({
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            fromAmount: '1000',
+            customerId: 'cust-1',
+            stellarAddress: 'GABCDEF',
+        });
+
+        expect(quote.fee).toBe('0');
+    });
+
+    it('skips asset lookup when both currencies already contain colon (fast path)', async () => {
+        const client = createClient();
+        let assetsRequested = false;
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                assetsRequested = true;
+                return HttpResponse.json({ assets: [] });
+            }),
+            http.post(`${BASE_URL}/ramp/quote`, () => {
+                return HttpResponse.json({
+                    quoteId: 'quote-fast-path',
+                    customerId: 'cust-1',
+                    blockchain: 'stellar',
+                    quoteAssets: { type: 'offramp', sourceAsset: 'CETES:GCRYUGD5ISSUER', targetAsset: 'MXN:FIAT' },
+                    sourceAmount: '50',
+                    destinationAmount: '1000',
+                    destinationAmountAfterFee: '990',
+                    exchangeRate: '20',
+                    feeBps: '50',
+                    feeAmount: '10',
+                    expiresAt: '2025-07-01T00:00:00Z',
+                    createdAt: '2025-06-30T00:00:00Z',
+                    updatedAt: '2025-06-30T00:00:00Z',
+                });
+            }),
+        );
+
+        const quote = await client.getQuote({
+            fromCurrency: 'CETES:GCRYUGD5ISSUER',
+            toCurrency: 'MXN:FIAT',
+            fromAmount: '50',
+            customerId: 'cust-1',
+            stellarAddress: 'GABCDEF',
+        });
+
+        expect(assetsRequested).toBe(false); // should NOT call /ramp/assets
+        expect(quote.id).toBe('quote-fast-path');
+        expect(quote.fromCurrency).toBe('CETES:GCRYUGD5ISSUER');
+        expect(quote.toCurrency).toBe('MXN:FIAT');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// createOnRamp() edge cases
+// ---------------------------------------------------------------------------
+
+describe('createOnRamp() edge cases', () => {
+    it('proceeds with undefined bankAccountId when auto-fetch returns empty array', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-empty-banks/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [],
+                    totalItems: 0,
+                    pageSize: 10,
+                    pageNumber: 0,
+                    totalPages: 0,
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = await request.json() as Record<string, unknown>;
+                return HttpResponse.json({
+                    onramp: {
+                        orderId: 'order-no-bank-auto',
+                        depositClabe: '012345678901234567',
+                        depositAmount: '500.00',
+                    },
+                });
+            }),
+        );
+
+        const tx = await client.createOnRamp({
+            customerId: 'cust-empty-banks',
+            quoteId: 'quote-1',
+            stellarAddress: 'GABCDEF',
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            amount: '500',
+        });
+
+        expect(tx.id).toBe('order-no-bank-auto');
+        expect(capturedBody).toBeDefined();
+        expect(capturedBody!.bankAccountId).toBeUndefined();
+    });
+
+    it('does not auto-fetch bank accounts when no customerId provided', async () => {
+        const client = createClient();
+        let bankAccountsRequested = false;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/:customerId/bank-accounts`, () => {
+                bankAccountsRequested = true;
+                return HttpResponse.json({ items: [], totalItems: 0, pageSize: 10, pageNumber: 0, totalPages: 0 });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, () => {
+                return HttpResponse.json({
+                    onramp: {
+                        orderId: 'order-no-cust',
+                        depositClabe: '012345678901234567',
+                        depositAmount: '500.00',
+                    },
+                });
+            }),
+        );
+
+        const tx = await client.createOnRamp({
+            customerId: '',
+            quoteId: 'quote-1',
+            stellarAddress: 'GABCDEF',
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            amount: '500',
+        });
+
+        expect(tx.id).toBe('order-no-cust');
+        expect(bankAccountsRequested).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getFiatAccounts() edge cases
+// ---------------------------------------------------------------------------
+
+describe('getFiatAccounts() edge cases', () => {
+    it('returns empty array for successful response with empty items', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-no-items/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [],
+                    totalItems: 0,
+                    pageSize: 10,
+                    pageNumber: 0,
+                    totalPages: 0,
+                });
+            }),
+        );
+
+        const accounts = await client.getFiatAccounts('cust-no-items');
+        expect(accounts).toEqual([]);
+        expect(accounts).toHaveLength(0);
+    });
+
+    it('re-throws non-404 errors', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-500/bank-accounts`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'INTERNAL_ERROR', message: 'Database error' } },
+                    { status: 500 },
+                );
+            }),
+        );
+
+        try {
+            await client.getFiatAccounts('cust-500');
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.statusCode).toBe(500);
+            expect(anchorErr.code).toBe('INTERNAL_ERROR');
+            expect(anchorErr.message).toBe('Database error');
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getKycUrl() edge cases
+// ---------------------------------------------------------------------------
+
+describe('getKycUrl() edge cases', () => {
+    it('generates a random UUID for bankAccountId when none is provided', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, async ({ request }) => {
+                capturedBody = await request.json() as Record<string, unknown>;
+                return HttpResponse.json({
+                    presigned_url: 'https://onboard.test/kyc-no-bank',
+                });
+            }),
+        );
+
+        const url = await client.getKycUrl!('cust-1', 'GABCDEF');
+        expect(url).toBe('https://onboard.test/kyc-no-bank');
+        expect(capturedBody).toBeDefined();
+        // bankAccountId should be a valid UUID (auto-generated)
+        expect(capturedBody!.bankAccountId).toMatch(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        );
+        expect(capturedBody!.customerId).toBe('cust-1');
+        expect(capturedBody!.publicKey).toBe('GABCDEF');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// acceptAgreements()
+// ---------------------------------------------------------------------------
+
+describe('acceptAgreements()', () => {
+    it('happy path: posts to presigned URL and returns parsed JSON', async () => {
+        const client = createClient();
+        const presignedUrl = `${BASE_URL}/onboarding/presigned-abc`;
+
+        server.use(
+            http.post(presignedUrl, () => {
+                return HttpResponse.json({ success: true, agreements: ['tos', 'privacy'] });
+            }),
+        );
+
+        const result = await client.acceptAgreements(presignedUrl);
+        expect(result).toEqual({ success: true, agreements: ['tos', 'privacy'] });
+    });
+
+    it('throws AnchorError with AGREEMENT_ERROR on failure', async () => {
+        const client = createClient();
+        const presignedUrl = `${BASE_URL}/onboarding/presigned-fail`;
+
+        server.use(
+            http.post(presignedUrl, () => {
+                return new HttpResponse('Agreement expired', { status: 410 });
+            }),
+        );
+
+        try {
+            await client.acceptAgreements(presignedUrl);
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('AGREEMENT_ERROR');
+            expect(anchorErr.statusCode).toBe(410);
+            expect(anchorErr.message).toBe('Agreement expired');
+        }
+    });
+
+    it('falls back to status code message when error body is empty', async () => {
+        const client = createClient();
+        const presignedUrl = `${BASE_URL}/onboarding/presigned-empty`;
+
+        server.use(
+            http.post(presignedUrl, () => {
+                return new HttpResponse('', { status: 403 });
+            }),
+        );
+
+        try {
+            await client.acceptAgreements(presignedUrl);
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('AGREEMENT_ERROR');
+            expect(anchorErr.statusCode).toBe(403);
+            expect(anchorErr.message).toBe('Etherfuse API error: 403');
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// simulateFiatReceived()
+// ---------------------------------------------------------------------------
+
+describe('simulateFiatReceived()', () => {
+    it('happy path: returns 200 status code', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/order/fiat_received`, () => {
+                return HttpResponse.json({ success: true });
+            }),
+        );
+
+        const statusCode = await client.simulateFiatReceived('order-sim-1');
+        expect(statusCode).toBe(200);
+    });
+
+    it('returns non-200 status code on error without throwing', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/order/fiat_received`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'NOT_FOUND', message: 'Order not found' } },
+                    { status: 404 },
+                );
+            }),
+        );
+
+        const statusCode = await client.simulateFiatReceived('order-missing');
+        expect(statusCode).toBe(404);
+    });
+
+    it('returns 400 status code for bad request', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/order/fiat_received`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'BAD_REQUEST', message: 'Invalid order state' } },
+                    { status: 400 },
+                );
+            }),
+        );
+
+        const statusCode = await client.simulateFiatReceived('order-bad');
+        expect(statusCode).toBe(400);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getAssets()
+// ---------------------------------------------------------------------------
+
+describe('getAssets()', () => {
+    it('happy path: returns assets list', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                return HttpResponse.json({
+                    assets: [
+                        {
+                            symbol: 'CETES',
+                            identifier: 'CETES:GCRYUGD5ISSUER',
+                            name: 'CETES Token',
+                            currency: null,
+                            balance: '100',
+                            image: 'https://img.test/cetes.png',
+                        },
+                        {
+                            symbol: 'MXN',
+                            identifier: 'MXN',
+                            name: 'Mexican Peso',
+                            currency: 'MXN',
+                            balance: null,
+                            image: null,
+                        },
+                    ],
+                });
+            }),
+        );
+
+        const result = await client.getAssets('stellar', 'mxn', 'GABCDEF');
+        expect(result.assets).toHaveLength(2);
+        expect(result.assets[0].symbol).toBe('CETES');
+        expect(result.assets[0].identifier).toBe('CETES:GCRYUGD5ISSUER');
+        expect(result.assets[0].balance).toBe('100');
+        expect(result.assets[1].symbol).toBe('MXN');
+        expect(result.assets[1].currency).toBe('MXN');
+    });
+
+    it('returns empty assets array', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () => {
+                return HttpResponse.json({ assets: [] });
+            }),
+        );
+
+        const result = await client.getAssets();
+        expect(result.assets).toEqual([]);
+        expect(result.assets).toHaveLength(0);
+    });
+
+    it('builds query params correctly when all parameters are provided', async () => {
+        const client = createClient();
+        let capturedUrl = '';
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, ({ request }) => {
+                capturedUrl = request.url;
+                return HttpResponse.json({ assets: [] });
+            }),
+        );
+
+        await client.getAssets('stellar', 'mxn', 'GABCDEF');
+        const url = new URL(capturedUrl);
+        expect(url.searchParams.get('blockchain')).toBe('stellar');
+        expect(url.searchParams.get('currency')).toBe('mxn');
+        expect(url.searchParams.get('wallet')).toBe('GABCDEF');
+    });
+
+    it('omits query params when no arguments are given', async () => {
+        const client = createClient();
+        let capturedUrl = '';
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, ({ request }) => {
+                capturedUrl = request.url;
+                return HttpResponse.json({ assets: [] });
+            }),
+        );
+
+        await client.getAssets();
+        const url = new URL(capturedUrl);
+        expect(url.search).toBe('');
+    });
+});
