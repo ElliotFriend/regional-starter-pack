@@ -9,6 +9,7 @@ Developer experience testing for the portable anchor library. Each round has an 
 | [react-etherfuse](react-etherfuse/) | React + Vite           | Etherfuse            |  8/10   | `erasableSyntaxOnly` incompatibility, barrel index conflicts with selective copying, wallet helpers not advertised as portable, no non-SvelteKit guidance  |
 | [nextjs-blindpay](nextjs-blindpay/) | Next.js (App Router)   | BlindPay             |  9/10   | Composite customer ID is a leaky abstraction, `createCustomer()` stub behavior surprising, barrel index (confirmed), token config not portable (confirmed) |
 | [express-backend](express-backend/) | Express 5 + TypeScript | Etherfuse + BlindPay |  10/10  | No library issues. Express 5 param typing (`string \| string[]`) required a helper, but that's an Express issue.                                           |
+| [nextjs-etherfuse](nextjs-etherfuse/) | Next.js (App Router)   | Etherfuse            |  9/10   | Token info only accessible via instantiated client (minor ergonomics). All prior fixes validated — zero friction on copy, build, or API translation.        |
 
 ## Cross-Round Issue Tracker
 
@@ -26,7 +27,7 @@ Issues that appear across multiple rounds get tracked here to identify patterns.
 
 ## How a Round Works
 
-1. Scaffold a test project (Vite, Next.js, Express, etc.) inside `_<name>-test/` (gitignored)
+1. Scaffold a test project (Vite, Next.js, Express, etc.) into `sample-dx-project/` at the repo root (gitignored, wiped each round)
 2. A subagent reads the repo docs and source, copies what it needs, builds an app
 3. The subagent writes a `BUILD_JOURNAL.md` documenting every decision, friction point, and fix
 4. A supervisor reviews the output and writes a `DX_REPORT.md` with findings and recommendations

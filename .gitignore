@@ -26,5 +26,5 @@ vite.config.ts.timestamp-*
 .agents/
 .claude/
 
-# DX test project (temporary)
-/_*-test/
+# DX test projects (temporary, recreated each round)
+sample-dx-project/
