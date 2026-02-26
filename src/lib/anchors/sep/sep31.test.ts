@@ -487,3 +487,120 @@ describe('pollTransaction', () => {
         ).rejects.toThrow('Transaction polling timed out');
     });
 });
+
+// =============================================================================
+// Input validation behavior
+// =============================================================================
+
+describe('input validation behavior', () => {
+    it('postTransaction passes empty amount to API without validation', async () => {
+        server.use(
+            http.post(`${BASE}/transactions`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body.amount).toBe('');
+                return HttpResponse.json({
+                    id: 'txn-empty-amt',
+                    stellar_account_id: 'GANCHOR',
+                    stellar_memo_type: 'text',
+                    stellar_memo: 'memo',
+                });
+            }),
+        );
+
+        const result = await postTransaction(
+            BASE,
+            TOKEN,
+            {
+                amount: '',
+                asset_code: 'USDC',
+                sender_id: 'sender-1',
+                receiver_id: 'receiver-1',
+            },
+            fetch,
+        );
+        expect(result.id).toBe('txn-empty-amt');
+    });
+
+    it('postTransaction passes empty sender_id and receiver_id without validation', async () => {
+        server.use(
+            http.post(`${BASE}/transactions`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body.sender_id).toBe('');
+                expect(body.receiver_id).toBe('');
+                return HttpResponse.json({
+                    id: 'txn-empty-ids',
+                    stellar_account_id: 'GANCHOR',
+                    stellar_memo_type: 'text',
+                    stellar_memo: 'memo',
+                });
+            }),
+        );
+
+        const result = await postTransaction(
+            BASE,
+            TOKEN,
+            {
+                amount: '100',
+                asset_code: 'USDC',
+                sender_id: '',
+                receiver_id: '',
+            },
+            fetch,
+        );
+        expect(result.id).toBe('txn-empty-ids');
+    });
+
+    it('getTransaction passes empty transactionId to URL path', async () => {
+        // URL becomes /transactions/ with empty ID appended
+        server.use(
+            http.get(`${BASE}/transactions/`, ({ request }) => {
+                expect(request.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+                return HttpResponse.json({
+                    transaction: {
+                        id: '',
+                        status: 'pending_sender',
+                        stellar_account_id: 'G',
+                        stellar_memo_type: 'text',
+                        stellar_memo: 'm',
+                    },
+                });
+            }),
+        );
+
+        const result = await getTransaction(BASE, TOKEN, '', fetch);
+        expect(result.id).toBe('');
+    });
+
+    it('patchTransaction sends empty fields object', async () => {
+        server.use(
+            http.patch(`${BASE}/transactions/txn-001`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body.fields).toEqual({});
+                return HttpResponse.json({
+                    transaction: {
+                        id: 'txn-001',
+                        status: 'pending_receiver',
+                        stellar_account_id: 'G',
+                        stellar_memo_type: 'text',
+                        stellar_memo: 'm',
+                    },
+                });
+            }),
+        );
+
+        const result = await patchTransaction(BASE, TOKEN, 'txn-001', {}, fetch);
+        expect(result.id).toBe('txn-001');
+    });
+
+    it('putTransactionCallback passes invalid callback URL without validation', async () => {
+        server.use(
+            http.put(`${BASE}/transactions/txn-001/callback`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body.url).toBe('not-a-url');
+                return new HttpResponse(null, { status: 204 });
+            }),
+        );
+
+        await putTransactionCallback(BASE, TOKEN, 'txn-001', 'not-a-url', fetch);
+    });
+});

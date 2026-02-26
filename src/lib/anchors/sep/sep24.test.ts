@@ -448,3 +448,109 @@ describe('pollTransaction', () => {
         expect(result.status).toBe('refunded');
     });
 });
+
+// =============================================================================
+// Input validation behavior
+// =============================================================================
+
+describe('input validation behavior', () => {
+    it('deposit sends FormData with empty asset_code when empty string provided', async () => {
+        server.use(
+            http.post(`${BASE}/transactions/deposit/interactive`, async ({ request }) => {
+                const formData = await request.formData();
+                expect(formData.get('asset_code')).toBe('');
+                return HttpResponse.json({
+                    type: 'interactive_customer_info_needed',
+                    url: 'https://anchor.test/deposit',
+                    id: 'txn-empty-asset',
+                });
+            }),
+        );
+
+        const result = await deposit(BASE, TOKEN, { asset_code: '' }, fetch);
+        expect(result.id).toBe('txn-empty-asset');
+    });
+
+    it('deposit excludes undefined fields from FormData', async () => {
+        server.use(
+            http.post(`${BASE}/transactions/deposit/interactive`, async ({ request }) => {
+                const formData = await request.formData();
+                expect(formData.has('amount')).toBe(false);
+                expect(formData.has('memo')).toBe(false);
+                expect(formData.get('asset_code')).toBe('USDC');
+                return HttpResponse.json({
+                    type: 'interactive_customer_info_needed',
+                    url: 'https://anchor.test/deposit',
+                    id: 'txn-undef',
+                });
+            }),
+        );
+
+        await deposit(
+            BASE,
+            TOKEN,
+            { asset_code: 'USDC', amount: undefined, memo: undefined },
+            fetch,
+        );
+    });
+
+    it('withdraw sends FormData with empty asset_code', async () => {
+        server.use(
+            http.post(`${BASE}/transactions/withdraw/interactive`, async ({ request }) => {
+                const formData = await request.formData();
+                expect(formData.get('asset_code')).toBe('');
+                return HttpResponse.json({
+                    type: 'interactive_customer_info_needed',
+                    url: 'https://anchor.test/withdraw',
+                    id: 'txn-empty-wd',
+                });
+            }),
+        );
+
+        const result = await withdraw(BASE, TOKEN, { asset_code: '' }, fetch);
+        expect(result.id).toBe('txn-empty-wd');
+    });
+
+    it('getTransaction passes empty transactionId to URL', async () => {
+        server.use(
+            http.get(`${BASE}/transaction`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('id')).toBe('');
+                return HttpResponse.json({
+                    transaction: { id: '', kind: 'deposit', status: 'completed' },
+                });
+            }),
+        );
+
+        const result = await getTransaction(BASE, TOKEN, '', fetch);
+        expect(result.id).toBe('');
+    });
+
+    it('getTransactionByStellarId passes empty stellarId to URL', async () => {
+        server.use(
+            http.get(`${BASE}/transaction`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('stellar_transaction_id')).toBe('');
+                return HttpResponse.json({
+                    transaction: { id: 'txn-empty-stellar', kind: 'deposit', status: 'completed' },
+                });
+            }),
+        );
+
+        const result = await getTransactionByStellarId(BASE, TOKEN, '', fetch);
+        expect(result.id).toBe('txn-empty-stellar');
+    });
+
+    it('getTransactions passes empty asset_code in URL', async () => {
+        server.use(
+            http.get(`${BASE}/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('asset_code')).toBe('');
+                return HttpResponse.json({ transactions: [] });
+            }),
+        );
+
+        const result = await getTransactions(BASE, TOKEN, { asset_code: '' }, fetch);
+        expect(result).toEqual([]);
+    });
+});

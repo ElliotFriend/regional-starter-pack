@@ -2314,4 +2314,904 @@ describe('BlindPayClient', () => {
             expect(capturedBody!.network).toBe('stellar_testnet');
         });
     });
+
+    // =========================================================================
+    // input validation behavior
+    // =========================================================================
+
+    describe('input validation behavior', () => {
+        // -----------------------------------------------------------------
+        // createCustomer input validation
+        // -----------------------------------------------------------------
+
+        describe('createCustomer input validation', () => {
+            it('returns stub customer with empty ID regardless of input', async () => {
+                const client = createClient();
+                const result = await client.createCustomer({
+                    email: 'user@example.com',
+                    country: 'MX',
+                    publicKey: 'GABC123',
+                });
+
+                // createCustomer always returns an empty ID regardless of what input is provided
+                expect(result.id).toBe('');
+            });
+
+            it('returns stub customer with undefined email when email is not provided', async () => {
+                const client = createClient();
+                // Cast to bypass TypeScript's required email field — documents runtime behavior
+                const result = await client.createCustomer({} as { email: string });
+
+                expect(result.email).toBeUndefined();
+            });
+
+            it('does not make any API call', async () => {
+                // MSW is configured with onUnhandledRequest: 'error', so if createCustomer
+                // made any fetch request it would throw. This test passes because
+                // createCustomer is purely local — no network call.
+                const client = createClient();
+                const result = await client.createCustomer({
+                    email: 'test@example.com',
+                });
+
+                expect(result.kycStatus).toBe('not_started');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // getCustomer input validation
+        // -----------------------------------------------------------------
+
+        describe('getCustomer input validation', () => {
+            it('sends request with empty customerId in URL path', async () => {
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(apiUrl('/receivers/'), ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            id: '',
+                            email: 'u@example.com',
+                            kyc_status: 'verifying',
+                            type: 'individual',
+                            country: 'MX',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getCustomer('');
+
+                // The URL path contains the empty string appended after /receivers/
+                expect(capturedUrl).toContain('/receivers/');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // getQuote input validation
+        // -----------------------------------------------------------------
+
+        describe('getQuote input validation', () => {
+            it('sends NaN request_amount when fromAmount is non-numeric string', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pq_nan',
+                            sender_amount: 0,
+                            receiver_amount: 0,
+                            blindpay_quotation: 1,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    fromAmount: 'abc',
+                    resourceId: 'bw_w1',
+                });
+
+                // parseFloat("abc") = NaN, Math.round(NaN * 100) = NaN
+                // JSON.stringify converts NaN to null
+                expect(capturedBody!.request_amount).toBeNull();
+            });
+
+            it('falls through to "0" when fromAmount is empty string due to falsy OR chain', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pq_empty',
+                            sender_amount: 0,
+                            receiver_amount: 0,
+                            blindpay_quotation: 1,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    fromAmount: '',
+                    resourceId: 'bw_w1',
+                });
+
+                // Empty string "" is falsy, so (input.fromAmount || input.toAmount || '0')
+                // falls through to '0', producing toCents('0') = 0
+                expect(capturedBody!.request_amount).toBe(0);
+            });
+
+            it('handles negative fromAmount by converting to negative cents', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pq_neg',
+                            sender_amount: 0,
+                            receiver_amount: 0,
+                            blindpay_quotation: 1,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    fromAmount: '-50.00',
+                    resourceId: 'bw_w1',
+                });
+
+                // parseFloat("-50.00") = -50, Math.round(-50 * 100) = -5000
+                expect(capturedBody!.request_amount).toBe(-5000);
+            });
+
+            it('uses uppercase comparison for fiat currency detection', async () => {
+                let capturedPath = '';
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedPath = new URL(request.url).pathname;
+                        return HttpResponse.json({
+                            id: 'pq_lc',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            blindpay_quotation: 20,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'mxn',
+                    toCurrency: 'USDB',
+                    fromAmount: '100.00',
+                    resourceId: 'bw_w1',
+                });
+
+                // Lowercase "mxn" is uppercased to "MXN" for comparison, takes on-ramp path
+                expect(capturedPath).toContain('/payin-quotes');
+            });
+
+            it('passes empty resourceId as empty string blockchain_wallet_id', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pq_no_rid',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            blindpay_quotation: 20,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    fromAmount: '100.00',
+                    resourceId: '',
+                });
+
+                // Empty resourceId is passed through as empty string
+                expect(capturedBody!.blockchain_wallet_id).toBe('');
+            });
+
+            it('sends USDC token when toCurrency is USDC (on-ramp)', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pq_usdc_val',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            blindpay_quotation: 20,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    fromAmount: '100.00',
+                    resourceId: 'bw_w1',
+                });
+
+                expect(capturedBody!.token).toBe('USDC');
+            });
+
+            it('sends USDB token when toCurrency is not USDC (on-ramp)', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payin-quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pq_usdb_val',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            blindpay_quotation: 20,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'SOME_TOKEN',
+                    fromAmount: '100.00',
+                    resourceId: 'bw_w1',
+                });
+
+                // Any non-USDC toCurrency defaults to USDB
+                expect(capturedBody!.token).toBe('USDB');
+            });
+
+            it('sends USDC token when fromCurrency is USDC (off-ramp)', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/quotes'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'qu_usdc_val',
+                            sender_amount: 5000,
+                            receiver_amount: 100000,
+                            blindpay_quotation: 20,
+                            flat_fee: 0,
+                            partner_fee_amount: 0,
+                            billing_fee_amount: 0,
+                            expires_at: 1700000000000,
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getQuote({
+                    fromCurrency: 'USDC',
+                    toCurrency: 'MXN',
+                    fromAmount: '50.00',
+                    resourceId: 'ba_bank1',
+                });
+
+                expect(capturedBody!.token).toBe('USDC');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // createOnRamp input validation
+        // -----------------------------------------------------------------
+
+        describe('createOnRamp input validation', () => {
+            it('passes empty customerId without validation', async () => {
+                server.use(
+                    http.post(apiUrl('/payins/evm'), async () => {
+                        return HttpResponse.json({
+                            id: 'pi_val_001',
+                            payin_quote_id: 'pq_001',
+                            status: 'pending',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            currency: 'MXN',
+                            token: 'USDB',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                const result = await client.createOnRamp({
+                    customerId: '',
+                    quoteId: 'pq_001',
+                    stellarAddress: 'GABC123',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    amount: '100.00',
+                });
+
+                // Empty customerId is passed through to the response
+                expect(result.customerId).toBe('');
+            });
+
+            it('passes empty quoteId without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payins/evm'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pi_val_002',
+                            payin_quote_id: '',
+                            status: 'pending',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            currency: 'MXN',
+                            token: 'USDB',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.createOnRamp({
+                    customerId: 're_abc',
+                    quoteId: '',
+                    stellarAddress: 'GABC123',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    amount: '100.00',
+                });
+
+                // Empty quoteId is sent to the API without validation
+                expect(capturedBody!.payin_quote_id).toBe('');
+            });
+
+            it('does not send stellarAddress or amount to API', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payins/evm'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'pi_val_003',
+                            payin_quote_id: 'pq_001',
+                            status: 'pending',
+                            sender_amount: 10000,
+                            receiver_amount: 500,
+                            currency: 'MXN',
+                            token: 'USDB',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.createOnRamp({
+                    customerId: 're_abc',
+                    quoteId: 'pq_001',
+                    stellarAddress: 'GABC123',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDB',
+                    amount: '100.00',
+                });
+
+                // BlindPay createOnRamp only sends payin_quote_id; stellarAddress and amount
+                // from the input are not included in the API request body
+                expect(capturedBody).not.toBeNull();
+                expect(Object.keys(capturedBody!)).toEqual(['payin_quote_id']);
+                expect(capturedBody!).not.toHaveProperty('stellar_address');
+                expect(capturedBody!).not.toHaveProperty('stellarAddress');
+                expect(capturedBody!).not.toHaveProperty('amount');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // createOffRamp input validation
+        // -----------------------------------------------------------------
+
+        describe('createOffRamp input validation', () => {
+            it('passes empty stellarAddress to API as sender_wallet_address without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payouts/stellar/authorize'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction_hash: 'XDR_EMPTY_ADDR',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.createOffRamp({
+                    customerId: 're_abc',
+                    quoteId: 'qu_001',
+                    stellarAddress: '',
+                    fromCurrency: 'USDB',
+                    toCurrency: 'MXN',
+                    amount: '50.00',
+                    fiatAccountId: 'ba_abc',
+                });
+
+                // Empty stellarAddress is sent as empty sender_wallet_address
+                expect(capturedBody!.sender_wallet_address).toBe('');
+            });
+
+            it('passes empty quoteId to API without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payouts/stellar/authorize'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction_hash: 'XDR_EMPTY_QUOTE',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.createOffRamp({
+                    customerId: 're_abc',
+                    quoteId: '',
+                    stellarAddress: 'GABC123',
+                    fromCurrency: 'USDB',
+                    toCurrency: 'MXN',
+                    amount: '50.00',
+                    fiatAccountId: 'ba_abc',
+                });
+
+                // Empty quoteId is sent to the API without validation
+                expect(capturedBody!.quote_id).toBe('');
+            });
+
+            it('echoes input amount/currencies in response without API validation', async () => {
+                server.use(
+                    http.post(apiUrl('/payouts/stellar/authorize'), async () => {
+                        return HttpResponse.json({
+                            transaction_hash: 'XDR_ECHO',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                const result = await client.createOffRamp({
+                    customerId: 're_abc',
+                    quoteId: 'qu_001',
+                    stellarAddress: 'GABC123',
+                    fromCurrency: 'USDB',
+                    toCurrency: 'MXN',
+                    amount: '50.00',
+                    fiatAccountId: 'ba_abc',
+                });
+
+                // createOffRamp echoes input values directly in the response rather than
+                // using values from the API response
+                expect(result.fromAmount).toBe('50.00');
+                expect(result.fromCurrency).toBe('USDB');
+                expect(result.toCurrency).toBe('MXN');
+                expect(result.stellarAddress).toBe('GABC123');
+                expect(result.customerId).toBe('re_abc');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // registerFiatAccount input validation
+        // -----------------------------------------------------------------
+
+        describe('registerFiatAccount input validation', () => {
+            it('produces wrong institution code when CLABE is empty string', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/receivers/re_abc/bank-accounts'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'ba_empty_clabe',
+                            type: 'spei_bitso',
+                            name: 'Test',
+                            created_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.registerFiatAccount({
+                    customerId: 're_abc',
+                    account: {
+                        type: 'spei',
+                        clabe: '',
+                        beneficiary: 'Test',
+                    },
+                });
+
+                // slice(0, 3) on "" = "", so institution code = "40" + "" = "40"
+                expect(capturedBody!.spei_institution_code).toBe('40');
+            });
+
+            it('produces wrong institution code when CLABE is shorter than 3 chars', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/receivers/re_abc/bank-accounts'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'ba_short_clabe',
+                            type: 'spei_bitso',
+                            name: 'Test',
+                            created_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.registerFiatAccount({
+                    customerId: 're_abc',
+                    account: {
+                        type: 'spei',
+                        clabe: '1',
+                        beneficiary: 'Test',
+                    },
+                });
+
+                // slice(0, 3) on "1" = "1", so institution code = "40" + "1" = "401"
+                expect(capturedBody!.spei_institution_code).toBe('401');
+            });
+
+            it('passes non-numeric CLABE to API without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/receivers/re_abc/bank-accounts'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'ba_alpha_clabe',
+                            type: 'spei_bitso',
+                            name: 'Test',
+                            created_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.registerFiatAccount({
+                    customerId: 're_abc',
+                    account: {
+                        type: 'spei',
+                        clabe: 'ABC456789012345678',
+                        beneficiary: 'Test',
+                    },
+                });
+
+                // slice(0, 3) on "ABC456789012345678" = "ABC", institution code = "40ABC"
+                expect(capturedBody!.spei_institution_code).toBe('40ABC');
+                expect(capturedBody!.spei_clabe).toBe('ABC456789012345678');
+            });
+
+            it('passes empty beneficiary to both name fields without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/receivers/re_abc/bank-accounts'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'ba_no_beneficiary',
+                            type: 'spei_bitso',
+                            name: '',
+                            created_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.registerFiatAccount({
+                    customerId: 're_abc',
+                    account: {
+                        type: 'spei',
+                        clabe: '012345678901234567',
+                        beneficiary: '',
+                    },
+                });
+
+                // Empty beneficiary is passed to both name and beneficiary_name
+                expect(capturedBody!.name).toBe('');
+                expect(capturedBody!.beneficiary_name).toBe('');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // getKycUrl input validation
+        // -----------------------------------------------------------------
+
+        describe('getKycUrl input validation', () => {
+            it('ignores customerId, publicKey, and bankAccountId parameters', async () => {
+                server.use(
+                    http.post(externalApiUrl('/tos'), () => {
+                        return HttpResponse.json({
+                            url: 'https://app.blindpay.com/tos/ignored',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                // All three parameters are prefixed with _ in the implementation and unused
+                const result = await client.getKycUrl!(
+                    'any_customer_id',
+                    'any_public_key',
+                    'any_bank_account_id',
+                );
+
+                // The method delegates to generateTosUrl() which ignores all parameters
+                expect(result).toBe('https://app.blindpay.com/tos/ignored');
+            });
+
+            it('makes API call to external /tos endpoint regardless of input', async () => {
+                let capturedUrl = '';
+
+                server.use(
+                    http.post(externalApiUrl('/tos'), ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            url: 'https://app.blindpay.com/tos/check',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getKycUrl!('', '', '');
+
+                // Always hits the external /tos endpoint
+                expect(capturedUrl).toContain('/v1/e/instances/');
+                expect(capturedUrl).toContain('/tos');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // getKycStatus input validation
+        // -----------------------------------------------------------------
+
+        describe('getKycStatus input validation', () => {
+            it('ignores publicKey parameter entirely', async () => {
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(apiUrl('/receivers/re_kyc_check'), ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            id: 're_kyc_check',
+                            email: 'u@example.com',
+                            kyc_status: 'approved',
+                            type: 'individual',
+                            country: 'MX',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.getKycStatus('re_kyc_check', 'SOME_PUBLIC_KEY');
+
+                // The URL only contains the customerId, publicKey is not used
+                expect(capturedUrl).toContain('/receivers/re_kyc_check');
+                expect(capturedUrl).not.toContain('SOME_PUBLIC_KEY');
+            });
+
+            it('passes empty customerId to URL path without validation', async () => {
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(apiUrl('/receivers/'), ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            id: '',
+                            email: 'u@example.com',
+                            kyc_status: 'verifying',
+                            type: 'individual',
+                            country: 'MX',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                const result = await client.getKycStatus('');
+
+                // Empty customerId is placed directly in the URL path
+                expect(capturedUrl).toContain('/receivers/');
+                expect(result).toBe('pending');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // registerBlockchainWallet input validation
+        // -----------------------------------------------------------------
+
+        describe('registerBlockchainWallet input validation', () => {
+            it('passes empty receiverId to URL path without validation', async () => {
+                let capturedUrl = '';
+
+                server.use(
+                    http.post(apiUrl('/receivers//blockchain-wallets'), ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            id: 'bw_empty_receiver',
+                            name: 'Stellar Wallet',
+                            network: 'stellar_testnet',
+                            address: 'GABC123',
+                            created_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.registerBlockchainWallet('', 'GABC123');
+
+                // Empty receiverId creates a URL with double slash: /receivers//blockchain-wallets
+                expect(capturedUrl).toContain('/receivers//blockchain-wallets');
+            });
+
+            it('passes empty address to API body without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(
+                        apiUrl('/receivers/re_abc/blockchain-wallets'),
+                        async ({ request }) => {
+                            capturedBody = (await request.json()) as Record<string, unknown>;
+                            return HttpResponse.json({
+                                id: 'bw_empty_addr',
+                                name: 'Stellar Wallet',
+                                network: 'stellar_testnet',
+                                address: '',
+                                created_at: '2025-01-01T00:00:00Z',
+                            });
+                        },
+                    ),
+                );
+
+                const client = createClient();
+                await client.registerBlockchainWallet('re_abc', '');
+
+                // Empty address is sent directly to the API
+                expect(capturedBody!.address).toBe('');
+            });
+
+            it('defaults name to Stellar Wallet when name is undefined', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(
+                        apiUrl('/receivers/re_abc/blockchain-wallets'),
+                        async ({ request }) => {
+                            capturedBody = (await request.json()) as Record<string, unknown>;
+                            return HttpResponse.json({
+                                id: 'bw_default_name',
+                                name: 'Stellar Wallet',
+                                network: 'stellar_testnet',
+                                address: 'GABC123',
+                                created_at: '2025-01-01T00:00:00Z',
+                            });
+                        },
+                    ),
+                );
+
+                const client = createClient();
+                await client.registerBlockchainWallet('re_abc', 'GABC123');
+
+                // name || 'Stellar Wallet' defaults to 'Stellar Wallet' when undefined
+                expect(capturedBody!.name).toBe('Stellar Wallet');
+            });
+        });
+
+        // -----------------------------------------------------------------
+        // submitSignedPayout input validation
+        // -----------------------------------------------------------------
+
+        describe('submitSignedPayout input validation', () => {
+            it('passes empty signedTransaction to API without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payouts/stellar'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'po_empty_sig',
+                            quote_id: 'qu_001',
+                            status: 'processing',
+                            sender_wallet_address: 'GABC123',
+                            sender_amount: 5000,
+                            sender_currency: 'USDB',
+                            receiver_amount: 100000,
+                            receiver_currency: 'MXN',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.submitSignedPayout('qu_001', '', 'GABC123');
+
+                // Empty signedTransaction is sent directly to the API
+                expect(capturedBody!.signed_transaction).toBe('');
+            });
+
+            it('passes empty senderWalletAddress to API without validation', async () => {
+                let capturedBody: Record<string, unknown> | null = null;
+
+                server.use(
+                    http.post(apiUrl('/payouts/stellar'), async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            id: 'po_empty_addr',
+                            quote_id: 'qu_001',
+                            status: 'processing',
+                            sender_wallet_address: '',
+                            sender_amount: 5000,
+                            sender_currency: 'USDB',
+                            receiver_amount: 100000,
+                            receiver_currency: 'MXN',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                const client = createClient();
+                await client.submitSignedPayout('qu_001', 'SIGNED_XDR', '');
+
+                // Empty senderWalletAddress is sent directly to the API
+                expect(capturedBody!.sender_wallet_address).toBe('');
+            });
+        });
+    });
 });

@@ -449,3 +449,136 @@ describe('parseAssetId', () => {
         expect(() => parseAssetId('unknown:FOO')).toThrow('Unknown asset scheme: unknown');
     });
 });
+
+// =============================================================================
+// Input validation behavior
+// =============================================================================
+
+describe('input validation behavior', () => {
+    it('getPrice passes empty sell_asset and buy_asset without validation', async () => {
+        server.use(
+            http.get(`${BASE}/price`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('sell_asset')).toBe('');
+                expect(url.searchParams.get('buy_asset')).toBe('');
+                return HttpResponse.json({
+                    total_price: '1',
+                    price: '1',
+                    sell_amount: '0',
+                    buy_amount: '0',
+                    fee: { total: '0', asset: '' },
+                });
+            }),
+        );
+
+        const result = await getPrice(
+            BASE,
+            {
+                sell_asset: '',
+                buy_asset: '',
+                sell_amount: '100',
+                context: 'sep6',
+            },
+            fetch,
+        );
+        expect(result.total_price).toBe('1');
+    });
+
+    it('getPrice passes empty context without validation', async () => {
+        server.use(
+            http.get(`${BASE}/price`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('context')).toBe('');
+                return HttpResponse.json({
+                    total_price: '1',
+                    price: '1',
+                    sell_amount: '100',
+                    buy_amount: '100',
+                    fee: { total: '0', asset: 'a' },
+                });
+            }),
+        );
+
+        await getPrice(
+            BASE,
+            {
+                sell_asset: 'stellar:USDC:GBBD47',
+                buy_asset: 'iso4217:MXN',
+                sell_amount: '100',
+                context: '' as 'sep6',
+            },
+            fetch,
+        );
+    });
+
+    it('postQuote passes empty sell_asset to API without validation', async () => {
+        server.use(
+            http.post(`${BASE}/quote`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body.sell_asset).toBe('');
+                return HttpResponse.json({
+                    id: 'quote-empty',
+                    total_price: '1',
+                    price: '1',
+                    sell_amount: '0',
+                    buy_amount: '0',
+                    fee: { total: '0', asset: '' },
+                    expires_at: '2026-12-31T00:00:00Z',
+                });
+            }),
+        );
+
+        const result = await postQuote(
+            BASE,
+            TOKEN,
+            {
+                sell_asset: '',
+                buy_asset: 'iso4217:MXN',
+                sell_amount: '100',
+                context: 'sep6',
+            },
+            fetch,
+        );
+        expect(result.id).toBe('quote-empty');
+    });
+
+    it('getQuote passes empty quoteId to URL path', async () => {
+        // URL becomes /quote/ with empty ID appended
+        server.use(
+            http.get(`${BASE}/quote/`, ({ request }) => {
+                expect(request.headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+                return HttpResponse.json({
+                    id: '',
+                    total_price: '1',
+                    price: '1',
+                    sell_amount: '1',
+                    buy_amount: '1',
+                    fee: { total: '0', asset: 'a' },
+                    expires_at: '2026-12-31T00:00:00Z',
+                });
+            }),
+        );
+
+        const result = await getQuote(BASE, TOKEN, '', fetch);
+        expect(result.id).toBe('');
+    });
+
+    it('stellarAssetId with empty code and no issuer throws for non-native asset', () => {
+        // Empty string is not 'XLM' or 'native', so it requires an issuer
+        expect(() => stellarAssetId('')).toThrow('Issuer required for non-native asset ');
+    });
+
+    it('parseAssetId with empty string throws "Unknown asset scheme"', () => {
+        // ''.split(':') returns [''], so scheme is '' which is neither 'stellar' nor 'iso4217'
+        expect(() => parseAssetId('')).toThrow('Unknown asset scheme: ');
+    });
+
+    it('parseAssetId with single colon (no scheme or code) throws "Unknown asset scheme"', () => {
+        // ':'.split(':') returns ['', '', undefined-ish], scheme is ''
+        expect(() => parseAssetId(':')).toThrow('Unknown asset scheme: ');
+    });
+
+    it('fiatAssetId with empty code returns "iso4217:"', () => {
+        expect(fiatAssetId('')).toBe('iso4217:');
+    });
+});

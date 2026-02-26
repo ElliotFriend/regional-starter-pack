@@ -1859,4 +1859,878 @@ describe('AlfredPayClient', () => {
             ).resolves.toBeUndefined();
         });
     });
+
+    // ==========================================================================
+    // Input validation behavior (characterization tests)
+    // ==========================================================================
+
+    describe('input validation behavior', () => {
+        describe('createCustomer input validation', () => {
+            it('passes empty email to API without local validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/customers/create`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            customerId: 'cust-empty-email',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.createCustomer({ email: '' });
+
+                expect(capturedBody.email).toBe('');
+            });
+
+            it('passes invalid email format to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/customers/create`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            customerId: 'cust-bad-email',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.createCustomer({ email: 'not-an-email' });
+
+                expect(capturedBody.email).toBe('not-an-email');
+            });
+
+            it('does not send publicKey to API (not used by AlfredPay)', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/customers/create`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            customerId: 'cust-no-pk',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.createCustomer({
+                    email: 'user@example.com',
+                    publicKey: 'GABCDEF1234567890',
+                });
+
+                expect(capturedBody).not.toHaveProperty('publicKey');
+            });
+        });
+
+        describe('getCustomer input validation', () => {
+            it('sends request with empty string ID', async () => {
+                const client = createClient();
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(`${BASE_URL}/customers/`, ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            id: '',
+                            email: 'user@example.com',
+                            kyc_status: 'not_started',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.getCustomer('');
+
+                expect(capturedUrl).toContain('/customers/');
+            });
+
+            it('re-throws non-404 errors for empty ID', async () => {
+                const client = createClient();
+
+                server.use(
+                    http.get(`${BASE_URL}/customers/`, () => {
+                        return HttpResponse.json(
+                            { error: { code: 'BAD_REQUEST', message: 'Invalid ID' } },
+                            { status: 400 },
+                        );
+                    }),
+                );
+
+                try {
+                    await client.getCustomer('');
+                    expect.fail('Should have thrown');
+                } catch (error) {
+                    expect(error).toBeInstanceOf(AnchorError);
+                    const anchorError = error as AnchorError;
+                    expect(anchorError.statusCode).toBe(400);
+                }
+            });
+        });
+
+        describe('getCustomerByEmail input validation', () => {
+            it('sends request with empty email (URL-encoded)', async () => {
+                const client = createClient();
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(`${BASE_URL}/customers/find/*`, ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({ customerId: 'cust-empty-email' });
+                    }),
+                );
+
+                await client.getCustomerByEmail('');
+
+                // encodeURIComponent('') is '', so the URL contains /find//MX
+                expect(capturedUrl).toContain('/customers/find/');
+            });
+
+            it('sends request with email containing special characters', async () => {
+                const client = createClient();
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(
+                        `${BASE_URL}/customers/find/test%2Buser%40example.com/MX`,
+                        ({ request }) => {
+                            capturedUrl = request.url;
+                            return HttpResponse.json({ customerId: 'cust-special' });
+                        },
+                    ),
+                );
+
+                await client.getCustomerByEmail('test+user@example.com');
+
+                // encodeURIComponent('test+user@example.com') produces 'test%2Buser%40example.com'
+                expect(capturedUrl).toContain('test%2Buser%40example.com');
+            });
+        });
+
+        describe('getQuote input validation', () => {
+            it('omits fromAmount from request body when it is undefined', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            quoteId: 'quote-no-from',
+                            fromCurrency: 'MXN',
+                            toCurrency: 'USDC',
+                            fromAmount: '0.00',
+                            toAmount: '50.00',
+                            rate: '0.055',
+                            expiration: '2025-01-01T01:00:00Z',
+                            fees: [],
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                        });
+                    }),
+                );
+
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    toAmount: '50.00',
+                });
+
+                expect(capturedBody).not.toHaveProperty('fromAmount');
+            });
+
+            it('omits toAmount from request body when it is undefined', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            quoteId: 'quote-no-to',
+                            fromCurrency: 'MXN',
+                            toCurrency: 'USDC',
+                            fromAmount: '1000.00',
+                            toAmount: '55.00',
+                            rate: '0.055',
+                            expiration: '2025-01-01T01:00:00Z',
+                            fees: [],
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                        });
+                    }),
+                );
+
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    fromAmount: '1000.00',
+                });
+
+                expect(capturedBody).not.toHaveProperty('toAmount');
+            });
+
+            it('passes non-numeric fromAmount to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            quoteId: 'quote-nan',
+                            fromCurrency: 'MXN',
+                            toCurrency: 'USDC',
+                            fromAmount: 'abc',
+                            toAmount: '0.00',
+                            rate: '0.055',
+                            expiration: '2025-01-01T01:00:00Z',
+                            fees: [],
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                        });
+                    }),
+                );
+
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    fromAmount: 'abc',
+                });
+
+                expect(capturedBody.fromAmount).toBe('abc');
+            });
+
+            it('passes negative fromAmount to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            quoteId: 'quote-neg',
+                            fromCurrency: 'MXN',
+                            toCurrency: 'USDC',
+                            fromAmount: '-100',
+                            toAmount: '0.00',
+                            rate: '0.055',
+                            expiration: '2025-01-01T01:00:00Z',
+                            fees: [],
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                        });
+                    }),
+                );
+
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    fromAmount: '-100',
+                });
+
+                expect(capturedBody.fromAmount).toBe('-100');
+            });
+
+            it('passes zero fromAmount to API — "0" is a non-empty string so it is included', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            quoteId: 'quote-zero',
+                            fromCurrency: 'MXN',
+                            toCurrency: 'USDC',
+                            fromAmount: '0',
+                            toAmount: '0.00',
+                            rate: '0.055',
+                            expiration: '2025-01-01T01:00:00Z',
+                            fees: [],
+                            chain: 'XLM',
+                            paymentMethodType: 'SPEI',
+                        });
+                    }),
+                );
+
+                await client.getQuote({
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    fromAmount: '0',
+                });
+
+                // "0" is a non-empty string (truthy in JS), so it is included in the request body
+                expect(capturedBody).toHaveProperty('fromAmount', '0');
+            });
+        });
+
+        describe('createOnRamp input validation', () => {
+            it('passes empty stellarAddress as depositAddress without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/onramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction: {
+                                transactionId: 'onramp-empty-addr',
+                                customerId: 'cust-123',
+                                quoteId: 'quote-001',
+                                status: 'CREATED',
+                                fromAmount: '1000.00',
+                                fromCurrency: 'MXN',
+                                toAmount: '55.00',
+                                toCurrency: 'USDC',
+                                depositAddress: '',
+                                chain: 'XLM',
+                                paymentMethodType: 'SPEI',
+                                txHash: null,
+                                memo: '',
+                                createdAt: '2025-01-01T00:00:00Z',
+                                updatedAt: '2025-01-01T00:00:00Z',
+                            },
+                            fiatPaymentInstructions: {
+                                paymentType: 'SPEI',
+                                clabe: '012345678901234567',
+                                reference: 'REF-001',
+                                expirationDate: '2025-01-01T01:00:00Z',
+                                paymentDescription: 'Fund on-ramp',
+                                bankName: 'STP',
+                                accountHolderName: 'Alfred Pay SA',
+                            },
+                        });
+                    }),
+                );
+
+                await client.createOnRamp({
+                    customerId: 'cust-123',
+                    quoteId: 'quote-001',
+                    stellarAddress: '',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    amount: '1000.00',
+                });
+
+                expect(capturedBody.depositAddress).toBe('');
+            });
+
+            it('passes non-numeric amount to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/onramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction: {
+                                transactionId: 'onramp-nan-amt',
+                                customerId: 'cust-123',
+                                quoteId: 'quote-001',
+                                status: 'CREATED',
+                                fromAmount: 'abc',
+                                fromCurrency: 'MXN',
+                                toAmount: '0.00',
+                                toCurrency: 'USDC',
+                                depositAddress: 'GABCD1234STELLAR',
+                                chain: 'XLM',
+                                paymentMethodType: 'SPEI',
+                                txHash: null,
+                                memo: '',
+                                createdAt: '2025-01-01T00:00:00Z',
+                                updatedAt: '2025-01-01T00:00:00Z',
+                            },
+                            fiatPaymentInstructions: {
+                                paymentType: 'SPEI',
+                                clabe: '012345678901234567',
+                                reference: 'REF-001',
+                                expirationDate: '2025-01-01T01:00:00Z',
+                                paymentDescription: 'Fund on-ramp',
+                                bankName: 'STP',
+                                accountHolderName: 'Alfred Pay SA',
+                            },
+                        });
+                    }),
+                );
+
+                await client.createOnRamp({
+                    customerId: 'cust-123',
+                    quoteId: 'quote-001',
+                    stellarAddress: 'GABCD1234STELLAR',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    amount: 'abc',
+                });
+
+                expect(capturedBody.amount).toBe('abc');
+            });
+
+            it('passes empty customerId to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/onramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction: {
+                                transactionId: 'onramp-empty-cust',
+                                customerId: '',
+                                quoteId: 'quote-001',
+                                status: 'CREATED',
+                                fromAmount: '1000.00',
+                                fromCurrency: 'MXN',
+                                toAmount: '55.00',
+                                toCurrency: 'USDC',
+                                depositAddress: 'GABCD1234STELLAR',
+                                chain: 'XLM',
+                                paymentMethodType: 'SPEI',
+                                txHash: null,
+                                memo: '',
+                                createdAt: '2025-01-01T00:00:00Z',
+                                updatedAt: '2025-01-01T00:00:00Z',
+                            },
+                            fiatPaymentInstructions: {
+                                paymentType: 'SPEI',
+                                clabe: '012345678901234567',
+                                reference: 'REF-001',
+                                expirationDate: '2025-01-01T01:00:00Z',
+                                paymentDescription: 'Fund on-ramp',
+                                bankName: 'STP',
+                                accountHolderName: 'Alfred Pay SA',
+                            },
+                        });
+                    }),
+                );
+
+                await client.createOnRamp({
+                    customerId: '',
+                    quoteId: 'quote-001',
+                    stellarAddress: 'GABCD1234STELLAR',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    amount: '1000.00',
+                });
+
+                expect(capturedBody.customerId).toBe('');
+            });
+
+            it('passes empty quoteId to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/onramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction: {
+                                transactionId: 'onramp-empty-quote',
+                                customerId: 'cust-123',
+                                quoteId: '',
+                                status: 'CREATED',
+                                fromAmount: '1000.00',
+                                fromCurrency: 'MXN',
+                                toAmount: '55.00',
+                                toCurrency: 'USDC',
+                                depositAddress: 'GABCD1234STELLAR',
+                                chain: 'XLM',
+                                paymentMethodType: 'SPEI',
+                                txHash: null,
+                                memo: '',
+                                createdAt: '2025-01-01T00:00:00Z',
+                                updatedAt: '2025-01-01T00:00:00Z',
+                            },
+                            fiatPaymentInstructions: {
+                                paymentType: 'SPEI',
+                                clabe: '012345678901234567',
+                                reference: 'REF-001',
+                                expirationDate: '2025-01-01T01:00:00Z',
+                                paymentDescription: 'Fund on-ramp',
+                                bankName: 'STP',
+                                accountHolderName: 'Alfred Pay SA',
+                            },
+                        });
+                    }),
+                );
+
+                await client.createOnRamp({
+                    customerId: 'cust-123',
+                    quoteId: '',
+                    stellarAddress: 'GABCD1234STELLAR',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    amount: '1000.00',
+                });
+
+                expect(capturedBody.quoteId).toBe('');
+            });
+
+            it('sends empty string memo when memo is undefined', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/onramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transaction: {
+                                transactionId: 'onramp-no-memo-val',
+                                customerId: 'cust-123',
+                                quoteId: 'quote-001',
+                                status: 'CREATED',
+                                fromAmount: '1000.00',
+                                fromCurrency: 'MXN',
+                                toAmount: '55.00',
+                                toCurrency: 'USDC',
+                                depositAddress: 'GABCD1234STELLAR',
+                                chain: 'XLM',
+                                paymentMethodType: 'SPEI',
+                                txHash: null,
+                                memo: '',
+                                createdAt: '2025-01-01T00:00:00Z',
+                                updatedAt: '2025-01-01T00:00:00Z',
+                            },
+                            fiatPaymentInstructions: {
+                                paymentType: 'SPEI',
+                                clabe: '012345678901234567',
+                                reference: 'REF-001',
+                                expirationDate: '2025-01-01T01:00:00Z',
+                                paymentDescription: 'Fund on-ramp',
+                                bankName: 'STP',
+                                accountHolderName: 'Alfred Pay SA',
+                            },
+                        });
+                    }),
+                );
+
+                await client.createOnRamp({
+                    customerId: 'cust-123',
+                    quoteId: 'quote-001',
+                    stellarAddress: 'GABCD1234STELLAR',
+                    fromCurrency: 'MXN',
+                    toCurrency: 'USDC',
+                    amount: '1000.00',
+                    // memo intentionally omitted
+                });
+
+                expect(capturedBody.memo).toBe('');
+            });
+        });
+
+        describe('createOffRamp input validation', () => {
+            it('passes empty fiatAccountId to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/offramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transactionId: 'offramp-empty-fiat',
+                            customerId: 'cust-123',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-01T00:00:00Z',
+                            fromCurrency: 'USDC',
+                            toCurrency: 'MXN',
+                            fromAmount: '50.00',
+                            toAmount: '900.00',
+                            chain: 'XLM',
+                            status: 'CREATED',
+                            fiatAccountId: '',
+                            depositAddress: 'GXYZ9876STELLAR',
+                            expiration: '2025-01-01T02:00:00Z',
+                            memo: 'memo',
+                        });
+                    }),
+                );
+
+                await client.createOffRamp({
+                    customerId: 'cust-123',
+                    quoteId: 'quote-002',
+                    stellarAddress: 'GXYZ9876STELLAR',
+                    fromCurrency: 'USDC',
+                    toCurrency: 'MXN',
+                    amount: '50.00',
+                    fiatAccountId: '',
+                });
+
+                expect(capturedBody.fiatAccountId).toBe('');
+            });
+
+            it('passes empty stellarAddress without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/offramp`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            transactionId: 'offramp-empty-addr',
+                            customerId: 'cust-123',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-01T00:00:00Z',
+                            fromCurrency: 'USDC',
+                            toCurrency: 'MXN',
+                            fromAmount: '50.00',
+                            toAmount: '900.00',
+                            chain: 'XLM',
+                            status: 'CREATED',
+                            fiatAccountId: 'fiat-001',
+                            depositAddress: '',
+                            expiration: '2025-01-01T02:00:00Z',
+                            memo: 'memo',
+                        });
+                    }),
+                );
+
+                await client.createOffRamp({
+                    customerId: 'cust-123',
+                    quoteId: 'quote-002',
+                    stellarAddress: '',
+                    fromCurrency: 'USDC',
+                    toCurrency: 'MXN',
+                    amount: '50.00',
+                    fiatAccountId: 'fiat-001',
+                });
+
+                expect(capturedBody.originAddress).toBe('');
+            });
+        });
+
+        describe('registerFiatAccount input validation', () => {
+            it('passes empty CLABE to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/fiatAccounts`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            fiatAccountId: 'fiat-empty-clabe',
+                            customerId: 'cust-123',
+                            type: 'SPEI',
+                            status: 'ACTIVE',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.registerFiatAccount({
+                    customerId: 'cust-123',
+                    account: {
+                        type: 'spei',
+                        clabe: '',
+                        beneficiary: 'Juan Perez',
+                    },
+                });
+
+                const fields = capturedBody.fiatAccountFields as Record<string, unknown>;
+                expect(fields.accountNumber).toBe('');
+                expect(fields.networkIdentifier).toBe('');
+            });
+
+            it('passes short CLABE to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/fiatAccounts`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            fiatAccountId: 'fiat-short-clabe',
+                            customerId: 'cust-123',
+                            type: 'SPEI',
+                            status: 'ACTIVE',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.registerFiatAccount({
+                    customerId: 'cust-123',
+                    account: {
+                        type: 'spei',
+                        clabe: '123',
+                        beneficiary: 'Juan Perez',
+                    },
+                });
+
+                const fields = capturedBody.fiatAccountFields as Record<string, unknown>;
+                expect(fields.accountNumber).toBe('123');
+                expect(fields.networkIdentifier).toBe('123');
+            });
+
+            it('passes non-numeric CLABE to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/fiatAccounts`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            fiatAccountId: 'fiat-alpha-clabe',
+                            customerId: 'cust-123',
+                            type: 'SPEI',
+                            status: 'ACTIVE',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.registerFiatAccount({
+                    customerId: 'cust-123',
+                    account: {
+                        type: 'spei',
+                        clabe: 'not-a-number-clabe',
+                        beneficiary: 'Juan Perez',
+                    },
+                });
+
+                const fields = capturedBody.fiatAccountFields as Record<string, unknown>;
+                expect(fields.accountNumber).toBe('not-a-number-clabe');
+                expect(fields.networkIdentifier).toBe('not-a-number-clabe');
+            });
+
+            it('passes empty beneficiary to API without validation', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/fiatAccounts`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            fiatAccountId: 'fiat-empty-bene',
+                            customerId: 'cust-123',
+                            type: 'SPEI',
+                            status: 'ACTIVE',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.registerFiatAccount({
+                    customerId: 'cust-123',
+                    account: {
+                        type: 'spei',
+                        clabe: '012345678901234567',
+                        beneficiary: '',
+                    },
+                });
+
+                const fields = capturedBody.fiatAccountFields as Record<string, unknown>;
+                expect(fields.accountName).toBe('');
+                expect(fields.accountAlias).toBe('');
+                const metadata = fields.metadata as Record<string, unknown>;
+                expect(metadata.accountHolderName).toBe('');
+            });
+
+            it('uses empty string when bankName is undefined', async () => {
+                const client = createClient();
+                let capturedBody: Record<string, unknown> = {};
+
+                server.use(
+                    http.post(`${BASE_URL}/fiatAccounts`, async ({ request }) => {
+                        capturedBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            fiatAccountId: 'fiat-no-bank',
+                            customerId: 'cust-123',
+                            type: 'SPEI',
+                            status: 'ACTIVE',
+                            createdAt: '2025-01-01T00:00:00Z',
+                        });
+                    }),
+                );
+
+                await client.registerFiatAccount({
+                    customerId: 'cust-123',
+                    account: {
+                        type: 'spei',
+                        clabe: '012345678901234567',
+                        beneficiary: 'Juan Perez',
+                        // bankName intentionally omitted
+                    },
+                });
+
+                const fields = capturedBody.fiatAccountFields as Record<string, unknown>;
+                expect(fields.accountBankCode).toBe('');
+            });
+        });
+
+        describe('getKycUrl input validation', () => {
+            it('passes empty customerId to URL without validation', async () => {
+                const client = createClient();
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(new RegExp(`${BASE_URL}/customers/.*/kyc/.*/url`), ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            verification_url: 'https://kyc.alfredpay.io/verify/empty',
+                            submissionId: 'sub-empty',
+                        });
+                    }),
+                );
+
+                await client.getKycUrl('');
+
+                // The client builds URL as `/customers/${customerId}/kyc/${country}/url`
+                // With empty customerId, this produces `/customers//kyc/MX/url`
+                expect(capturedUrl).toContain('/customers/');
+                expect(capturedUrl).toContain('/kyc/MX/url');
+            });
+        });
+
+        describe('getKycStatus input validation', () => {
+            it('does not use publicKey parameter', async () => {
+                const client = createClient();
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(`${BASE_URL}/customers/cust-123`, ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json({
+                            id: 'cust-123',
+                            email: 'user@example.com',
+                            kyc_status: 'approved',
+                            created_at: '2025-01-01T00:00:00Z',
+                            updated_at: '2025-01-02T00:00:00Z',
+                        });
+                    }),
+                );
+
+                // AlfredPayClient.getKycStatus only accepts customerId — it doesn't even
+                // have a publicKey parameter (unlike the base Anchor interface).
+                // It delegates entirely to getCustomer(customerId).
+                const status = await client.getKycStatus('cust-123');
+
+                expect(status).toBe('approved');
+                expect(capturedUrl).toContain('/customers/cust-123');
+            });
+        });
+
+        describe('getFiatAccounts input validation', () => {
+            it('passes empty customerId in query string without validation', async () => {
+                const client = createClient();
+                let capturedUrl = '';
+
+                server.use(
+                    http.get(`${BASE_URL}/fiatAccounts`, ({ request }) => {
+                        capturedUrl = request.url;
+                        return HttpResponse.json([]);
+                    }),
+                );
+
+                await client.getFiatAccounts('');
+
+                const url = new URL(capturedUrl);
+                expect(url.searchParams.get('customerId')).toBe('');
+            });
+        });
+    });
 });

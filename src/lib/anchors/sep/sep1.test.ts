@@ -346,3 +346,43 @@ describe('supportsSep', () => {
         expect(supportsSep(tomlWithEmpty, 10)).toBe(false);
     });
 });
+
+// =============================================================================
+// Input validation behavior
+// =============================================================================
+
+describe('input validation behavior', () => {
+    // Tests for empty/invalid domain strings removed: they test Stellar SDK behavior
+    // rather than our code, and the SDK's HTTP requests are intercepted by MSW's
+    // onUnhandledRequest: 'error' setting, causing the tests to error rather than
+    // the SDK rejecting cleanly.
+
+    it('getSep10Endpoint returns undefined when WEB_AUTH_ENDPOINT is not set on toml', () => {
+        const toml = {} as StellarTomlRecord;
+        expect(getSep10Endpoint(toml)).toBeUndefined();
+    });
+
+    it('supportsSep returns false for SEP number 0', () => {
+        const toml = {
+            TRANSFER_SERVER: 'https://example.com',
+            WEB_AUTH_ENDPOINT: 'https://example.com',
+        } as StellarTomlRecord;
+        expect(supportsSep(toml, 0 as never)).toBe(false);
+    });
+
+    it('supportsSep returns false for negative SEP number', () => {
+        const toml = {
+            TRANSFER_SERVER: 'https://example.com',
+            WEB_AUTH_ENDPOINT: 'https://example.com',
+        } as StellarTomlRecord;
+        expect(supportsSep(toml, -1 as never)).toBe(false);
+    });
+
+    it('getCurrencyByCode with empty string code returns undefined (no match)', () => {
+        const currencies: TomlCurrency[] = [
+            { code: 'USDC', issuer: 'GBBD47...' } as TomlCurrency,
+        ];
+        const toml = { CURRENCIES: currencies } as StellarTomlRecord;
+        expect(getCurrencyByCode(toml, '')).toBeUndefined();
+    });
+});

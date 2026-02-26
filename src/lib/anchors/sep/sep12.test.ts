@@ -242,3 +242,69 @@ describe('deleteCustomer', () => {
         expect(err.message).toBe('Customer not found');
     });
 });
+
+// =============================================================================
+// Input validation behavior
+// =============================================================================
+
+describe('input validation behavior', () => {
+    it('getCustomer sends request with no query params when params object is empty', async () => {
+        server.use(
+            http.get(`${KYC_SERVER}/customer`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.has('id')).toBe(false);
+                expect(url.searchParams.has('account')).toBe(false);
+                expect(url.searchParams.has('memo')).toBe(false);
+                expect(url.searchParams.has('memo_type')).toBe(false);
+                expect(url.searchParams.has('type')).toBe(false);
+                expect(url.searchParams.has('lang')).toBe(false);
+                return HttpResponse.json({ status: 'NEEDS_INFO' as const });
+            }),
+        );
+
+        const result = await getCustomer(KYC_SERVER, TOKEN, {});
+        expect(result.status).toBe('NEEDS_INFO');
+    });
+
+    it('putCustomer sends empty JSON body when data has only undefined values', async () => {
+        server.use(
+            http.put(`${KYC_SERVER}/customer`, async ({ request }) => {
+                expect(request.headers.get('Content-Type')).toBe('application/json');
+                const body = (await request.json()) as Record<string, string>;
+                // undefined values are skipped, so the body should be empty
+                expect(Object.keys(body)).toHaveLength(0);
+                return HttpResponse.json({ id: 'cust-empty' });
+            }),
+        );
+
+        const result = await putCustomer(KYC_SERVER, TOKEN, {
+            first_name: undefined,
+            last_name: undefined,
+        });
+        expect(result.id).toBe('cust-empty');
+    });
+
+    it('deleteCustomer sends empty body when request is undefined (defaults)', async () => {
+        server.use(
+            http.delete(`${KYC_SERVER}/customer`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, string>;
+                expect(Object.keys(body)).toHaveLength(0);
+                return new HttpResponse(null, { status: 200 });
+            }),
+        );
+
+        await expect(deleteCustomer(KYC_SERVER, TOKEN)).resolves.toBeUndefined();
+    });
+
+    it('deleteCustomer sends empty body when request is empty object', async () => {
+        server.use(
+            http.delete(`${KYC_SERVER}/customer`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, string>;
+                expect(Object.keys(body)).toHaveLength(0);
+                return new HttpResponse(null, { status: 200 });
+            }),
+        );
+
+        await expect(deleteCustomer(KYC_SERVER, TOKEN, {})).resolves.toBeUndefined();
+    });
+});

@@ -403,3 +403,131 @@ describe('getTransactions', () => {
         ).rejects.toThrow(SepApiError);
     });
 });
+
+// =============================================================================
+// Input validation behavior
+// =============================================================================
+
+describe('input validation behavior', () => {
+    it('deposit passes empty asset_code to API without validation', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/deposit`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('asset_code')).toBe('');
+                return HttpResponse.json({ how: 'instructions', id: 'dep-empty' });
+            }),
+        );
+
+        const result = await deposit(TRANSFER_SERVER, TOKEN, {
+            asset_code: '',
+            account: 'GABC123',
+        });
+        expect(result.id).toBe('dep-empty');
+    });
+
+    it('deposit excludes undefined fields from query params', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/deposit`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.has('memo')).toBe(false);
+                expect(url.searchParams.has('type')).toBe(false);
+                expect(url.searchParams.get('asset_code')).toBe('USDC');
+                expect(url.searchParams.get('account')).toBe('GABC123');
+                return HttpResponse.json({ how: 'instructions', id: 'dep-undef' });
+            }),
+        );
+
+        await deposit(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            account: 'GABC123',
+            memo: undefined,
+            type: undefined,
+        });
+    });
+
+    it('deposit converts non-string values to strings via String()', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/deposit`, ({ request }) => {
+                const url = new URL(request.url);
+                // Boolean value gets converted to "true"
+                expect(url.searchParams.get('claimable_balance_supported')).toBe('true');
+                return HttpResponse.json({ how: 'instructions', id: 'dep-conv' });
+            }),
+        );
+
+        await deposit(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            account: 'GABC123',
+            claimable_balance_supported: true,
+        });
+    });
+
+    it('withdraw passes empty type to API without validation', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/withdraw`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('type')).toBe('');
+                return HttpResponse.json({
+                    account_id: 'GANCHOR',
+                    id: 'wd-empty-type',
+                });
+            }),
+        );
+
+        const result = await withdraw(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            type: '',
+        });
+        expect(result.id).toBe('wd-empty-type');
+    });
+
+    it('getTransaction passes empty transactionId to URL', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transaction`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('id')).toBe('');
+                return HttpResponse.json({
+                    transaction: { id: '', kind: 'deposit', status: 'completed' },
+                });
+            }),
+        );
+
+        const result = await getTransaction(TRANSFER_SERVER, TOKEN, '');
+        expect(result.id).toBe('');
+    });
+
+    it('getTransactions passes numeric limit as string in query params', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('limit')).toBe('10');
+                return HttpResponse.json({ transactions: [] });
+            }),
+        );
+
+        await getTransactions(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+            limit: 10,
+        });
+    });
+
+    it('getTransactions omits undefined optional params from query', async () => {
+        server.use(
+            http.get(`${TRANSFER_SERVER}/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('asset_code')).toBe('USDC');
+                expect(url.searchParams.has('kind')).toBe(false);
+                expect(url.searchParams.has('limit')).toBe(false);
+                expect(url.searchParams.has('no_older_than')).toBe(false);
+                expect(url.searchParams.has('paging_id')).toBe(false);
+                expect(url.searchParams.has('lang')).toBe(false);
+                expect(url.searchParams.has('account')).toBe(false);
+                return HttpResponse.json({ transactions: [] });
+            }),
+        );
+
+        await getTransactions(TRANSFER_SERVER, TOKEN, {
+            asset_code: 'USDC',
+        });
+    });
+});
