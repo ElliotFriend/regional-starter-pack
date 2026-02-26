@@ -60,8 +60,8 @@ export async function deposit(
 ): Promise<Sep24InteractiveResponse> {
     const url = `${transferServer}/transactions/deposit/interactive`;
 
-    // Build form data
-    const formData = new URLSearchParams();
+    // Build multipart form data (per SEP-24 spec)
+    const formData = new FormData();
     Object.entries(request).forEach(([key, value]) => {
         if (value !== undefined) {
             formData.set(key, String(value));
@@ -70,11 +70,8 @@ export async function deposit(
 
     const response = await fetchFn(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            ...createAuthHeaders(token),
-        },
-        body: formData.toString(),
+        headers: createAuthHeaders(token),
+        body: formData,
     });
 
     if (!response.ok) {
@@ -106,8 +103,8 @@ export async function withdraw(
 ): Promise<Sep24InteractiveResponse> {
     const url = `${transferServer}/transactions/withdraw/interactive`;
 
-    // Build form data
-    const formData = new URLSearchParams();
+    // Build multipart form data (per SEP-24 spec)
+    const formData = new FormData();
     Object.entries(request).forEach(([key, value]) => {
         if (value !== undefined) {
             formData.set(key, String(value));
@@ -116,11 +113,8 @@ export async function withdraw(
 
     const response = await fetchFn(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            ...createAuthHeaders(token),
-        },
-        body: formData.toString(),
+        headers: createAuthHeaders(token),
+        body: formData,
     });
 
     if (!response.ok) {
