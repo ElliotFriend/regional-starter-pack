@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../../test-setup';
 import { EtherfuseClient } from './client';
 import { AnchorError } from '../types';
+import type { EtherfuseKycIdentityRequest, EtherfuseKycDocumentRequest } from './types';
 
 const BASE_URL = 'http://etherfuse.test';
 const API_KEY = 'test-api-key';
@@ -2542,5 +2543,1031 @@ describe('input validation behavior', () => {
             expect(capturedUrl).toContain('/ramp/customer/');
             expect(capturedUrl).toContain('/bank-accounts');
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Client static properties and config
+// ---------------------------------------------------------------------------
+
+describe('client static properties', () => {
+    it('has correct name and displayName', () => {
+        const client = createClient();
+        expect(client.name).toBe('etherfuse');
+        expect(client.displayName).toBe('Etherfuse');
+    });
+
+    it('has correct capabilities', () => {
+        const client = createClient();
+        expect(client.capabilities.kycFlow).toBe('iframe');
+        expect(client.capabilities.deferredOffRampSigning).toBe(true);
+        expect(client.capabilities.sandbox).toBe(true);
+        expect(client.capabilities.kycUrl).toBe(true);
+        expect(client.capabilities.requiresOffRampSigning).toBe(true);
+    });
+
+    it('supports exactly one token (CETES) with correct issuer', () => {
+        const client = createClient();
+        expect(client.supportedTokens).toHaveLength(1);
+        const token = client.supportedTokens[0];
+        expect(token.symbol).toBe('CETES');
+        expect(token.name).toBe('Etherfuse CETES');
+        expect(token.issuer).toBe('GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4');
+        expect(token.description).toBeTruthy();
+    });
+
+    it('supports MXN as the only currency', () => {
+        const client = createClient();
+        expect(client.supportedCurrencies).toEqual(['MXN']);
+    });
+
+    it('supports spei as the only payment rail', () => {
+        const client = createClient();
+        expect(client.supportedRails).toEqual(['spei']);
+    });
+
+    it('defaults blockchain to "stellar" when defaultBlockchain is not provided', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ presigned_url: 'https://onboard.test/abc' });
+            }),
+        );
+
+        await client.createCustomer({ email: 'test@example.com', publicKey: STELLAR_PUBKEY });
+        expect(capturedBody!.blockchain).toBe('stellar');
+    });
+
+    it('uses custom defaultBlockchain when provided in config', async () => {
+        const customClient = new EtherfuseClient({
+            apiKey: API_KEY,
+            baseUrl: BASE_URL,
+            defaultBlockchain: 'evm',
+        });
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ presigned_url: 'https://onboard.test/abc' });
+            }),
+        );
+
+        await customClient.createCustomer({ email: 'test@example.com', publicKey: STELLAR_PUBKEY });
+        expect(capturedBody!.blockchain).toBe('evm');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getCustomer() displayName handling
+// ---------------------------------------------------------------------------
+
+describe('getCustomer() displayName handling', () => {
+    it('returns empty email string even when API response has non-null displayName', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/cust-named`, () => {
+                return HttpResponse.json({
+                    customerId: 'cust-named',
+                    displayName: 'Alice Garcia',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-02T00:00:00Z',
+                });
+            }),
+        );
+
+        const customer = await client.getCustomer('cust-named');
+        expect(customer).not.toBeNull();
+        expect(customer!.id).toBe('cust-named');
+        // displayName is in the Etherfuse response but our Anchor mapping always returns ''
+        expect(customer!.email).toBe('');
+        expect(customer!.kycStatus).toBe('not_started');
+    });
+
+    it('throws on non-404 errors from getCustomer', async () => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/cust-500`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'INTERNAL_ERROR', message: 'DB unavailable' } },
+                    { status: 500 },
+                );
+            }),
+        );
+
+        try {
+            await client.getCustomer('cust-500');
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.statusCode).toBe(500);
+            expect(anchorErr.code).toBe('INTERNAL_ERROR');
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// submitKycIdentity()
+// ---------------------------------------------------------------------------
+
+const IDENTITY_REQUEST: EtherfuseKycIdentityRequest = {
+    pubkey: STELLAR_PUBKEY,
+    identity: {
+        id: STELLAR_PUBKEY,
+        name: { givenName: 'Alice', familyName: 'Garcia' },
+        dateOfBirth: '1990-05-15',
+        address: {
+            street: '123 Main St',
+            city: 'Mexico City',
+            region: 'CDMX',
+            postalCode: '06600',
+            country: 'MX',
+        },
+        idNumbers: [{ value: 'ABCD123456HDFGRS01', type: 'CURP' }],
+    },
+};
+
+describe('submitKycIdentity()', () => {
+    it('POSTs to /ramp/customer/{id}/kyc and returns API response', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-kyc/kyc`, () => {
+                return HttpResponse.json({ status: 'proposed', message: 'KYC submitted successfully' });
+            }),
+        );
+
+        const result = await client.submitKycIdentity('cust-kyc', IDENTITY_REQUEST);
+        expect(result).toEqual({ status: 'proposed', message: 'KYC submitted successfully' });
+    });
+
+    it('sends the full nested identity body to the correct endpoint', async () => {
+        const client = createClient();
+        let capturedBody: unknown;
+        let capturedUrl = '';
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-kyc-body/kyc`, async ({ request }) => {
+                capturedUrl = request.url;
+                capturedBody = await request.json();
+                return HttpResponse.json({ status: 'proposed', message: 'OK' });
+            }),
+        );
+
+        await client.submitKycIdentity('cust-kyc-body', IDENTITY_REQUEST);
+
+        expect(capturedUrl).toContain('/ramp/customer/cust-kyc-body/kyc');
+        expect(capturedBody).toEqual(IDENTITY_REQUEST);
+
+        const body = capturedBody as typeof IDENTITY_REQUEST;
+        expect(body.pubkey).toBe(STELLAR_PUBKEY);
+        expect(body.identity.name.givenName).toBe('Alice');
+        expect(body.identity.name.familyName).toBe('Garcia');
+        expect(body.identity.dateOfBirth).toBe('1990-05-15');
+        expect(body.identity.address.country).toBe('MX');
+        expect(body.identity.idNumbers[0].type).toBe('CURP');
+    });
+
+    it('throws AnchorError on 422 validation failure', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-kyc-err/kyc`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'VALIDATION_ERROR', message: 'Invalid identity data' } },
+                    { status: 422 },
+                );
+            }),
+        );
+
+        try {
+            await client.submitKycIdentity('cust-kyc-err', IDENTITY_REQUEST);
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('VALIDATION_ERROR');
+            expect(anchorErr.statusCode).toBe(422);
+            expect(anchorErr.message).toBe('Invalid identity data');
+        }
+    });
+
+    it('returns undefined for 200 response with empty body', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-kyc-empty/kyc`, () => {
+                return new HttpResponse('', { status: 200 });
+            }),
+        );
+
+        const result = await client.submitKycIdentity('cust-kyc-empty', IDENTITY_REQUEST);
+        expect(result).toBeUndefined();
+    });
+
+    it('throws AnchorError on 409 conflict', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-kyc-conflict/kyc`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'CONFLICT', message: 'KYC already submitted' } },
+                    { status: 409 },
+                );
+            }),
+        );
+
+        try {
+            await client.submitKycIdentity('cust-kyc-conflict', IDENTITY_REQUEST);
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('CONFLICT');
+            expect(anchorErr.statusCode).toBe(409);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// submitKycDocuments()
+// ---------------------------------------------------------------------------
+
+const DOCUMENT_REQUEST: EtherfuseKycDocumentRequest = {
+    pubkey: STELLAR_PUBKEY,
+    documentType: 'document',
+    images: [
+        { label: 'id_front', image: 'data:image/jpeg;base64,/9j/frontdata' },
+        { label: 'id_back', image: 'data:image/jpeg;base64,/9j/backdata' },
+    ],
+};
+
+const SELFIE_REQUEST: EtherfuseKycDocumentRequest = {
+    pubkey: STELLAR_PUBKEY,
+    documentType: 'selfie',
+    images: [
+        { label: 'selfie', image: 'data:image/jpeg;base64,/9j/selfiedata' },
+    ],
+};
+
+describe('submitKycDocuments()', () => {
+    it('POSTs to /ramp/customer/{id}/kyc/documents and returns API response', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-docs/kyc/documents`, () => {
+                return HttpResponse.json({ status: 'proposed', message: 'Documents submitted' });
+            }),
+        );
+
+        const result = await client.submitKycDocuments('cust-docs', DOCUMENT_REQUEST);
+        expect(result).toEqual({ status: 'proposed', message: 'Documents submitted' });
+    });
+
+    it('sends documentType "document" with id_front and id_back images', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-doc-body/kyc/documents`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ status: 'proposed', message: 'OK' });
+            }),
+        );
+
+        await client.submitKycDocuments('cust-doc-body', DOCUMENT_REQUEST);
+
+        expect(capturedBody!.pubkey).toBe(STELLAR_PUBKEY);
+        expect(capturedBody!.documentType).toBe('document');
+        const images = capturedBody!.images as Array<{ label: string; image: string }>;
+        expect(images).toHaveLength(2);
+        expect(images[0].label).toBe('id_front');
+        expect(images[0].image).toBe('data:image/jpeg;base64,/9j/frontdata');
+        expect(images[1].label).toBe('id_back');
+    });
+
+    it('sends documentType "selfie" with selfie image', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-selfie-body/kyc/documents`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ status: 'proposed', message: 'OK' });
+            }),
+        );
+
+        await client.submitKycDocuments('cust-selfie-body', SELFIE_REQUEST);
+
+        expect(capturedBody!.documentType).toBe('selfie');
+        const images = capturedBody!.images as Array<{ label: string; image: string }>;
+        expect(images).toHaveLength(1);
+        expect(images[0].label).toBe('selfie');
+        expect(images[0].image).toBe('data:image/jpeg;base64,/9j/selfiedata');
+    });
+
+    it('POSTs to the correct endpoint URL (not /kyc, but /kyc/documents)', async () => {
+        const client = createClient();
+        let capturedUrl = '';
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-url-check/kyc/documents`, ({ request }) => {
+                capturedUrl = request.url;
+                return HttpResponse.json({ status: 'proposed', message: 'OK' });
+            }),
+        );
+
+        await client.submitKycDocuments('cust-url-check', DOCUMENT_REQUEST);
+        expect(capturedUrl).toContain('/ramp/customer/cust-url-check/kyc/documents');
+    });
+
+    it('throws AnchorError on 400 bad request', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-docs-err/kyc/documents`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'UNSUPPORTED_FORMAT', message: 'Invalid image format' } },
+                    { status: 400 },
+                );
+            }),
+        );
+
+        try {
+            await client.submitKycDocuments('cust-docs-err', DOCUMENT_REQUEST);
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('UNSUPPORTED_FORMAT');
+            expect(anchorErr.statusCode).toBe(400);
+            expect(anchorErr.message).toBe('Invalid image format');
+        }
+    });
+
+    it('returns undefined for 200 response with empty body', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-docs-empty/kyc/documents`, () => {
+                return new HttpResponse('', { status: 200 });
+            }),
+        );
+
+        const result = await client.submitKycDocuments('cust-docs-empty', DOCUMENT_REQUEST);
+        expect(result).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// acceptElectronicSignature()
+// ---------------------------------------------------------------------------
+
+describe('acceptElectronicSignature()', () => {
+    it('POSTs to /ramp/agreements/electronic-signature with presignedUrl in body', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+        let capturedUrl = '';
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/electronic-signature`, async ({ request }) => {
+                capturedUrl = request.url;
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    success: true,
+                    acceptedAt: '2025-07-01T00:00:00Z',
+                    agreementType: 'electronic_signature',
+                });
+            }),
+        );
+
+        const result = await client.acceptElectronicSignature('https://onboard.test/presigned-sig');
+
+        expect(result.success).toBe(true);
+        expect(result.agreementType).toBe('electronic_signature');
+        expect(result.acceptedAt).toBe('2025-07-01T00:00:00Z');
+        expect(capturedUrl).toContain('/ramp/agreements/electronic-signature');
+        expect(capturedBody!.presignedUrl).toBe('https://onboard.test/presigned-sig');
+    });
+
+    it('throws AnchorError on 403 forbidden', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/electronic-signature`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'FORBIDDEN', message: 'Not authorized' } },
+                    { status: 403 },
+                );
+            }),
+        );
+
+        try {
+            await client.acceptElectronicSignature('https://bad.url');
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('FORBIDDEN');
+            expect(anchorErr.statusCode).toBe(403);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// acceptTermsAndConditions()
+// ---------------------------------------------------------------------------
+
+describe('acceptTermsAndConditions()', () => {
+    it('POSTs to /ramp/agreements/terms-and-conditions with presignedUrl in body', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/terms-and-conditions`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    success: true,
+                    acceptedAt: '2025-07-01T00:00:01Z',
+                    agreementType: 'terms_and_conditions',
+                });
+            }),
+        );
+
+        const result = await client.acceptTermsAndConditions('https://onboard.test/presigned-tc');
+
+        expect(result.success).toBe(true);
+        expect(result.agreementType).toBe('terms_and_conditions');
+        expect(result.acceptedAt).toBe('2025-07-01T00:00:01Z');
+        expect(capturedBody!.presignedUrl).toBe('https://onboard.test/presigned-tc');
+    });
+
+    it('throws AnchorError on 410 gone (expired URL)', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/terms-and-conditions`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'EXPIRED', message: 'Presigned URL expired' } },
+                    { status: 410 },
+                );
+            }),
+        );
+
+        try {
+            await client.acceptTermsAndConditions('https://expired.url');
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('EXPIRED');
+            expect(anchorErr.statusCode).toBe(410);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// acceptCustomerAgreement()
+// ---------------------------------------------------------------------------
+
+describe('acceptCustomerAgreement()', () => {
+    it('POSTs to /ramp/agreements/customer-agreement with presignedUrl in body', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/customer-agreement`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    success: true,
+                    acceptedAt: '2025-07-01T00:00:02Z',
+                    agreementType: 'customer_agreement',
+                });
+            }),
+        );
+
+        const result = await client.acceptCustomerAgreement('https://onboard.test/presigned-ca');
+
+        expect(result.success).toBe(true);
+        expect(result.agreementType).toBe('customer_agreement');
+        expect(result.acceptedAt).toBe('2025-07-01T00:00:02Z');
+        expect(capturedBody!.presignedUrl).toBe('https://onboard.test/presigned-ca');
+    });
+
+    it('throws AnchorError on 500 server error', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/customer-agreement`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'INTERNAL_ERROR', message: 'Server error' } },
+                    { status: 500 },
+                );
+            }),
+        );
+
+        try {
+            await client.acceptCustomerAgreement('https://error.url');
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('INTERNAL_ERROR');
+            expect(anchorErr.statusCode).toBe(500);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// acceptAgreements() additional error and forwarding tests
+// ---------------------------------------------------------------------------
+
+describe('acceptAgreements() additional paths', () => {
+    it('throws AnchorError when second endpoint (terms-and-conditions) fails', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/electronic-signature`, () => {
+                return HttpResponse.json({ success: true, acceptedAt: '2025-07-01T00:00:00Z', agreementType: 'electronic_signature' });
+            }),
+            http.post(`${BASE_URL}/ramp/agreements/terms-and-conditions`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'FORBIDDEN', message: 'T&C already accepted' } },
+                    { status: 409 },
+                );
+            }),
+        );
+
+        try {
+            await client.acceptAgreements('https://onboard.test/presigned');
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('FORBIDDEN');
+            expect(anchorErr.statusCode).toBe(409);
+        }
+    });
+
+    it('throws AnchorError when third endpoint (customer-agreement) fails', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/electronic-signature`, () => {
+                return HttpResponse.json({ success: true, acceptedAt: '2025-07-01T00:00:00Z', agreementType: 'electronic_signature' });
+            }),
+            http.post(`${BASE_URL}/ramp/agreements/terms-and-conditions`, () => {
+                return HttpResponse.json({ success: true, acceptedAt: '2025-07-01T00:00:01Z', agreementType: 'terms_and_conditions' });
+            }),
+            http.post(`${BASE_URL}/ramp/agreements/customer-agreement`, () => {
+                return HttpResponse.json(
+                    { error: { code: 'NOT_FOUND', message: 'Customer not found' } },
+                    { status: 404 },
+                );
+            }),
+        );
+
+        try {
+            await client.acceptAgreements('https://onboard.test/presigned');
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('NOT_FOUND');
+            expect(anchorErr.statusCode).toBe(404);
+        }
+    });
+
+    it('forwards the same presignedUrl to all three agreement endpoints', async () => {
+        const client = createClient();
+        const presignedUrl = 'https://onboard.test/my-presigned-url';
+        const capturedPresignedUrls: string[] = [];
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/agreements/electronic-signature`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                capturedPresignedUrls.push(body.presignedUrl as string);
+                return HttpResponse.json({ success: true, acceptedAt: '2025-07-01T00:00:00Z', agreementType: 'electronic_signature' });
+            }),
+            http.post(`${BASE_URL}/ramp/agreements/terms-and-conditions`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                capturedPresignedUrls.push(body.presignedUrl as string);
+                return HttpResponse.json({ success: true, acceptedAt: '2025-07-01T00:00:01Z', agreementType: 'terms_and_conditions' });
+            }),
+            http.post(`${BASE_URL}/ramp/agreements/customer-agreement`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                capturedPresignedUrls.push(body.presignedUrl as string);
+                return HttpResponse.json({ success: true, acceptedAt: '2025-07-01T00:00:02Z', agreementType: 'customer_agreement' });
+            }),
+        );
+
+        await client.acceptAgreements(presignedUrl);
+
+        expect(capturedPresignedUrls).toHaveLength(3);
+        expect(capturedPresignedUrls[0]).toBe(presignedUrl);
+        expect(capturedPresignedUrls[1]).toBe(presignedUrl);
+        expect(capturedPresignedUrls[2]).toBe(presignedUrl);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mapOrderStatus() all known statuses
+// ---------------------------------------------------------------------------
+
+describe('mapOrderStatus() all known statuses', () => {
+    it.each([
+        ['created', 'pending'],
+        ['funded', 'processing'],
+        ['completed', 'completed'],
+        ['failed', 'failed'],
+        ['refunded', 'refunded'],
+        ['canceled', 'cancelled'], // Etherfuse uses "canceled" (1 L); shared type uses "cancelled" (2 L)
+    ] as const)('maps Etherfuse order status "%s" to shared status "%s"', async (etherfuseStatus, expectedStatus) => {
+        const client = createClient();
+
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-map-${etherfuseStatus}`, () => {
+                return HttpResponse.json({
+                    orderId: `order-map-${etherfuseStatus}`,
+                    customerId: 'cust-1',
+                    createdAt: '2025-06-01T00:00:00Z',
+                    updatedAt: '2025-06-01T00:00:00Z',
+                    amountInFiat: '100',
+                    amountInTokens: '5',
+                    walletId: 'w-1',
+                    bankAccountId: 'b-1',
+                    orderType: 'onramp',
+                    status: etherfuseStatus,
+                });
+            }),
+        );
+
+        const tx = await client.getOnRampTransaction(`order-map-${etherfuseStatus}`);
+        expect(tx!.status).toBe(expectedStatus);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getFiatAccounts() pagination params
+// ---------------------------------------------------------------------------
+
+describe('getFiatAccounts() pagination params', () => {
+    it('sends pageSize: 100 and pageNumber: 0 in POST body', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-pg/bank-accounts`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    items: [],
+                    totalItems: 0,
+                    pageSize: 100,
+                    pageNumber: 0,
+                    totalPages: 0,
+                });
+            }),
+        );
+
+        await client.getFiatAccounts('cust-pg');
+
+        expect(capturedBody).toBeDefined();
+        expect(capturedBody!.pageSize).toBe(100);
+        expect(capturedBody!.pageNumber).toBe(0);
+    });
+
+    it('maps optional label and deletedAt fields from list response', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-extra/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [
+                        {
+                            bankAccountId: 'bank-x',
+                            customerId: 'cust-extra',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-02T00:00:00Z',
+                            deletedAt: null,
+                            abbrClabe: '0123...4567',
+                            etherfuseDepositClabe: '012345678901234567',
+                            label: 'My BBVA account',
+                            compliant: true,
+                            status: 'active',
+                        },
+                    ],
+                    totalItems: 1,
+                    pageSize: 100,
+                    pageNumber: 0,
+                    totalPages: 1,
+                });
+            }),
+        );
+
+        const accounts = await client.getFiatAccounts('cust-extra');
+
+        expect(accounts).toHaveLength(1);
+        expect(accounts[0].id).toBe('bank-x');
+        expect(accounts[0].accountNumber).toBe('0123...4567');
+        // label and deletedAt are on the API type but our mapping uses abbrClabe as accountNumber
+        expect(accounts[0].type).toBe('SPEI');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// registerFiatAccount() request body structure
+// ---------------------------------------------------------------------------
+
+describe('registerFiatAccount() request body structure', () => {
+    it('uses presignedUrl from getKycUrl and sends nested account object to /ramp/bank-account', async () => {
+        const client = createClient();
+        let capturedBankBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.json({ presigned_url: 'https://onboard.test/presigned-for-bank' });
+            }),
+            http.post(`${BASE_URL}/ramp/bank-account`, async ({ request }) => {
+                capturedBankBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    bankAccountId: 'bank-struct-1',
+                    customerId: 'cust-1',
+                    status: 'active',
+                    createdAt: '2025-07-01T00:00:00Z',
+                    updatedAt: '2025-07-01T00:00:00Z',
+                });
+            }),
+        );
+
+        await client.registerFiatAccount({
+            customerId: 'cust-1',
+            publicKey: STELLAR_PUBKEY,
+            account: { type: 'spei', clabe: '012345678901234567', beneficiary: 'Alice Garcia', bankName: 'BBVA' },
+        });
+
+        expect(capturedBankBody).toBeDefined();
+        // presignedUrl from onboarding should be forwarded
+        expect(capturedBankBody!.presignedUrl).toBe('https://onboard.test/presigned-for-bank');
+        // flat legacy fields should NOT be sent
+        expect(capturedBankBody).not.toHaveProperty('bankAccountId');
+        expect(capturedBankBody).not.toHaveProperty('customerId');
+        expect(capturedBankBody).not.toHaveProperty('clabe');
+        // nested account object should contain the fields
+        const account = capturedBankBody!.account as Record<string, unknown>;
+        expect(account.clabe).toBe('012345678901234567');
+        expect(account.beneficiary).toBe('Alice Garcia');
+        expect(account.bankName).toBe('BBVA');
+    });
+
+    it('omits bankName from account object when it is an empty string', async () => {
+        const client = createClient();
+        let capturedBankBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                return HttpResponse.json({ presigned_url: 'https://onboard.test/abc' });
+            }),
+            http.post(`${BASE_URL}/ramp/bank-account`, async ({ request }) => {
+                capturedBankBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    bankAccountId: 'bank-no-name',
+                    customerId: 'cust-1',
+                    status: 'active',
+                    createdAt: '2025-07-01T00:00:00Z',
+                    updatedAt: '2025-07-01T00:00:00Z',
+                });
+            }),
+        );
+
+        await client.registerFiatAccount({
+            customerId: 'cust-1',
+            publicKey: STELLAR_PUBKEY,
+            // bankName intentionally omitted (defaults to undefined from || undefined)
+            account: { type: 'spei', clabe: '012345678901234567', beneficiary: 'Alice Garcia' },
+        });
+
+        const account = capturedBankBody!.account as Record<string, unknown>;
+        expect(account.bankName).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// createOnRamp() unified request body (EtherfuseOrderRequest)
+// ---------------------------------------------------------------------------
+
+describe('createOnRamp() unified EtherfuseOrderRequest body', () => {
+    it('sends orderId, bankAccountId, publicKey, quoteId — no legacy fields', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-unified/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [{ bankAccountId: 'bank-unified', customerId: 'cust-unified', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z', abbrClabe: '1234...5678', etherfuseDepositClabe: '012345678901234567', compliant: true, status: 'active' }],
+                    totalItems: 1, pageSize: 100, pageNumber: 0, totalPages: 1,
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    onramp: { orderId: 'order-unified-1', depositClabe: '012345678901234567', depositAmount: '1000.00' },
+                });
+            }),
+        );
+
+        await client.createOnRamp({
+            customerId: 'cust-unified',
+            quoteId: 'quote-unified',
+            stellarAddress: STELLAR_PUBKEY,
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            amount: '1000',
+        });
+
+        expect(capturedBody).toBeDefined();
+        // Fields that MUST be present per EtherfuseOrderRequest
+        expect(capturedBody!.orderId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+        expect(capturedBody!.bankAccountId).toBe('bank-unified');
+        expect(capturedBody!.publicKey).toBe(STELLAR_PUBKEY);
+        expect(capturedBody!.quoteId).toBe('quote-unified');
+        // Legacy fields that must NOT appear in the new unified request
+        expect(capturedBody).not.toHaveProperty('orderType');
+        expect(capturedBody).not.toHaveProperty('fromCurrency');
+        expect(capturedBody).not.toHaveProperty('toCurrency');
+        expect(capturedBody).not.toHaveProperty('amount');
+        expect(capturedBody).not.toHaveProperty('customerId');
+        expect(capturedBody).not.toHaveProperty('stellarAddress');
+        expect(capturedBody).not.toHaveProperty('blockchain');
+    });
+
+    it('includes memo when provided', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-memo/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [{ bankAccountId: 'bank-m', customerId: 'cust-memo', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z', abbrClabe: '1234...5678', etherfuseDepositClabe: '012345678901234567', compliant: true, status: 'active' }],
+                    totalItems: 1, pageSize: 100, pageNumber: 0, totalPages: 1,
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    onramp: { orderId: 'order-memo', depositClabe: '012345678901234567', depositAmount: '1000.00' },
+                });
+            }),
+        );
+
+        await client.createOnRamp({
+            customerId: 'cust-memo',
+            quoteId: 'quote-1',
+            stellarAddress: STELLAR_PUBKEY,
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            amount: '1000',
+            memo: 'payment-ref-abc',
+        });
+
+        expect(capturedBody!.memo).toBe('payment-ref-abc');
+    });
+
+    it('omits memo from request when not provided', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-no-memo/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [{ bankAccountId: 'bank-nm', customerId: 'cust-no-memo', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z', abbrClabe: '1234...5678', etherfuseDepositClabe: '012345678901234567', compliant: true, status: 'active' }],
+                    totalItems: 1, pageSize: 100, pageNumber: 0, totalPages: 1,
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    onramp: { orderId: 'order-no-memo', depositClabe: '012345678901234567', depositAmount: '1000.00' },
+                });
+            }),
+        );
+
+        await client.createOnRamp({
+            customerId: 'cust-no-memo',
+            quoteId: 'quote-1',
+            stellarAddress: STELLAR_PUBKEY,
+            fromCurrency: 'MXN',
+            toCurrency: 'CETES',
+            amount: '1000',
+        });
+
+        expect(capturedBody!.memo).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// createOffRamp() unified request body (EtherfuseOrderRequest)
+// ---------------------------------------------------------------------------
+
+describe('createOffRamp() unified EtherfuseOrderRequest body', () => {
+    it('sends orderId, bankAccountId, publicKey, quoteId — no legacy fields', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-off-unified/bank-accounts`, () => {
+                return HttpResponse.json({
+                    items: [{ bankAccountId: 'bank-off-unified', customerId: 'cust-off-unified', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z', abbrClabe: '9876...5432', etherfuseDepositClabe: '987654321098765432', compliant: true, status: 'active' }],
+                    totalItems: 1, pageSize: 100, pageNumber: 0, totalPages: 1,
+                });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ offramp: { orderId: 'order-off-unified' } });
+            }),
+        );
+
+        await client.createOffRamp({
+            customerId: 'cust-off-unified',
+            quoteId: 'quote-off-unified',
+            stellarAddress: STELLAR_PUBKEY,
+            fromCurrency: 'CETES',
+            toCurrency: 'MXN',
+            amount: '50',
+            fiatAccountId: '',
+        });
+
+        expect(capturedBody).toBeDefined();
+        expect(capturedBody!.orderId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+        expect(capturedBody!.bankAccountId).toBe('bank-off-unified');
+        expect(capturedBody!.publicKey).toBe(STELLAR_PUBKEY);
+        expect(capturedBody!.quoteId).toBe('quote-off-unified');
+        // Legacy fields must NOT be present
+        expect(capturedBody).not.toHaveProperty('orderType');
+        expect(capturedBody).not.toHaveProperty('fromCurrency');
+        expect(capturedBody).not.toHaveProperty('toCurrency');
+        expect(capturedBody).not.toHaveProperty('amount');
+        expect(capturedBody).not.toHaveProperty('customerId');
+        expect(capturedBody).not.toHaveProperty('stellarAddress');
+    });
+
+    it('uses provided fiatAccountId directly without auto-fetching bank accounts', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+        let bankAccountsRequested = false;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/:customerId/bank-accounts`, () => {
+                bankAccountsRequested = true;
+                return HttpResponse.json({ items: [], totalItems: 0, pageSize: 100, pageNumber: 0, totalPages: 0 });
+            }),
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ offramp: { orderId: 'order-explicit-bank' } });
+            }),
+        );
+
+        await client.createOffRamp({
+            customerId: 'cust-1',
+            quoteId: 'quote-1',
+            stellarAddress: STELLAR_PUBKEY,
+            fromCurrency: 'CETES',
+            toCurrency: 'MXN',
+            amount: '50',
+            fiatAccountId: 'explicit-bank-id-xyz',
+        });
+
+        expect(bankAccountsRequested).toBe(false);
+        expect(capturedBody!.bankAccountId).toBe('explicit-bank-id-xyz');
+    });
+
+    it('includes memo when provided', async () => {
+        const client = createClient();
+        let capturedBody: Record<string, unknown> | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                capturedBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ offramp: { orderId: 'order-off-memo' } });
+            }),
+        );
+
+        await client.createOffRamp({
+            customerId: '',
+            quoteId: 'quote-1',
+            stellarAddress: STELLAR_PUBKEY,
+            fromCurrency: 'CETES',
+            toCurrency: 'MXN',
+            amount: '50',
+            fiatAccountId: 'bank-direct',
+            memo: 'off-ramp-ref-123',
+        });
+
+        expect(capturedBody!.memo).toBe('off-ramp-ref-123');
     });
 });
