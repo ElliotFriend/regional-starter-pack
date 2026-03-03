@@ -4,33 +4,10 @@ A portable, framework-agnostic TypeScript library for integrating fiat on/off ra
 
 ## What's in This Library
 
-```text
-anchors/
-├── types.ts              # Shared Anchor interface + common types
-├── index.ts              # Re-exports (no framework imports)
-├── etherfuse/            # Etherfuse integration (Latin America)
-│   ├── client.ts         # EtherfuseClient implements Anchor
-│   ├── types.ts          # Etherfuse API types
-│   └── README.md         # Detailed integration docs
-├── alfredpay/            # AlfredPay integration (Mexico)
-│   ├── client.ts         # AlfredPayClient implements Anchor
-│   ├── types.ts          # AlfredPay API types
-│   └── README.md         # Detailed integration docs
-├── blindpay/             # BlindPay integration (global)
-│   ├── client.ts         # BlindPayClient implements Anchor
-│   ├── types.ts          # BlindPay API types
-│   └── README.md         # Detailed integration docs
-├── sep/                  # SEP protocol implementations
-│   ├── sep1.ts           # stellar.toml discovery
-│   ├── sep10.ts          # Web authentication
-│   ├── sep6.ts           # Programmatic deposits/withdrawals
-│   ├── sep12.ts          # KYC management
-│   ├── sep24.ts          # Interactive deposits/withdrawals
-│   ├── sep31.ts          # Cross-border payments
-│   ├── sep38.ts          # Quotes/RFQ
-│   └── types.ts          # SEP-specific types
-└── testanchor/           # Reference client for testanchor.stellar.org
-```
+1. A shared "Anchor Interface" can be found in `anchors/types.ts`. Any anchor clients that are implemented adhere to this predictable set of functions.
+2. Pre-written anchor clients for some common anchor providers: Etherfuse, Alfred Pay, and BlindPay (for now). These can be found in `anchors/<provider-name>` directories.
+3. A SEP library can be found in the `anchors/sep` directory. This library can be used to interact with SEP-compatible anchors (this is the preferred method, and should be used when possible).
+4. A Testanchor client that implements the SEP library to interact with the [testnet anchor](https://testanchor.stellar.org).
 
 ## Two Ways to Integrate Anchors
 

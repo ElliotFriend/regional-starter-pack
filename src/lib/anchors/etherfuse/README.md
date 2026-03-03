@@ -297,7 +297,7 @@ This is useful for testing the on-ramp flow end-to-end without sending real SPEI
 
 `EtherfuseClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. Its `AnchorCapabilities` flags drive the UI behavior — see the [Capabilities](#capabilities) section above. See the parent `anchors/` directory for the full interface definition.
 
-## Claude Code MCP Server
+## MCP Server
 
 An Etherfuse MCP server is configured in the repository's `.mcp.json` and loaded automatically when using [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It exposes a `SearchEtherfuseFxApi` tool that searches the Etherfuse FX API documentation for API references, code examples, and integration guides.
 
