@@ -37,6 +37,9 @@ import type {
     SavedFiatAccount,
     KycStatus,
     PaymentInstructions,
+    KycRequirements,
+    KycSubmissionData,
+    KycSubmissionResult,
 } from '../types';
 import { AnchorError } from '../types';
 import type {
@@ -601,7 +604,18 @@ export class AlfredPayClient implements Anchor {
             'GET',
             `/customers/${customerId}`,
         );
-        return response.kyc_status as KycStatus;
+
+        // AlfredPay returns statusKyc with uppercase values like IN_REVIEW, COMPLETED, etc.
+        const raw = response.statusKyc?.toUpperCase();
+        const statusMap: Record<string, KycStatus> = {
+            IN_REVIEW: 'pending',
+            COMPLETED: 'approved',
+            APPROVED: 'approved',
+            REJECTED: 'rejected',
+            UPDATE_REQUIRED: 'update_required',
+            FAILED: 'rejected',
+        };
+        return statusMap[raw ?? ''] ?? 'not_started';
     }
 
     /**
@@ -644,17 +658,126 @@ export class AlfredPayClient implements Anchor {
     }
 
     /**
-     * Fetch the KYC field and document requirements for a country.
+     * Fetch the raw KYC field and document requirements for a country from AlfredPay's API.
      * @param country - ISO 3166-1 alpha-2 country code. Defaults to `"MX"`.
-     * @returns Personal data fields and document requirements.
+     * @returns Personal data fields and document requirements in AlfredPay's format.
      * @throws {AnchorError} On API failure.
      */
-    async getKycRequirements(country: string = 'MX'): Promise<AlfredPayKycRequirementsResponse> {
+    async getKycRequirementsRaw(country: string = 'MX'): Promise<AlfredPayKycRequirementsResponse> {
         const response = await this.request<AlfredPayKycRequirementsResponse>(
             'GET',
             `/kycRequirements?country=${country}`,
         );
         return response;
+    }
+
+    /**
+     * Get KYC field and document requirements in the shared format.
+     * Returns hardcoded requirements matching AlfredPay's expected fields.
+     */
+    async getKycRequirements(_country?: string): Promise<KycRequirements> {
+        return {
+            fields: [
+                { key: 'firstName', label: 'First Name', type: 'text', required: true },
+                { key: 'lastName', label: 'Last Name', type: 'text', required: true },
+                { key: 'dateOfBirth', label: 'Date of Birth', type: 'date', required: true },
+                {
+                    key: 'dni',
+                    label: 'National ID Number (CURP/INE)',
+                    type: 'text',
+                    required: true,
+                    placeholder: '18 character CURP',
+                },
+                {
+                    key: 'country',
+                    label: 'Country',
+                    type: 'select',
+                    required: true,
+                    options: [{ value: 'MX', label: 'Mexico' }],
+                },
+                { key: 'address', label: 'Street Address', type: 'text', required: true },
+                { key: 'city', label: 'City', type: 'text', required: true },
+                { key: 'state', label: 'State', type: 'text', required: true },
+                { key: 'zipCode', label: 'ZIP Code', type: 'text', required: true },
+            ],
+            documents: [
+                {
+                    key: 'idFront',
+                    label: 'National ID - Front',
+                    description: 'INE/IFE front side with your photo',
+                    accept: 'image/jpeg,image/png,application/pdf',
+                    mode: 'file_upload',
+                },
+                {
+                    key: 'idBack',
+                    label: 'National ID - Back',
+                    description: 'INE/IFE back side',
+                    accept: 'image/jpeg,image/png,application/pdf',
+                    mode: 'file_upload',
+                },
+                {
+                    key: 'selfie',
+                    label: 'Selfie',
+                    description: 'Clear photo of your face, similar to your ID photo',
+                    accept: 'image/jpeg,image/png',
+                    mode: 'file_upload',
+                },
+            ],
+        };
+    }
+
+    /**
+     * Submit KYC data and documents in a single atomic call.
+     * Wraps the multi-step AlfredPay flow: submit data → upload files → finalize.
+     */
+    async submitKyc(
+        customerId: string,
+        data: KycSubmissionData,
+    ): Promise<KycSubmissionResult> {
+        // Step 1: Submit personal data
+        const kycData = {
+            firstName: data.fields.firstName || '',
+            lastName: data.fields.lastName || '',
+            dateOfBirth: data.fields.dateOfBirth || '',
+            country: data.fields.country || 'MX',
+            city: data.fields.city || '',
+            state: data.fields.state || '',
+            address: data.fields.address || '',
+            zipCode: data.fields.zipCode || '',
+            nationalities: [data.fields.country || 'MX'],
+            email: data.fields.email || '',
+            dni: data.fields.dni || '',
+        };
+
+        const submission = await this.submitKycData(customerId, kycData);
+        const submissionId = submission.submissionId;
+
+        // Step 2: Upload document files
+        const fileTypeMap: Record<string, AlfredPayKycFileType> = {
+            idFront: 'National ID Front',
+            idBack: 'National ID Back',
+            selfie: 'Selfie',
+        };
+
+        for (const [key, fileType] of Object.entries(fileTypeMap)) {
+            const doc = data.documents[key];
+            if (doc && doc instanceof Blob) {
+                const filename = doc instanceof File ? doc.name : `${key}.jpg`;
+                await this.submitKycFile(customerId, submissionId, fileType, doc, filename);
+            }
+        }
+
+        // Step 3: Check status and finalize if needed
+        const statusResponse = await this.getKycSubmissionStatus(customerId, submissionId);
+        if (statusResponse.status === 'CREATED') {
+            await this.finalizeKycSubmission(customerId, submissionId);
+        }
+
+        return {
+            customerId,
+            kycStatus: 'pending',
+            submissionId,
+        };
     }
 
     /**

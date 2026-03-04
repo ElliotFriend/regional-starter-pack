@@ -37,12 +37,20 @@ export const GET: RequestHandler = async ({ params, url }) => {
         }
 
         if (type === 'requirements') {
-            // AlfredPay-specific: KYC requirements
+            if (!anchor.getKycRequirements) {
+                throw error(400, { message: 'Provider does not support KYC requirements' });
+            }
+            const requirements = await anchor.getKycRequirements(country);
+            return json(requirements);
+        }
+
+        if (type === 'requirements-raw') {
+            // AlfredPay-specific: raw KYC requirements from API
             if (anchor instanceof AlfredPayClient) {
-                const requirements = await anchor.getKycRequirements(country);
+                const requirements = await anchor.getKycRequirementsRaw(country);
                 return json(requirements);
             }
-            throw error(400, { message: 'Provider does not support KYC requirements' });
+            throw error(400, { message: 'Provider does not support raw KYC requirements' });
         }
 
         if (type === 'submission') {
@@ -106,7 +114,47 @@ export const POST: RequestHandler = async ({ params, url, request }) => {
     try {
         const anchor = getAnchor(provider);
 
-        // BlindPay receiver creation (combined customer + KYC)
+        // Unified KYC submission via shared Anchor interface
+        if (type === 'submit-kyc') {
+            if (!anchor.submitKyc) {
+                throw error(400, { message: 'Provider does not support KYC submission' });
+            }
+
+            const contentType = request.headers.get('content-type') || '';
+
+            if (contentType.includes('multipart/form-data')) {
+                // FormData body: fields as JSON string + document File objects
+                const formData = await request.formData();
+                const customerId = formData.get('customerId') as string;
+                const fields = JSON.parse(formData.get('fields') as string);
+                const metadata = formData.has('metadata')
+                    ? JSON.parse(formData.get('metadata') as string)
+                    : undefined;
+
+                const documents: Record<string, File | string> = {};
+                for (const [key, value] of formData.entries()) {
+                    if (key.startsWith('doc_')) {
+                        const docKey = key.slice(4);
+                        documents[docKey] = value as File | string;
+                    }
+                }
+
+                const result = await anchor.submitKyc(customerId, {
+                    fields,
+                    documents,
+                    metadata,
+                });
+                return json(result);
+            } else {
+                // JSON body
+                const body = await request.json();
+                const { customerId, data } = body;
+                const result = await anchor.submitKyc(customerId, data);
+                return json(result);
+            }
+        }
+
+        // BlindPay receiver creation (combined customer + KYC) — legacy
         if (type === 'receiver') {
             if (!(anchor instanceof BlindPayClient)) {
                 throw error(400, { message: 'Provider does not support receiver creation' });

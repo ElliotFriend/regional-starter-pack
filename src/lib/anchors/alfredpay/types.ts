@@ -70,16 +70,23 @@ export interface AlfredPayCreateCustomerResponse {
 
 /** Response from `GET /customers/:id`. */
 export interface AlfredPayCustomerResponse {
-    /** Unique customer identifier. */
-    id: string;
-    /** Customer's email address. */
-    email: string;
-    /** Current KYC verification status. */
-    kyc_status: 'pending' | 'approved' | 'rejected' | 'not_started';
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    country?: string;
+    city?: string;
+    zipCode?: string;
+    address?: string;
+    /** KYC review status as returned by the AlfredPay API. */
+    statusKyc?: string;
+    nationalities?: string[];
+    phoneNumber?: string | null;
+    occupation?: string | null;
+    dni?: string;
     /** ISO 8601 creation timestamp. */
-    created_at: string;
+    createdAt: string;
     /** ISO 8601 last-update timestamp. */
-    updated_at: string;
+    updatedAt: string;
 }
 
 /** A single fee line item within an {@link AlfredPayQuoteResponse}. */

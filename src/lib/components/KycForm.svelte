@@ -1,32 +1,27 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
-    import { ALFREDPAY_KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
+    import type { AnchorCapabilities, KycRequirements, KycDocumentRequirement } from '$lib/anchors/types';
+    import { SANDBOX_KYC_DATA, SANDBOX_KYC_DOCUMENTS } from '$lib/anchors/sandbox';
     import * as api from '$lib/api/anchor';
-    import type { AlfredPayKycFileType } from '$lib/anchors/alfredpay/types';
 
     interface Props {
         provider: string;
         email: string;
+        capabilities: AnchorCapabilities;
+        tosId?: string;
         onComplete: () => void;
     }
 
-    let { provider, email, onComplete }: Props = $props();
+    let { provider, email, capabilities, tosId, onComplete }: Props = $props();
 
-    // Form data
-    let firstName = $state('');
-    let lastName = $state('');
-    let dateOfBirth = $state('');
-    let dni = $state('');
-    let country = $state(DEFAULT_COUNTRY);
-    let city = $state('');
-    let state_ = $state('');
-    let address = $state('');
-    let zipCode = $state('');
+    // Requirements loaded from anchor
+    let requirements = $state<KycRequirements | null>(null);
+    let isLoadingRequirements = $state(true);
 
-    // File uploads
-    let idFront: File | null = $state(null);
-    let idBack: File | null = $state(null);
-    let selfie: File | null = $state(null);
+    // Dynamic form state
+    let fieldValues = $state<Record<string, string>>({});
+    let documentValues = $state<Record<string, File | string>>({});
 
     // UI state
     let currentStep = $state<'personal' | 'documents' | 'uploading' | 'complete'>('personal');
@@ -34,20 +29,73 @@
     let isSubmitting = $state(false);
     let isCompletingKyc = $state(false);
     let error = $state<string | null>(null);
-    let uploadProgress = $state({ idFront: false, idBack: false, selfie: false });
+
+    onMount(async () => {
+        try {
+            requirements = await api.getKycFieldRequirements(fetch, provider);
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to load KYC requirements';
+        } finally {
+            isLoadingRequirements = false;
+        }
+    });
+
+    function fillTestData() {
+        if (!requirements) return;
+
+        // Fill fields
+        for (const field of requirements.fields) {
+            if (field.key === 'email') {
+                fieldValues[field.key] = email || SANDBOX_KYC_DATA.email || '';
+            } else if (field.key in SANDBOX_KYC_DATA) {
+                fieldValues[field.key] = SANDBOX_KYC_DATA[field.key];
+            }
+        }
+
+        // Fill url_reference documents
+        for (const doc of requirements.documents) {
+            if (doc.mode === 'url_reference' && doc.key in SANDBOX_KYC_DOCUMENTS) {
+                documentValues[doc.key] = SANDBOX_KYC_DOCUMENTS[doc.key];
+            }
+        }
+    }
+
+    function areFieldsValid(): boolean {
+        if (!requirements) return false;
+        return requirements.fields
+            .filter((f) => f.required)
+            .every((f) => fieldValues[f.key]?.trim());
+    }
+
+    function areDocumentsValid(): boolean {
+        if (!requirements) return false;
+        return requirements.documents.every((doc) => {
+            const val = documentValues[doc.key];
+            if (doc.mode === 'file_upload') return val instanceof File;
+            return typeof val === 'string' && val.trim().length > 0;
+        });
+    }
+
+    function handleFileSelect(key: string, event: Event) {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (file) {
+            documentValues[key] = file;
+        }
+    }
 
     async function handlePersonalSubmit() {
-        if (
-            !firstName ||
-            !lastName ||
-            !dateOfBirth ||
-            !dni ||
-            !city ||
-            !state_ ||
-            !address ||
-            !zipCode
-        ) {
+        if (!areFieldsValid()) {
             error = 'Please fill in all required fields';
+            return;
+        }
+        error = null;
+        currentStep = 'documents';
+    }
+
+    async function handleDocumentsSubmit() {
+        if (!areDocumentsValid()) {
+            error = 'Please provide all required documents';
             return;
         }
 
@@ -59,93 +107,41 @@
 
         isSubmitting = true;
         error = null;
-
-        try {
-            const result = await api.submitKycData(fetch, provider, customer.id, {
-                firstName,
-                lastName,
-                dateOfBirth,
-                country,
-                city,
-                state: state_,
-                address,
-                zipCode,
-                nationalities: [country],
-                email,
-                dni,
-            });
-
-            submissionId = result.submissionId;
-            currentStep = 'documents';
-        } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to submit KYC data';
-        } finally {
-            isSubmitting = false;
-        }
-    }
-
-    function handleFileSelect(type: 'idFront' | 'idBack' | 'selfie', event: Event) {
-        const input = event.target as HTMLInputElement;
-        const file = input.files?.[0] || null;
-
-        if (type === 'idFront') idFront = file;
-        else if (type === 'idBack') idBack = file;
-        else if (type === 'selfie') selfie = file;
-    }
-
-    async function uploadFile(fileType: AlfredPayKycFileType, file: File) {
-        const customer = customerStore.current;
-        if (!submissionId || !customer) return;
-        await api.submitKycFile(fetch, provider, customer.id, submissionId, fileType, file);
-    }
-
-    async function handleDocumentsSubmit() {
-        if (!idFront || !idBack || !selfie) {
-            error = 'Please upload all required documents';
-            return;
-        }
-
-        const customer = customerStore.current;
-        if (!submissionId || !customer) {
-            error = 'Submission ID not found';
-            return;
-        }
-
-        isSubmitting = true;
-        error = null;
         currentStep = 'uploading';
 
         try {
-            // Upload ID front
-            uploadProgress.idFront = true;
-            await uploadFile('National ID Front', idFront);
-            uploadProgress.idFront = false;
+            // Add email to fields if not already set
+            if (!fieldValues.email && email) {
+                fieldValues.email = email;
+            }
 
-            // Upload ID back
-            uploadProgress.idBack = true;
-            await uploadFile('National ID Back', idBack);
-            uploadProgress.idBack = false;
+            const metadata: Record<string, string> = {};
+            if (tosId) {
+                metadata.tosId = tosId;
+            }
 
-            // Upload selfie
-            uploadProgress.selfie = true;
-            await uploadFile('Selfie', selfie);
-            uploadProgress.selfie = false;
+            const result = await api.submitKyc(fetch, provider, customer.id, {
+                fields: { ...fieldValues },
+                documents: { ...documentValues },
+                metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+            });
 
-            // Check submission status and finalize if CREATED
-            const statusResponse = await api.getKycSubmissionStatus(
-                fetch,
-                provider,
-                customer.id,
-                submissionId,
-            );
-            if (statusResponse.status === ALFREDPAY_KYC_STATUS.CREATED) {
-                await api.finalizeKycSubmission(fetch, provider, customer.id, submissionId);
+            submissionId = result.submissionId ?? null;
+
+            // For BlindPay, update the customer store with the real receiver ID
+            if (result.customerId && result.customerId !== customer.id) {
+                customerStore.set({
+                    ...customer,
+                    id: result.customerId,
+                    kycStatus: result.kycStatus,
+                    updatedAt: new Date().toISOString(),
+                });
             }
 
             currentStep = 'complete';
             onComplete();
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to upload documents';
+            error = err instanceof Error ? err.message : 'Failed to submit KYC';
             currentStep = 'documents';
         } finally {
             isSubmitting = false;
@@ -179,195 +175,129 @@
         </div>
     {/if}
 
-    {#if currentStep === 'personal'}
+    {#if isLoadingRequirements}
+        <div class="flex items-center justify-center py-8">
+            <div
+                class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+            ></div>
+            <span class="ml-2 text-sm text-gray-500">Loading requirements...</span>
+        </div>
+    {:else if !requirements}
+        <div class="rounded-md bg-red-50 p-4">
+            <p class="text-sm text-red-700">Failed to load KYC requirements.</p>
+        </div>
+    {:else if currentStep === 'personal'}
         <div>
             <h3 class="text-lg font-medium text-gray-900">Personal Information</h3>
             <p class="mt-1 text-sm text-gray-500">
                 Please provide your information exactly as it appears on your ID.
             </p>
 
+            {#if capabilities.sandbox}
+                <button
+                    type="button"
+                    onclick={fillTestData}
+                    class="mt-3 rounded-md bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                >
+                    Fill Test Data (Sandbox)
+                </button>
+            {/if}
+
             <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                    <label for="firstName" class="block text-sm font-medium text-gray-700"
-                        >First Name *</label
-                    >
-                    <input
-                        type="text"
-                        id="firstName"
-                        bind:value={firstName}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="lastName" class="block text-sm font-medium text-gray-700"
-                        >Last Name *</label
-                    >
-                    <input
-                        type="text"
-                        id="lastName"
-                        bind:value={lastName}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="dateOfBirth" class="block text-sm font-medium text-gray-700"
-                        >Date of Birth *</label
-                    >
-                    <input
-                        type="date"
-                        id="dateOfBirth"
-                        bind:value={dateOfBirth}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="dni" class="block text-sm font-medium text-gray-700"
-                        >National ID Number (CURP/INE) *</label
-                    >
-                    <input
-                        type="text"
-                        id="dni"
-                        bind:value={dni}
-                        placeholder="18 character CURP"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="country" class="block text-sm font-medium text-gray-700"
-                        >Country *</label
-                    >
-                    <select
-                        id="country"
-                        bind:value={country}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    >
-                        {#each SUPPORTED_COUNTRIES as c (c.code)}
-                            <option value={c.code}>{c.name}</option>
-                        {/each}
-                    </select>
-                </div>
-
-                <div class="sm:col-span-2">
-                    <label for="address" class="block text-sm font-medium text-gray-700"
-                        >Street Address *</label
-                    >
-                    <input
-                        type="text"
-                        id="address"
-                        bind:value={address}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="city" class="block text-sm font-medium text-gray-700">City *</label>
-                    <input
-                        type="text"
-                        id="city"
-                        bind:value={city}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="state" class="block text-sm font-medium text-gray-700"
-                        >State *</label
-                    >
-                    <input
-                        type="text"
-                        id="state"
-                        bind:value={state_}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="zipCode" class="block text-sm font-medium text-gray-700"
-                        >ZIP Code *</label
-                    >
-                    <input
-                        type="text"
-                        id="zipCode"
-                        bind:value={zipCode}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
+                {#each requirements.fields as field (field.key)}
+                    <div class={field.key === 'address' ? 'sm:col-span-2' : ''}>
+                        <label
+                            for={`kyc-${field.key}`}
+                            class="block text-sm font-medium text-gray-700"
+                        >
+                            {field.label}{field.required ? ' *' : ''}
+                        </label>
+                        {#if field.type === 'select' && field.options}
+                            <select
+                                id={`kyc-${field.key}`}
+                                bind:value={fieldValues[field.key]}
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            >
+                                {#each field.options as opt (opt.value)}
+                                    <option value={opt.value}>{opt.label}</option>
+                                {/each}
+                            </select>
+                        {:else}
+                            <input
+                                type={field.type}
+                                id={`kyc-${field.key}`}
+                                bind:value={fieldValues[field.key]}
+                                placeholder={field.placeholder || ''}
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        {/if}
+                    </div>
+                {/each}
             </div>
 
             <div class="mt-6">
                 <button
                     onclick={handlePersonalSubmit}
-                    disabled={isSubmitting}
                     class="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    {isSubmitting ? 'Submitting...' : 'Continue to Documents'}
+                    Continue to Documents
                 </button>
             </div>
         </div>
     {:else if currentStep === 'documents'}
         <div>
-            <h3 class="text-lg font-medium text-gray-900">Document Upload</h3>
+            <h3 class="text-lg font-medium text-gray-900">Document Verification</h3>
             <p class="mt-1 text-sm text-gray-500">
-                Please upload clear photos of your ID and a selfie for verification.
+                {#if requirements.documents.some((d: KycDocumentRequirement) => d.mode === 'url_reference')}
+                    Provide document references for verification.
+                {:else}
+                    Please upload clear photos of your ID and a selfie for verification.
+                {/if}
             </p>
 
             <div class="mt-6 space-y-4">
-                <div class="rounded-lg border border-gray-200 p-4">
-                    <label for="idFront" class="block text-sm font-medium text-gray-700">
-                        National ID - Front *
-                    </label>
-                    <p class="mt-1 text-xs text-gray-500">INE/IFE front side with your photo</p>
-                    <input
-                        type="file"
-                        id="idFront"
-                        accept="image/jpeg,image/png,application/pdf"
-                        onchange={(e) => handleFileSelect('idFront', e)}
-                        class="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
-                    />
-                    {#if idFront}
-                        <p class="mt-1 text-xs text-green-600">Selected: {idFront.name}</p>
-                    {/if}
-                </div>
+                {#each requirements.documents as doc (doc.key)}
+                    <div class="rounded-lg border border-gray-200 p-4">
+                        <label
+                            for={`doc-${doc.key}`}
+                            class="block text-sm font-medium text-gray-700"
+                        >
+                            {doc.label} *
+                        </label>
+                        {#if doc.description}
+                            <p class="mt-1 text-xs text-gray-500">{doc.description}</p>
+                        {/if}
 
-                <div class="rounded-lg border border-gray-200 p-4">
-                    <label for="idBack" class="block text-sm font-medium text-gray-700">
-                        National ID - Back *
-                    </label>
-                    <p class="mt-1 text-xs text-gray-500">INE/IFE back side</p>
-                    <input
-                        type="file"
-                        id="idBack"
-                        accept="image/jpeg,image/png,application/pdf"
-                        onchange={(e) => handleFileSelect('idBack', e)}
-                        class="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
-                    />
-                    {#if idBack}
-                        <p class="mt-1 text-xs text-green-600">Selected: {idBack.name}</p>
-                    {/if}
-                </div>
-
-                <div class="rounded-lg border border-gray-200 p-4">
-                    <label for="selfie" class="block text-sm font-medium text-gray-700">
-                        Selfie *
-                    </label>
-                    <p class="mt-1 text-xs text-gray-500">
-                        Clear photo of your face, similar to your ID photo
-                    </p>
-                    <input
-                        type="file"
-                        id="selfie"
-                        accept="image/jpeg,image/png"
-                        onchange={(e) => handleFileSelect('selfie', e)}
-                        class="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
-                    />
-                    {#if selfie}
-                        <p class="mt-1 text-xs text-green-600">Selected: {selfie.name}</p>
-                    {/if}
-                </div>
+                        {#if doc.mode === 'file_upload'}
+                            <input
+                                type="file"
+                                id={`doc-${doc.key}`}
+                                accept={doc.accept || 'image/jpeg,image/png'}
+                                onchange={(e) => handleFileSelect(doc.key, e)}
+                                class="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+                            />
+                            {#if documentValues[doc.key] instanceof File}
+                                <p class="mt-1 text-xs text-green-600">
+                                    Selected: {(documentValues[doc.key] as File).name}
+                                </p>
+                            {/if}
+                        {:else}
+                            <input
+                                type="text"
+                                id={`doc-${doc.key}`}
+                                bind:value={documentValues[doc.key]}
+                                placeholder="https://..."
+                                disabled={capabilities.sandbox}
+                                class="mt-2 block w-full rounded-md border-gray-300 font-mono text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-500"
+                            />
+                            {#if capabilities.sandbox}
+                                <p class="mt-1 text-xs text-amber-600">
+                                    Pre-filled with sandbox placeholder
+                                </p>
+                            {/if}
+                        {/if}
+                    </div>
+                {/each}
             </div>
 
             <div class="mt-6 flex gap-4">
@@ -379,10 +309,10 @@
                 </button>
                 <button
                     onclick={handleDocumentsSubmit}
-                    disabled={isSubmitting || !idFront || !idBack || !selfie}
+                    disabled={isSubmitting || !areDocumentsValid()}
                     class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    {isSubmitting ? 'Uploading...' : 'Submit Documents'}
+                    {isSubmitting ? 'Submitting...' : 'Submit Verification'}
                 </button>
             </div>
         </div>
@@ -410,18 +340,8 @@
                     ></path>
                 </svg>
             </div>
-            <h3 class="mt-4 text-lg font-medium text-gray-900">Uploading Documents</h3>
-            <div class="mt-4 space-y-2 text-sm">
-                <p class={uploadProgress.idFront ? 'text-indigo-600' : 'text-gray-500'}>
-                    {uploadProgress.idFront ? 'Uploading ID Front...' : 'ID Front'}
-                </p>
-                <p class={uploadProgress.idBack ? 'text-indigo-600' : 'text-gray-500'}>
-                    {uploadProgress.idBack ? 'Uploading ID Back...' : 'ID Back'}
-                </p>
-                <p class={uploadProgress.selfie ? 'text-indigo-600' : 'text-gray-500'}>
-                    {uploadProgress.selfie ? 'Uploading Selfie...' : 'Selfie'}
-                </p>
-            </div>
+            <h3 class="mt-4 text-lg font-medium text-gray-900">Submitting Verification</h3>
+            <p class="mt-2 text-sm text-gray-500">Please wait while we process your submission...</p>
         </div>
     {:else if currentStep === 'complete'}
         <div class="text-center">
@@ -447,20 +367,21 @@
                 Your documents have been submitted for review. This usually takes a few minutes.
             </p>
 
-            <!-- Sandbox-only: Manual KYC completion button -->
-            <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
-                <p class="mt-1 text-xs text-amber-700">
-                    In sandbox, you can manually approve your KYC for testing.
-                </p>
-                <button
-                    onclick={handleSandboxComplete}
-                    disabled={isCompletingKyc}
-                    class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                >
-                    {isCompletingKyc ? 'Completing...' : 'Complete KYC (Sandbox)'}
-                </button>
-            </div>
+            {#if capabilities.sandbox && submissionId}
+                <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
+                    <p class="mt-1 text-xs text-amber-700">
+                        In sandbox, you can manually approve your KYC for testing.
+                    </p>
+                    <button
+                        onclick={handleSandboxComplete}
+                        disabled={isCompletingKyc}
+                        class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                        {isCompletingKyc ? 'Completing...' : 'Complete KYC (Sandbox)'}
+                    </button>
+                </div>
+            {/if}
         </div>
     {/if}
 </div>

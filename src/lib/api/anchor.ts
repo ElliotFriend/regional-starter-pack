@@ -16,6 +16,9 @@ import type {
     OffRampTransaction,
     SavedFiatAccount,
     RegisteredFiatAccount,
+    KycRequirements,
+    KycSubmissionData,
+    KycSubmissionResult,
 } from '$lib/anchors/types';
 import type {
     AlfredPayKycRequirementsResponse,
@@ -330,7 +333,7 @@ export async function registerFiatAccount(
 // =============================================================================
 
 /**
- * Get KYC requirements for a country
+ * Get KYC requirements for a country (AlfredPay-specific raw format)
  */
 export async function getKycRequirements(
     fetch: Fetch,
@@ -339,8 +342,70 @@ export async function getKycRequirements(
 ): Promise<AlfredPayKycRequirementsResponse> {
     return apiRequest<AlfredPayKycRequirementsResponse>(
         fetch,
-        `/api/anchor/${provider}/kyc?type=requirements&country=${country}`,
+        `/api/anchor/${provider}/kyc?type=requirements-raw&country=${country}`,
     );
+}
+
+/**
+ * Get KYC field and document requirements in the shared format
+ */
+export async function getKycFieldRequirements(
+    fetch: Fetch,
+    provider: string,
+    country?: string,
+): Promise<KycRequirements> {
+    const params = country ? `&country=${encodeURIComponent(country)}` : '';
+    return apiRequest<KycRequirements>(
+        fetch,
+        `/api/anchor/${provider}/kyc?type=requirements${params}`,
+    );
+}
+
+/**
+ * Submit KYC data and documents via the unified submit-kyc endpoint
+ */
+export async function submitKyc(
+    fetch: Fetch,
+    provider: string,
+    customerId: string,
+    data: KycSubmissionData,
+): Promise<KycSubmissionResult> {
+    const hasFiles = Object.values(data.documents).some((d) => d instanceof File);
+
+    if (hasFiles) {
+        const formData = new FormData();
+        formData.append('customerId', customerId);
+        formData.append('fields', JSON.stringify(data.fields));
+        if (data.metadata) formData.append('metadata', JSON.stringify(data.metadata));
+        for (const [key, value] of Object.entries(data.documents)) {
+            if (value instanceof File) {
+                formData.append(`doc_${key}`, value);
+            } else {
+                formData.append(`doc_${key}`, value);
+            }
+        }
+
+        const response = await fetch(`/api/anchor/${provider}/kyc?type=submit-kyc`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const responseData = await response.json().catch(() => ({}));
+            throw new ApiError(
+                response.status,
+                responseData.error || 'Failed to submit KYC',
+            );
+        }
+
+        return response.json();
+    } else {
+        return postJson<KycSubmissionResult>(
+            fetch,
+            `/api/anchor/${provider}/kyc?type=submit-kyc`,
+            { customerId, data },
+        );
+    }
 }
 
 /**

@@ -31,6 +31,9 @@ import type {
     SavedFiatAccount,
     KycStatus,
     TransactionStatus,
+    KycRequirements,
+    KycSubmissionData,
+    KycSubmissionResult,
 } from '../types';
 import { AnchorError } from '../types';
 import type {
@@ -66,7 +69,7 @@ export class BlindPayClient implements Anchor {
         kycUrl: true,
         requiresTos: true,
         requiresOffRampSigning: true,
-        kycFlow: 'redirect',
+        kycFlow: 'form',
         requiresBankBeforeQuote: true,
         requiresBlockchainWalletRegistration: true,
         requiresAnchorPayoutSubmission: true,
@@ -568,6 +571,121 @@ export class BlindPayClient implements Anchor {
             }
             throw error;
         }
+    }
+
+    /**
+     * Get KYC field and document requirements in the shared format.
+     * Returns hardcoded requirements matching BlindPay's expected fields.
+     */
+    async getKycRequirements(_country?: string): Promise<KycRequirements> {
+        return {
+            fields: [
+                { key: 'firstName', label: 'First Name', type: 'text', required: true },
+                { key: 'lastName', label: 'Last Name', type: 'text', required: true },
+                { key: 'email', label: 'Email', type: 'email', required: true },
+                {
+                    key: 'phoneNumber',
+                    label: 'Phone Number (E.164)',
+                    type: 'tel',
+                    required: true,
+                    placeholder: '+521234567890',
+                },
+                { key: 'dateOfBirth', label: 'Date of Birth', type: 'date', required: true },
+                {
+                    key: 'taxId',
+                    label: 'Tax ID (CURP)',
+                    type: 'text',
+                    required: true,
+                    placeholder: 'ABCD123456HDFRRN09',
+                },
+                { key: 'address', label: 'Address', type: 'text', required: true },
+                { key: 'city', label: 'City', type: 'text', required: true },
+                { key: 'state', label: 'State', type: 'text', required: true },
+                {
+                    key: 'country',
+                    label: 'Country',
+                    type: 'select',
+                    required: true,
+                    options: [{ value: 'MX', label: 'Mexico' }],
+                },
+                { key: 'postalCode', label: 'Postal Code', type: 'text', required: true },
+            ],
+            documents: [
+                {
+                    key: 'idFront',
+                    label: 'ID Document - Front',
+                    description: 'Front of your government-issued ID',
+                    mode: 'url_reference',
+                },
+                {
+                    key: 'idBack',
+                    label: 'ID Document - Back',
+                    description: 'Back of your government-issued ID',
+                    mode: 'url_reference',
+                },
+                {
+                    key: 'selfie',
+                    label: 'Selfie',
+                    description: 'Clear photo of your face',
+                    mode: 'url_reference',
+                },
+                {
+                    key: 'proofOfAddress',
+                    label: 'Proof of Address',
+                    description: 'Utility bill or bank statement',
+                    mode: 'url_reference',
+                },
+            ],
+        };
+    }
+
+    /**
+     * Submit KYC data by creating a BlindPay receiver.
+     * Maps the shared KycSubmissionData into the createReceiver payload.
+     * Requires `metadata.tosId` from the ToS redirect callback.
+     */
+    async submitKyc(
+        _customerId: string,
+        data: KycSubmissionData,
+    ): Promise<KycSubmissionResult> {
+        const tosId = data.metadata?.tosId;
+        if (!tosId) {
+            throw new AnchorError('tosId is required for BlindPay KYC submission', 'MISSING_TOS_ID', 400);
+        }
+
+        const receiverData: BlindPayCreateReceiverRequest = {
+            tos_id: tosId,
+            type: 'individual',
+            kyc_type: 'standard',
+            email: data.fields.email || '',
+            first_name: data.fields.firstName || '',
+            last_name: data.fields.lastName || '',
+            phone_number: data.fields.phoneNumber || '',
+            date_of_birth: data.fields.dateOfBirth
+                ? new Date(data.fields.dateOfBirth).toISOString()
+                : '',
+            tax_id: data.fields.taxId || '',
+            address_line_1: data.fields.address || '',
+            city: data.fields.city || '',
+            state_province_region: data.fields.state || '',
+            country: data.fields.country || 'MX',
+            postal_code: data.fields.postalCode || '',
+            ip_address: '0.0.0.0',
+            id_doc_country: data.fields.country || 'MX',
+            id_doc_type: 'ID_CARD',
+            id_doc_front_file: (data.documents.idFront as string) || '',
+            id_doc_back_file: (data.documents.idBack as string) || '',
+            selfie_file: (data.documents.selfie as string) || '',
+            proof_of_address_doc_type: 'UTILITY_BILL',
+            proof_of_address_doc_file: (data.documents.proofOfAddress as string) || undefined,
+        };
+
+        const receiver = await this.createReceiver(receiverData);
+
+        return {
+            customerId: receiver.id,
+            kycStatus: this.mapReceiverStatus(receiver.kyc_status),
+        };
     }
 
     // =========================================================================

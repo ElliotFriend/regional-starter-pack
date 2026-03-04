@@ -5,7 +5,6 @@
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
-    import BlindPayReceiverForm from '$lib/components/BlindPayReceiverForm.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { AnchorCapabilities, KycStatus } from '$lib/anchors/types';
     import * as api from '$lib/api/anchor';
@@ -34,19 +33,17 @@
     let isLoadingIframeUrl = $state(false);
     let isRefreshingKycStatus = $state(false);
 
-    // Redirect KYC state (for providers with kycFlow: 'redirect', e.g. BlindPay)
+    // ToS state (for providers with requiresTos, e.g. BlindPay)
     let tosId = $state<string | null>(null);
-    let redirectKycStep = $state<'tos' | 'receiver_form' | 'polling'>('tos');
     let isRedirectingToTos = $state(false);
 
     // Detect ToS redirect callback on mount
     onMount(() => {
-        if (capabilities.kycFlow === 'redirect' && typeof window !== 'undefined') {
+        if (capabilities.requiresTos && typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             const returnedTosId = params.get('tos_id');
             if (returnedTosId) {
                 tosId = returnedTosId;
-                redirectKycStep = 'receiver_form';
                 showKyc = true;
                 // Clean the URL
                 const url = new URL(window.location.href);
@@ -83,6 +80,47 @@
         }
     });
 
+    // Auto-check KYC status for form-based providers when customer loads
+    // with non-approved status. AlfredPay's customer endpoint may return
+    // 'not_started' even when a KYC submission exists, so we also check
+    // for existing submissions and upgrade the status to 'pending'.
+    let formKycAutoChecked = false;
+    $effect(() => {
+        const customer = customerStore.current;
+        if (
+            customer?.id &&
+            capabilities.kycFlow === 'form' &&
+            !capabilities.requiresTos &&
+            customer.kycStatus !== KYC_STATUS.APPROVED &&
+            !formKycAutoChecked
+        ) {
+            formKycAutoChecked = true;
+            refreshFormKycStatus(customer.id);
+        }
+    });
+
+    async function refreshFormKycStatus(customerId: string) {
+        const status = await checkAndUpdateKycStatus();
+
+        // Check for existing KYC submission
+        try {
+            const submission = await api.getKycSubmission(fetch, provider, customerId);
+            if (submission) {
+                kycSubmissionId = submission.submissionId;
+            }
+        } catch {
+            // Ignore — submission may not exist
+        }
+
+        // AlfredPay's customer endpoint returns 'not_started' even when a
+        // submission is pending review. If we found a submission, upgrade.
+        if (status === KYC_STATUS.NOT_STARTED && kycSubmissionId) {
+            customerStore.updateKycStatus(KYC_STATUS.PENDING);
+        } else if (status === KYC_STATUS.NOT_STARTED && !kycSubmissionId) {
+            showKyc = true;
+        }
+    }
+
     // Derived step based on wallet/customer/kyc state
     let currentStep = $derived.by(() => {
         if (!walletStore.isConnected) return 'connect';
@@ -112,11 +150,7 @@
             );
             customerStore.set(customer);
 
-            if (capabilities.kycFlow === 'redirect') {
-                // For redirect-based KYC (BlindPay): redirect to ToS page
-                showKyc = true;
-                redirectKycStep = 'tos';
-            } else if (capabilities.kycFlow === 'iframe') {
+            if (capabilities.kycFlow === 'iframe') {
                 // For iframe-based KYC, check status and load iframe URL if needed
                 const kycStatus = await checkIframeKycStatus(customer.id);
                 if (kycStatus !== KYC_STATUS.APPROVED) {
@@ -124,22 +158,13 @@
                     await loadKycIframeUrl(customer.id);
                 }
             } else {
-                // For form-based KYC (AlfredPay path)
-                const kycStatus = await checkAndUpdateKycStatus();
-
-                // Try to get submission ID for sandbox completion
-                try {
-                    const submission = await api.getKycSubmission(fetch, provider, customer.id);
-                    if (submission) {
-                        kycSubmissionId = submission.submissionId;
-                    }
-                } catch {
-                    // Ignore - submission may not exist
-                }
-
-                // Show KYC form if not approved or pending
-                if (kycStatus !== KYC_STATUS.APPROVED && kycStatus !== KYC_STATUS.PENDING) {
+                // For form-based KYC (AlfredPay + BlindPay)
+                if (capabilities.requiresTos) {
+                    // BlindPay: redirect to ToS page if no tosId yet
                     showKyc = true;
+                } else {
+                    // Re-use the same refresh logic that the auto-check effect uses
+                    await refreshFormKycStatus(customer.id);
                 }
             }
         } catch (err) {
@@ -158,30 +183,6 @@
         } catch (err) {
             registrationError = err instanceof Error ? err.message : 'Failed to get ToS URL';
             isRedirectingToTos = false;
-        }
-    }
-
-    function handleReceiverFormComplete() {
-        // Receiver was created — now poll for KYC approval
-        redirectKycStep = 'polling';
-    }
-
-    async function handleRefreshRedirectKycStatus() {
-        const customer = customerStore.current;
-        if (!customer || !customer.id) return;
-
-        isRefreshingKycStatus = true;
-        try {
-            const status = await api.getKycStatus(fetch, provider, customer.id);
-            const mapped = status as KycStatus;
-            customerStore.updateKycStatus(mapped);
-            if (mapped === KYC_STATUS.APPROVED) {
-                showKyc = false;
-            }
-        } catch (err) {
-            console.error('Failed to refresh KYC status:', err);
-        } finally {
-            isRefreshingKycStatus = false;
         }
     }
 
@@ -256,7 +257,7 @@
         showKyc = false;
         // After KYC form submission, update the store with the actual status from the API
         // so KycStatusDisplay shows the "Pending" view instead of re-prompting.
-        await checkAndUpdateKycStatus();
+        const status = await checkAndUpdateKycStatus();
         // Capture the submission ID so the sandbox completion button is available
         const customer = customerStore.current;
         if (capabilities.kycFlow === 'form' && customer && !kycSubmissionId) {
@@ -268,6 +269,12 @@
             } catch {
                 // Ignore — submission lookup may fail
             }
+        }
+        // If the API still reports not_started (hasn't caught up yet) but we know
+        // a submission was just made, force the status to pending so the user sees
+        // the "Verification Pending" view instead of looping back to "Start Verification".
+        if (status === KYC_STATUS.NOT_STARTED) {
+            customerStore.updateKycStatus(KYC_STATUS.PENDING);
         }
     }
 
@@ -404,85 +411,7 @@
             {/if}
         </div>
     {:else if currentStep === 'kyc'}
-        {#if capabilities.kycFlow === 'redirect'}
-            {#if redirectKycStep === 'tos'}
-                <div
-                    class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
-                >
-                    <div
-                        class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
-                    >
-                        <svg
-                            class="h-6 w-6 text-indigo-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                    </div>
-                    <h2 class="mt-4 text-lg font-semibold text-gray-900">
-                        Accept Terms of Service
-                    </h2>
-                    <p class="mt-2 text-sm text-gray-500">
-                        You'll be redirected to BlindPay to accept their Terms of Service. After
-                        accepting, you'll return here to complete verification.
-                    </p>
-                    <button
-                        onclick={redirectToTos}
-                        disabled={isRedirectingToTos}
-                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {isRedirectingToTos ? 'Redirecting...' : 'Accept Terms of Service'}
-                    </button>
-                    {#if registrationError}
-                        <p class="mt-2 text-sm text-red-600">{registrationError}</p>
-                    {/if}
-                </div>
-            {:else if redirectKycStep === 'receiver_form' && tosId}
-                <BlindPayReceiverForm {provider} {tosId} onComplete={handleReceiverFormComplete} />
-            {:else if redirectKycStep === 'polling'}
-                <div
-                    class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
-                >
-                    <div
-                        class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100"
-                    >
-                        <svg
-                            class="h-6 w-6 text-yellow-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                    </div>
-                    <h2 class="mt-4 text-lg font-semibold text-gray-900">
-                        Verifying Your Identity
-                    </h2>
-                    <p class="mt-2 text-sm text-gray-500">
-                        Your verification is being reviewed. This may take a few moments.
-                    </p>
-                    <button
-                        onclick={handleRefreshRedirectKycStatus}
-                        disabled={isRefreshingKycStatus}
-                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {isRefreshingKycStatus ? 'Checking...' : 'Refresh Status'}
-                    </button>
-                </div>
-            {/if}
-        {:else if capabilities.kycFlow === 'iframe'}
+        {#if capabilities.kycFlow === 'iframe'}
             <div
                 class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
             >
@@ -534,18 +463,63 @@
                 </button>
             </div>
         {:else}
-            <KycStatusDisplay
-                {provider}
-                customer={customerStore.current}
-                email={customerStore.current?.email || email}
-                {showKyc}
-                {kycSubmissionId}
-                {isCompletingKyc}
-                onKycComplete={handleKycComplete}
-                onSandboxComplete={handleSandboxComplete}
-                onShowKyc={() => (showKyc = true)}
-                onRefreshStatus={handleRefreshKycStatus}
-            />
+            <!-- Form-based KYC (AlfredPay + BlindPay) -->
+            {#if capabilities.requiresTos && !tosId}
+                <!-- ToS acceptance step (BlindPay) -->
+                <div
+                    class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+                >
+                    <div
+                        class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
+                    >
+                        <svg
+                            class="h-6 w-6 text-indigo-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="mt-4 text-lg font-semibold text-gray-900">
+                        Accept Terms of Service
+                    </h2>
+                    <p class="mt-2 text-sm text-gray-500">
+                        You'll be redirected to accept the Terms of Service. After accepting, you'll
+                        return here to complete verification.
+                    </p>
+                    <button
+                        onclick={redirectToTos}
+                        disabled={isRedirectingToTos}
+                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isRedirectingToTos ? 'Redirecting...' : 'Accept Terms of Service'}
+                    </button>
+                    {#if registrationError}
+                        <p class="mt-2 text-sm text-red-600">{registrationError}</p>
+                    {/if}
+                </div>
+            {:else}
+                <KycStatusDisplay
+                    {provider}
+                    customer={customerStore.current}
+                    email={customerStore.current?.email || email}
+                    {capabilities}
+                    tosId={tosId ?? undefined}
+                    {showKyc}
+                    {kycSubmissionId}
+                    {isCompletingKyc}
+                    onKycComplete={handleKycComplete}
+                    onSandboxComplete={handleSandboxComplete}
+                    onShowKyc={() => (showKyc = true)}
+                    onRefreshStatus={handleRefreshKycStatus}
+                />
+            {/if}
         {/if}
     {:else}
         {@render children()}

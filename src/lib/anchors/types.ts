@@ -230,6 +230,44 @@ export interface TokenInfo {
 }
 
 // =============================================================================
+// KYC field/document requirements — anchors declare what they need
+// =============================================================================
+
+export interface KycFieldRequirement {
+    key: string;
+    label: string;
+    type: 'text' | 'date' | 'email' | 'tel' | 'select';
+    required: boolean;
+    placeholder?: string;
+    options?: { value: string; label: string }[];
+}
+
+export interface KycDocumentRequirement {
+    key: string;
+    label: string;
+    description?: string;
+    accept?: string;
+    mode: 'file_upload' | 'url_reference';
+}
+
+export interface KycRequirements {
+    fields: KycFieldRequirement[];
+    documents: KycDocumentRequirement[];
+}
+
+export interface KycSubmissionData {
+    fields: Record<string, string>;
+    documents: Record<string, File | string>;
+    metadata?: Record<string, string>;
+}
+
+export interface KycSubmissionResult {
+    customerId: string;
+    kycStatus: KycStatus;
+    submissionId?: string;
+}
+
+// =============================================================================
 // Anchor Capabilities
 // =============================================================================
 
@@ -291,6 +329,9 @@ export interface Anchor {
 
     getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
     getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
+
+    getKycRequirements?(country?: string): Promise<KycRequirements>;
+    submitKyc?(customerId: string, data: KycSubmissionData): Promise<KycSubmissionResult>;
 }
 
 export class AnchorError extends Error {

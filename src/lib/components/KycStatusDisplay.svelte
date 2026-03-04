@@ -1,12 +1,14 @@
 <script lang="ts">
     import KycForm from '$lib/components/KycForm.svelte';
     import { KYC_STATUS } from '$lib/constants';
-    import type { Customer } from '$lib/anchors/types';
+    import type { Customer, AnchorCapabilities } from '$lib/anchors/types';
 
     interface Props {
         provider: string;
         customer: Customer | null;
         email: string;
+        capabilities: AnchorCapabilities;
+        tosId?: string;
         showKyc: boolean;
         kycSubmissionId: string | null;
         isCompletingKyc: boolean;
@@ -20,6 +22,8 @@
         provider,
         customer,
         email,
+        capabilities,
+        tosId,
         showKyc,
         kycSubmissionId,
         isCompletingKyc,
@@ -38,7 +42,7 @@
                 Complete the verification below to start using the service.
             </p>
             <div class="mt-4">
-                <KycForm {provider} {email} onComplete={onKycComplete} />
+                <KycForm {provider} {email} {capabilities} {tosId} onComplete={onKycComplete} />
             </div>
         </div>
     {:else if customer?.kycStatus === KYC_STATUS.PENDING}

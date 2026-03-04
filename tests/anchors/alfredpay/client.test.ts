@@ -563,23 +563,54 @@ describe('AlfredPayClient', () => {
     });
 
     describe('getKycStatus', () => {
-        it('calls GET /customers/:id and returns the kyc_status', async () => {
+        it('calls GET /customers/:id and maps statusKyc to shared KycStatus', async () => {
             const client = createClient();
 
             server.use(
                 http.get(`${BASE_URL}/customers/cust-123`, () => {
                     return HttpResponse.json({
-                        id: 'cust-123',
-                        email: 'user@example.com',
-                        kyc_status: 'approved',
-                        created_at: '2025-01-01T00:00:00Z',
-                        updated_at: '2025-01-02T00:00:00Z',
+                        statusKyc: 'COMPLETED',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-02T00:00:00Z',
                     });
                 }),
             );
 
             const status = await client.getKycStatus('cust-123');
             expect(status).toBe('approved');
+        });
+
+        it('maps IN_REVIEW to pending', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/cust-123`, () => {
+                    return HttpResponse.json({
+                        statusKyc: 'IN_REVIEW',
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-02T00:00:00Z',
+                    });
+                }),
+            );
+
+            const status = await client.getKycStatus('cust-123');
+            expect(status).toBe('pending');
+        });
+
+        it('returns not_started when statusKyc is absent', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/cust-123`, () => {
+                    return HttpResponse.json({
+                        createdAt: '2025-01-01T00:00:00Z',
+                        updatedAt: '2025-01-02T00:00:00Z',
+                    });
+                }),
+            );
+
+            const status = await client.getKycStatus('cust-123');
+            expect(status).toBe('not_started');
         });
 
         it('throws AnchorError when customer does not exist (404)', async () => {
@@ -1642,8 +1673,8 @@ describe('AlfredPayClient', () => {
         });
     });
 
-    describe('getKycRequirements', () => {
-        it('returns KYC requirements for a given country', async () => {
+    describe('getKycRequirementsRaw', () => {
+        it('returns raw KYC requirements for a given country', async () => {
             const client = createClient();
 
             server.use(
@@ -1671,7 +1702,7 @@ describe('AlfredPayClient', () => {
                 }),
             );
 
-            const requirements = await client.getKycRequirements('BR');
+            const requirements = await client.getKycRequirementsRaw('BR');
 
             expect(requirements.country).toBe('BR');
             expect(requirements.requirements.personal).toHaveLength(2);
@@ -1698,9 +1729,26 @@ describe('AlfredPayClient', () => {
                 }),
             );
 
-            const requirements = await client.getKycRequirements();
+            const requirements = await client.getKycRequirementsRaw();
 
             expect(requirements.country).toBe('MX');
+        });
+    });
+
+    describe('getKycRequirements (shared format)', () => {
+        it('returns KYC requirements in the shared KycRequirements format', async () => {
+            const client = createClient();
+            const requirements = await client.getKycRequirements();
+
+            expect(requirements.fields).toBeDefined();
+            expect(requirements.documents).toBeDefined();
+            expect(requirements.fields.length).toBeGreaterThan(0);
+            expect(requirements.documents.length).toBeGreaterThan(0);
+            expect(requirements.fields[0]).toHaveProperty('key');
+            expect(requirements.fields[0]).toHaveProperty('label');
+            expect(requirements.fields[0]).toHaveProperty('type');
+            expect(requirements.documents[0]).toHaveProperty('key');
+            expect(requirements.documents[0]).toHaveProperty('mode');
         });
     });
 
@@ -2606,11 +2654,9 @@ describe('AlfredPayClient', () => {
                     http.get(`${BASE_URL}/customers/cust-123`, ({ request }) => {
                         capturedUrl = request.url;
                         return HttpResponse.json({
-                            id: 'cust-123',
-                            email: 'user@example.com',
-                            kyc_status: 'approved',
-                            created_at: '2025-01-01T00:00:00Z',
-                            updated_at: '2025-01-02T00:00:00Z',
+                            statusKyc: 'COMPLETED',
+                            createdAt: '2025-01-01T00:00:00Z',
+                            updatedAt: '2025-01-02T00:00:00Z',
                         });
                     }),
                 );
