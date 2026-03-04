@@ -27,6 +27,7 @@ import type {
     OnRampTransaction,
     OffRampTransaction,
     CreateCustomerInput,
+    GetCustomerInput,
     GetQuoteInput,
     CreateOnRampInput,
     CreateOffRampInput,
@@ -387,15 +388,23 @@ export class EtherfuseClient implements Anchor {
 
     /**
      * Fetch a customer by their Etherfuse ID.
-     * @param customerId - The customer's unique identifier.
+     * @param input - Must include `customerId`. Email-only lookup is not supported.
      * @returns The {@link Customer}, or `null` if not found.
-     * @throws {AnchorError} On non-404 API errors.
+     * @throws {AnchorError} If `customerId` is not provided or on non-404 API errors.
      */
-    async getCustomer(customerId: string): Promise<Customer | null> {
+    async getCustomer(input: GetCustomerInput): Promise<Customer | null> {
+        if (!input.customerId) {
+            throw new AnchorError(
+                'customerId is required for Etherfuse customer lookup',
+                'MISSING_CUSTOMER_ID',
+                400,
+            );
+        }
+
         try {
             const response = await this.request<EtherfuseCustomerResponse>(
                 'GET',
-                `/ramp/customer/${customerId}`,
+                `/ramp/customer/${input.customerId}`,
             );
             return {
                 id: response.customerId,

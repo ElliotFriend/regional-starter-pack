@@ -156,7 +156,7 @@ On development instances, KYC is automatically approved. Use first name `"Fail"`
 Look up an existing receiver:
 
 ```typescript
-const customer = await blindpay.getCustomer(receiverId); // returns null if not found
+const customer = await blindpay.getCustomer({ customerId: receiverId }); // returns null if not found
 ```
 
 Check KYC status:
@@ -166,7 +166,7 @@ const status = await blindpay.getKycStatus(receiverId);
 // 'not_started' | 'pending' | 'approved' | 'rejected'
 ```
 
-> **Note:** `getCustomerByEmail()` is not implemented by BlindPay. The method is optional on the `Anchor` interface.
+> **Note:** BlindPay only supports ID-based lookup. Calling `getCustomer({ email })` without a `customerId` will throw an `AnchorError`.
 
 ### 3. Register a Blockchain Wallet (for On-Ramp)
 

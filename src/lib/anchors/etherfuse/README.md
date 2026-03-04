@@ -102,10 +102,10 @@ If the public key is already registered (HTTP 409), the client automatically rec
 Lookup an existing customer:
 
 ```typescript
-const customer = await etherfuse.getCustomer(customerId); // returns null if not found
+const customer = await etherfuse.getCustomer({ customerId }); // returns null if not found
 ```
 
-> **Note:** `getCustomerByEmail()` is not implemented by Etherfuse. The method is optional on the `Anchor` interface.
+> **Note:** Etherfuse only supports ID-based lookup. Calling `getCustomer({ email })` without a `customerId` will throw an `AnchorError`.
 
 ### 2. KYC Verification
 

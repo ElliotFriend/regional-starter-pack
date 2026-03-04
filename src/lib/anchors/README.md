@@ -36,8 +36,7 @@ interface Anchor {
 
     // Customer management
     createCustomer(input: CreateCustomerInput): Promise<Customer>;
-    getCustomer(customerId: string): Promise<Customer | null>;
-    getCustomerByEmail?(email: string, country?: string): Promise<Customer | null>;
+    getCustomer(input: GetCustomerInput): Promise<Customer | null>;
 
     // Quotes
     getQuote(input: GetQuoteInput): Promise<Quote>;

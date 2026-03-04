@@ -22,6 +22,7 @@ import type {
     OnRampTransaction,
     OffRampTransaction,
     CreateCustomerInput,
+    GetCustomerInput,
     GetQuoteInput,
     CreateOnRampInput,
     CreateOffRampInput,
@@ -283,13 +284,22 @@ export class BlindPayClient implements Anchor {
 
     /**
      * Fetch a receiver by ID.
-     * @param customerId - The receiver's BlindPay ID (e.g. `re_000000000000`).
+     * @param input - Must include `customerId`. Email-only lookup is not supported.
+     * @throws {AnchorError} If `customerId` is not provided or on non-404 API errors.
      */
-    async getCustomer(customerId: string): Promise<Customer | null> {
+    async getCustomer(input: GetCustomerInput): Promise<Customer | null> {
+        if (!input.customerId) {
+            throw new AnchorError(
+                'customerId is required for BlindPay customer lookup',
+                'MISSING_CUSTOMER_ID',
+                400,
+            );
+        }
+
         try {
             const response = await this.request<BlindPayReceiverResponse>(
                 'GET',
-                this.instancePath(`/receivers/${customerId}`),
+                this.instancePath(`/receivers/${input.customerId}`),
             );
             return {
                 id: response.id,

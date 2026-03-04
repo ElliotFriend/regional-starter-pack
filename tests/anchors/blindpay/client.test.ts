@@ -68,7 +68,7 @@ describe('BlindPayClient', () => {
             );
 
             const client = createClient();
-            const result = await client.getCustomer('re_abc');
+            const result = await client.getCustomer({ customerId: 're_abc' });
 
             expect(result).not.toBeNull();
             expect(result!.id).toBe('re_abc');
@@ -94,7 +94,7 @@ describe('BlindPayClient', () => {
             );
 
             const client = createClient();
-            const result = await client.getCustomer('re_verifying');
+            const result = await client.getCustomer({ customerId: 're_verifying' });
             expect(result!.kycStatus).toBe('pending');
         });
 
@@ -114,7 +114,7 @@ describe('BlindPayClient', () => {
             );
 
             const client = createClient();
-            const result = await client.getCustomer('re_rejected');
+            const result = await client.getCustomer({ customerId: 're_rejected' });
             expect(result!.kycStatus).toBe('rejected');
         });
 
@@ -129,7 +129,7 @@ describe('BlindPayClient', () => {
             );
 
             const client = createClient();
-            const result = await client.getCustomer('re_missing');
+            const result = await client.getCustomer({ customerId: 're_missing' });
             expect(result).toBeNull();
         });
     });
@@ -847,7 +847,7 @@ describe('BlindPayClient', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer('re_bad');
+                await client.getCustomer({ customerId: 're_bad' });
                 expect.fail('Expected AnchorError to be thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(AnchorError);
@@ -871,7 +871,7 @@ describe('BlindPayClient', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer('re_crash');
+                await client.getCustomer({ customerId: 're_crash' });
                 expect.fail('Expected AnchorError to be thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(AnchorError);
@@ -1056,7 +1056,7 @@ describe('BlindPayClient', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer('re_empty_error');
+                await client.getCustomer({ customerId: 're_empty_error' });
                 expect.fail('Expected AnchorError to be thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(AnchorError);
@@ -1080,7 +1080,7 @@ describe('BlindPayClient', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer('re_null_error');
+                await client.getCustomer({ customerId: 're_null_error' });
                 expect.fail('Expected AnchorError to be thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(AnchorError);
@@ -1105,7 +1105,7 @@ describe('BlindPayClient', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer('re_no_code');
+                await client.getCustomer({ customerId: 're_no_code' });
                 expect.fail('Expected AnchorError to be thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(AnchorError);
@@ -1138,7 +1138,7 @@ describe('BlindPayClient', () => {
             );
 
             const client = createClient();
-            const result = await client.getCustomer('re_unknown');
+            const result = await client.getCustomer({ customerId: 're_unknown' });
             expect(result!.kycStatus).toBe('pending');
         });
 
@@ -2363,29 +2363,32 @@ describe('BlindPayClient', () => {
         // -----------------------------------------------------------------
 
         describe('getCustomer input validation', () => {
-            it('sends request with empty customerId in URL path', async () => {
-                let capturedUrl = '';
-
-                server.use(
-                    http.get(apiUrl('/receivers/'), ({ request }) => {
-                        capturedUrl = request.url;
-                        return HttpResponse.json({
-                            id: '',
-                            email: 'u@example.com',
-                            kyc_status: 'verifying',
-                            type: 'individual',
-                            country: 'MX',
-                            created_at: '2025-01-01T00:00:00Z',
-                            updated_at: '2025-01-01T00:00:00Z',
-                        });
-                    }),
-                );
-
+            it('throws AnchorError when customerId is missing', async () => {
                 const client = createClient();
-                await client.getCustomer('');
 
-                // The URL path contains the empty string appended after /receivers/
-                expect(capturedUrl).toContain('/receivers/');
+                try {
+                    await client.getCustomer({ email: 'user@example.com' });
+                    expect.fail('Expected AnchorError');
+                } catch (err) {
+                    expect(err).toBeInstanceOf(AnchorError);
+                    const anchorErr = err as AnchorError;
+                    expect(anchorErr.code).toBe('MISSING_CUSTOMER_ID');
+                    expect(anchorErr.statusCode).toBe(400);
+                }
+            });
+
+            it('throws AnchorError when customerId is empty string', async () => {
+                const client = createClient();
+
+                try {
+                    await client.getCustomer({ customerId: '' });
+                    expect.fail('Expected AnchorError');
+                } catch (err) {
+                    expect(err).toBeInstanceOf(AnchorError);
+                    const anchorErr = err as AnchorError;
+                    expect(anchorErr.code).toBe('MISSING_CUSTOMER_ID');
+                    expect(anchorErr.statusCode).toBe(400);
+                }
             });
         });
 

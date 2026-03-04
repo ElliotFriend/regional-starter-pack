@@ -28,6 +28,7 @@ import type {
     OnRampTransaction,
     OffRampTransaction,
     CreateCustomerInput,
+    GetCustomerInput,
     GetQuoteInput,
     CreateOnRampInput,
     CreateOffRampInput,
@@ -143,20 +144,6 @@ export class AlfredPayClient implements Anchor {
         const data = await response.json();
         console.log(`[AlfredPay] Response:`, JSON.stringify(data));
         return data as T;
-    }
-
-    /**
-     * Map an AlfredPay customer response to the shared {@link Customer} type.
-     * @param response - Raw API response from `GET /customers/:id`.
-     */
-    private mapCustomer(response: AlfredPayCustomerResponse): Customer {
-        return {
-            id: response.id,
-            email: response.email,
-            kycStatus: response.kyc_status as KycStatus,
-            createdAt: response.created_at,
-            updatedAt: response.updated_at,
-        };
     }
 
     /**
@@ -324,6 +311,10 @@ export class AlfredPayClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async createCustomer(input: CreateCustomerInput): Promise<Customer> {
+        if (!input.email) {
+            throw new AnchorError('email is required for AlfredPay', 'MISSING_EMAIL', 400);
+        }
+
         const response = await this.request<AlfredPayCreateCustomerResponse>(
             'POST',
             '/customers/create',
@@ -346,49 +337,36 @@ export class AlfredPayClient implements Anchor {
     }
 
     /**
-     * Fetch a customer by their AlfredPay ID.
-     * @param customerId - The customer's unique identifier.
-     * @returns The {@link Customer}, or `null` if not found.
-     * @throws {AnchorError} On non-404 API errors.
-     */
-    async getCustomer(customerId: string): Promise<Customer | null> {
-        try {
-            const response = await this.request<AlfredPayCustomerResponse>(
-                'GET',
-                `/customers/${customerId}`,
-            );
-            return this.mapCustomer(response);
-        } catch (error) {
-            if (error instanceof AnchorError && error.statusCode === 404) {
-                return null;
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * Look up a customer by email and country.
+     * Look up a customer by email (and optional country).
      *
-     * The API endpoint only returns a `customerId`, so the returned {@link Customer}
-     * object has placeholder timestamps and a `"not_started"` KYC status. Use
-     * {@link getCustomer} if you need full customer details.
+     * AlfredPay only supports email-based lookup. Providing only `customerId`
+     * (without `email`) will throw — AlfredPay's `GET /customers/{id}` is a
+     * KYC-specific endpoint, not a general customer lookup.
      *
-     * @param email - Customer's email address.
-     * @param country - ISO 3166-1 alpha-2 country code. Defaults to `"MX"`.
+     * @param input - Must include `email`. Optional `country` defaults to `"MX"`.
      * @returns A minimal {@link Customer}, or `null` if not found.
-     * @throws {AnchorError} On non-404 API errors.
+     * @throws {AnchorError} If `email` is not provided or on non-404 API errors.
      */
-    async getCustomerByEmail(email: string, country: string = 'MX'): Promise<Customer | null> {
+    async getCustomer(input: GetCustomerInput): Promise<Customer | null> {
+        if (!input.email) {
+            throw new AnchorError(
+                'email is required for AlfredPay customer lookup',
+                'MISSING_EMAIL',
+                400,
+            );
+        }
+
+        const country = input.country || 'MX';
+
         try {
             const response = await this.request<{ customerId: string }>(
                 'GET',
-                `/customers/find/${encodeURIComponent(email)}/${country}`,
+                `/customers/find/${encodeURIComponent(input.email)}/${country}`,
             );
 
-            // The endpoint only returns customerId, construct a minimal Customer object
             return {
                 id: response.customerId,
-                email: email,
+                email: input.email,
                 kycStatus: 'not_started',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -612,18 +590,18 @@ export class AlfredPayClient implements Anchor {
     /**
      * Get the current KYC verification status for a customer.
      *
-     * Fetches the full customer record and returns just the KYC status field.
+     * Calls the `GET /customers/{customerId}` KYC info endpoint directly.
      *
      * @param customerId - The customer's unique identifier.
      * @returns The customer's {@link KycStatus}.
      * @throws {AnchorError} If the customer is not found or the API fails.
      */
     async getKycStatus(customerId: string): Promise<KycStatus> {
-        const customer = await this.getCustomer(customerId);
-        if (!customer) {
-            throw new AnchorError('Customer not found', 'CUSTOMER_NOT_FOUND', 404);
-        }
-        return customer.kycStatus;
+        const response = await this.request<AlfredPayCustomerResponse>(
+            'GET',
+            `/customers/${customerId}`,
+        );
+        return response.kyc_status as KycStatus;
     }
 
     /**

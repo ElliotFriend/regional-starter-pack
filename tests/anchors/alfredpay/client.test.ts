@@ -67,67 +67,38 @@ describe('AlfredPayClient', () => {
     });
 
     describe('getCustomer', () => {
-        it('fetches a customer by ID and maps kyc_status', async () => {
-            const client = createClient();
-
-            server.use(
-                http.get(`${BASE_URL}/customers/cust-123`, ({ request }) => {
-                    expect(request.headers.get('api-key')).toBe(API_KEY);
-                    expect(request.headers.get('api-secret')).toBe(API_SECRET);
-
-                    return HttpResponse.json({
-                        id: 'cust-123',
-                        email: 'user@example.com',
-                        kyc_status: 'approved',
-                        created_at: '2025-01-01T00:00:00Z',
-                        updated_at: '2025-01-02T00:00:00Z',
-                    });
-                }),
-            );
-
-            const customer = await client.getCustomer('cust-123');
-
-            expect(customer).not.toBeNull();
-            expect(customer!.id).toBe('cust-123');
-            expect(customer!.email).toBe('user@example.com');
-            expect(customer!.kycStatus).toBe('approved');
-            expect(customer!.createdAt).toBe('2025-01-01T00:00:00Z');
-            expect(customer!.updatedAt).toBe('2025-01-02T00:00:00Z');
-        });
-
-        it('returns null when customer is not found (404)', async () => {
-            const client = createClient();
-
-            server.use(
-                http.get(`${BASE_URL}/customers/nonexistent`, () => {
-                    return HttpResponse.json(
-                        { error: { code: 'NOT_FOUND', message: 'Customer not found' } },
-                        { status: 404 },
-                    );
-                }),
-            );
-
-            const customer = await client.getCustomer('nonexistent');
-            expect(customer).toBeNull();
-        });
-    });
-
-    describe('getCustomerByEmail', () => {
         it('finds a customer by email and country', async () => {
             const client = createClient();
 
             server.use(
-                http.get(`${BASE_URL}/customers/find/user%40example.com/MX`, () => {
+                http.get(`${BASE_URL}/customers/find/user%40example.com/MX`, ({ request }) => {
+                    expect(request.headers.get('api-key')).toBe(API_KEY);
+                    expect(request.headers.get('api-secret')).toBe(API_SECRET);
+
                     return HttpResponse.json({ customerId: 'cust-789' });
                 }),
             );
 
-            const customer = await client.getCustomerByEmail('user@example.com', 'MX');
+            const customer = await client.getCustomer({ email: 'user@example.com', country: 'MX' });
 
             expect(customer).not.toBeNull();
             expect(customer!.id).toBe('cust-789');
             expect(customer!.email).toBe('user@example.com');
             expect(customer!.kycStatus).toBe('not_started');
+        });
+
+        it('defaults country to MX when not provided', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/customers/find/user%40example.com/MX`, () => {
+                    return HttpResponse.json({ customerId: 'cust-default' });
+                }),
+            );
+
+            const customer = await client.getCustomer({ email: 'user@example.com' });
+            expect(customer).not.toBeNull();
+            expect(customer!.id).toBe('cust-default');
         });
 
         it('returns null when customer is not found (404)', async () => {
@@ -142,8 +113,22 @@ describe('AlfredPayClient', () => {
                 }),
             );
 
-            const customer = await client.getCustomerByEmail('nobody@example.com', 'MX');
+            const customer = await client.getCustomer({ email: 'nobody@example.com', country: 'MX' });
             expect(customer).toBeNull();
+        });
+
+        it('throws AnchorError when email is missing', async () => {
+            const client = createClient();
+
+            try {
+                await client.getCustomer({ customerId: 'cust-123' });
+                expect.fail('Expected AnchorError');
+            } catch (err) {
+                expect(err).toBeInstanceOf(AnchorError);
+                const anchorErr = err as AnchorError;
+                expect(anchorErr.code).toBe('MISSING_EMAIL');
+                expect(anchorErr.statusCode).toBe(400);
+            }
         });
     });
 
@@ -575,7 +560,7 @@ describe('AlfredPayClient', () => {
     });
 
     describe('getKycStatus', () => {
-        it('delegates to getCustomer and returns the kycStatus', async () => {
+        it('calls GET /customers/:id and returns the kyc_status', async () => {
             const client = createClient();
 
             server.use(
@@ -594,7 +579,7 @@ describe('AlfredPayClient', () => {
             expect(status).toBe('approved');
         });
 
-        it('throws AnchorError with CUSTOMER_NOT_FOUND when customer does not exist', async () => {
+        it('throws AnchorError when customer does not exist (404)', async () => {
             const client = createClient();
 
             server.use(
@@ -608,7 +593,7 @@ describe('AlfredPayClient', () => {
 
             await expect(client.getKycStatus('nonexistent')).rejects.toThrow(AnchorError);
             await expect(client.getKycStatus('nonexistent')).rejects.toMatchObject({
-                code: 'CUSTOMER_NOT_FOUND',
+                code: 'NOT_FOUND',
             });
         });
     });
@@ -1204,31 +1189,6 @@ describe('AlfredPayClient', () => {
             const client = createClient();
 
             server.use(
-                http.get(`${BASE_URL}/customers/cust-500`, () => {
-                    return HttpResponse.json(
-                        { error: { code: 'INTERNAL_ERROR', message: 'Server error' } },
-                        { status: 500 },
-                    );
-                }),
-            );
-
-            try {
-                await client.getCustomer('cust-500');
-                expect.fail('Should have thrown');
-            } catch (error) {
-                expect(error).toBeInstanceOf(AnchorError);
-                const anchorError = error as AnchorError;
-                expect(anchorError.statusCode).toBe(500);
-                expect(anchorError.message).toBe('Server error');
-            }
-        });
-    });
-
-    describe('getCustomerByEmail() edge cases', () => {
-        it('re-throws non-404 errors', async () => {
-            const client = createClient();
-
-            server.use(
                 http.get(`${BASE_URL}/customers/find/error%40example.com/MX`, () => {
                     return HttpResponse.json(
                         { error: { code: 'RATE_LIMIT', message: 'Too many requests' } },
@@ -1238,7 +1198,7 @@ describe('AlfredPayClient', () => {
             );
 
             try {
-                await client.getCustomerByEmail('error@example.com', 'MX');
+                await client.getCustomer({ email: 'error@example.com', country: 'MX' });
                 expect.fail('Should have thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(AnchorError);
@@ -1866,23 +1826,16 @@ describe('AlfredPayClient', () => {
 
     describe('input validation behavior', () => {
         describe('createCustomer input validation', () => {
-            it('passes empty email to API without local validation', async () => {
+            it('throws MISSING_EMAIL when email is empty', async () => {
                 const client = createClient();
-                let capturedBody: Record<string, unknown> = {};
 
-                server.use(
-                    http.post(`${BASE_URL}/customers/create`, async ({ request }) => {
-                        capturedBody = (await request.json()) as Record<string, unknown>;
-                        return HttpResponse.json({
-                            customerId: 'cust-empty-email',
-                            createdAt: '2025-01-01T00:00:00Z',
-                        });
-                    }),
-                );
+                await expect(client.createCustomer({ email: '' })).rejects.toThrow('email is required for AlfredPay');
+            });
 
-                await client.createCustomer({ email: '' });
+            it('throws MISSING_EMAIL when email is undefined', async () => {
+                const client = createClient();
 
-                expect(capturedBody.email).toBe('');
+                await expect(client.createCustomer({})).rejects.toThrow('email is required for AlfredPay');
             });
 
             it('passes invalid email format to API without validation', async () => {
@@ -1928,67 +1881,32 @@ describe('AlfredPayClient', () => {
         });
 
         describe('getCustomer input validation', () => {
-            it('sends request with empty string ID', async () => {
+            it('throws AnchorError when email is missing (empty object)', async () => {
                 const client = createClient();
-                let capturedUrl = '';
-
-                server.use(
-                    http.get(`${BASE_URL}/customers/`, ({ request }) => {
-                        capturedUrl = request.url;
-                        return HttpResponse.json({
-                            id: '',
-                            email: 'user@example.com',
-                            kyc_status: 'not_started',
-                            created_at: '2025-01-01T00:00:00Z',
-                            updated_at: '2025-01-01T00:00:00Z',
-                        });
-                    }),
-                );
-
-                await client.getCustomer('');
-
-                expect(capturedUrl).toContain('/customers/');
-            });
-
-            it('re-throws non-404 errors for empty ID', async () => {
-                const client = createClient();
-
-                server.use(
-                    http.get(`${BASE_URL}/customers/`, () => {
-                        return HttpResponse.json(
-                            { error: { code: 'BAD_REQUEST', message: 'Invalid ID' } },
-                            { status: 400 },
-                        );
-                    }),
-                );
 
                 try {
-                    await client.getCustomer('');
+                    await client.getCustomer({});
                     expect.fail('Should have thrown');
                 } catch (error) {
                     expect(error).toBeInstanceOf(AnchorError);
                     const anchorError = error as AnchorError;
+                    expect(anchorError.code).toBe('MISSING_EMAIL');
                     expect(anchorError.statusCode).toBe(400);
                 }
             });
-        });
 
-        describe('getCustomerByEmail input validation', () => {
-            it('sends request with empty email (URL-encoded)', async () => {
+            it('throws AnchorError when only customerId is provided (no email)', async () => {
                 const client = createClient();
-                let capturedUrl = '';
 
-                server.use(
-                    http.get(`${BASE_URL}/customers/find/*`, ({ request }) => {
-                        capturedUrl = request.url;
-                        return HttpResponse.json({ customerId: 'cust-empty-email' });
-                    }),
-                );
-
-                await client.getCustomerByEmail('');
-
-                // encodeURIComponent('') is '', so the URL contains /find//MX
-                expect(capturedUrl).toContain('/customers/find/');
+                try {
+                    await client.getCustomer({ customerId: 'cust-123' });
+                    expect.fail('Should have thrown');
+                } catch (error) {
+                    expect(error).toBeInstanceOf(AnchorError);
+                    const anchorError = error as AnchorError;
+                    expect(anchorError.code).toBe('MISSING_EMAIL');
+                    expect(anchorError.statusCode).toBe(400);
+                }
             });
 
             it('sends request with email containing special characters', async () => {
@@ -2005,7 +1923,7 @@ describe('AlfredPayClient', () => {
                     ),
                 );
 
-                await client.getCustomerByEmail('test+user@example.com');
+                await client.getCustomer({ email: 'test+user@example.com' });
 
                 // encodeURIComponent('test+user@example.com') produces 'test%2Buser%40example.com'
                 expect(capturedUrl).toContain('test%2Buser%40example.com');
@@ -2704,9 +2622,8 @@ describe('AlfredPayClient', () => {
                     }),
                 );
 
-                // AlfredPayClient.getKycStatus only accepts customerId — it doesn't even
-                // have a publicKey parameter (unlike the base Anchor interface).
-                // It delegates entirely to getCustomer(customerId).
+                // AlfredPayClient.getKycStatus calls GET /customers/{id} directly
+                // for KYC info — it doesn't go through getCustomer().
                 const status = await client.getKycStatus('cust-123');
 
                 expect(status).toBe('approved');

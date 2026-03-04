@@ -20,10 +20,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
         const body = await request.json();
         const { email, country = 'MX', publicKey } = body;
 
-        if (!email) {
-            throw error(400, { message: 'email is required' });
-        }
-
         const anchor = getAnchor(provider);
         const customer = await anchor.createCustomer({ email, country, publicKey });
 
@@ -51,12 +47,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
     try {
         const anchor = getAnchor(provider);
-
-        if (!anchor.getCustomerByEmail) {
-            throw error(501, { message: 'Provider does not support customer lookup by email' });
-        }
-
-        const customer = await anchor.getCustomerByEmail(email, country);
+        const customer = await anchor.getCustomer({ email, country });
 
         if (!customer) {
             throw error(404, { message: 'Customer not found' });

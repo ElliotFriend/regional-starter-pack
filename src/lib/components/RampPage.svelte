@@ -93,14 +93,14 @@
     });
 
     async function registerCustomer() {
-        if (!email || !walletStore.publicKey) return;
+        if (!walletStore.publicKey) return;
 
         isRegistering = true;
         registrationError = null;
 
         try {
             // Get or create customer — skip email lookup for providers that don't support it
-            const customer = await api.getOrCreateCustomer(fetch, provider, email, country, {
+            const customer = await api.getOrCreateCustomer(fetch, provider, email || undefined, country, {
                 supportsEmailLookup: capabilities.emailLookup,
                 publicKey: walletStore.publicKey,
             });
@@ -357,8 +357,21 @@
                 </div>
 
                 <div>
+                    <label for="wallet-address" class="block text-sm font-medium text-gray-700"
+                        >Wallet Address</label
+                    >
+                    <input
+                        type="text"
+                        id="wallet-address"
+                        value={walletStore.publicKey ?? ''}
+                        readonly
+                        class="mt-1 block w-full truncate rounded-md border-gray-300 bg-gray-50 font-mono text-xs text-gray-500 shadow-sm sm:text-sm"
+                    />
+                </div>
+
+                <div>
                     <label for="email" class="block text-sm font-medium text-gray-700"
-                        >Email Address</label
+                        >Email Address {#if !capabilities.emailLookup}<span class="font-normal text-gray-400">(Optional)</span>{/if}</label
                     >
                     <input
                         type="email"
@@ -372,7 +385,7 @@
 
             <button
                 onclick={registerCustomer}
-                disabled={!email || isRegistering}
+                disabled={isRegistering}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
                 {isRegistering ? 'Processing...' : 'Continue'}

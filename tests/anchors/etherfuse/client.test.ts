@@ -151,7 +151,7 @@ describe('getCustomer', () => {
             }),
         );
 
-        const customer = await client.getCustomer('cust-1');
+        const customer = await client.getCustomer({ customerId: 'cust-1' });
 
         expect(customer).not.toBeNull();
         expect(customer!.id).toBe('cust-1');
@@ -173,7 +173,7 @@ describe('getCustomer', () => {
             }),
         );
 
-        const customer = await client.getCustomer('not-found');
+        const customer = await client.getCustomer({ customerId: 'not-found' });
         expect(customer).toBeNull();
     });
 });
@@ -738,7 +738,7 @@ describe('request error handling', () => {
         );
 
         try {
-            await client.getCustomer('err-json');
+            await client.getCustomer({ customerId: 'err-json' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -759,7 +759,7 @@ describe('request error handling', () => {
         );
 
         try {
-            await client.getCustomer('err-text');
+            await client.getCustomer({ customerId: 'err-text' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -805,7 +805,7 @@ describe('request() edge cases', () => {
         );
 
         try {
-            await client.getCustomer('err-empty-fields');
+            await client.getCustomer({ customerId: 'err-empty-fields' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -830,7 +830,7 @@ describe('request() edge cases', () => {
         );
 
         try {
-            await client.getCustomer('err-no-code');
+            await client.getCustomer({ customerId: 'err-no-code' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -854,7 +854,7 @@ describe('request() edge cases', () => {
         );
 
         try {
-            await client.getCustomer('err-null-error');
+            await client.getCustomer({ customerId: 'err-null-error' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -1860,7 +1860,6 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            // @ts-expect-error testing undefined email
             const customer = await client.createCustomer({ publicKey: STELLAR_PUBKEY });
 
             expect(capturedBody).not.toBeNull();
@@ -1873,45 +1872,32 @@ describe('input validation behavior', () => {
     // getCustomer input validation
     // -----------------------------------------------------------------
     describe('getCustomer input validation', () => {
-        it('sends request with empty string ID in URL path', async () => {
+        it('throws AnchorError when customerId is missing', async () => {
             const client = createClient();
-            let capturedUrl = '';
 
-            server.use(
-                http.get(/\/ramp\/customer\//, ({ request }) => {
-                    capturedUrl = request.url;
-                    return HttpResponse.json({
-                        customerId: '',
-                        displayName: null,
-                        createdAt: '2025-01-01T00:00:00Z',
-                        updatedAt: '2025-01-01T00:00:00Z',
-                    });
-                }),
-            );
-
-            await client.getCustomer('');
-            expect(capturedUrl).toContain('/ramp/customer/');
+            try {
+                await client.getCustomer({ email: 'user@example.com' });
+                expect.fail('Expected AnchorError');
+            } catch (err) {
+                expect(err).toBeInstanceOf(AnchorError);
+                const anchorErr = err as AnchorError;
+                expect(anchorErr.code).toBe('MISSING_CUSTOMER_ID');
+                expect(anchorErr.statusCode).toBe(400);
+            }
         });
 
-        it('sends request with whitespace-only ID (whitespace is passed through)', async () => {
+        it('throws AnchorError when customerId is empty string', async () => {
             const client = createClient();
-            let capturedUrl = '';
 
-            server.use(
-                http.get(new RegExp(`${BASE_URL}/ramp/customer/`), ({ request }) => {
-                    capturedUrl = request.url;
-                    return HttpResponse.json({
-                        customerId: '   ',
-                        displayName: null,
-                        createdAt: '2025-01-01T00:00:00Z',
-                        updatedAt: '2025-01-01T00:00:00Z',
-                    });
-                }),
-            );
-
-            await client.getCustomer('   ');
-            // Whitespace-only ID is interpolated into the URL path without validation
-            expect(capturedUrl).toContain('/ramp/customer/');
+            try {
+                await client.getCustomer({ customerId: '' });
+                expect.fail('Expected AnchorError');
+            } catch (err) {
+                expect(err).toBeInstanceOf(AnchorError);
+                const anchorErr = err as AnchorError;
+                expect(anchorErr.code).toBe('MISSING_CUSTOMER_ID');
+                expect(anchorErr.statusCode).toBe(400);
+            }
         });
     });
 
@@ -2640,7 +2626,7 @@ describe('getCustomer() displayName handling', () => {
             }),
         );
 
-        const customer = await client.getCustomer('cust-named');
+        const customer = await client.getCustomer({ customerId: 'cust-named' });
         expect(customer).not.toBeNull();
         expect(customer!.id).toBe('cust-named');
         // displayName is in the Etherfuse response but our Anchor mapping always returns ''
@@ -2661,7 +2647,7 @@ describe('getCustomer() displayName handling', () => {
         );
 
         try {
-            await client.getCustomer('cust-500');
+            await client.getCustomer({ customerId: 'cust-500' });
             expect.unreachable('should have thrown');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);

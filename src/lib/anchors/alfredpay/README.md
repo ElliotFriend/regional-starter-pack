@@ -60,8 +60,7 @@ const customer = await alfred.createCustomer({
 Lookup existing customers:
 
 ```typescript
-const byId = await alfred.getCustomer(customerId); // returns null if not found
-const byEmail = await alfred.getCustomerByEmail(email); // returns null if not found
+const customer = await alfred.getCustomer({ email, country: 'MX' }); // returns null if not found
 ```
 
 ### 2. KYC Verification

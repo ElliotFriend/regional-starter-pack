@@ -98,7 +98,7 @@ export async function getCustomerByEmail(
 export async function createCustomer(
     fetch: Fetch,
     provider: string,
-    email: string,
+    email: string | undefined,
     country: string = 'MX',
     publicKey?: string,
 ): Promise<Customer> {
@@ -116,13 +116,13 @@ export async function createCustomer(
 export async function getOrCreateCustomer(
     fetch: Fetch,
     provider: string,
-    email: string,
+    email: string | undefined,
     country: string = 'MX',
     options?: { supportsEmailLookup?: boolean; publicKey?: string },
 ): Promise<Customer> {
     const supportsEmailLookup = options?.supportsEmailLookup ?? false;
 
-    if (supportsEmailLookup) {
+    if (supportsEmailLookup && email) {
         const existing = await getCustomerByEmail(fetch, provider, email, country);
         if (existing) {
             return existing;

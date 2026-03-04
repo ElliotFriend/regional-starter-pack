@@ -16,7 +16,7 @@ export type TransactionStatus =
 
 export interface Customer {
     id: string;
-    email: string;
+    email?: string;
     kycStatus: KycStatus;
     /** Bank account ID — generated at registration time for providers that require it (e.g. Etherfuse). */
     bankAccountId?: string;
@@ -169,9 +169,15 @@ export interface OffRampTransaction {
 // =============================================================================
 
 export interface CreateCustomerInput {
-    email: string;
+    email?: string;
     country?: string;
     publicKey?: string;
+}
+
+export interface GetCustomerInput {
+    customerId?: string;
+    email?: string;
+    country?: string;
 }
 
 export interface GetQuoteInput {
@@ -271,8 +277,7 @@ export interface Anchor {
     readonly supportedRails: readonly string[];
 
     createCustomer(input: CreateCustomerInput): Promise<Customer>;
-    getCustomer(customerId: string): Promise<Customer | null>;
-    getCustomerByEmail?(email: string, country?: string): Promise<Customer | null>;
+    getCustomer(input: GetCustomerInput): Promise<Customer | null>;
 
     getQuote(input: GetQuoteInput): Promise<Quote>;
 
