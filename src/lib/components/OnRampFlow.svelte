@@ -17,6 +17,7 @@ Usage:
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
@@ -47,6 +48,11 @@ Usage:
     let isCreatingTransaction = $state(false);
     let error = $state<string | null>(null);
     let refreshInterval: ReturnType<typeof setInterval> | null = null;
+
+    // Polling state
+    let pollCount = $state(0);
+    const MAX_POLL_COUNT = 60; // ~5 minutes at 5s intervals
+    let pollingTimedOut = $derived(pollCount >= MAX_POLL_COUNT);
 
     // Steps: 'input' | 'quote' | 'payment' | 'complete'
     let step = $state<'input' | 'quote' | 'payment' | 'complete'>('input');
@@ -135,8 +141,16 @@ Usage:
 
     function startPolling() {
         if (refreshInterval) clearInterval(refreshInterval);
+        pollCount = 0;
 
         refreshInterval = setInterval(async () => {
+            pollCount += 1;
+
+            if (pollingTimedOut) {
+                stopPolling();
+                return;
+            }
+
             if (transaction) {
                 const updated = await api.getOnRampTransaction(fetch, provider, transaction.id);
 
@@ -309,7 +323,7 @@ Usage:
                             </div>
                             <div>
                                 <span class="text-sm text-gray-500">CLABE</span>
-                                <p class="font-mono font-medium">{pi.clabe || 'N/A'}</p>
+                                <p class="font-medium"><CopyableField value={pi.clabe || 'N/A'} mono /></p>
                             </div>
                             <div>
                                 <span class="text-sm text-gray-500">Beneficiary</span>
@@ -319,14 +333,13 @@ Usage:
                         {#if pi.reference}
                             <div>
                                 <span class="text-sm text-gray-500">Reference</span>
-                                <p class="font-mono font-medium">{pi.reference}</p>
+                                <p class="font-medium"><CopyableField value={pi.reference} mono /></p>
                             </div>
                         {/if}
                         <div class="border-t border-gray-200 pt-4">
                             <span class="text-sm text-gray-500">Amount</span>
                             <p class="text-2xl font-bold text-indigo-600">
-                                {parseFloat(pi.amount).toLocaleString()}
-                                {pi.currency}
+                                <CopyableField value="{parseFloat(pi.amount).toLocaleString()} {pi.currency}" />
                             </p>
                         </div>
                     </div>
@@ -364,9 +377,22 @@ Usage:
                 {/if}
 
                 <div class="mt-6">
-                    <p class="text-center text-sm text-gray-500">
-                        Waiting for payment confirmation... This page will update automatically.
-                    </p>
+                    {#if pollingTimedOut}
+                        <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+                            <p class="font-medium">We haven't received confirmation yet</p>
+                            <p class="mt-1">
+                                Your transaction is still processing. You can close this page and check back later.
+                            </p>
+                            <div class="mt-3">
+                                <span class="text-xs text-amber-600">Transaction ID</span>
+                                <p class="mt-0.5"><CopyableField value={transaction.id} mono /></p>
+                            </div>
+                        </div>
+                    {:else}
+                        <p class="text-center text-sm text-gray-500">
+                            Waiting for payment confirmation... This page will update automatically.
+                        </p>
+                    {/if}
                 </div>
             </div>
         {/if}

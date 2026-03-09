@@ -18,6 +18,7 @@ Usage:
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
@@ -58,8 +59,16 @@ Usage:
     let isCreatingTransaction = $state(false);
     let isSigning = $state(false);
     let error = $state<string | null>(null);
+
+    // Polling state
     let refreshInterval: ReturnType<typeof setInterval> | null = null;
     let signableInterval: ReturnType<typeof setInterval> | null = null;
+    let pollCount = $state(0);
+    let signablePollCount = $state(0);
+    const MAX_POLL_COUNT = 60; // ~5 minutes at 5s intervals
+    const MAX_SIGNABLE_POLL_COUNT = 60; // ~5 minutes at 5s intervals
+    let pollingTimedOut = $derived(pollCount >= MAX_POLL_COUNT);
+    let signableTimedOut = $derived(signablePollCount >= MAX_SIGNABLE_POLL_COUNT);
 
     // Saved fiat accounts
     let savedAccounts = $state<SavedFiatAccount[]>([]);
@@ -332,9 +341,17 @@ Usage:
 
     function startPollingForSignable() {
         stopPollingForSignable();
+        signablePollCount = 0;
 
         signableInterval = setInterval(async () => {
             if (!transaction) return;
+
+            signablePollCount += 1;
+
+            if (signableTimedOut) {
+                stopPollingForSignable();
+                return;
+            }
 
             try {
                 const updated = await api.getOffRampTransaction(fetch, provider, transaction.id);
@@ -358,8 +375,16 @@ Usage:
 
     function startPolling() {
         if (refreshInterval) clearInterval(refreshInterval);
+        pollCount = 0;
 
         refreshInterval = setInterval(async () => {
+            pollCount += 1;
+
+            if (pollingTimedOut) {
+                stopPolling();
+                return;
+            }
+
             if (transaction) {
                 const updated = await api.getOffRampTransaction(fetch, provider, transaction.id);
 
@@ -504,39 +529,64 @@ Usage:
         />
     {:else if step === 'awaiting_signable'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div
-                class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"
-            ></div>
-            <h2 class="mt-4 text-xl font-semibold text-gray-900">Preparing Your Transaction</h2>
-            <p class="mt-2 text-gray-500">
-                Your order has been created. Waiting for the transaction to be ready for signing...
-            </p>
-
-            {#if transaction && quote}
-                <div class="mt-6 space-y-3 rounded-md bg-gray-50 p-4 text-left">
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-500">You're sending</span>
-                        <span class="font-medium"
-                            >{formatAmount(transaction.fromAmount)}
-                            {displayCurrency(transaction.fromCurrency || quote.fromCurrency)}</span
-                        >
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-500">You'll receive</span>
-                        <span class="font-medium text-green-600">
-                            {parseFloat(
-                                transaction.toAmount || quote.toAmount || '0',
-                            ).toLocaleString()}
-                            {displayCurrency(transaction.toCurrency || quote.toCurrency)}
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-500">Order ID</span>
-                        <span class="font-mono text-sm text-gray-700"
-                            >{transaction.id.slice(0, 8)}...</span
-                        >
-                    </div>
+            {#if signableTimedOut}
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                    <svg class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
                 </div>
+                <h2 class="mt-4 text-xl font-semibold text-gray-900">Something went wrong</h2>
+                <p class="mt-2 text-gray-500">
+                    We weren't able to prepare your transaction for signing. Please try again.
+                </p>
+                {#if transaction}
+                    <div class="mt-4 text-left">
+                        <span class="text-xs text-gray-500">Order ID</span>
+                        <p class="mt-0.5"><CopyableField value={transaction.id} mono /></p>
+                    </div>
+                {/if}
+                <button
+                    onclick={() => { step = 'bank'; }}
+                    class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                    Try Again
+                </button>
+            {:else}
+                <div
+                    class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"
+                ></div>
+                <h2 class="mt-4 text-xl font-semibold text-gray-900">Preparing Your Transaction</h2>
+                <p class="mt-2 text-gray-500">
+                    Your order has been created. Waiting for the transaction to be ready for signing...
+                </p>
+                <p class="mt-1 text-sm text-gray-400">This usually takes under a minute.</p>
+
+                {#if transaction && quote}
+                    <div class="mt-6 space-y-3 rounded-md bg-gray-50 p-4 text-left">
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-500">You're sending</span>
+                            <span class="font-medium"
+                                >{formatAmount(transaction.fromAmount)}
+                                {displayCurrency(transaction.fromCurrency || quote.fromCurrency)}</span
+                            >
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-500">You'll receive</span>
+                            <span class="font-medium text-green-600">
+                                {parseFloat(
+                                    transaction.toAmount || quote.toAmount || '0',
+                                ).toLocaleString()}
+                                {displayCurrency(transaction.toCurrency || quote.toCurrency)}
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-500">Order ID</span>
+                            <span class="font-mono text-sm text-gray-700"
+                                >{transaction.id.slice(0, 8)}...</span
+                            >
+                        </div>
+                    </div>
+                {/if}
             {/if}
         </div>
     {:else if step === 'signing'}
@@ -613,9 +663,22 @@ Usage:
                 </div>
 
                 <div class="mt-6">
-                    <p class="text-center text-sm text-gray-500">
-                        This page will update when your transfer is complete.
-                    </p>
+                    {#if pollingTimedOut}
+                        <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+                            <p class="font-medium">We haven't received confirmation yet</p>
+                            <p class="mt-1">
+                                Your transaction is still processing. You can close this page and check back later.
+                            </p>
+                            <div class="mt-3">
+                                <span class="text-xs text-amber-600">Transaction ID</span>
+                                <p class="mt-0.5"><CopyableField value={transaction.id} mono /></p>
+                            </div>
+                        </div>
+                    {:else}
+                        <p class="text-center text-sm text-gray-500">
+                            This page will update when your transfer is complete.
+                        </p>
+                    {/if}
                     {#if transaction.statusPage}
                         <a
                             href={transaction.statusPage}
