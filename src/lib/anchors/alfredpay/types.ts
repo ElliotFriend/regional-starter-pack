@@ -48,12 +48,12 @@ export interface AlfredPayQuoteRequest {
     chain: 'XLM';
     /** Fiat payment rail — always `"SPEI"` for Mexico. */
     paymentMethodType: 'SPEI';
-    /** Optional customer ID to associate with the quote. */
-    customerId?: string;
-    /** Optional business ID to associate with the quote. */
-    businessId?: string;
-    /** Optional arbitrary metadata. */
-    metadata?: Record<string, unknown>;
+    /** Customer ID to associate with the quote. */
+    customerId: string;
+    /** Business ID to associate with the quote (empty string for individual). */
+    businessId: string;
+    /** Arbitrary metadata (can be `{}`). */
+    metadata: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,10 +268,12 @@ export interface AlfredPayOffRampResponse {
     quote?: AlfredPayQuoteResponse;
 }
 
-/** Response from the KYC iframe URL endpoint. */
+/** Response from `GET /customers/{customerId}/kyc/{country}/url`. */
 export interface AlfredPayKycIframeResponse {
-    /** URL to render in an iframe for interactive KYC verification. */
-    url: string;
+    /** URL for interactive KYC verification (iframe or redirect). */
+    verification_url: string;
+    /** KYC submission identifier. */
+    submissionId: string;
 }
 
 // ---------------------------------------------------------------------------

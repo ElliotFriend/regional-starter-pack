@@ -57,6 +57,7 @@ import type {
     AlfredPayKycFileType,
     AlfredPayKycFileResponse,
     AlfredPayKycSubmissionStatusResponse,
+    AlfredPayKycIframeResponse,
     AlfredPayFiatAccountResponse,
     AlfredPayFiatAccountListItem,
     AlfredPaySandboxWebhookRequest,
@@ -393,11 +394,14 @@ export class AlfredPayClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
-        const body: Record<string, string> = {
+        const body: Record<string, string | Record<string, unknown>> = {
             fromCurrency: input.fromCurrency,
             toCurrency: input.toCurrency,
             chain: 'XLM',
             paymentMethodType: 'SPEI',
+            customerId: input.customerId || '',
+            businessId: '',
+            metadata: {},
         };
 
         // Ensure amounts are strings
@@ -583,7 +587,7 @@ export class AlfredPayClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async getKycUrl(customerId: string, country: string = 'MX'): Promise<string> {
-        const response = await this.request<{ verification_url: string; submissionId: string }>(
+        const response = await this.request<AlfredPayKycIframeResponse>(
             'GET',
             `/customers/${customerId}/kyc/${country}/url`,
         );
