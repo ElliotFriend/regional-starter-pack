@@ -677,7 +677,11 @@ export class AlfredPayClient implements Anchor {
 
     /**
      * Get KYC field and document requirements in the shared format.
+     *
      * Returns hardcoded requirements matching AlfredPay's expected fields.
+     *
+     * @param _country - Unused (AlfredPay currently only supports Mexico).
+     * @returns The {@link KycRequirements} for AlfredPay KYC submission.
      */
     async getKycRequirements(_country?: string): Promise<KycRequirements> {
         return {
@@ -732,7 +736,16 @@ export class AlfredPayClient implements Anchor {
 
     /**
      * Submit KYC data and documents in a single atomic call.
-     * Wraps the multi-step AlfredPay flow: submit data → upload files → finalize.
+     *
+     * Wraps the multi-step AlfredPay flow:
+     * 1. {@link submitKycData} — submit personal data
+     * 2. {@link submitKycFile} — upload each document
+     * 3. {@link finalizeKycSubmission} — send for review
+     *
+     * @param customerId - The customer's unique identifier.
+     * @param data - Form fields and document files.
+     * @returns A {@link KycSubmissionResult} with `kycStatus: "pending"`.
+     * @throws {AnchorError} On API failure during any step.
      */
     async submitKyc(
         customerId: string,
