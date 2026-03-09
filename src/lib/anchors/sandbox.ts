@@ -26,8 +26,7 @@ export const SANDBOX_KYC_DATA: Record<string, string> = {
 export const SANDBOX_KYC_DOCUMENTS: Record<string, string> = {
     idFront:
         'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
-    idBack:
-        'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
+    idBack: 'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
     selfie: 'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/selfie.png',
     proofOfAddress:
         'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',

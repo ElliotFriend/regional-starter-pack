@@ -323,7 +323,9 @@ Usage:
                             </div>
                             <div>
                                 <span class="text-sm text-gray-500">CLABE</span>
-                                <p class="font-medium"><CopyableField value={pi.clabe || 'N/A'} mono /></p>
+                                <p class="font-medium">
+                                    <CopyableField value={pi.clabe || 'N/A'} mono />
+                                </p>
                             </div>
                             <div>
                                 <span class="text-sm text-gray-500">Beneficiary</span>
@@ -333,13 +335,17 @@ Usage:
                         {#if pi.reference}
                             <div>
                                 <span class="text-sm text-gray-500">Reference</span>
-                                <p class="font-medium"><CopyableField value={pi.reference} mono /></p>
+                                <p class="font-medium">
+                                    <CopyableField value={pi.reference} mono />
+                                </p>
                             </div>
                         {/if}
                         <div class="border-t border-gray-200 pt-4">
                             <span class="text-sm text-gray-500">Amount</span>
                             <p class="text-2xl font-bold text-indigo-600">
-                                <CopyableField value="{parseFloat(pi.amount).toLocaleString()} {pi.currency}" />
+                                <CopyableField
+                                    value="{parseFloat(pi.amount).toLocaleString()} {pi.currency}"
+                                />
                             </p>
                         </div>
                     </div>
@@ -381,7 +387,8 @@ Usage:
                         <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                             <p class="font-medium">We haven't received confirmation yet</p>
                             <p class="mt-1">
-                                Your transaction is still processing. You can close this page and check back later.
+                                Your transaction is still processing. You can close this page and
+                                check back later.
                             </p>
                             <div class="mt-3">
                                 <span class="text-xs text-amber-600">Transaction ID</span>

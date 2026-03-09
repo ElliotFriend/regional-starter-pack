@@ -1,7 +1,11 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
-    import type { AnchorCapabilities, KycRequirements, KycDocumentRequirement } from '$lib/anchors/types';
+    import type {
+        AnchorCapabilities,
+        KycRequirements,
+        KycDocumentRequirement,
+    } from '$lib/anchors/types';
     import { SANDBOX_KYC_DATA, SANDBOX_KYC_DOCUMENTS } from '$lib/anchors/sandbox';
     import * as api from '$lib/api/anchor';
 
@@ -288,7 +292,7 @@
                                 bind:value={documentValues[doc.key]}
                                 placeholder="https://..."
                                 disabled={capabilities.sandbox}
-                                class="mt-2 block w-full rounded-md border-gray-300 font-mono text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-500"
+                                class="mt-2 block w-full rounded-md border-gray-300 font-mono text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500 sm:text-sm"
                             />
                             {#if capabilities.sandbox}
                                 <p class="mt-1 text-xs text-amber-600">
@@ -341,7 +345,9 @@
                 </svg>
             </div>
             <h3 class="mt-4 text-lg font-medium text-gray-900">Submitting Verification</h3>
-            <p class="mt-2 text-sm text-gray-500">Please wait while we process your submission...</p>
+            <p class="mt-2 text-sm text-gray-500">
+                Please wait while we process your submission...
+            </p>
         </div>
     {:else if currentStep === 'complete'}
         <div class="text-center">

@@ -706,13 +706,14 @@ export class BlindPayClient implements Anchor {
      * @returns A {@link KycSubmissionResult} with the new receiver's ID and KYC status.
      * @throws {AnchorError} If `tosId` is missing or on API failure.
      */
-    async submitKyc(
-        _customerId: string,
-        data: KycSubmissionData,
-    ): Promise<KycSubmissionResult> {
+    async submitKyc(_customerId: string, data: KycSubmissionData): Promise<KycSubmissionResult> {
         const tosId = data.metadata?.tosId;
         if (!tosId) {
-            throw new AnchorError('tosId is required for BlindPay KYC submission', 'MISSING_TOS_ID', 400);
+            throw new AnchorError(
+                'tosId is required for BlindPay KYC submission',
+                'MISSING_TOS_ID',
+                400,
+            );
         }
 
         const receiverData: BlindPayCreateReceiverRequest = {

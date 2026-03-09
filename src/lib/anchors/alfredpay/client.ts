@@ -747,10 +747,7 @@ export class AlfredPayClient implements Anchor {
      * @returns A {@link KycSubmissionResult} with `kycStatus: "pending"`.
      * @throws {AnchorError} On API failure during any step.
      */
-    async submitKyc(
-        customerId: string,
-        data: KycSubmissionData,
-    ): Promise<KycSubmissionResult> {
+    async submitKyc(customerId: string, data: KycSubmissionData): Promise<KycSubmissionResult> {
         // Step 1: Submit personal data
         const kycData = {
             firstName: data.fields.firstName || '',

@@ -392,19 +392,15 @@ export async function submitKyc(
 
         if (!response.ok) {
             const responseData = await response.json().catch(() => ({}));
-            throw new ApiError(
-                response.status,
-                responseData.error || 'Failed to submit KYC',
-            );
+            throw new ApiError(response.status, responseData.error || 'Failed to submit KYC');
         }
 
         return response.json();
     } else {
-        return postJson<KycSubmissionResult>(
-            fetch,
-            `/api/anchor/${provider}/kyc?type=submit-kyc`,
-            { customerId, data },
-        );
+        return postJson<KycSubmissionResult>(fetch, `/api/anchor/${provider}/kyc?type=submit-kyc`, {
+            customerId,
+            data,
+        });
     }
 }
 

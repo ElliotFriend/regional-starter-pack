@@ -530,9 +530,21 @@ Usage:
     {:else if step === 'awaiting_signable'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
             {#if signableTimedOut}
-                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                    <svg class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                <div
+                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100"
+                >
+                    <svg
+                        class="h-6 w-6 text-amber-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
                     </svg>
                 </div>
                 <h2 class="mt-4 text-xl font-semibold text-gray-900">Something went wrong</h2>
@@ -546,7 +558,9 @@ Usage:
                     </div>
                 {/if}
                 <button
-                    onclick={() => { step = 'bank'; }}
+                    onclick={() => {
+                        step = 'bank';
+                    }}
                     class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 >
                     Try Again
@@ -557,7 +571,8 @@ Usage:
                 ></div>
                 <h2 class="mt-4 text-xl font-semibold text-gray-900">Preparing Your Transaction</h2>
                 <p class="mt-2 text-gray-500">
-                    Your order has been created. Waiting for the transaction to be ready for signing...
+                    Your order has been created. Waiting for the transaction to be ready for
+                    signing...
                 </p>
                 <p class="mt-1 text-sm text-gray-400">This usually takes under a minute.</p>
 
@@ -567,7 +582,9 @@ Usage:
                             <span class="text-sm text-gray-500">You're sending</span>
                             <span class="font-medium"
                                 >{formatAmount(transaction.fromAmount)}
-                                {displayCurrency(transaction.fromCurrency || quote.fromCurrency)}</span
+                                {displayCurrency(
+                                    transaction.fromCurrency || quote.fromCurrency,
+                                )}</span
                             >
                         </div>
                         <div class="flex justify-between">
@@ -667,7 +684,8 @@ Usage:
                         <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                             <p class="font-medium">We haven't received confirmation yet</p>
                             <p class="mt-1">
-                                Your transaction is still processing. You can close this page and check back later.
+                                Your transaction is still processing. You can close this page and
+                                check back later.
                             </p>
                             <div class="mt-3">
                                 <span class="text-xs text-amber-600">Transaction ID</span>
