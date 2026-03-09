@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import DevBox from '$lib/components/ui/DevBox.svelte';
 </script>
 
@@ -13,13 +14,13 @@
     </p>
     <div class="mt-8 flex justify-center gap-4">
         <a
-            href="/regions"
+            href={resolve('/regions')}
             class="rounded-md bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700"
         >
             Browse Regions
         </a>
         <a
-            href="/anchors"
+            href={resolve('/anchors')}
             class="rounded-md bg-white px-6 py-3 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50"
         >
             View Anchors

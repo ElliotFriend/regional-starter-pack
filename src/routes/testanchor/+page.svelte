@@ -839,7 +839,7 @@
                                 URL: <a
                                     href={sep24Result.url}
                                     target="_blank"
-                                    rel="noopener noreferrer"
+                                    rel="external noopener noreferrer"
                                     class="text-violet-600 hover:underline"
                                 >
                                     {sep24Result.url.slice(0, 50)}...

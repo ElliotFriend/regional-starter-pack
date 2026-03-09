@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { page } from '$app/state';
     import type { Region } from '$lib/config/regions';
     import type { AnchorProfile } from '$lib/config/anchors';
@@ -17,7 +18,7 @@
     <nav class="p-4">
         <!-- Home -->
         <a
-            href="/"
+            href={resolve('/')}
             class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url
                 .pathname === '/'
                 ? 'bg-indigo-50 text-indigo-600'
@@ -36,7 +37,7 @@
 
         <!-- Test Anchor -->
         <a
-            href="/testanchor"
+            href={resolve('/testanchor')}
             class="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url.pathname.startsWith(
                 '/testanchor',
             )
@@ -66,9 +67,9 @@
                 Regions
             </h3>
             <div class="mt-2 space-y-1">
-                {#each regions as region}
+                {#each regions as region (region.id)}
                     <a
-                        href="/regions/{region.id}"
+                        href={resolve(`/regions/${region.id}`)}
                         class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page
                             .url.pathname === `/regions/${region.id}`
                             ? 'bg-indigo-50 text-indigo-600'
@@ -87,9 +88,9 @@
                 Anchors
             </h3>
             <div class="mt-2 space-y-1">
-                {#each anchors as anchor}
+                {#each anchors as anchor (anchor.id)}
                     <a
-                        href="/anchors/{anchor.id}"
+                        href={resolve(`/anchors/${anchor.id}`)}
                         class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url.pathname.startsWith(
                             `/anchors/${anchor.id}`,
                         )

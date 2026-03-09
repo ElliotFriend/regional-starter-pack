@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { getPaymentRail } from '$lib/config/rails';
     import DevBox from '$lib/components/ui/DevBox.svelte';
     import type { PageProps } from './$types';
@@ -34,11 +35,11 @@
     <h1 class="text-3xl font-bold text-gray-900">{anchor.name}</h1>
     <p class="mt-2 text-gray-600">{anchor.description}</p>
     <div class="mt-3 flex flex-row flex-wrap gap-2">
-        {#each Object.entries(anchor.links) as [label, url]}
+        {#each Object.entries(anchor.links) as [label, url] (label)}
             <a
                 href={url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="external noopener noreferrer"
                 class="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-gray-700 capitalize ring-1 ring-gray-300 hover:bg-gray-50"
             >
                 {label}
@@ -56,13 +57,13 @@
     </p>
     <div class="mt-4 flex gap-3">
         <a
-            href="/anchors/{anchor.id}/onramp"
+            href={resolve(`/anchors/${anchor.id}/onramp`)}
             class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
             Try On-Ramp
         </a>
         <a
-            href="/anchors/{anchor.id}/offramp"
+            href={resolve(`/anchors/${anchor.id}/offramp`)}
             class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
         >
             Try Off-Ramp
@@ -82,7 +83,7 @@
     <div class="mb-8 rounded-lg border border-red-200 bg-red-50 p-5">
         <h3 class="mb-2 text-sm font-semibold text-red-800">Known Issues</h3>
         <ul class="space-y-1 text-sm text-red-900">
-            {#each anchor.knownIssues as issue}
+            {#each anchor.knownIssues as issue (issue.text)}
                 <li class="flex gap-2">
                     <span class="mt-0.5 shrink-0 text-red-400">&bull;</span>
                     <span>
@@ -92,7 +93,7 @@
                                 href={issue.link}
                                 class="text-red-700 underline hover:no-underline"
                                 target="_blank"
-                                rel="noopener noreferrer">More info</a
+                                rel="external noopener noreferrer">More info</a
                             >
                         {/if}
                     </span>
@@ -106,7 +107,7 @@
 <section class="mb-8">
     <h2 class="mb-4 text-xl font-semibold text-gray-900">Supported Digital Assets</h2>
     <div class="grid gap-4 sm:grid-cols-3">
-        {#each supportedTokens as token}
+        {#each supportedTokens as token (token.symbol)}
             <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 <h3 class="font-semibold text-gray-900">{token.symbol}</h3>
                 <p class="text-sm text-gray-500">{token.name}</p>
@@ -149,12 +150,12 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 bg-white">
-                {#each regions as region}
+                {#each regions as region (region.id)}
                     {@const capability = anchor.regions[region.id]}
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <a
-                                href="/regions/{region.id}"
+                                href={resolve(`/regions/${region.id}`)}
                                 class="flex items-center gap-2 text-gray-900 hover:text-indigo-600"
                             >
                                 <span>{region.flag}</span>
@@ -166,7 +167,7 @@
                         </td>
                         <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
                             {#if capability}
-                                {#each capability.paymentRails as railId}
+                                {#each capability.paymentRails as railId (railId)}
                                     {@const rail = getPaymentRail(railId)}
                                     {#if rail}
                                         <span
@@ -217,7 +218,7 @@
             <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
                 <h3 class="mb-2 text-sm font-semibold text-amber-800">Developer Onboarding</h3>
                 <ul class="space-y-1 text-sm text-amber-900">
-                    {#each anchor.devOnboarding as note}
+                    {#each anchor.devOnboarding as note (note.text)}
                         <li class="flex gap-2">
                             <span class="mt-0.5 shrink-0 text-amber-500">&bull;</span>
                             <span>{note.text}</span>
@@ -225,6 +226,7 @@
                                 <span
                                     ><a
                                         href={note.link}
+                                        rel="external"
                                         class="text-indigo-400 hover:text-indigo-300"
                                         target="_blank">Click here</a
                                     ></span
@@ -240,7 +242,7 @@
             <div class="rounded-lg border border-gray-200 bg-white p-6">
                 <h3 class="mb-3 font-semibold text-green-700">On-Ramp (Fiat &rarr; Crypto)</h3>
                 <ol class="space-y-3">
-                    {#each anchor.integrationFlow.onRamp as step, i}
+                    {#each anchor.integrationFlow.onRamp as step, i (step.title)}
                         <li class="flex gap-3">
                             <span
                                 class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold text-green-700"
@@ -257,7 +259,7 @@
             <div class="rounded-lg border border-gray-200 bg-white p-6">
                 <h3 class="mb-3 font-semibold text-blue-700">Off-Ramp (Crypto &rarr; Fiat)</h3>
                 <ol class="space-y-3">
-                    {#each anchor.integrationFlow.offRamp as step, i}
+                    {#each anchor.integrationFlow.offRamp as step, i (step.title)}
                         <li class="flex gap-3">
                             <span
                                 class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700"
@@ -282,7 +284,7 @@
 
 <!-- Back Link -->
 <div class="mt-8">
-    <a href="/anchors" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+    <a href={resolve('/anchors')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
         &larr; Back to Anchors
     </a>
 </div>

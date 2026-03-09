@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import type { PageProps } from './$types';
     const { data }: PageProps = $props();
 </script>
@@ -13,12 +14,12 @@
     </div>
 
     <div class="grid gap-6 sm:grid-cols-2">
-        {#each data.anchors as anchor}
+        {#each data.anchors as anchor (anchor.id)}
             <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-gray-900">{anchor.name}</h3>
                 <p class="mt-2 text-sm text-gray-600">{anchor.description}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
-                    {#each Object.keys(anchor.regions) as regionId}
+                    {#each Object.keys(anchor.regions) as regionId (regionId)}
                         <span
                             class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800"
                         >
@@ -28,7 +29,7 @@
                 </div>
                 <div class="mt-4 flex gap-3">
                     <a
-                        href="/anchors/{anchor.id}"
+                        href={resolve(`/anchors/${anchor.id}`)}
                         class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                     >
                         View Details
@@ -36,7 +37,7 @@
                     <a
                         href={anchor.links.website}
                         target="_blank"
-                        rel="noopener noreferrer"
+                        rel="external noopener noreferrer"
                         class="rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50"
                     >
                         Website
@@ -47,7 +48,7 @@
     </div>
 
     <div class="mt-8">
-        <a href="/" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+        <a href={resolve('/')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
             &larr; Back to Home
         </a>
     </div>

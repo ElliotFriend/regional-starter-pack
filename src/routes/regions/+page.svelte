@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import type { PageProps } from './$types';
 
     // we use `$props()` in SvelteKit to "grab" the various data that's been
@@ -19,9 +20,9 @@
     </div>
 
     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {#each data.regions as region}
+        {#each data.regions as region (region.id)}
             <a
-                href="/regions/{region.id}"
+                href={resolve(`/regions/${region.id}`)}
                 class="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
             >
                 <div class="flex items-center gap-3">
@@ -35,7 +36,7 @@
                 </div>
                 <p class="mt-3 line-clamp-2 text-sm text-gray-600">{region.description}</p>
                 <div class="mt-4 flex flex-wrap gap-1">
-                    {#each region.paymentRails as rail}
+                    {#each region.paymentRails as rail (rail.name)}
                         <span
                             class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
                         >
@@ -48,7 +49,7 @@
     </div>
 
     <div class="mt-8">
-        <a href="/" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+        <a href={resolve('/')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
             &larr; Back to Home
         </a>
     </div>

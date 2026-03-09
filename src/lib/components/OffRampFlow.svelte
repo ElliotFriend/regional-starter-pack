@@ -57,7 +57,6 @@ Usage:
     let transaction = $state<OffRampTransaction | null>(null);
     let isGettingQuote = $state(false);
     let isCreatingTransaction = $state(false);
-    let isSigning = $state(false);
     let error = $state<string | null>(null);
 
     // Polling state
@@ -292,7 +291,6 @@ Usage:
         if (!walletStore.publicKey || !quote) return;
 
         step = 'signing';
-        isSigning = true;
         error = null;
 
         try {
@@ -334,8 +332,6 @@ Usage:
         } catch (err) {
             error = err instanceof Error ? err.message : 'Transaction failed';
             step = 'bank'; // Go back to bank details
-        } finally {
-            isSigning = false;
         }
     }
 
@@ -701,7 +697,7 @@ Usage:
                         <a
                             href={transaction.statusPage}
                             target="_blank"
-                            rel="noopener noreferrer"
+                            rel="external noopener noreferrer"
                             class="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800"
                         >
                             View on {displayName || 'Anchor'}

@@ -19,7 +19,7 @@ import {
     isInProgress,
     getStatusDescription,
 } from '$lib/anchors/sep/sep31';
-import { SepApiError } from '$lib/anchors/sep/types';
+import { SepApiError, type TransactionStatus } from '$lib/anchors/sep/types';
 
 const BASE = 'https://anchor.test/sep31';
 const TOKEN = 'test-jwt-token';
@@ -379,7 +379,9 @@ describe('status helpers', () => {
         });
 
         it('returns the raw status string for unknown values', () => {
-            expect(getStatusDescription('some_unknown_status' as any)).toBe('some_unknown_status');
+            expect(
+                getStatusDescription('some_unknown_status' as unknown as TransactionStatus),
+            ).toBe('some_unknown_status');
         });
     });
 });

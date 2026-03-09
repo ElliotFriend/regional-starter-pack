@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import type { PageProps } from './$types';
 
     // we use `$props()` in SvelteKit to "grab" the various data that's been
@@ -29,7 +30,7 @@
         <section class="mb-8">
             <h2 class="mb-4 text-xl font-semibold text-gray-900">Payment Rails</h2>
             <div class="grid gap-4 sm:grid-cols-2">
-                {#each region.paymentRails as rail}
+                {#each region.paymentRails as rail (rail.name)}
                     <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                         <h3 class="font-semibold text-gray-900">{rail.name}</h3>
                         <p class="mt-1 text-sm text-gray-500">{rail.description}</p>
@@ -47,7 +48,7 @@
         <section class="mb-8">
             <h2 class="mb-4 text-xl font-semibold text-gray-900">Available Digital Assets</h2>
             <div class="grid gap-4 sm:grid-cols-3">
-                {#each tokens as token}
+                {#each tokens as token (token.symbol)}
                     <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                         <h3 class="font-semibold text-gray-900">{token.symbol}</h3>
                         <p class="text-sm text-gray-500">{token.name}</p>
@@ -64,7 +65,7 @@
                 <p class="text-gray-500">No anchors currently available for this region.</p>
             {:else}
                 <div class="space-y-4">
-                    {#each anchors as anchor}
+                    {#each anchors as anchor (anchor.id)}
                         {@const capability = anchor.regions[region.id]}
                         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                             <div class="flex items-start justify-between">
@@ -75,7 +76,7 @@
                                     <p class="mt-1 text-sm text-gray-500">{anchor.description}</p>
                                 </div>
                                 <a
-                                    href="/anchors/{anchor.id}"
+                                    href={resolve(`/anchors/${anchor.id}`)}
                                     class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                                 >
                                     View Details
@@ -131,7 +132,10 @@
 
         <!-- Back Link -->
         <div class="mt-8">
-            <a href="/regions" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+            <a
+                href={resolve('/regions')}
+                class="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
                 &larr; Back to Regions
             </a>
         </div>
