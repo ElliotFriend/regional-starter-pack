@@ -12,7 +12,7 @@
 import { browser } from '$app/environment';
 import type { Customer, KycStatus } from '$lib/anchors/types';
 
-const STORAGE_PREFIX = 'stellar:customer:';
+const STORAGE_PREFIX = 'rsp:customer:';
 
 function createCustomerStore() {
     let customer = $state<Customer | null>(null);
