@@ -4,92 +4,16 @@ This is a SvelteKit application for building fiat on/off ramps on the Stellar ne
 
 ## Project Structure
 
-```text
-src/
-├── lib/
-│   ├── anchors/              # PORTABLE: Framework-agnostic anchor integrations
-│   │   ├── types.ts          # Shared Anchor interface + common types (includes TokenInfo)
-│   │   ├── etherfuse/        # Etherfuse integration (Mexico)
-│   │   │   ├── client.ts     # EtherfuseClient implements Anchor
-│   │   │   ├── types.ts      # Etherfuse API types
-│   │   │   └── README.md     # Integration documentation
-│   │   ├── alfredpay/        # AlfredPay integration (Mexico)
-│   │   │   ├── client.ts     # AlfredPayClient implements Anchor
-│   │   │   ├── types.ts      # AlfredPay API types
-│   │   │   └── README.md     # Integration documentation
-│   │   ├── blindpay/         # BlindPay integration (global)
-│   │   │   ├── client.ts     # BlindPayClient implements Anchor
-│   │   │   ├── types.ts      # BlindPay API types
-│   │   │   └── README.md     # Integration documentation
-│   │   ├── sep/              # SEP protocol implementations
-│   │   │   ├── sep1.ts       # stellar.toml discovery
-│   │   │   ├── sep10.ts      # Web authentication (JWT)
-│   │   │   ├── sep6.ts       # Programmatic deposits/withdrawals
-│   │   │   ├── sep12.ts      # KYC/customer management
-│   │   │   ├── sep24.ts      # Interactive deposits/withdrawals
-│   │   │   ├── sep31.ts      # Cross-border payments
-│   │   │   ├── sep38.ts      # Anchor quotes (RFQ)
-│   │   │   └── types.ts      # SEP-specific types
-│   │   └── testanchor/       # Reference client for testanchor.stellar.org
-│   │
-│   ├── server/               # SvelteKit-specific server code
-│   │   └── anchorFactory.ts  # Anchor factory (reads $env, instantiates clients)
-│   │
-│   ├── wallet/               # Freighter wallet + Stellar helpers
-│   │   ├── freighter.ts      # Freighter browser extension API
-│   │   ├── stellar.ts        # Horizon, transaction building, trustlines
-│   │   ├── types.ts          # Wallet types
-│   │   └── index.ts          # Re-exports
-│   │
-│   ├── components/           # Svelte 5 UI components
-│   │   ├── OnRampFlow.svelte      # Fiat -> crypto flow
-│   │   ├── OffRampFlow.svelte     # Crypto -> fiat flow
-│   │   ├── KycForm.svelte         # Form-based KYC (AlfredPay)
-│   │   ├── KycIframe.svelte       # Iframe-based KYC (Etherfuse)
-│   │   ├── QuoteDisplay.svelte    # Quote summary with countdown
-│   │   ├── WalletConnect.svelte   # Freighter connection
-│   │   └── ui/                    # Layout components (Header, Footer, etc.)
-│   │
-│   ├── stores/               # Svelte 5 reactive state (runes)
-│   │   ├── wallet.svelte.ts  # Wallet connection state
-│   │   └── customer.svelte.ts # Customer/KYC state
-│   │
-│   ├── config/
-│   │   ├── anchors.ts        # Anchor profiles + AnchorCapability type
-│   │   ├── regions.ts        # Region definitions + cross-lookup helpers
-│   │   └── rails.ts          # Payment rail definitions
-│   │
-│   ├── constants.ts          # App constants (providers, statuses)
-│   │
-│   └── utils/
-│       └── status.ts         # Transaction status helpers
-│
-├── routes/
-│   ├── anchors/              # Anchor listing and per-provider pages
-│   │   ├── +page.svelte      # All anchors listing
-│   │   └── [provider]/       # Dynamic provider routes
-│   │       ├── +page.svelte  # Provider detail
-│   │       ├── onramp/       # On-ramp page
-│   │       └── offramp/      # Off-ramp page
-│   ├── regions/              # Region listing and per-region pages
-│   ├── testanchor/           # Test anchor SEP flow demo
-│   └── api/
-│       ├── anchor/           # Anchor API proxies
-│       │   ├── [provider]/   # Per-provider endpoints
-│       │   │   ├── customers/
-│       │   │   ├── kyc/
-│       │   │   ├── quotes/
-│       │   │   ├── onramp/
-│       │   │   ├── offramp/
-│       │   │   ├── fiat-accounts/
-│       │   │   ├── sandbox/
-│       │   │   ├── payout-submit/
-│       │   │   └── blockchain-wallets/
-│       │   └── webhooks/
-│       └── testanchor/       # SEP CORS proxy endpoints
-│           ├── sep6/
-│           └── sep24/
-```
+- `src/lib/anchors/` — **Portable**, framework-agnostic anchor integrations. No SvelteKit imports. Each provider (`etherfuse/`, `alfredpay/`, `blindpay/`) has `client.ts` (implements `Anchor`), `types.ts`, and `README.md`. Also contains `sep/` (SEP protocol modules) and `testanchor/` (reference client).
+- `src/lib/api/anchor.ts` — Client-side API functions that call `/api/anchor/[provider]/` routes. Used by Svelte components to interact with anchors without importing server code.
+- `src/lib/server/anchorFactory.ts` — Server-only. Reads `$env/static/private`, instantiates anchor clients.
+- `src/lib/wallet/` — Freighter wallet extension API + Stellar helpers (Horizon, transactions, trustlines).
+- `src/lib/components/` — Svelte 5 UI components. Top-level: flow components (`OnRampFlow`, `OffRampFlow`, `RampPage`), KYC (`KycForm`, `KycIframe`, `KycStatusDisplay`), `QuoteDisplay`, `WalletConnect`. Subdirectories: `ramp/` (step sub-components: `AmountInput`, `QuoteStep`, `FiatAccountStep`, `CompletionStep`, `TrustlineStatus`), `ui/` (layout + utility: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`).
+- `src/lib/stores/` — Svelte 5 reactive state (runes): `wallet.svelte.ts`, `customer.svelte.ts`.
+- `src/lib/config/` — Three files (no barrel): `anchors.ts` (UI metadata), `regions.ts` (region definitions + cross-lookups), `rails.ts` (payment rail definitions). Token data lives on `Anchor` client classes, not in config.
+- `src/lib/utils/` — `status.ts` (transaction status helpers), `currency.ts` (formatting), `quote.ts` (expiration), `stellar-asset.ts` (asset resolution).
+- `src/lib/constants.ts` — App constants (providers, statuses).
+- `src/routes/` — `anchors/` (listing + `[provider]/` with `onramp/`, `offramp/`), `regions/` (listing + `[region]/`), `testanchor/` (SEP demo), `api/anchor/[provider]/` (CORS proxy endpoints per operation), `api/testanchor/` (SEP proxy).
 
 ## Key Concepts
 
@@ -111,18 +35,19 @@ interface Anchor {
     readonly supportedTokens: readonly TokenInfo[];
     readonly supportedCurrencies: readonly string[];
     readonly supportedRails: readonly string[];
-    createCustomer(input): Promise<Customer>;
-    getCustomer(id): Promise<Customer | null>;
-    getCustomerByEmail?(email, country?): Promise<Customer | null>;
-    getQuote(input): Promise<Quote>;
-    createOnRamp(input): Promise<OnRampTransaction>;
-    getOnRampTransaction(id): Promise<OnRampTransaction | null>;
-    registerFiatAccount(input): Promise<RegisteredFiatAccount>;
-    getFiatAccounts(customerId): Promise<SavedFiatAccount[]>;
-    createOffRamp(input): Promise<OffRampTransaction>;
-    getOffRampTransaction(id): Promise<OffRampTransaction | null>;
+    createCustomer(input: CreateCustomerInput): Promise<Customer>;
+    getCustomer(input: GetCustomerInput): Promise<Customer | null>;
+    getQuote(input: GetQuoteInput): Promise<Quote>;
+    createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
+    getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
+    registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
+    getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
+    createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
+    getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
     getKycUrl?(customerId, publicKey?, bankAccountId?): Promise<string>;
-    getKycStatus(customerId, publicKey?): Promise<KycStatus>;
+    getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
+    getKycRequirements?(country?: string): Promise<KycRequirements>;
+    submitKyc?(customerId: string, data: KycSubmissionData): Promise<KycSubmissionResult>;
 }
 ```
 
@@ -133,11 +58,16 @@ Each client also declares `displayName`, `supportedTokens` (with Stellar issuers
 The `AnchorCapabilities` interface (in `anchors/types.ts`) carries both runtime and UI capability flags. Flow components use these flags instead of provider-name checks:
 
 - `kycFlow`: `'form'` | `'iframe'` | `'redirect'` — determines KYC presentation
+- `kycUrl`: anchor provides a URL-based KYC/onboarding flow
+- `emailLookup`: anchor supports looking up customers by email
+- `requiresTos`: anchor requires ToS acceptance before customer creation
 - `deferredOffRampSigning`: anchor provides signable XDR via polling (not at creation time)
 - `requiresBankBeforeQuote`: off-ramp requires bank account selection before quoting
 - `requiresBlockchainWalletRegistration`: on-ramp requires wallet registration step
 - `requiresAnchorPayoutSubmission`: off-ramp uses anchor payout endpoint instead of direct Stellar submission
+- `requiresOffRampSigning`: off-ramp requires wallet-side XDR signing
 - `sandbox`: anchor supports sandbox simulation
+- `sep6`, `sep24`: anchor supports SEP-6/SEP-24 flows
 
 ### Anchor Providers
 
@@ -245,6 +175,13 @@ The `OffRampTransaction` type includes optional fields for provider-specific dat
 - `signableTransaction` - Pre-built XDR for signing (Etherfuse)
 - `statusPage` - URL to anchor-hosted status page (Etherfuse)
 - `feeBps` / `feeAmount` - Fee info
+
+## Linting Conventions
+
+- Internal `<a href>` links must use `resolve()` from `$app/paths`: `<a href={resolve('/path')}>`
+- `{#each}` blocks must have a key: `{#each items as item (item.id)}`
+- Unused interface implementation params use `_` prefix (ESLint config has `argsIgnorePattern: '^_'`)
+- Run `pnpm run lint` (prettier + eslint) to check
 
 ## Environment Variables
 
