@@ -161,6 +161,13 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 tokens: ['USDC'],
                 kycRequired: true,
             },
+            brazil: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['pix'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
         },
         devOnboarding: [
             {
@@ -313,6 +320,63 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                     title: 'Submit Payout',
                     description:
                         'Submit the payout to the anchor, which collects tokens and sends fiat via SPEI.',
+                },
+            ],
+        },
+    },
+    abroad: {
+        id: 'abroad',
+        name: 'Abroad Finance',
+        description:
+            'Abroad Finance provides cross-border off-ramp infrastructure, enabling seamless conversion from digital assets to local currencies via instant payment rails like PIX.',
+        links: {
+            website: 'https://abroad.finance',
+            documentation: 'https://docs.abroad.finance',
+        },
+        regions: {
+            brazil: {
+                onRamp: false,
+                offRamp: true,
+                paymentRails: ['pix'],
+                tokens: ['USDC'],
+                kycRequired: true,
+                minAmount: '10',
+                maxAmount: '10000',
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Contact support@abroad.com to obtain API keys.',
+                link: 'https://docs.abroad.finance',
+            },
+            {
+                text: 'No sandbox environment — test with small live amounts.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [],
+            offRamp: [
+                {
+                    title: 'Create Customer',
+                    description: 'Register the user via the API.',
+                },
+                {
+                    title: 'Get Quote',
+                    description: 'Request a BRL quote for the USDC amount.',
+                },
+                {
+                    title: 'Create Transaction',
+                    description:
+                        'Submit the off-ramp with bank details and quote. If KYC is required, redirect user to the provided KYC link.',
+                },
+                {
+                    title: 'Sign & Submit Payment',
+                    description:
+                        "Build and sign a USDC payment to Abroad's deposit address with the transaction reference as memo.",
+                },
+                {
+                    title: 'Receive Fiat',
+                    description: "Abroad delivers BRL to the user's bank via PIX.",
                 },
             ],
         },

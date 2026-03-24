@@ -19,6 +19,13 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             "Sistema de Pagos Electrónicos Interbancarios - Mexico's real-time payment system",
         type: 'bank_transfer',
     },
+    pix: {
+        id: 'pix',
+        name: 'PIX',
+        description:
+            "Brazil's instant payment system operated by the Central Bank, enabling 24/7 real-time transfers",
+        type: 'bank_transfer',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {

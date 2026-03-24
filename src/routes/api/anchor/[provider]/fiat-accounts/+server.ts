@@ -18,22 +18,48 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     try {
         const body = await request.json();
-        const { customerId, publicKey, bankName, clabe, beneficiary } = body;
+        const { customerId, publicKey, type } = body;
 
-        if (!customerId || !clabe || !beneficiary) {
-            throw error(400, { message: 'customerId, clabe, and beneficiary are required' });
+        if (!customerId) {
+            throw error(400, { message: 'customerId is required' });
         }
 
         const anchor = getAnchor(provider);
-        const result = await anchor.registerFiatAccount({
-            customerId,
-            publicKey: publicKey || undefined,
-            account: {
-                type: 'spei',
+        let account;
+
+        if (type === 'pix') {
+            const { pixKey, pixKeyType, taxId, accountHolderName } = body;
+            if (!pixKey || !taxId || !accountHolderName) {
+                throw error(400, {
+                    message: 'pixKey, taxId, and accountHolderName are required for PIX accounts',
+                });
+            }
+            account = {
+                type: 'pix' as const,
+                pixKey,
+                pixKeyType: pixKeyType || undefined,
+                taxId,
+                accountHolderName,
+            };
+        } else {
+            const { clabe, bankName, beneficiary } = body;
+            if (!clabe || !beneficiary) {
+                throw error(400, {
+                    message: 'clabe and beneficiary are required for SPEI accounts',
+                });
+            }
+            account = {
+                type: 'spei' as const,
                 clabe,
                 bankName: bankName || undefined,
                 beneficiary,
-            },
+            };
+        }
+
+        const result = await anchor.registerFiatAccount({
+            customerId,
+            publicKey: publicKey || undefined,
+            account,
         });
 
         return json(result, { status: 201 });

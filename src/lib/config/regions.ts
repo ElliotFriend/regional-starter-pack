@@ -35,6 +35,18 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.spei],
         anchors: ['etherfuse', 'alfredpay', 'blindpay'],
     },
+    brazil: {
+        id: 'brazil',
+        name: 'Brazil',
+        code: 'BR',
+        currency: 'BRL',
+        currencySymbol: 'R$',
+        flag: '🇧🇷',
+        description:
+            'Brazil has a vibrant fintech ecosystem with PIX enabling instant payments 24/7. Multiple anchors support BRL to USDC conversion.',
+        paymentRails: [PAYMENT_RAILS.pix],
+        anchors: ['alfredpay', 'abroad'],
+    },
 };
 
 // =============================================================================

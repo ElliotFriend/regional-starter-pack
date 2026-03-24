@@ -13,6 +13,7 @@ import type { Anchor } from '$lib/anchors/types';
 import { EtherfuseClient } from '$lib/anchors/etherfuse';
 import { AlfredPayClient } from '$lib/anchors/alfredpay';
 import { BlindPayClient } from '$lib/anchors/blindpay';
+import { AbroadClient } from '$lib/anchors/abroad';
 import {
     ETHERFUSE_API_KEY,
     ETHERFUSE_BASE_URL,
@@ -22,9 +23,11 @@ import {
     BLINDPAY_API_KEY,
     BLINDPAY_INSTANCE_ID,
     BLINDPAY_BASE_URL,
+    ABROAD_API_KEY,
+    ABROAD_BASE_URL,
 } from '$env/static/private';
 
-export type AnchorProvider = 'etherfuse' | 'alfredpay' | 'blindpay';
+export type AnchorProvider = 'etherfuse' | 'alfredpay' | 'blindpay' | 'abroad';
 
 const anchorInstances = new Map<AnchorProvider, Anchor>();
 
@@ -61,6 +64,12 @@ export function getAnchor(provider: AnchorProvider): Anchor {
                     baseUrl: BLINDPAY_BASE_URL,
                 });
                 break;
+            case 'abroad':
+                anchor = new AbroadClient({
+                    apiKey: ABROAD_API_KEY,
+                    baseUrl: ABROAD_BASE_URL,
+                });
+                break;
             default:
                 throw new Error(`Unknown anchor provider: ${provider}`);
         }
@@ -77,5 +86,5 @@ export function getAnchor(provider: AnchorProvider): Anchor {
  * @returns `true` if the string is a known {@link AnchorProvider}.
  */
 export function isValidProvider(provider: string): provider is AnchorProvider {
-    return ['etherfuse', 'alfredpay', 'blindpay'].includes(provider);
+    return ['etherfuse', 'alfredpay', 'blindpay', 'abroad'].includes(provider);
 }

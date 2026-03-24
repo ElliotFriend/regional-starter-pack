@@ -87,13 +87,27 @@ export class AlfredPayClient implements Anchor {
             description: 'A fully-reserved stablecoin pegged 1:1 to the US Dollar',
         },
     ];
-    readonly supportedCurrencies: readonly string[] = ['MXN'];
-    readonly supportedRails: readonly string[] = ['spei'];
+    readonly supportedCurrencies: readonly string[] = ['MXN', 'BRL'];
+    readonly supportedRails: readonly string[] = ['spei', 'pix'];
     private readonly config: AlfredPayConfig;
 
     /** @param config - API credentials and base URL. */
     constructor(config: AlfredPayConfig) {
         this.config = config;
+    }
+
+    /**
+     * Derive the AlfredPay payment method type from the fiat currency.
+     * BRL uses PIX, MXN uses SPEI. Defaults to SPEI for unknown currencies.
+     */
+    private getPaymentMethodType(fromCurrency: string, toCurrency: string): string {
+        const fiatCurrency = fromCurrency === 'USDC' ? toCurrency : fromCurrency;
+        switch (fiatCurrency) {
+            case 'BRL':
+                return 'PIX';
+            default:
+                return 'SPEI';
+        }
     }
 
     /**
@@ -394,11 +408,12 @@ export class AlfredPayClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
+        const paymentMethodType = this.getPaymentMethodType(input.fromCurrency, input.toCurrency);
         const body: Record<string, string | Record<string, unknown>> = {
             fromCurrency: input.fromCurrency,
             toCurrency: input.toCurrency,
             chain: 'XLM',
-            paymentMethodType: 'SPEI',
+            paymentMethodType,
             customerId: input.customerId || '',
             businessId: '',
             metadata: {},
@@ -427,6 +442,7 @@ export class AlfredPayClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
+        const paymentMethodType = this.getPaymentMethodType(input.fromCurrency, input.toCurrency);
         const response = await this.request<AlfredPayOnRampResponse>('POST', '/onramp', {
             customerId: input.customerId,
             quoteId: input.quoteId,
@@ -434,7 +450,7 @@ export class AlfredPayClient implements Anchor {
             toCurrency: input.toCurrency,
             amount: input.amount,
             chain: 'XLM',
-            paymentMethodType: 'SPEI',
+            paymentMethodType,
             depositAddress: input.stellarAddress,
             memo: input.memo || '',
             onrampTransactionRequiredFieldsJson: {},
@@ -465,31 +481,63 @@ export class AlfredPayClient implements Anchor {
     }
 
     /**
-     * Register a bank account (SPEI) for a customer.
+     * Register a fiat account (SPEI or PIX) for a customer.
      *
      * The account must be registered before it can be used in off-ramp transactions.
      *
-     * @param input - Customer ID and bank account details (account number, CLABE, beneficiary).
+     * @param input - Customer ID and bank account details (SPEI: CLABE/beneficiary; PIX: pixKey/taxId/accountHolderName).
      * @returns The newly registered {@link RegisteredFiatAccount}.
      * @throws {AnchorError} On API failure.
      */
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
-        const response = await this.request<AlfredPayFiatAccountResponse>('POST', '/fiatAccounts', {
-            customerId: input.customerId,
-            type: 'SPEI',
-            fiatAccountFields: {
-                accountNumber: input.account.clabe,
-                accountType: 'CHECKING',
-                accountName: input.account.beneficiary,
-                accountBankCode: input.account.bankName || '',
-                accountAlias: input.account.beneficiary,
-                networkIdentifier: input.account.clabe,
-                metadata: {
-                    accountHolderName: input.account.beneficiary,
+        let requestBody: Record<string, unknown>;
+
+        if (input.account.type === 'pix') {
+            requestBody = {
+                customerId: input.customerId,
+                type: 'PIX',
+                fiatAccountFields: {
+                    accountNumber: input.account.pixKey,
+                    accountType: 'CHECKING',
+                    accountName: input.account.accountHolderName,
+                    accountBankCode: '',
+                    accountAlias: input.account.accountHolderName,
+                    networkIdentifier: input.account.pixKey,
+                    pixKey: input.account.pixKey,
+                    pixKeyType: input.account.pixKeyType || 'cpf',
+                    taxId: input.account.taxId,
+                    accountHolderName: input.account.accountHolderName,
+                    metadata: {
+                        accountHolderName: input.account.accountHolderName,
+                        taxId: input.account.taxId,
+                    },
                 },
-            },
-            isExternal: true,
-        });
+                isExternal: true,
+            };
+        } else {
+            requestBody = {
+                customerId: input.customerId,
+                type: 'SPEI',
+                fiatAccountFields: {
+                    accountNumber: input.account.clabe,
+                    accountType: 'CHECKING',
+                    accountName: input.account.beneficiary,
+                    accountBankCode: input.account.bankName || '',
+                    accountAlias: input.account.beneficiary,
+                    networkIdentifier: input.account.clabe,
+                    metadata: {
+                        accountHolderName: input.account.beneficiary,
+                    },
+                },
+                isExternal: true,
+            };
+        }
+
+        const response = await this.request<AlfredPayFiatAccountResponse>(
+            'POST',
+            '/fiatAccounts',
+            requestBody,
+        );
 
         return {
             id: response.fiatAccountId,

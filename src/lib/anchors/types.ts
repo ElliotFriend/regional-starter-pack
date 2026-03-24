@@ -85,14 +85,24 @@ export interface SpeiPaymentInstructions extends PaymentInstructionsBase {
     beneficiary?: string;
 }
 
+/** PIX payment instructions (Brazil). */
+export interface PixPaymentInstructions extends PaymentInstructionsBase {
+    /** Discriminant for the PIX rail. */
+    type: 'pix';
+    /** PIX code (key or QR code string). */
+    pixCode: string;
+    /** PIX key type (e.g. `"cpf"`, `"cnpj"`, `"email"`, `"phone"`, `"random"`). */
+    pixKeyType?: string;
+    /** Name of the account beneficiary. */
+    beneficiary?: string;
+}
+
 // Ready to add when needed:
 // interface AchPaymentInstructions extends PaymentInstructionsBase { type: 'ach'; routingNumber: string; accountNumber: string; }
-// interface PixPaymentInstructions extends PaymentInstructionsBase { type: 'pix'; pixCode: string; }
 // interface SwiftPaymentInstructions extends PaymentInstructionsBase { type: 'swift'; swiftCode: string; iban: string; }
 
 /** Discriminated union of payment instructions for all supported rails. */
-export type PaymentInstructions = SpeiPaymentInstructions;
-// Will become: SpeiPaymentInstructions | AchPaymentInstructions | PixPaymentInstructions | ...
+export type PaymentInstructions = SpeiPaymentInstructions | PixPaymentInstructions;
 
 // =============================================================================
 // Fiat Account types — discriminated union by rail type
@@ -110,8 +120,22 @@ export interface SpeiFiatAccountInput {
     beneficiary: string;
 }
 
+/** Input for registering a new PIX fiat account. */
+export interface PixFiatAccountInput {
+    /** Discriminant for the PIX rail. */
+    type: 'pix';
+    /** PIX key (CPF, CNPJ, email, phone, or random key). */
+    pixKey: string;
+    /** PIX key type (e.g. `"cpf"`, `"cnpj"`, `"email"`, `"phone"`, `"random"`). */
+    pixKeyType?: string;
+    /** Tax ID (CPF or CNPJ). */
+    taxId: string;
+    /** Full name of the account holder. */
+    accountHolderName: string;
+}
+
 /** Discriminated union of fiat account registration inputs for all supported rails. */
-export type FiatAccountInput = SpeiFiatAccountInput;
+export type FiatAccountInput = SpeiFiatAccountInput | PixFiatAccountInput;
 
 /** Input for {@link Anchor.registerFiatAccount}. */
 export interface RegisterFiatAccountInput {

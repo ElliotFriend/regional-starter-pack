@@ -52,21 +52,41 @@ export const POST: RequestHandler = async ({ params, request }) => {
             fiatAccountId = existingFiatAccountId;
         } else {
             // Register new fiat account
-            const { bankName, clabe, beneficiary } = bankAccount;
-            if (!clabe || !beneficiary) {
-                throw error(400, {
-                    message: 'bankAccount must include clabe and beneficiary',
-                });
+            let account;
+
+            if (bankAccount.type === 'pix') {
+                const { pixKey, pixKeyType, taxId, accountHolderName } = bankAccount;
+                if (!pixKey || !taxId || !accountHolderName) {
+                    throw error(400, {
+                        message:
+                            'bankAccount must include pixKey, taxId, and accountHolderName for PIX',
+                    });
+                }
+                account = {
+                    type: 'pix' as const,
+                    pixKey,
+                    pixKeyType: pixKeyType || undefined,
+                    taxId,
+                    accountHolderName,
+                };
+            } else {
+                const { bankName, clabe, beneficiary } = bankAccount;
+                if (!clabe || !beneficiary) {
+                    throw error(400, {
+                        message: 'bankAccount must include clabe and beneficiary',
+                    });
+                }
+                account = {
+                    type: 'spei' as const,
+                    clabe,
+                    bankName: bankName || undefined,
+                    beneficiary,
+                };
             }
 
             const fiatAccount = await anchor.registerFiatAccount({
                 customerId,
-                account: {
-                    type: 'spei',
-                    clabe,
-                    bankName: bankName || undefined,
-                    beneficiary,
-                },
+                account,
             });
             fiatAccountId = fiatAccount.id;
         }

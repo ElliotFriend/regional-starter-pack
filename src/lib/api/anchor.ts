@@ -318,7 +318,15 @@ export async function registerFiatAccount(
     fetch: Fetch,
     provider: string,
     customerId: string,
-    account: { bankName?: string; clabe: string; beneficiary: string },
+    account:
+        | { type?: 'spei'; bankName?: string; clabe: string; beneficiary: string }
+        | {
+              type: 'pix';
+              pixKey: string;
+              pixKeyType?: string;
+              taxId: string;
+              accountHolderName: string;
+          },
     publicKey?: string,
 ): Promise<RegisteredFiatAccount> {
     return postJson<RegisteredFiatAccount>(fetch, `/api/anchor/${provider}/fiat-accounts`, {

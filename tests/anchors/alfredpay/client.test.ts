@@ -2689,4 +2689,125 @@ describe('AlfredPayClient', () => {
             });
         });
     });
+
+    describe('Brazil / PIX support', () => {
+        it('supportedCurrencies includes BRL', () => {
+            const client = createClient();
+            expect(client.supportedCurrencies).toContain('BRL');
+        });
+
+        it('supportedRails includes pix', () => {
+            const client = createClient();
+            expect(client.supportedRails).toContain('pix');
+        });
+
+        it('still supports MXN and spei (no regression)', () => {
+            const client = createClient();
+            expect(client.supportedCurrencies).toContain('MXN');
+            expect(client.supportedRails).toContain('spei');
+        });
+
+        it('getQuote with BRL sends paymentMethodType PIX', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.fromCurrency).toBe('BRL');
+                    expect(body.toCurrency).toBe('USDC');
+                    expect(body.paymentMethodType).toBe('PIX');
+
+                    return HttpResponse.json({
+                        quoteId: 'quote-br-001',
+                        fromCurrency: 'BRL',
+                        toCurrency: 'USDC',
+                        fromAmount: '500.00',
+                        toAmount: '90.00',
+                        rate: '0.18',
+                        expiration: '2026-03-24T01:00:00Z',
+                        fees: [{ type: 'commissionFee', amount: '2.00', currency: 'BRL' }],
+                        chain: 'XLM',
+                        paymentMethodType: 'PIX',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'BRL',
+                toCurrency: 'USDC',
+                fromAmount: '500.00',
+            });
+
+            expect(quote.id).toBe('quote-br-001');
+            expect(quote.fromCurrency).toBe('BRL');
+        });
+
+        it('getQuote with MXN still sends paymentMethodType SPEI', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/quotes`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.paymentMethodType).toBe('SPEI');
+
+                    return HttpResponse.json({
+                        quoteId: 'quote-mx-001',
+                        fromCurrency: 'MXN',
+                        toCurrency: 'USDC',
+                        fromAmount: '1000.00',
+                        toAmount: '55.00',
+                        rate: '0.055',
+                        expiration: '2026-03-24T01:00:00Z',
+                        fees: [{ type: 'commissionFee', amount: '1.50', currency: 'MXN' }],
+                        chain: 'XLM',
+                        paymentMethodType: 'SPEI',
+                    });
+                }),
+            );
+
+            const quote = await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'USDC',
+                fromAmount: '1000.00',
+            });
+
+            expect(quote.id).toBe('quote-mx-001');
+        });
+
+        it('registerFiatAccount with PIX type sends correct fields', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/fiatAccounts`, async ({ request }) => {
+                    const body = (await request.json()) as Record<string, unknown>;
+                    expect(body.type).toBe('PIX');
+                    const fields = body.fiatAccountFields as Record<string, unknown>;
+                    expect(fields.pixKey).toBe('12345678901');
+                    expect(fields.taxId).toBe('12345678901');
+                    expect(fields.accountHolderName).toBe('João Silva');
+
+                    return HttpResponse.json({
+                        fiatAccountId: 'acct-br-001',
+                        customerId: 'cust-001',
+                        type: 'PIX',
+                        status: 'ACTIVE',
+                        createdAt: '2026-03-24T00:00:00Z',
+                    });
+                }),
+            );
+
+            const account = await client.registerFiatAccount({
+                customerId: 'cust-001',
+                account: {
+                    type: 'pix',
+                    pixKey: '12345678901',
+                    taxId: '12345678901',
+                    accountHolderName: 'João Silva',
+                },
+            });
+
+            expect(account.id).toBe('acct-br-001');
+            expect(account.type).toBe('PIX');
+        });
+    });
 });

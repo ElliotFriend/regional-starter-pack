@@ -3,6 +3,7 @@
 
 Full fiat account selection/registration step for the off-ramp flow.
 Displays saved accounts as radio buttons and a "new account" form.
+Supports both SPEI (Mexico) and PIX (Brazil) payment rails.
 
 Usage:
 ```html
@@ -14,6 +15,11 @@ Usage:
     bind:bankName
     bind:clabe
     bind:beneficiary
+    bind:pixKey
+    bind:pixKeyType
+    bind:taxId
+    bind:accountHolderName
+    {paymentRail}
     {isBankBeforeQuote}
     {hasQuote}
     {isGettingQuote}
@@ -31,9 +37,17 @@ Usage:
         isLoadingAccounts: boolean;
         selectedAccountId: string | null;
         useNewAccount: boolean;
+        /** SPEI fields (Mexico) */
         bankName: string;
         clabe: string;
         beneficiary: string;
+        /** PIX fields (Brazil) */
+        pixKey: string;
+        pixKeyType: string;
+        taxId: string;
+        accountHolderName: string;
+        /** Payment rail determines which form fields to show. Defaults to 'spei'. */
+        paymentRail: string;
         isBankBeforeQuote: boolean;
         hasQuote: boolean;
         isGettingQuote: boolean;
@@ -50,6 +64,11 @@ Usage:
         bankName = $bindable(),
         clabe = $bindable(),
         beneficiary = $bindable(),
+        pixKey = $bindable(),
+        pixKeyType = $bindable(),
+        taxId = $bindable(),
+        accountHolderName = $bindable(),
+        paymentRail = 'spei',
         isBankBeforeQuote,
         hasQuote,
         isGettingQuote,
@@ -58,12 +77,20 @@ Usage:
         onSubmit,
     }: Props = $props();
 
+    const isPix = $derived(paymentRail === 'pix');
     const showNewAccountForm = $derived(useNewAccount || savedAccounts.length === 0);
+
+    const isNewAccountValid = $derived.by(() => {
+        if (isPix) {
+            return !!pixKey && !!taxId && !!accountHolderName;
+        }
+        return !!clabe && !!beneficiary;
+    });
 
     const isSubmitDisabled = $derived(
         isLoadingAccounts ||
             (isBankBeforeQuote && !hasQuote ? isGettingQuote : isCreatingTransaction) ||
-            (useNewAccount ? !clabe || !beneficiary : !selectedAccountId),
+            (useNewAccount ? !isNewAccountValid : !selectedAccountId),
     );
 
     const submitLabel = $derived.by(() => {
@@ -156,45 +183,107 @@ Usage:
                         <p class="text-sm font-medium text-gray-700">New Account Details</p>
                     {/if}
 
-                    <div>
-                        <label for="bankName" class="block text-sm font-medium text-gray-700"
-                            >Bank Name</label
-                        >
-                        <input
-                            type="text"
-                            id="bankName"
-                            bind:value={bankName}
-                            placeholder="BBVA, Santander, etc."
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                        />
-                    </div>
+                    {#if isPix}
+                        <!-- PIX fields (Brazil) -->
+                        <div>
+                            <label for="pixKey" class="block text-sm font-medium text-gray-700"
+                                >PIX Key</label
+                            >
+                            <input
+                                type="text"
+                                id="pixKey"
+                                bind:value={pixKey}
+                                placeholder="CPF, email, phone, or random key"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        </div>
 
-                    <div>
-                        <label for="clabe" class="block text-sm font-medium text-gray-700"
-                            >CLABE (18 digits)</label
-                        >
-                        <input
-                            type="text"
-                            id="clabe"
-                            bind:value={clabe}
-                            placeholder="012180001234567890"
-                            maxlength="18"
-                            class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                        />
-                    </div>
+                        <div>
+                            <label for="pixKeyType" class="block text-sm font-medium text-gray-700"
+                                >PIX Key Type</label
+                            >
+                            <select
+                                id="pixKeyType"
+                                bind:value={pixKeyType}
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            >
+                                <option value="cpf">CPF</option>
+                                <option value="cnpj">CNPJ</option>
+                                <option value="email">Email</option>
+                                <option value="phone">Phone</option>
+                                <option value="random">Random Key</option>
+                            </select>
+                        </div>
 
-                    <div>
-                        <label for="beneficiary" class="block text-sm font-medium text-gray-700"
-                            >Beneficiary Name</label
-                        >
-                        <input
-                            type="text"
-                            id="beneficiary"
-                            bind:value={beneficiary}
-                            placeholder="Full name as it appears on the account"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                        />
-                    </div>
+                        <div>
+                            <label for="taxId" class="block text-sm font-medium text-gray-700"
+                                >CPF/CNPJ (Tax ID)</label
+                            >
+                            <input
+                                type="text"
+                                id="taxId"
+                                bind:value={taxId}
+                                placeholder="12345678901"
+                                class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="accountHolderName"
+                                class="block text-sm font-medium text-gray-700"
+                                >Account Holder Name</label
+                            >
+                            <input
+                                type="text"
+                                id="accountHolderName"
+                                bind:value={accountHolderName}
+                                placeholder="Full name as registered with the bank"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        </div>
+                    {:else}
+                        <!-- SPEI fields (Mexico) -->
+                        <div>
+                            <label for="bankName" class="block text-sm font-medium text-gray-700"
+                                >Bank Name</label
+                            >
+                            <input
+                                type="text"
+                                id="bankName"
+                                bind:value={bankName}
+                                placeholder="BBVA, Santander, etc."
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="clabe" class="block text-sm font-medium text-gray-700"
+                                >CLABE (18 digits)</label
+                            >
+                            <input
+                                type="text"
+                                id="clabe"
+                                bind:value={clabe}
+                                placeholder="012180001234567890"
+                                maxlength="18"
+                                class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="beneficiary" class="block text-sm font-medium text-gray-700"
+                                >Beneficiary Name</label
+                            >
+                            <input
+                                type="text"
+                                id="beneficiary"
+                                bind:value={beneficiary}
+                                placeholder="Full name as it appears on the account"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            />
+                        </div>
+                    {/if}
                 </div>
             {/if}
         </div>

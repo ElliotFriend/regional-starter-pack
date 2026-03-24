@@ -75,10 +75,19 @@ Usage:
     let selectedAccountId = $state<string | null>(null);
     let useNewAccount = $state(false);
 
-    // Bank account details (for new accounts)
+    // Bank account details (for new accounts) — SPEI
     let bankName = $state('');
     let clabe = $state('');
     let beneficiary = $state('');
+
+    // Bank account details (for new accounts) — PIX
+    let pixKey = $state('');
+    let pixKeyType = $state('cpf');
+    let taxId = $state('');
+    let accountHolderName = $state('');
+
+    // Derive payment rail from region data
+    const paymentRail = $derived(page.data.regions?.[0]?.paymentRails?.[0]?.id || 'spei');
 
     // Steps: 'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
     let step = $state<
@@ -154,18 +163,25 @@ Usage:
         if (!customer) return;
 
         if (!useNewAccount && !selectedAccountId) return;
-        if (useNewAccount && (!clabe || !beneficiary)) return;
+        if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
+            return;
+        if (useNewAccount && paymentRail !== 'pix' && (!clabe || !beneficiary)) return;
 
         error = null;
         isGettingQuote = true;
 
         try {
             if (useNewAccount) {
-                const result = await api.registerFiatAccount(fetch, provider, customer.id, {
-                    bankName,
-                    clabe,
-                    beneficiary,
-                });
+                const accountDetails =
+                    paymentRail === 'pix'
+                        ? { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName }
+                        : { bankName, clabe, beneficiary };
+                const result = await api.registerFiatAccount(
+                    fetch,
+                    provider,
+                    customer.id,
+                    accountDetails,
+                );
                 selectedAccountId = result.id;
                 useNewAccount = false;
             }
@@ -221,7 +237,9 @@ Usage:
 
         // Validate: either selected account or new account details
         if (!useNewAccount && !selectedAccountId) return;
-        if (useNewAccount && (!bankName || !clabe || !beneficiary)) return;
+        if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
+            return;
+        if (useNewAccount && paymentRail !== 'pix' && (!clabe || !beneficiary)) return;
 
         isCreatingTransaction = true;
         error = null;
@@ -231,6 +249,11 @@ Usage:
 
             if (useNewAccount) {
                 // Create with new bank account
+                const bankAccount =
+                    paymentRail === 'pix'
+                        ? { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName }
+                        : { bankName, clabe, beneficiary };
+
                 tx = await api.createOffRamp(fetch, provider, {
                     customerId: customer.id,
                     quoteId: quote.id,
@@ -238,11 +261,7 @@ Usage:
                     fromCurrency: quote.fromCurrency,
                     toCurrency: quote.toCurrency,
                     amount: quote.fromAmount,
-                    bankAccount: {
-                        bankName,
-                        clabe,
-                        beneficiary,
-                    },
+                    bankAccount,
                 });
             } else {
                 // Use existing fiat account
@@ -416,6 +435,10 @@ Usage:
         bankName = '';
         clabe = '';
         beneficiary = '';
+        pixKey = '';
+        pixKeyType = 'cpf';
+        taxId = '';
+        accountHolderName = '';
         selectedAccountId = null;
         useNewAccount = false;
         error = null;
@@ -516,6 +539,11 @@ Usage:
             bind:bankName
             bind:clabe
             bind:beneficiary
+            bind:pixKey
+            bind:pixKeyType
+            bind:taxId
+            bind:accountHolderName
+            {paymentRail}
             isBankBeforeQuote={capabilities?.requiresBankBeforeQuote ?? false}
             hasQuote={quote !== null}
             {isGettingQuote}
