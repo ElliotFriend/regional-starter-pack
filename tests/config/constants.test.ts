@@ -5,6 +5,10 @@ describe('PROVIDER', () => {
     it('includes ABROAD', () => {
         expect(PROVIDER.ABROAD).toBe('abroad');
     });
+
+    it('includes TRANSFERO', () => {
+        expect(PROVIDER.TRANSFERO).toBe('transfero');
+    });
 });
 
 describe('SUPPORTED_COUNTRIES', () => {

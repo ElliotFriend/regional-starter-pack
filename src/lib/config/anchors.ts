@@ -381,6 +381,86 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    transfero: {
+        id: 'transfero',
+        name: 'Transfero',
+        description:
+            'Transfero provides Banking-as-a-Service infrastructure for fiat on/off ramps in Brazil, and is the issuer of the BRZ stablecoin on Stellar.',
+        links: {
+            website: 'https://transfero.com',
+            documentation: 'https://docs.transfero.com',
+            ramp: 'https://ramp.transfero.com',
+        },
+        regions: {
+            brazil: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['pix'],
+                tokens: ['USDC', 'BRZ'],
+                kycRequired: false,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Contact payments-support-br@transfero.com to obtain sandbox API credentials.',
+                link: 'https://docs.transfero.com/reference/getting-started-with-baasic-api',
+            },
+            {
+                text: 'Sandbox environment available at sandbox-api-baasic.transfero.com.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Create Customer',
+                    description:
+                        'Register user identity (taxId, name, email) for Transfero API calls.',
+                },
+                {
+                    title: 'Get Quote',
+                    description: 'Request a quote for the BRL to USDC/BRZ conversion.',
+                },
+                {
+                    title: 'Create Swap Order',
+                    description:
+                        "Submit the on-ramp order with quote ID and user's Stellar address.",
+                },
+                {
+                    title: 'Fund via PIX',
+                    description: 'The user sends BRL via PIX using the provided payment details.',
+                },
+                {
+                    title: 'Receive Crypto',
+                    description: "Transfero delivers USDC or BRZ to the user's Stellar wallet.",
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Create Customer',
+                    description:
+                        'Register user identity (taxId, name, email) for Transfero API calls.',
+                },
+                {
+                    title: 'Register PIX Account',
+                    description: "Register the user's PIX key for fiat withdrawal.",
+                },
+                {
+                    title: 'Preview Off-Ramp',
+                    description:
+                        'Submit preview request with PIX key and quote details. Receive locked quote and deposit address.',
+                },
+                {
+                    title: 'Accept & Sign',
+                    description:
+                        "Accept the preview, then sign a USDC payment to Transfero's deposit address with the provided memo.",
+                },
+                {
+                    title: 'Receive Fiat',
+                    description: "Transfero delivers BRL to the user's bank via PIX.",
+                },
+            ],
+        },
+    },
 };
 
 export function getAnchor(id: string): AnchorProfile | undefined {

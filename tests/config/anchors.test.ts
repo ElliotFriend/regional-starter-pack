@@ -58,19 +58,49 @@ describe('getAnchor', () => {
         expect(anchor!.regions.brazil.tokens).toContain('USDC');
     });
 
+    it('returns Transfero profile', () => {
+        const anchor = getAnchor('transfero');
+        expect(anchor).toBeDefined();
+        expect(anchor!.id).toBe('transfero');
+        expect(anchor!.name).toBe('Transfero');
+    });
+
+    it('Transfero has brazil region with on and off ramp', () => {
+        const anchor = getAnchor('transfero');
+        expect(anchor).toBeDefined();
+        expect(anchor!.regions.brazil).toBeDefined();
+        expect(anchor!.regions.brazil.onRamp).toBe(true);
+        expect(anchor!.regions.brazil.offRamp).toBe(true);
+    });
+
+    it('Transfero brazil region has pix rail and USDC + BRZ tokens', () => {
+        const anchor = getAnchor('transfero');
+        expect(anchor).toBeDefined();
+        expect(anchor!.regions.brazil.paymentRails).toContain('pix');
+        expect(anchor!.regions.brazil.tokens).toContain('USDC');
+        expect(anchor!.regions.brazil.tokens).toContain('BRZ');
+    });
+
+    it('Transfero brazil does not require KYC', () => {
+        const anchor = getAnchor('transfero');
+        expect(anchor).toBeDefined();
+        expect(anchor!.regions.brazil.kycRequired).toBe(false);
+    });
+
     it('returns undefined for nonexistent anchor', () => {
         expect(getAnchor('nonexistent')).toBeUndefined();
     });
 });
 
 describe('getAllAnchors', () => {
-    it('returns all 4 anchors', () => {
+    it('returns all 5 anchors', () => {
         const anchors = getAllAnchors();
-        expect(anchors).toHaveLength(4);
+        expect(anchors).toHaveLength(5);
         const ids = anchors.map((a) => a.id);
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('blindpay');
         expect(ids).toContain('abroad');
+        expect(ids).toContain('transfero');
     });
 });

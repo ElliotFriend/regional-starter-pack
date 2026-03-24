@@ -45,7 +45,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Brazil has a vibrant fintech ecosystem with PIX enabling instant payments 24/7. Multiple anchors support BRL to USDC conversion.',
         paymentRails: [PAYMENT_RAILS.pix],
-        anchors: ['alfredpay', 'abroad'],
+        anchors: ['alfredpay', 'abroad', 'transfero'],
     },
 };
 

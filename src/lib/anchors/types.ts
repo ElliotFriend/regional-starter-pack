@@ -287,6 +287,12 @@ export interface CreateCustomerInput {
     country?: string;
     /** Stellar public key — required by providers that use wallet-based identity (e.g. Etherfuse). */
     publicKey?: string;
+    /** Full name — required by providers that use tax-ID-based identity (e.g. Transfero). */
+    name?: string;
+    /** Tax identification number (e.g. CPF/CNPJ for Brazil) — required by some providers. */
+    taxId?: string;
+    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). */
+    taxIdCountry?: string;
 }
 
 /** Input for {@link Anchor.getCustomer}. */
@@ -335,6 +341,14 @@ export interface CreateOnRampInput {
     memo?: string;
     /** Bank account ID — required by some providers (e.g. Etherfuse). */
     bankAccountId?: string;
+    /** Full name — required by providers that use tax-ID-based identity (e.g. Transfero). */
+    name?: string;
+    /** Customer email — required by some providers for ramp requests. */
+    email?: string;
+    /** Tax identification number (e.g. CPF/CNPJ for Brazil). */
+    taxId?: string;
+    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). */
+    taxIdCountry?: string;
 }
 
 /** Input for {@link Anchor.createOffRamp}. */
@@ -355,6 +369,14 @@ export interface CreateOffRampInput {
     fiatAccountId: string;
     /** Optional memo for the Stellar transaction. */
     memo?: string;
+    /** Full name — required by providers that use tax-ID-based identity (e.g. Transfero). */
+    name?: string;
+    /** Customer email — required by some providers for ramp requests. */
+    email?: string;
+    /** Tax identification number (e.g. CPF/CNPJ for Brazil). */
+    taxId?: string;
+    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). */
+    taxIdCountry?: string;
 }
 
 // =============================================================================

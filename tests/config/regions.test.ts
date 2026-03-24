@@ -34,11 +34,12 @@ describe('getRegion', () => {
         expect(railIds).toContain('pix');
     });
 
-    it('Brazil has alfredpay and abroad anchors', () => {
+    it('Brazil has alfredpay, abroad, and transfero anchors', () => {
         const region = getRegion('brazil');
         expect(region).toBeDefined();
         expect(region!.anchors).toContain('alfredpay');
         expect(region!.anchors).toContain('abroad');
+        expect(region!.anchors).toContain('transfero');
     });
 
     it('returns undefined for nonexistent region', () => {
@@ -66,12 +67,13 @@ describe('getAnchorsForRegion', () => {
         expect(ids).toContain('blindpay');
     });
 
-    it('returns alfredpay and abroad for Brazil', () => {
+    it('returns alfredpay, abroad, and transfero for Brazil', () => {
         const anchors = getAnchorsForRegion('brazil');
-        expect(anchors).toHaveLength(2);
+        expect(anchors).toHaveLength(3);
         const ids = anchors.map((a) => a.id);
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('abroad');
+        expect(ids).toContain('transfero');
     });
 
     it('returns empty array for nonexistent region', () => {
@@ -96,6 +98,12 @@ describe('getRegionsForAnchor', () => {
 
     it('returns Brazil for abroad', () => {
         const regions = getRegionsForAnchor('abroad');
+        expect(regions).toHaveLength(1);
+        expect(regions[0].id).toBe('brazil');
+    });
+
+    it('returns Brazil for transfero', () => {
+        const regions = getRegionsForAnchor('transfero');
         expect(regions).toHaveLength(1);
         expect(regions[0].id).toBe('brazil');
     });

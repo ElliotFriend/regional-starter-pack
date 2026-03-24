@@ -27,6 +27,7 @@ export const PROVIDER = {
     ALFREDPAY: 'alfredpay',
     BLINDPAY: 'blindpay',
     ABROAD: 'abroad',
+    TRANSFERO: 'transfero',
 } as const;
 
 // KYC statuses (internal)
