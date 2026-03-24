@@ -181,7 +181,7 @@ The `OffRampTransaction` type includes optional fields for provider-specific dat
 - Internal `<a href>` links must use `resolve()` from `$app/paths`: `<a href={resolve('/path')}>`
 - `{#each}` blocks must have a key: `{#each items as item (item.id)}`
 - Unused interface implementation params use `_` prefix (ESLint config has `argsIgnorePattern: '^_'`)
-- Run `pnpm run lint` (prettier + eslint) to check
+- Run `pnpm lint` (prettier + eslint) to check
 
 ## Environment Variables
 
@@ -241,3 +241,17 @@ You MUST use this tool whenever writing Svelte code before sending it to the use
 
 Generates a Svelte Playground link with the provided code.
 After completing the code, ask the user if they want a playground link. Only call this tool after user confirmation and NEVER if code was written to files in their project.
+
+## Development Approach
+
+### Test-Driven Development (TDD)
+
+This project follows a test-driven development approach. When adding new features or integrations:
+
+1. **RED**: Write comprehensive failing tests first — cover config, client methods, status mappings, error paths, and edge cases
+2. **GREEN**: Implement the code to make all tests pass
+3. **VERIFY**: Run `pnpm test:run` to confirm all tests pass before any other verification step
+
+Tests use **Vitest** + **MSW** (Mock Service Worker) and live in `tests/`. Follow existing patterns in `tests/anchors/` for anchor client tests and `tests/config/` for config tests.
+
+Use `pnpm format` for code formatting (not `npx prettier`).
