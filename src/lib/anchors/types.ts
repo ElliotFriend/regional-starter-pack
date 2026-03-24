@@ -276,6 +276,22 @@ export interface OffRampTransaction {
 }
 
 // =============================================================================
+// Identity (for providers that require inline identity on ramp requests)
+// =============================================================================
+
+/** Identity fields for providers that require user identity on each ramp request (e.g. Transfero). */
+export interface RampIdentity {
+    /** Full name of the user. */
+    name: string;
+    /** Email address. */
+    email: string;
+    /** Tax identification number (e.g. CPF/CNPJ for Brazil). */
+    taxId: string;
+    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). Defaults to `"BRA"` if omitted. */
+    taxIdCountry?: string;
+}
+
+// =============================================================================
 // Input types
 // =============================================================================
 
@@ -341,14 +357,8 @@ export interface CreateOnRampInput {
     memo?: string;
     /** Bank account ID — required by some providers (e.g. Etherfuse). */
     bankAccountId?: string;
-    /** Full name — required by providers that use tax-ID-based identity (e.g. Transfero). */
-    name?: string;
-    /** Customer email — required by some providers for ramp requests. */
-    email?: string;
-    /** Tax identification number (e.g. CPF/CNPJ for Brazil). */
-    taxId?: string;
-    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). */
-    taxIdCountry?: string;
+    /** Identity fields for providers that require inline identity (e.g. Transfero). */
+    identity?: RampIdentity;
 }
 
 /** Input for {@link Anchor.createOffRamp}. */
@@ -369,14 +379,8 @@ export interface CreateOffRampInput {
     fiatAccountId: string;
     /** Optional memo for the Stellar transaction. */
     memo?: string;
-    /** Full name — required by providers that use tax-ID-based identity (e.g. Transfero). */
-    name?: string;
-    /** Customer email — required by some providers for ramp requests. */
-    email?: string;
-    /** Tax identification number (e.g. CPF/CNPJ for Brazil). */
-    taxId?: string;
-    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). */
-    taxIdCountry?: string;
+    /** Identity fields for providers that require inline identity (e.g. Transfero). */
+    identity?: RampIdentity;
 }
 
 // =============================================================================

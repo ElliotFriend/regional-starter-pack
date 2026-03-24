@@ -28,6 +28,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
             bankAccount,
             fiatAccountId: existingFiatAccountId,
             memo,
+            identity,
         } = body;
 
         if (!customerId || !quoteId || !stellarAddress || !fromCurrency || !toCurrency || !amount) {
@@ -101,6 +102,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
             amount,
             fiatAccountId,
             memo,
+            identity,
         });
 
         return json(transaction, { status: 201 });

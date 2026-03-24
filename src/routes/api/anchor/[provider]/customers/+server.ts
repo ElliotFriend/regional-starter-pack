@@ -18,10 +18,17 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     try {
         const body = await request.json();
-        const { email, country = 'MX', publicKey } = body;
+        const { email, country = 'MX', publicKey, name, taxId, taxIdCountry } = body;
 
         const anchor = getAnchor(provider);
-        const customer = await anchor.createCustomer({ email, country, publicKey });
+        const customer = await anchor.createCustomer({
+            email,
+            country,
+            publicKey,
+            name,
+            taxId,
+            taxIdCountry,
+        });
 
         return json(customer, { status: 201 });
     } catch (err) {

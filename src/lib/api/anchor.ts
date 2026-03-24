@@ -19,6 +19,7 @@ import type {
     KycRequirements,
     KycSubmissionData,
     KycSubmissionResult,
+    RampIdentity,
 } from '$lib/anchors/types';
 import type {
     AlfredPayKycRequirementsResponse,
@@ -198,6 +199,8 @@ export interface CreateOnRampOptions {
     amount: string;
     memo?: string;
     bankAccountId?: string;
+    /** Identity for providers requiring inline identity on ramp requests (e.g. Transfero). */
+    identity?: RampIdentity;
 }
 
 /**
@@ -245,6 +248,8 @@ export interface CreateOffRampOptions {
     toCurrency: string;
     amount: string;
     memo?: string;
+    /** Identity for providers requiring inline identity on ramp requests (e.g. Transfero). */
+    identity?: RampIdentity;
     // For new bank account registration
     bankAccount?: {
         bankName?: string;

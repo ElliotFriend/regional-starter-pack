@@ -6,9 +6,9 @@
  * interface so it can be swapped with any other anchor provider.
  *
  * Transfero has **no customer, KYC, or fiat account management APIs**.
- * Users are identified by `taxId` passed inline with each ramp request.
- * Customer and fiat account methods use in-memory stores as thin wrappers
- * to satisfy the Anchor interface contract.
+ * Users are identified by `taxId` passed inline with each ramp request
+ * via the `identity` field. Customer and fiat account methods are stateless
+ * no-ops that generate local IDs to satisfy the Anchor interface contract.
  *
  * Adapted from community contribution by @wmendes (https://github.com/wmendes/stellar-ramps-sdk)
  * with corrections based on the official Transfero API docs (https://docs.transfero.com).
@@ -57,38 +57,6 @@ import type {
     TransferoSwapStatus,
 } from './types';
 
-// =============================================================================
-// In-memory metadata (Transfero has no customer/fiat-account APIs)
-// =============================================================================
-
-interface CustomerMeta {
-    id: string;
-    email?: string;
-    name?: string;
-    taxId?: string;
-    taxIdCountry?: string;
-    country?: string;
-    createdAt: string;
-    updatedAt: string;
-}
-
-interface FiatAccountMeta {
-    id: string;
-    customerId: string;
-    pixKey: string;
-    accountHolderName?: string;
-    createdAt: string;
-}
-
-interface SwapOrderMeta {
-    customerId: string;
-    quoteId: string;
-    fromCurrency: string;
-    toCurrency: string;
-    amount: string;
-    stellarAddress: string;
-}
-
 export class TransferoClient implements Anchor {
     readonly name = 'transfero';
     readonly displayName = 'Transfero';
@@ -115,10 +83,6 @@ export class TransferoClient implements Anchor {
 
     private readonly config: TransferoConfig;
     private tokenCache: { token: string; expiresAt: number } | null = null;
-
-    private readonly customers = new Map<string, CustomerMeta>();
-    private readonly fiatAccountsByCustomer = new Map<string, FiatAccountMeta[]>();
-    private readonly swapOrderMeta = new Map<string, SwapOrderMeta>();
 
     constructor(config: TransferoConfig) {
         this.config = config;
@@ -226,25 +190,22 @@ export class TransferoClient implements Anchor {
     /**
      * Resolve identity fields for a ramp request.
      * Transfero requires taxId, name, and email on every ramp call.
-     * These are sourced from the input params or the in-memory customer record.
+     * These must be provided via the `identity` field on the input.
      */
-    private ensureIdentity(input: {
-        customerId?: string;
+    private ensureIdentity(identity?: {
         taxId?: string;
         taxIdCountry?: string;
         name?: string;
         email?: string;
     }): { taxId: string; taxIdCountry: string; name: string; email: string } {
-        const customer = input.customerId ? this.customers.get(input.customerId) : undefined;
-
-        const taxId = input.taxId ?? customer?.taxId;
-        const taxIdCountry = input.taxIdCountry ?? customer?.taxIdCountry ?? 'BRA';
-        const name = input.name ?? customer?.name;
-        const email = input.email ?? customer?.email;
+        const taxId = identity?.taxId;
+        const taxIdCountry = identity?.taxIdCountry ?? 'BRA';
+        const name = identity?.name;
+        const email = identity?.email;
 
         if (!taxId || !name || !email) {
             throw new AnchorError(
-                'Transfero requires taxId, name, and email. Provide them via customer creation or ramp input fields.',
+                'Transfero requires identity (taxId, name, email) on every ramp request. Pass them via the identity field.',
                 'TRANSFERO_IDENTITY_REQUIRED',
                 400,
             );
@@ -260,52 +221,23 @@ export class TransferoClient implements Anchor {
     }
 
     // =========================================================================
-    // Customer (in-memory — Transfero has no customer API)
+    // Customer (stateless — Transfero has no customer API)
     // =========================================================================
 
     async createCustomer(input: CreateCustomerInput): Promise<Customer> {
         const now = new Date().toISOString();
-        const id = crypto.randomUUID();
-
-        const meta: CustomerMeta = {
-            id,
-            email: input.email,
-            name: input.name,
-            taxId: input.taxId,
-            taxIdCountry: input.taxIdCountry,
-            country: input.country,
-            createdAt: now,
-            updatedAt: now,
-        };
-        this.customers.set(id, meta);
-
         return {
-            id,
-            email: meta.email,
+            id: crypto.randomUUID(),
+            email: input.email,
             kycStatus: 'approved',
             createdAt: now,
             updatedAt: now,
         };
     }
 
-    async getCustomer(input: GetCustomerInput): Promise<Customer | null> {
-        let meta: CustomerMeta | undefined;
-
-        if (input.customerId) {
-            meta = this.customers.get(input.customerId);
-        } else if (input.email) {
-            meta = Array.from(this.customers.values()).find((c) => c.email === input.email);
-        }
-
-        if (!meta) return null;
-
-        return {
-            id: meta.id,
-            email: meta.email,
-            kycStatus: 'approved',
-            createdAt: meta.createdAt,
-            updatedAt: meta.updatedAt,
-        };
+    async getCustomer(_input: GetCustomerInput): Promise<Customer | null> {
+        // Transfero has no customer API — customers exist only on the client side.
+        return null;
     }
 
     // =========================================================================
@@ -367,14 +299,7 @@ export class TransferoClient implements Anchor {
     // =========================================================================
 
     async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
-        const identity = this.ensureIdentity({
-            customerId: input.customerId,
-            taxId: input.taxId,
-            taxIdCountry: input.taxIdCountry,
-            name: input.name,
-            email: input.email,
-        });
-
+        const identity = this.ensureIdentity(input.identity);
         const externalId = `onramp-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
         const response = await this.request<TransferoV2OrderResponse>(
@@ -401,15 +326,6 @@ export class TransferoClient implements Anchor {
                 500,
             );
         }
-
-        this.swapOrderMeta.set(response.id, {
-            customerId: input.customerId,
-            quoteId: input.quoteId,
-            fromCurrency: input.fromCurrency,
-            toCurrency: input.toCurrency,
-            amount: input.amount,
-            stellarAddress: input.stellarAddress,
-        });
 
         return {
             id: response.id,
@@ -441,18 +357,16 @@ export class TransferoClient implements Anchor {
                 );
             }
 
-            const meta = this.swapOrderMeta.get(order.id);
-
             return {
                 id: order.id,
-                customerId: meta?.customerId ?? '',
-                quoteId: meta?.quoteId ?? '',
+                customerId: '',
+                quoteId: '',
                 status: this.mapStatus(order.status),
-                fromAmount: meta?.amount ?? '0',
-                fromCurrency: meta?.fromCurrency ?? 'BRL',
-                toAmount: meta?.amount ?? '0',
-                toCurrency: meta?.toCurrency ?? 'USDC',
-                stellarAddress: meta?.stellarAddress ?? '',
+                fromAmount: '0',
+                fromCurrency: 'BRL',
+                toAmount: '0',
+                toCurrency: 'USDC',
+                stellarAddress: '',
                 createdAt: order.createdAt,
                 updatedAt: order.updatedAt ?? new Date().toISOString(),
             };
@@ -465,47 +379,21 @@ export class TransferoClient implements Anchor {
     }
 
     // =========================================================================
-    // Fiat accounts (in-memory — Transfero has no fiat account API)
+    // Fiat accounts (stateless — Transfero has no fiat account API)
     // =========================================================================
 
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
-        const now = new Date().toISOString();
-        const id = crypto.randomUUID();
-
-        const pixKey =
-            input.account.type === 'pix' ? input.account.pixKey : (input.account as never);
-
-        const meta: FiatAccountMeta = {
-            id,
-            customerId: input.customerId,
-            pixKey: String(pixKey),
-            accountHolderName:
-                input.account.type === 'pix' ? input.account.accountHolderName : undefined,
-            createdAt: now,
-        };
-
-        const existing = this.fiatAccountsByCustomer.get(input.customerId) ?? [];
-        this.fiatAccountsByCustomer.set(input.customerId, [...existing, meta]);
-
         return {
-            id,
+            id: crypto.randomUUID(),
             customerId: input.customerId,
             type: 'pix',
             status: 'active',
-            createdAt: now,
+            createdAt: new Date().toISOString(),
         };
     }
 
-    async getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]> {
-        const accounts = this.fiatAccountsByCustomer.get(customerId) ?? [];
-        return accounts.map((a) => ({
-            id: a.id,
-            type: 'pix',
-            accountNumber: a.pixKey,
-            bankName: 'PIX',
-            accountHolderName: a.accountHolderName || '',
-            createdAt: a.createdAt,
-        }));
+    async getFiatAccounts(_customerId: string): Promise<SavedFiatAccount[]> {
+        return [];
     }
 
     // =========================================================================
@@ -513,22 +401,13 @@ export class TransferoClient implements Anchor {
     // =========================================================================
 
     async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
-        const identity = this.ensureIdentity({
-            customerId: input.customerId,
-            taxId: input.taxId,
-            taxIdCountry: input.taxIdCountry,
-            name: input.name,
-            email: input.email,
-        });
+        const identity = this.ensureIdentity(input.identity);
 
-        // Resolve PIX key from the registered fiat account
-        const accounts = this.fiatAccountsByCustomer.get(input.customerId) ?? [];
-        const account = accounts.find((a) => a.id === input.fiatAccountId);
-        const pixKey = input.memo || account?.pixKey;
-
+        // PIX key comes from the memo field (passed through from the fiat account step)
+        const pixKey = input.memo;
         if (!pixKey) {
             throw new AnchorError(
-                'Transfero off-ramp requires a PIX key. Provide it via fiat account registration or as memo.',
+                'Transfero off-ramp requires a PIX key. Pass it via the memo field.',
                 'TRANSFERO_PIX_KEY_REQUIRED',
                 400,
             );
@@ -592,15 +471,6 @@ export class TransferoClient implements Anchor {
             );
         }
 
-        this.swapOrderMeta.set(accepted.id, {
-            customerId: input.customerId,
-            quoteId: input.quoteId,
-            fromCurrency: input.fromCurrency,
-            toCurrency: input.toCurrency,
-            amount: input.amount,
-            stellarAddress: depositInfo.depositAddress,
-        });
-
         return {
             id: accepted.id,
             customerId: input.customerId,
@@ -632,19 +502,16 @@ export class TransferoClient implements Anchor {
                 );
             }
 
-            const meta = this.swapOrderMeta.get(order.id);
-
             return {
                 id: order.id,
-                customerId: meta?.customerId ?? '',
-                quoteId: meta?.quoteId ?? '',
+                customerId: '',
+                quoteId: '',
                 status: this.mapStatus(order.status),
-                fromAmount: meta?.amount ?? '0',
-                fromCurrency: meta?.fromCurrency ?? 'USDC',
-                toAmount: meta?.amount ?? '0',
-                toCurrency: meta?.toCurrency ?? 'BRL',
-                stellarAddress:
-                    order.depositInformation?.depositAddress ?? meta?.stellarAddress ?? '',
+                fromAmount: '0',
+                fromCurrency: 'USDC',
+                toAmount: '0',
+                toCurrency: 'BRL',
+                stellarAddress: order.depositInformation?.depositAddress ?? '',
                 memo: order.depositInformation?.memo,
                 createdAt: order.createdAt,
                 updatedAt: order.updatedAt ?? new Date().toISOString(),

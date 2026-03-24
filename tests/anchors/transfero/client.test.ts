@@ -231,24 +231,17 @@ describe('TransferoClient', () => {
     });
 
     describe('createOnRamp', () => {
-        it('creates on-ramp with crypto withdrawal info', async () => {
+        it('creates on-ramp with identity and crypto withdrawal info', async () => {
             const client = createClient();
             mockAuth();
-
-            // First create a customer so identity is available
-            const customer = await client.createCustomer({
-                email: 'user@example.com',
-                name: 'Test User',
-                taxId: '12345678901',
-                taxIdCountry: 'BRA',
-                country: 'BR',
-            });
 
             server.use(
                 http.post(`${BASE_URL}/api/ramp/v2/swaporder`, async ({ request }) => {
                     expect(request.headers.get('Authorization')).toBe('Bearer test-token-123');
                     const body = (await request.json()) as Record<string, unknown>;
                     expect(body.taxId).toBe('12345678901');
+                    expect(body.name).toBe('Test User');
+                    expect(body.email).toBe('user@example.com');
                     expect(body.quoteId).toBe('quote-001');
                     const crypto = body.cryptoWithdrawalInformation as Record<string, unknown>;
                     expect(crypto.blockchain).toBe('Stellar');
@@ -264,17 +257,43 @@ describe('TransferoClient', () => {
             );
 
             const tx = await client.createOnRamp({
-                customerId: customer.id,
+                customerId: 'cust-001',
                 quoteId: 'quote-001',
                 stellarAddress: 'GUSER123',
                 fromCurrency: 'BRL',
                 toCurrency: 'USDC',
                 amount: '500',
+                identity: {
+                    name: 'Test User',
+                    email: 'user@example.com',
+                    taxId: '12345678901',
+                    taxIdCountry: 'BRA',
+                },
             });
 
             expect(tx.id).toBe('onramp-001');
             expect(tx.status).toBe('pending');
             expect(tx.stellarAddress).toBe('GUSER123');
+        });
+
+        it('throws TRANSFERO_IDENTITY_REQUIRED when identity is missing', async () => {
+            const client = createClient();
+            mockAuth();
+
+            try {
+                await client.createOnRamp({
+                    customerId: 'cust-001',
+                    quoteId: 'quote-001',
+                    stellarAddress: 'GUSER123',
+                    fromCurrency: 'BRL',
+                    toCurrency: 'USDC',
+                    amount: '500',
+                });
+                expect.fail('Expected AnchorError');
+            } catch (err) {
+                expect(err).toBeInstanceOf(AnchorError);
+                expect((err as AnchorError).code).toBe('TRANSFERO_IDENTITY_REQUIRED');
+            }
         });
     });
 
@@ -377,32 +396,14 @@ describe('TransferoClient', () => {
             const client = createClient();
             mockAuth();
 
-            const customer = await client.createCustomer({
-                email: 'user@example.com',
-                name: 'Test User',
-                taxId: '12345678901',
-                taxIdCountry: 'BRA',
-            });
-
-            // Register a PIX account
-            await client.registerFiatAccount({
-                customerId: customer.id,
-                account: {
-                    type: 'pix',
-                    pixKey: 'user@example.com',
-                    taxId: '12345678901',
-                    accountHolderName: 'Test User',
-                },
-            });
-
-            const accounts = await client.getFiatAccounts(customer.id);
-            const fiatAccountId = accounts[0].id;
-
             server.use(
                 http.post(`${BASE_URL}/api/ramp/v2/swaporder/preview`, async ({ request }) => {
                     const body = (await request.json()) as Record<string, unknown>;
                     expect(body.taxId).toBe('12345678901');
+                    expect(body.name).toBe('Test User');
                     expect(body.depositBlockchain).toBe('Stellar');
+                    const fiat = body.fiatWithdrawalInformation as Record<string, unknown>;
+                    expect(fiat.key).toBe('user@example.com');
                     const qr = body.quoteRequest as Record<string, unknown>;
                     expect(qr.side).toBe('Sell');
                     expect(qr.baseCurrency).toBe('USDC');
@@ -446,13 +447,20 @@ describe('TransferoClient', () => {
             );
 
             const tx = await client.createOffRamp({
-                customerId: customer.id,
+                customerId: 'cust-001',
                 quoteId: 'quote-001',
                 stellarAddress: 'GUSER123',
                 fromCurrency: 'USDC',
                 toCurrency: 'BRL',
                 amount: '100',
-                fiatAccountId,
+                fiatAccountId: 'acct-001',
+                memo: 'user@example.com', // PIX key passed via memo
+                identity: {
+                    name: 'Test User',
+                    email: 'user@example.com',
+                    taxId: '12345678901',
+                    taxIdCountry: 'BRA',
+                },
             });
 
             expect(tx.id).toBe('offramp-001');
@@ -461,6 +469,32 @@ describe('TransferoClient', () => {
             expect(tx.memo).toBe('memo-xyz');
             expect(tx.fromCurrency).toBe('USDC');
             expect(tx.toCurrency).toBe('BRL');
+        });
+
+        it('throws TRANSFERO_PIX_KEY_REQUIRED when memo is missing', async () => {
+            const client = createClient();
+            mockAuth();
+
+            try {
+                await client.createOffRamp({
+                    customerId: 'cust-001',
+                    quoteId: 'quote-001',
+                    stellarAddress: 'GUSER123',
+                    fromCurrency: 'USDC',
+                    toCurrency: 'BRL',
+                    amount: '100',
+                    fiatAccountId: 'acct-001',
+                    identity: {
+                        name: 'Test User',
+                        email: 'user@example.com',
+                        taxId: '12345678901',
+                    },
+                });
+                expect.fail('Expected AnchorError');
+            } catch (err) {
+                expect(err).toBeInstanceOf(AnchorError);
+                expect((err as AnchorError).code).toBe('TRANSFERO_PIX_KEY_REQUIRED');
+            }
         });
     });
 
@@ -506,8 +540,8 @@ describe('TransferoClient', () => {
         });
     });
 
-    describe('customer (in-memory)', () => {
-        it('createCustomer stores and returns customer with approved KYC', async () => {
+    describe('customer (stateless)', () => {
+        it('createCustomer returns customer with approved KYC and generated ID', async () => {
             const client = createClient();
 
             const customer = await client.createCustomer({
@@ -522,44 +556,15 @@ describe('TransferoClient', () => {
             expect(customer.kycStatus).toBe('approved');
         });
 
-        it('getCustomer retrieves by ID', async () => {
+        it('getCustomer always returns null (no server-side state)', async () => {
             const client = createClient();
-
-            const created = await client.createCustomer({
-                email: 'user@example.com',
-                name: 'Test User',
-                taxId: '12345678901',
-            });
-
-            const found = await client.getCustomer({ customerId: created.id });
-            expect(found).not.toBeNull();
-            expect(found!.id).toBe(created.id);
-            expect(found!.email).toBe('user@example.com');
-        });
-
-        it('getCustomer retrieves by email', async () => {
-            const client = createClient();
-
-            await client.createCustomer({
-                email: 'findme@example.com',
-                name: 'Find Me',
-                taxId: '99999999999',
-            });
-
-            const found = await client.getCustomer({ email: 'findme@example.com' });
-            expect(found).not.toBeNull();
-            expect(found!.email).toBe('findme@example.com');
-        });
-
-        it('getCustomer returns null for unknown', async () => {
-            const client = createClient();
-            const found = await client.getCustomer({ customerId: 'unknown' });
+            const found = await client.getCustomer({ customerId: 'any-id' });
             expect(found).toBeNull();
         });
     });
 
-    describe('fiat accounts (in-memory)', () => {
-        it('registerFiatAccount stores and returns account', async () => {
+    describe('fiat accounts (stateless)', () => {
+        it('registerFiatAccount returns account with generated ID', async () => {
             const client = createClient();
 
             const account = await client.registerFiatAccount({
@@ -578,28 +583,9 @@ describe('TransferoClient', () => {
             expect(account.status).toBe('active');
         });
 
-        it('getFiatAccounts returns stored accounts', async () => {
+        it('getFiatAccounts always returns empty (no server-side state)', async () => {
             const client = createClient();
-
-            await client.registerFiatAccount({
-                customerId: 'cust-002',
-                account: {
-                    type: 'pix',
-                    pixKey: '12345678901',
-                    taxId: '12345678901',
-                    accountHolderName: 'User Two',
-                },
-            });
-
-            const accounts = await client.getFiatAccounts('cust-002');
-            expect(accounts).toHaveLength(1);
-            expect(accounts[0].type).toBe('pix');
-            expect(accounts[0].accountNumber).toBe('12345678901');
-        });
-
-        it('getFiatAccounts returns empty for unknown customer', async () => {
-            const client = createClient();
-            const accounts = await client.getFiatAccounts('unknown');
+            const accounts = await client.getFiatAccounts('any-customer');
             expect(accounts).toHaveLength(0);
         });
     });
