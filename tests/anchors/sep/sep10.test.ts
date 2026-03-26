@@ -302,7 +302,7 @@ describe('getChallenge', () => {
         await getChallenge(config, account, { clientDomain: 'myapp.example.com' });
     });
 
-    it('includes home_domain query param when config has homeDomain', async () => {
+    it('does not include home_domain as a query param (it is verified via challenge validation instead)', async () => {
         const configWithDomain: Sep10Config = {
             ...config,
             homeDomain: 'testanchor.stellar.org',
@@ -311,7 +311,7 @@ describe('getChallenge', () => {
         server.use(
             http.get(AUTH_ENDPOINT, ({ request }) => {
                 const url = new URL(request.url);
-                expect(url.searchParams.get('home_domain')).toBe('testanchor.stellar.org');
+                expect(url.searchParams.has('home_domain')).toBe(false);
                 return HttpResponse.json({
                     transaction: 'xdr',
                     network_passphrase: StellarSdk.Networks.TESTNET,

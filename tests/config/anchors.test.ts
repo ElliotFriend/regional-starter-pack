@@ -87,20 +87,53 @@ describe('getAnchor', () => {
         expect(anchor!.regions.brazil.kycRequired).toBe(false);
     });
 
+    it('returns MoneyGram profile', () => {
+        const anchor = getAnchor('moneygram');
+        expect(anchor).toBeDefined();
+        expect(anchor!.id).toBe('moneygram');
+        expect(anchor!.name).toBe('MoneyGram');
+    });
+
+    it('MoneyGram has mexico region with offRamp only', () => {
+        const anchor = getAnchor('moneygram');
+        expect(anchor).toBeDefined();
+        expect(anchor!.regions.mexico).toBeDefined();
+        expect(anchor!.regions.mexico.offRamp).toBe(true);
+        expect(anchor!.regions.mexico.onRamp).toBe(false);
+    });
+
+    it('MoneyGram has brazil region with offRamp only', () => {
+        const anchor = getAnchor('moneygram');
+        expect(anchor).toBeDefined();
+        expect(anchor!.regions.brazil).toBeDefined();
+        expect(anchor!.regions.brazil.offRamp).toBe(true);
+        expect(anchor!.regions.brazil.onRamp).toBe(false);
+    });
+
+    it('MoneyGram regions have USDC token and cash_pickup rail', () => {
+        const anchor = getAnchor('moneygram');
+        expect(anchor).toBeDefined();
+        expect(anchor!.regions.mexico.tokens).toContain('USDC');
+        expect(anchor!.regions.mexico.paymentRails).toContain('cash_pickup');
+        expect(anchor!.regions.brazil.tokens).toContain('USDC');
+        expect(anchor!.regions.brazil.paymentRails).toContain('cash_pickup');
+    });
+
     it('returns undefined for nonexistent anchor', () => {
         expect(getAnchor('nonexistent')).toBeUndefined();
     });
 });
 
 describe('getAllAnchors', () => {
-    it('returns all 5 anchors', () => {
+    it('returns all 6 anchors', () => {
         const anchors = getAllAnchors();
-        expect(anchors).toHaveLength(5);
+        expect(anchors).toHaveLength(6);
         const ids = anchors.map((a) => a.id);
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('blindpay');
         expect(ids).toContain('abroad');
         expect(ids).toContain('transfero');
+        expect(ids).toContain('moneygram');
     });
 });

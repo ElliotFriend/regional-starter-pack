@@ -519,6 +519,9 @@ export interface Anchor {
     /** Payment rail identifiers supported by this provider (e.g. `["spei"]`). */
     readonly supportedRails: readonly string[];
 
+    /** Stellar TOML domain for SEP-compliant anchors (e.g. `extstellar.moneygram.com`). Used for SEP-1 discovery and SEP-10 auth. */
+    readonly sepDomain?: string;
+
     /**
      * Create a new customer with the anchor provider.
      * @param input - Customer details (email, country, public key).

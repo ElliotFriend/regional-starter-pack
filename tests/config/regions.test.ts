@@ -34,12 +34,13 @@ describe('getRegion', () => {
         expect(railIds).toContain('pix');
     });
 
-    it('Brazil has alfredpay, abroad, and transfero anchors', () => {
+    it('Brazil has alfredpay, abroad, transfero, and moneygram anchors', () => {
         const region = getRegion('brazil');
         expect(region).toBeDefined();
         expect(region!.anchors).toContain('alfredpay');
         expect(region!.anchors).toContain('abroad');
         expect(region!.anchors).toContain('transfero');
+        expect(region!.anchors).toContain('moneygram');
     });
 
     it('returns undefined for nonexistent region', () => {
@@ -58,22 +59,24 @@ describe('getAllRegions', () => {
 });
 
 describe('getAnchorsForRegion', () => {
-    it('returns all 3 anchors for Mexico', () => {
+    it('returns all 4 anchors for Mexico', () => {
         const anchors = getAnchorsForRegion('mexico');
-        expect(anchors).toHaveLength(3);
+        expect(anchors).toHaveLength(4);
         const ids = anchors.map((a) => a.id);
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('blindpay');
+        expect(ids).toContain('moneygram');
     });
 
-    it('returns alfredpay, abroad, and transfero for Brazil', () => {
+    it('returns alfredpay, abroad, transfero, and moneygram for Brazil', () => {
         const anchors = getAnchorsForRegion('brazil');
-        expect(anchors).toHaveLength(3);
+        expect(anchors).toHaveLength(4);
         const ids = anchors.map((a) => a.id);
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('abroad');
         expect(ids).toContain('transfero');
+        expect(ids).toContain('moneygram');
     });
 
     it('returns empty array for nonexistent region', () => {
@@ -106,6 +109,14 @@ describe('getRegionsForAnchor', () => {
         const regions = getRegionsForAnchor('transfero');
         expect(regions).toHaveLength(1);
         expect(regions[0].id).toBe('brazil');
+    });
+
+    it('returns Mexico and Brazil for moneygram', () => {
+        const regions = getRegionsForAnchor('moneygram');
+        expect(regions).toHaveLength(2);
+        const ids = regions.map((r) => r.id);
+        expect(ids).toContain('mexico');
+        expect(ids).toContain('brazil');
     });
 
     it('returns Mexico for blindpay', () => {

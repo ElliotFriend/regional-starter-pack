@@ -7,7 +7,7 @@
  * Uses the @stellar/stellar-sdk StellarToml module for fetching and parsing.
  */
 
-import { StellarToml } from '@stellar/stellar-sdk';
+import { StellarToml, Networks } from '@stellar/stellar-sdk';
 
 // Re-export types from the SDK for convenience
 export type StellarTomlRecord = StellarToml.Api.StellarToml;
@@ -28,6 +28,13 @@ export async function fetchStellarToml(
     options?: StellarToml.Api.StellarTomlResolveOptions,
 ): Promise<StellarTomlRecord> {
     return StellarToml.Resolver.resolve(domain, options);
+}
+
+/**
+ * Helper to get the network passphrase from a stellar.toml
+ */
+export function getNetworkPassphrase(toml: StellarTomlRecord): Networks | undefined {
+    return toml.NETWORK_PASSPHRASE;
 }
 
 /**

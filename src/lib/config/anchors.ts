@@ -461,6 +461,72 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    moneygram: {
+        id: 'moneygram',
+        name: 'MoneyGram',
+        description:
+            'MoneyGram provides cash off-ramp services via the Stellar SEP-24 protocol. Users send USDC and pick up cash at MoneyGram agent locations in 174+ countries.',
+        links: {
+            website: 'https://www.moneygram.com',
+            documentation:
+                'https://developer.moneygram.com/moneygram-developer/docs/integrate-moneygram-ramps',
+        },
+        regions: {
+            mexico: {
+                onRamp: false,
+                offRamp: true,
+                paymentRails: ['cash_pickup'],
+                tokens: ['USDC'],
+                kycRequired: false,
+            },
+            brazil: {
+                onRamp: false,
+                offRamp: true,
+                paymentRails: ['cash_pickup'],
+                tokens: ['USDC'],
+                kycRequired: false,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Register your wallet at MoneyGram developer portal. Provide domain + Stellar keypairs.',
+                link: 'https://developer.moneygram.com',
+            },
+            {
+                text: 'Sandbox available at extstellar.moneygram.com (Stellar Testnet).',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [],
+            offRamp: [
+                {
+                    title: 'Authenticate (SEP-10)',
+                    description:
+                        'Sign a challenge transaction to obtain a JWT. Our server co-signs the client_domain operation if present.',
+                },
+                {
+                    title: 'Initiate Withdrawal (SEP-24)',
+                    description:
+                        "Call MoneyGram's interactive withdrawal endpoint. Opens MoneyGram's hosted UI.",
+                },
+                {
+                    title: 'Complete in MoneyGram UI',
+                    description:
+                        'User completes KYC, selects payout country/method, and confirms the transaction.',
+                },
+                {
+                    title: 'Send USDC',
+                    description:
+                        "Build a USDC payment to MoneyGram's Stellar address with the provided memo. Sign with Freighter.",
+                },
+                {
+                    title: 'Pick Up Cash',
+                    description:
+                        'User takes the MoneyGram reference number to an agent location to collect cash.',
+                },
+            ],
+        },
+    },
 };
 
 export function getAnchor(id: string): AnchorProfile | undefined {

@@ -15,6 +15,8 @@ import { AlfredPayClient } from '$lib/anchors/alfredpay';
 import { BlindPayClient } from '$lib/anchors/blindpay';
 import { AbroadClient } from '$lib/anchors/abroad';
 import { TransferoClient } from '$lib/anchors/transfero';
+import { MoneyGramClient } from '$lib/anchors/moneygram';
+import { TestAnchorSepClient } from '$lib/anchors/testanchor/sep-client';
 import {
     ETHERFUSE_API_KEY,
     ETHERFUSE_BASE_URL,
@@ -30,9 +32,17 @@ import {
     TRANSFERO_CLIENT_SECRET,
     TRANSFERO_SCOPE,
     TRANSFERO_API_URL,
+    MONEYGRAM_DOMAIN,
 } from '$env/static/private';
 
-export type AnchorProvider = 'etherfuse' | 'alfredpay' | 'blindpay' | 'abroad' | 'transfero';
+export type AnchorProvider =
+    | 'etherfuse'
+    | 'alfredpay'
+    | 'blindpay'
+    | 'abroad'
+    | 'transfero'
+    | 'moneygram'
+    | 'testanchor';
 
 const anchorInstances = new Map<AnchorProvider, Anchor>();
 
@@ -83,6 +93,12 @@ export function getAnchor(provider: AnchorProvider): Anchor {
                     baseUrl: TRANSFERO_API_URL,
                 });
                 break;
+            case 'moneygram':
+                anchor = new MoneyGramClient(MONEYGRAM_DOMAIN);
+                break;
+            case 'testanchor':
+                anchor = new TestAnchorSepClient('testanchor.stellar.org');
+                break;
             default:
                 throw new Error(`Unknown anchor provider: ${provider}`);
         }
@@ -99,5 +115,13 @@ export function getAnchor(provider: AnchorProvider): Anchor {
  * @returns `true` if the string is a known {@link AnchorProvider}.
  */
 export function isValidProvider(provider: string): provider is AnchorProvider {
-    return ['etherfuse', 'alfredpay', 'blindpay', 'abroad', 'transfero'].includes(provider);
+    return [
+        'etherfuse',
+        'alfredpay',
+        'blindpay',
+        'abroad',
+        'transfero',
+        'moneygram',
+        'testanchor',
+    ].includes(provider);
 }

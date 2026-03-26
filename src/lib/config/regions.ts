@@ -33,7 +33,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Multiple anchors support MXN to USDC conversion.',
         paymentRails: [PAYMENT_RAILS.spei],
-        anchors: ['etherfuse', 'alfredpay', 'blindpay'],
+        anchors: ['etherfuse', 'alfredpay', 'blindpay', 'moneygram'],
     },
     brazil: {
         id: 'brazil',
@@ -45,7 +45,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Brazil has a vibrant fintech ecosystem with PIX enabling instant payments 24/7. Multiple anchors support BRL to USDC conversion.',
         paymentRails: [PAYMENT_RAILS.pix],
-        anchors: ['alfredpay', 'abroad', 'transfero'],
+        anchors: ['alfredpay', 'abroad', 'transfero', 'moneygram'],
     },
 };
 

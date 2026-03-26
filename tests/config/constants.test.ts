@@ -9,6 +9,10 @@ describe('PROVIDER', () => {
     it('includes TRANSFERO', () => {
         expect(PROVIDER.TRANSFERO).toBe('transfero');
     });
+
+    it('includes MONEYGRAM', () => {
+        expect(PROVIDER.MONEYGRAM).toBe('moneygram');
+    });
 });
 
 describe('SUPPORTED_COUNTRIES', () => {

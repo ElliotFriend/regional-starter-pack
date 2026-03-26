@@ -28,6 +28,7 @@ export const PROVIDER = {
     BLINDPAY: 'blindpay',
     ABROAD: 'abroad',
     TRANSFERO: 'transfero',
+    MONEYGRAM: 'moneygram',
 } as const;
 
 // KYC statuses (internal)

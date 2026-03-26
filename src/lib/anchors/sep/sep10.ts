@@ -5,7 +5,7 @@
  * https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0010.md
  */
 
-import * as StellarSdk from '@stellar/stellar-sdk';
+import { Transaction } from '@stellar/stellar-sdk';
 import type {
     Sep10ChallengeResponse,
     Sep10TokenResponse,
@@ -42,15 +42,20 @@ export async function getChallenge(
     },
     fetchFn: typeof fetch = fetch,
 ): Promise<Sep10ChallengeResponse> {
+    // console.log(`[SEP-10] GET ${url}`);
+    console.log(`[SEP-10] config ${JSON.stringify(config)}`);
+    console.log(`[SEP-10] account ${account}`);
+    console.log(`[SEP-10] options`, options ? JSON.stringify(options) : '');
+
     const url = new URL(config.authEndpoint);
     url.searchParams.set('account', account);
 
     if (options?.memo) {
         url.searchParams.set('memo', options.memo);
     }
-    if (config.homeDomain) {
-        url.searchParams.set('home_domain', config.homeDomain);
-    }
+    // if (config.homeDomain) {
+    //     url.searchParams.set('home_domain', config.homeDomain);
+    // }
     if (options?.clientDomain) {
         url.searchParams.set('client_domain', options.clientDomain);
     }
@@ -87,11 +92,11 @@ export function validateChallenge(
     userAccount: string,
 ): {
     valid: boolean;
-    transaction: StellarSdk.Transaction;
+    transaction: Transaction;
     error?: string;
 } {
     try {
-        const transaction = new StellarSdk.Transaction(challengeXdr, networkPassphrase);
+        const transaction = new Transaction(challengeXdr, networkPassphrase);
 
         // Check that the transaction source is the server's signing key
         if (transaction.source !== serverSigningKey) {
@@ -164,7 +169,7 @@ export function validateChallenge(
     } catch (error) {
         return {
             valid: false,
-            transaction: null as unknown as StellarSdk.Transaction,
+            transaction: null as unknown as Transaction,
             error: `Failed to parse challenge transaction: ${error}`,
         };
     }
