@@ -546,6 +546,10 @@ export class EtherfuseClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
+        if (input.account.type !== 'spei') {
+            throw new AnchorError('Etherfuse only supports SPEI bank accounts', 'UNSUPPORTED_RAIL', 400);
+        }
+
         if (!input.publicKey) {
             throw new AnchorError(
                 'publicKey is required to register a bank account with Etherfuse',

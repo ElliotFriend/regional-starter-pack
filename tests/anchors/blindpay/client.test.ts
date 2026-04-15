@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { BlindPayClient } from '$lib/anchors/blindpay/client';
-import { AnchorError } from '$lib/anchors/types';
+import { AnchorError, type SpeiPaymentInstructions } from '$lib/anchors/types';
 
 const BASE_URL = 'http://blindpay.test';
 const API_KEY = 'test-key';
@@ -291,11 +291,12 @@ describe('BlindPayClient', () => {
 
             // Payment instructions
             expect(result.paymentInstructions).toBeDefined();
-            expect(result.paymentInstructions!.type).toBe('spei');
-            expect(result.paymentInstructions!.clabe).toBe('012345678901234567');
-            expect(result.paymentInstructions!.reference).toBe('REF123');
-            expect(result.paymentInstructions!.amount).toBe('1000.00');
-            expect(result.paymentInstructions!.currency).toBe('MXN');
+            const instructions = result.paymentInstructions as SpeiPaymentInstructions;
+            expect(instructions.type).toBe('spei');
+            expect(instructions.clabe).toBe('012345678901234567');
+            expect(instructions.reference).toBe('REF123');
+            expect(instructions.amount).toBe('1000.00');
+            expect(instructions.currency).toBe('MXN');
         });
     });
 
@@ -503,6 +504,28 @@ describe('BlindPayClient', () => {
             expect(result.type).toBe('spei_bitso');
             expect(result.status).toBe('active');
             expect(result.createdAt).toBe('2025-01-01T00:00:00Z');
+        });
+
+        it('throws UNSUPPORTED_RAIL when a PIX account is provided', async () => {
+            const client = createClient();
+
+            try {
+                await client.registerFiatAccount({
+                    customerId: 're_abc',
+                    account: {
+                        type: 'pix',
+                        pixKey: 'user@example.com',
+                        taxId: '12345678901',
+                        accountHolderName: 'Test User',
+                    },
+                });
+                expect.unreachable('should have thrown');
+            } catch (err) {
+                expect(err).toBeInstanceOf(AnchorError);
+                const anchorErr = err as AnchorError;
+                expect(anchorErr.code).toBe('UNSUPPORTED_RAIL');
+                expect(anchorErr.statusCode).toBe(400);
+            }
         });
     });
 

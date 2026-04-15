@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { AlfredPayClient } from '$lib/anchors/alfredpay/client';
-import { AnchorError } from '$lib/anchors/types';
+import { AnchorError, type SpeiPaymentInstructions } from '$lib/anchors/types';
 
 const BASE_URL = 'http://alfredpay.test';
 const API_KEY = 'test-key';
@@ -241,13 +241,14 @@ describe('AlfredPayClient', () => {
             expect(tx.stellarTxHash).toBeUndefined();
 
             expect(tx.paymentInstructions).toBeDefined();
-            expect(tx.paymentInstructions!.type).toBe('spei');
-            expect(tx.paymentInstructions!.clabe).toBe('012345678901234567');
-            expect(tx.paymentInstructions!.bankName).toBe('STP');
-            expect(tx.paymentInstructions!.beneficiary).toBe('Alfred Pay SA');
-            expect(tx.paymentInstructions!.reference).toBe('REF-001');
-            expect(tx.paymentInstructions!.amount).toBe('1000.00');
-            expect(tx.paymentInstructions!.currency).toBe('MXN');
+            const instructions = tx.paymentInstructions as SpeiPaymentInstructions;
+            expect(instructions.type).toBe('spei');
+            expect(instructions.clabe).toBe('012345678901234567');
+            expect(instructions.bankName).toBe('STP');
+            expect(instructions.beneficiary).toBe('Alfred Pay SA');
+            expect(instructions.reference).toBe('REF-001');
+            expect(instructions.amount).toBe('1000.00');
+            expect(instructions.currency).toBe('MXN');
         });
     });
 
@@ -293,7 +294,7 @@ describe('AlfredPayClient', () => {
             expect(tx!.status).toBe('processing');
             expect(tx!.stellarTxHash).toBe('stellar-hash-abc');
             expect(tx!.paymentInstructions).toBeDefined();
-            expect(tx!.paymentInstructions!.clabe).toBe('012345678901234567');
+            expect((tx!.paymentInstructions as SpeiPaymentInstructions).clabe).toBe('012345678901234567');
         });
 
         it('returns null when transaction is not found (404)', async () => {
@@ -1017,12 +1018,13 @@ describe('AlfredPayClient', () => {
             });
 
             expect(tx.paymentInstructions).toBeDefined();
-            expect(tx.paymentInstructions!.clabe).toBeNull();
-            expect(tx.paymentInstructions!.bankName).toBeNull();
-            expect(tx.paymentInstructions!.beneficiary).toBeNull();
-            expect(tx.paymentInstructions!.reference).toBeNull();
-            expect(tx.paymentInstructions!.amount).toBe('1000.00');
-            expect(tx.paymentInstructions!.currency).toBe('MXN');
+            const instructions = tx.paymentInstructions as SpeiPaymentInstructions;
+            expect(instructions.clabe).toBeNull();
+            expect(instructions.bankName).toBeNull();
+            expect(instructions.beneficiary).toBeNull();
+            expect(instructions.reference).toBeNull();
+            expect(instructions.amount).toBe('1000.00');
+            expect(instructions.currency).toBe('MXN');
         });
     });
 

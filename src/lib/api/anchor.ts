@@ -20,6 +20,7 @@ import type {
     KycSubmissionData,
     KycSubmissionResult,
     RampIdentity,
+    FiatAccountInput,
 } from '$lib/anchors/types';
 import type {
     AlfredPayKycRequirementsResponse,
@@ -251,11 +252,7 @@ export interface CreateOffRampOptions {
     /** Identity for providers requiring inline identity on ramp requests (e.g. Transfero). */
     identity?: RampIdentity;
     // For new bank account registration
-    bankAccount?: {
-        bankName?: string;
-        clabe: string;
-        beneficiary: string;
-    };
+    bankAccount?: FiatAccountInput;
     // For existing fiat account
     fiatAccountId?: string;
 }

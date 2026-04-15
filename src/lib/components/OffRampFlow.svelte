@@ -252,7 +252,7 @@ Usage:
                 const bankAccount =
                     paymentRail === 'pix'
                         ? { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName }
-                        : { bankName, clabe, beneficiary };
+                        : { type: 'spei' as const, bankName, clabe, beneficiary };
 
                 tx = await api.createOffRamp(fetch, provider, {
                     customerId: customer.id,

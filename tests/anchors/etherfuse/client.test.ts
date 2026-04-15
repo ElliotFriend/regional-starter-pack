@@ -452,6 +452,29 @@ describe('registerFiatAccount', () => {
             expect(anchorErr.statusCode).toBe(400);
         }
     });
+
+    it('throws UNSUPPORTED_RAIL when a PIX account is provided', async () => {
+        const client = createClient();
+
+        try {
+            await client.registerFiatAccount({
+                customerId: 'cust-1',
+                publicKey: STELLAR_PUBKEY,
+                account: {
+                    type: 'pix',
+                    pixKey: 'user@example.com',
+                    taxId: '12345678901',
+                    accountHolderName: 'Test User',
+                },
+            });
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            const anchorErr = err as AnchorError;
+            expect(anchorErr.code).toBe('UNSUPPORTED_RAIL');
+            expect(anchorErr.statusCode).toBe(400);
+        }
+    });
 });
 
 // ---------------------------------------------------------------------------

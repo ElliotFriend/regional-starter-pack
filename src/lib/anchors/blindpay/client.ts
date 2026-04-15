@@ -474,6 +474,10 @@ export class BlindPayClient implements Anchor {
      * @throws {AnchorError} On API failure.
      */
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
+        if (input.account.type !== 'spei') {
+            throw new AnchorError('BlindPay only supports SPEI bank accounts', 'UNSUPPORTED_RAIL', 400);
+        }
+
         const response = await this.request<BlindPayBankAccountResponse>(
             'POST',
             this.instancePath(`/receivers/${input.customerId}/bank-accounts`),
