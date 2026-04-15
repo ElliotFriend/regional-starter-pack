@@ -12,8 +12,8 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       '@stellar/stellar-sdk':
-        specifier: ^14.5.0
-        version: 14.5.0
+        specifier: ^15.0.1
+        version: 15.0.1
     devDependencies:
       '@eslint/compat':
         specifier: ^2.0.5
@@ -519,15 +519,16 @@ packages:
   '@stellar/freighter-api@6.0.1':
     resolution: {integrity: sha512-eqwakEqSg+zoLuPpSbKyrX0pG8DQFzL/J5GtbfuMCmJI+h+oiC9pQ5C6QLc80xopZQKdGt8dUAFCmDMNdAG95w==}
 
-  '@stellar/js-xdr@3.1.2':
-    resolution: {integrity: sha512-VVolPL5goVEIsvuGqDc5uiKxV03lzfWdvYg1KikvwheDmTBO68CKDji3bAZ/kppZrx5iTA8z3Ld5yuytcvhvOQ==}
+  '@stellar/js-xdr@4.0.0':
+    resolution: {integrity: sha512-+NmNa7Tk5BI5XFdy/6xGTqAN4J9a9KgCrCGhj2uEUTCBhLkch0M+QbKzNH8zEnejWe0p8w+0q5hUVX6L3OzoVA==}
+    engines: {node: '>=20.0.0', pnpm: '>=9.0.0'}
 
-  '@stellar/stellar-base@14.0.4':
-    resolution: {integrity: sha512-UbNW6zbdOBXJwLAV2mMak0bIC9nw3IZVlQXkv2w2dk1jgCbJjy3oRVC943zeGE5JAm0Z9PHxrIjmkpGhayY7kw==}
+  '@stellar/stellar-base@15.0.0':
+    resolution: {integrity: sha512-XQhxUr9BYiEcFcgc4oWcCMR9QJCny/GmmGsuwPKf/ieIcOeb5149KLHYx9mJCA0ea8QbucR2/GzV58QbXOTxQA==}
     engines: {node: '>=20.0.0'}
 
-  '@stellar/stellar-sdk@14.5.0':
-    resolution: {integrity: sha512-Uzjq+An/hUA+Q5ERAYPtT0+MMiwWnYYWMwozmZMjxjdL2MmSjucBDF8Q04db6K/ekU4B5cHuOfsdlrfaxQYblw==}
+  '@stellar/stellar-sdk@15.0.1':
+    resolution: {integrity: sha512-iZjWKXtfohsPh+CX9wRyQNIlXLeA9VyuQB6UMC7AFBD9XnR92eOjnlfeONzk/Bsrkk6+UPlpzSy2MuF+ydHP1A==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
@@ -844,8 +845,8 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  axios@1.13.4:
-    resolution: {integrity: sha512-1wVkUaAO6WyaYtCkcYCOx12ZgpGf9Zif+qXa4n+oYzK558YryKqiL6UWwd5DqiH3VRW0GYhTZQ/vlgJrCoNQlg==}
+  axios@1.14.0:
+    resolution: {integrity: sha512-3Y8yrqLSwjuzpXuZ0oIYZ/XGgLwUIBU3uLvbcpb0pidD9ctpShJd43KSlEEkVQg6DS0G9NKyzOvBfUtDKEyHvQ==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -1613,8 +1614,9 @@ packages:
     engines: {node: '>=14'}
     hasBin: true
 
-  proxy-from-env@1.1.0:
-    resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
+  proxy-from-env@2.1.0:
+    resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
+    engines: {node: '>=10'}
 
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
@@ -2281,21 +2283,21 @@ snapshots:
       buffer: 6.0.3
       semver: 7.7.1
 
-  '@stellar/js-xdr@3.1.2': {}
+  '@stellar/js-xdr@4.0.0': {}
 
-  '@stellar/stellar-base@14.0.4':
+  '@stellar/stellar-base@15.0.0':
     dependencies:
       '@noble/curves': 1.9.7
-      '@stellar/js-xdr': 3.1.2
+      '@stellar/js-xdr': 4.0.0
       base32.js: 0.1.0
       bignumber.js: 9.3.1
       buffer: 6.0.3
       sha.js: 2.4.12
 
-  '@stellar/stellar-sdk@14.5.0':
+  '@stellar/stellar-sdk@15.0.1':
     dependencies:
-      '@stellar/stellar-base': 14.0.4
-      axios: 1.13.4
+      '@stellar/stellar-base': 15.0.0
+      axios: 1.14.0
       bignumber.js: 9.3.1
       commander: 14.0.3
       eventsource: 2.0.2
@@ -2651,11 +2653,11 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  axios@1.13.4:
+  axios@1.14.0:
     dependencies:
       follow-redirects: 1.15.11
       form-data: 4.0.5
-      proxy-from-env: 1.1.0
+      proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
 
@@ -3302,7 +3304,7 @@ snapshots:
 
   prettier@3.8.3: {}
 
-  proxy-from-env@1.1.0: {}
+  proxy-from-env@2.1.0: {}
 
   punycode@2.3.1: {}
 
