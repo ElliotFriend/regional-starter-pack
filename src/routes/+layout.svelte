@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-    <link rel="icon" href={favicon} />
+    <link rel="icon" type="image/svg+xml" href={favicon} />
     <title>Regional Starter Pack</title>
 </svelte:head>
 
