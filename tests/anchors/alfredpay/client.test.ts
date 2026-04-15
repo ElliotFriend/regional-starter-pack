@@ -294,7 +294,9 @@ describe('AlfredPayClient', () => {
             expect(tx!.status).toBe('processing');
             expect(tx!.stellarTxHash).toBe('stellar-hash-abc');
             expect(tx!.paymentInstructions).toBeDefined();
-            expect((tx!.paymentInstructions as SpeiPaymentInstructions).clabe).toBe('012345678901234567');
+            expect((tx!.paymentInstructions as SpeiPaymentInstructions).clabe).toBe(
+                '012345678901234567',
+            );
         });
 
         it('returns null when transaction is not found (404)', async () => {

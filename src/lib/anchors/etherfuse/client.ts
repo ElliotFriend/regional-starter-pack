@@ -547,7 +547,11 @@ export class EtherfuseClient implements Anchor {
      */
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
         if (input.account.type !== 'spei') {
-            throw new AnchorError('Etherfuse only supports SPEI bank accounts', 'UNSUPPORTED_RAIL', 400);
+            throw new AnchorError(
+                'Etherfuse only supports SPEI bank accounts',
+                'UNSUPPORTED_RAIL',
+                400,
+            );
         }
 
         if (!input.publicKey) {
