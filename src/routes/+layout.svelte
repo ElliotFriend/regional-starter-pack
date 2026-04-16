@@ -4,14 +4,12 @@
     import Footer from '$lib/components/ui/Footer.svelte';
 
     import './layout.css';
-    import favicon from '$lib/assets/favicon.svg';
     import type { LayoutProps } from './$types';
 
     let { children, data }: LayoutProps = $props();
 </script>
 
 <svelte:head>
-    <link rel="icon" type="image/svg+xml" href={favicon} />
     <title>Regional Starter Pack</title>
 </svelte:head>
 

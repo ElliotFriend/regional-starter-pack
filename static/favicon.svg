@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6366f1"></stop>
+      <stop offset="100%" stop-color="#06b6d4"></stop>
+    </linearGradient>
+  </defs><g transform="rotate(12, 32, 32)">
+    <!-- Outer ring -->
+    <circle cx="32" cy="32" r="29" fill="none" stroke="url(#g)" stroke-width="3"></circle>
+    <!-- Cardinal points (N, S, E, W) — tall diamond shapes -->
+    <polygon points="32,3 36,26 32,30 28,26" fill="url(#g)"></polygon>
+    <polygon points="32,61 36,38 32,34 28,38" fill="url(#g)" opacity="0.5"></polygon>
+    <polygon points="3,32 26,28 30,32 26,36" fill="url(#g)" opacity="0.5"></polygon>
+    <polygon points="61,32 38,28 34,32 38,36" fill="url(#g)"></polygon>
+    <!-- Center star (Stellar nod) -->
+    <circle cx="32" cy="32" r="4" fill="url(#g)"></circle>
+  </g></svg>
