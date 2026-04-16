@@ -13,6 +13,7 @@
         "lint": "prettier --check . && eslint .",
         "format": "prettier --write .",
         "test": "vitest",
+        "test:client": "vitest --project client",
         "test:unit": "vitest --project unit",
         "test:integration": "vitest --project integration",
         "test:run": "vitest run",
