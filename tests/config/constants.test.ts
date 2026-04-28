@@ -6,8 +6,8 @@ describe('PROVIDER', () => {
         expect(PROVIDER.ETHERFUSE).toBe('etherfuse');
     });
 
-    it('has only one provider', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(1);
+    it('includes PDAX', () => {
+        expect(PROVIDER.PDAX).toBe('pdax');
     });
 });
 
@@ -18,6 +18,14 @@ describe('SUPPORTED_COUNTRIES', () => {
         expect(mexico!.name).toBe('Mexico');
         expect(mexico!.currency).toBe('MXN');
         expect(mexico!.paymentMethod).toBe('SPEI');
+    });
+
+    it('includes Philippines with PHP and InstaPay', () => {
+        const ph = SUPPORTED_COUNTRIES.find((c) => c.code === 'PH');
+        expect(ph).toBeDefined();
+        expect(ph!.name).toBe('Philippines');
+        expect(ph!.currency).toBe('PHP');
+        expect(ph!.paymentMethod).toBe('InstaPay');
     });
 
     it('includes Brazil with BRL and PIX', () => {

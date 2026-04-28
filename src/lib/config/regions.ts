@@ -47,6 +47,18 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.pix],
         anchors: ['etherfuse'],
     },
+    philippines: {
+        id: 'philippines',
+        name: 'Philippines',
+        code: 'PH',
+        currency: 'PHP',
+        currencySymbol: '₱',
+        flag: '🇵🇭',
+        description:
+            'The Philippines has a rapidly growing digital payments ecosystem with InstaPay enabling real-time interbank transfers. Locally denominated assets on Stellar enable low-cost on- and off-ramps with competitive FX rates.',
+        paymentRails: [PAYMENT_RAILS.instapay, PAYMENT_RAILS.pesonet],
+        anchors: ['pdax'],
+    },
 };
 
 // =============================================================================

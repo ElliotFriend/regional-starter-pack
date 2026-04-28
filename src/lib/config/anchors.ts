@@ -177,6 +177,124 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    pdax: {
+        id: 'pdax',
+        name: 'PDAX',
+        description:
+            'PDAX (Philippine Digital Asset Exchange) is the Philippines’ first BSP-licensed virtual asset service provider, bridging PHP and digital assets for retail and institutional users.',
+        links: {
+            website: 'https://pdax.ph',
+            documentation: 'https://doc.general.api.pdax.ph',
+        },
+        knownIssues: [
+            {
+                text: 'PDAX API documentation at doc.general.api.pdax.ph is currently password-gated. PDAX is evaluating whether they can open public access.',
+            },
+            {
+                text: 'Authentication uses email + password rather than an API key. Login returns a JWT pair (access_token + id_token) that must both be sent on every authenticated request, plus a refresh_token for renewal. MFA via OTP is optional.',
+            },
+            {
+                text: 'PDAX is an institutional shared-account API: there are no endpoints to provision per-end-user accounts. End-user identity is passed per transaction through sender/beneficiary KYC fields on /fiat/deposit and /fiat/withdraw, correlated by a custom `identifier`.',
+            },
+        ],
+        regions: {
+            philippines: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['instapay', 'pesonet'],
+                tokens: ['USDC'],
+                kycRequired: true,
+                comingSoon: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Apply for an institutional account with PDAX (BSP-licensed VASP onboarding required).',
+                link: 'https://pdax.ph',
+            },
+            {
+                text: 'Once approved, request API credentials from the PDAX team (email + password, used against the staging server first: stage.services.sandbox.pdax.ph).',
+            },
+            {
+                text: 'Optionally register a webhook endpoint via POST /pdax-institution/v1/config/webhook to receive push notifications for fiat deposit/withdrawal status changes (crypto status changes still require polling).',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Authenticate',
+                    description:
+                        'POST /pdax-institution/v1/login with email + password. Receive an access_token + id_token JWT pair (and a refresh_token for renewal); both JWTs are sent on every subsequent request.',
+                },
+                {
+                    title: 'Get a Firm Quote',
+                    description:
+                        'POST /pdax-institution/v1/trade/quote with side=buy, base_currency=PHP, quote_currency=USDCXLM, and the PHP amount. Receive a quote_id and expires_at.',
+                },
+                {
+                    title: 'Initiate Fiat Deposit',
+                    description:
+                        "POST /pdax-institution/v1/fiat/deposit with the user's identity fields (sender + beneficiary), the chosen method (e.g. instapay_upay_cashin), and a unique identifier. Receive a payment_checkout_url.",
+                },
+                {
+                    title: 'User Pays via Checkout URL',
+                    description:
+                        'The user is sent to the checkout URL to complete the PHP payment via their selected method (InstaPay/QRPh, GrabPay, or a DragonPay-supported bank/wallet).',
+                },
+                {
+                    title: 'Detect Fiat Settlement',
+                    description:
+                        'Poll GET /pdax-institution/v1/fiat/transactions (filtered by identifier) for a fulfilled_at timestamp, or receive a webhook event if registered.',
+                },
+                {
+                    title: 'Execute the Trade',
+                    description:
+                        'POST /pdax-institution/v1/trade with the quote_id and side=buy to convert PHP → USDCXLM at the locked rate. Order completes synchronously.',
+                },
+                {
+                    title: "Withdraw USDC to User's Stellar Wallet",
+                    description:
+                        "POST /pdax-institution/v1/crypto/withdraw with currency=USDCXLM and the user's Stellar public key as the destination.",
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Authenticate',
+                    description: 'POST /pdax-institution/v1/login (same as the on-ramp flow).',
+                },
+                {
+                    title: 'Get a Firm Quote',
+                    description:
+                        'POST /pdax-institution/v1/trade/quote with side=sell, base_currency=PHP, quote_currency=USDCXLM, and the USDC amount. Receive a quote_id and expires_at.',
+                },
+                {
+                    title: "Get PDAX's USDC Deposit Address",
+                    description:
+                        'GET /pdax-institution/v1/crypto/deposit?currency=USDCXLM. Receive a Stellar address and (if applicable) a memo/tag the user must include on the payment.',
+                },
+                {
+                    title: 'Sign and Submit USDC Payment with Freighter',
+                    description:
+                        'The user signs a Stellar payment to the deposit address (with the memo) and submits it to the network.',
+                },
+                {
+                    title: 'Detect Crypto Settlement',
+                    description:
+                        'Poll GET /pdax-institution/v1/crypto/transactions (filtered by identifier) for a status of completed.',
+                },
+                {
+                    title: 'Execute the Trade',
+                    description:
+                        'POST /pdax-institution/v1/trade with the quote_id and side=sell to convert USDCXLM → PHP.',
+                },
+                {
+                    title: "Disburse PHP to User's Bank",
+                    description:
+                        "POST /pdax-institution/v1/fiat/withdraw with the user's beneficiary bank details, beneficiary_bank_code, fee_type, and method (PAY-TO-ACCOUNT-REAL-TIME for InstaPay or PAY-TO-ACCOUNT-NON-REAL-TIME for PESONet).",
+                },
+            ],
+        },
+    },
 };
 
 export function getAnchor(id: string): AnchorProfile | undefined {

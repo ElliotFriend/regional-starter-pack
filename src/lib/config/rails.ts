@@ -26,6 +26,20 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             "Brazil's instant payment system operated by the Central Bank, enabling 24/7 real-time transfers",
         type: 'bank_transfer',
     },
+    instapay: {
+        id: 'instapay',
+        name: 'InstaPay',
+        description:
+            "Philippines' real-time retail payment system enabling instant interbank transfers up to PHP 50,000 per transaction",
+        type: 'bank_transfer',
+    },
+    pesonet: {
+        id: 'pesonet',
+        name: 'PESONet',
+        description:
+            "Philippines' batch electronic fund transfer system, settling same-day for higher-value transfers between participating banks and e-money issuers",
+        type: 'bank_transfer',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {

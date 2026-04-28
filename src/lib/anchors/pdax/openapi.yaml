@@ -1,0 +1,2612 @@
+openapi: 3.2.0
+info:
+  title: PDAX Institutions API
+  description: PDAX API for Institutions - fiat/crypto conversion, deposits, withdrawals, and balance management.
+  version: 1.0.0
+  license:
+    name: Proprietary
+servers:
+  - url: https://services.pdax.ph/api/pdax-api
+    description: Production
+  - url: https://stage.services.sandbox.pdax.ph/api/pdax-api
+    description: Stage / Sandbox
+security:
+  - bearerAuth: []
+    idToken: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: apiKey
+      in: header
+      name: access_token
+      description: JWT access token from the login endpoint
+    idToken:
+      type: apiKey
+      in: header
+      name: id_token
+      description: JWT identity token from the login endpoint
+tags:
+  - name: Authentication
+  - name: Balances
+  - name: Deposit and Withdrawal check
+  - name: Funding
+  - name: Trade
+  - name: Webhook
+  - name: Withdrawals
+paths:
+  /pdax-institution/v1/login:
+    post:
+      summary: POST Login
+      tags:
+        - Authentication
+      operationId: post_login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: Email address of PDAX account
+                password:
+                  type: string
+                  description: Password of PDAX account
+      responses:
+        '200':
+          description: Schema of Response Payload (Without MFA Setup)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    description: Email address of PDAX account
+                  username:
+                    type: string
+                    description: ID number of PDAX account
+                  groups:
+                    type: array
+                    description: List of groups user belongs to
+                  token_type:
+                    type: string
+                    description: Type of authentication token (e.g., "Bearer")
+                  preferred_mfa:
+                    type: string
+                    description: MFA preference status (e.g., "NOT_SET", "SOFTWARE_TOKEN_MFA")
+                  expiry:
+                    type: number
+                    description: Token validity period in seconds
+                  access_token:
+                    type: string
+                    description: JWT token for API authorization
+                  id_token:
+                    type: string
+                    description: JWT token for user identity
+                  refresh_token:
+                    type: string
+                    description: Token to refresh authentication without reauthentication
+        '201':
+          description: Schema of Response Payload (With MFA Setup)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    description: Response code from authentication service
+                  message:
+                    type: string
+                    description: Descriptive message about the MFA challenge
+                  challenge_name:
+                    type: string
+                    description: Type of challenge required (e.g., "SOFTWARE_TOKEN_MFA")
+                  session:
+                    type: string
+                    description: Session token for completing the MFA challenge
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/login/otp:
+    post:
+      summary: POST OTP
+      tags:
+        - Authentication
+      operationId: post_otp
+      description: This endpoint is required if you enable MFA on your account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session:
+                  type: string
+                  description: MFA session token
+                username:
+                  type: string
+                  description: Email address of PDAX account
+                otp:
+                  type: string
+                  description: One-time password code
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    description: Email address of PDAX account
+                  username:
+                    type: string
+                    description: ID number of PDAX account
+                  groups:
+                    type: array
+                    description: List of groups user belongs to
+                  token_type:
+                    type: string
+                    description: Type of authentication token (e.g., "Bearer")
+                  preferred_mfa:
+                    type: string
+                    description: MFA preference status (e.g., "SOFTWARE_TOKEN_MFA")
+                  expiry:
+                    type: number
+                    description: Token validity period in seconds
+                  access_token:
+                    type: string
+                    description: JWT token for API authorization
+                  id_token:
+                    type: string
+                    description: JWT token for user identity
+                  refresh_token:
+                    type: string
+                    description: Token to refresh authentication without reauthentication
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/refresh-token:
+    put:
+      summary: PUT Refresh Token
+      tags:
+        - Authentication
+      operationId: put_refresh_token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: Email address of PDAX account
+                refreshToken:
+                  type: string
+                  description: Token for refresh session
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    description: Email address of PDAX account
+                  username:
+                    type: string
+                    description: ID number of PDAX account
+                  groups:
+                    type: array
+                    description: List of groups user belongs to
+                  token_type:
+                    type: string
+                    description: Type of authentication token (e.g., "Bearer")
+                  preferred_mfa:
+                    type: string
+                    description: MFA preference status (e.g., "NOT_SET")
+                  expiry:
+                    type: number
+                    description: Token validity period in seconds
+                  access_token:
+                    type: string
+                    description: JWT token for API authorization
+                  id_token:
+                    type: string
+                    description: JWT token for user identity
+                  refresh_token:
+                    type: string
+                    description: Token to refresh authentication without reauthentication
+        4XX:
+          description: 'Error responses
+
+
+            - `PAP0400` (400): Bad request
+
+            - `PAP0401` (401): Unauthorize
+
+            - `PAP0500` (500): Internal Server Error
+
+            - `PAP0503` (503): Service unavailable'
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/trade/price:
+    get:
+      summary: GET Indicative Quote
+      tags:
+        - Trade
+      operationId: get_indicative_quote
+      description: Get a price quotation for the selected cryptopair.
+      security:
+        - bearerAuth: []
+          idToken: []
+      parameters:
+        - name: quote_currency
+          in: query
+          schema:
+            type: string
+            enum:
+              - AAVE
+              - ADA
+              - ALGO
+              - APE
+              - AVAX
+              - AXS
+              - BAT
+              - BCH
+              - BNB
+              - BTC
+              - COMP
+              - DOGE
+              - DOT
+              - ENJ
+              - ETH
+              - GALA
+              - GMT
+              - GRT
+              - HBAR
+              - LINK
+              - LTC
+              - MANA
+              - POL
+              - PAXG
+              - PEPE
+              - PYUSD
+              - RON
+              - SAND
+              - SHIB
+              - SLP
+              - SOL
+              - SUSHI
+              - TON
+              - UNI
+              - USDCSOL
+              - USDCXLM
+              - USDCPOL
+              - USDC
+              - USDTPOL
+              - USDT
+              - USDTTRX
+              - WETHPOL
+              - XLM
+              - XRP
+              - XTZ
+              - YGGRON
+              - PYUSD
+              - CELO
+              - OP
+              - NEAR
+              - ETH
+              - USDC
+          description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+          required: true
+        - name: base_currency
+          in: query
+          schema:
+            type: string
+            enum:
+              - AAVE
+              - ADA
+              - ALGO
+              - APE
+              - AVAX
+              - AXS
+              - BAT
+              - BCH
+              - BNB
+              - BTC
+              - COMP
+              - DOGE
+              - DOT
+              - ENJ
+              - ETH
+              - GALA
+              - GMT
+              - GRT
+              - HBAR
+              - LINK
+              - LTC
+              - MANA
+              - POL
+              - PAXG
+              - PEPE
+              - PYUSD
+              - RON
+              - SAND
+              - SHIB
+              - SLP
+              - SOL
+              - SUSHI
+              - TON
+              - UNI
+              - USDCSOL
+              - USDCXLM
+              - USDCPOL
+              - USDC
+              - USDTPOL
+              - USDT
+              - USDTTRX
+              - WETHPOL
+              - XLM
+              - XRP
+              - XTZ
+              - YGGRON
+              - PYUSD
+              - CELO
+              - OP
+              - NEAR
+              - ETH
+              - USDC
+          description: PHP asset
+          required: true
+        - name: side
+          in: query
+          schema:
+            type: string
+          description: Counterparty action -- buy or sell
+          required: true
+        - name: base_quantity
+          in: query
+          schema:
+            type: string
+          description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
+          required: true
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote_currency:
+                    type: string
+                    description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                  base_currency:
+                    type: string
+                    description: PHP asset
+                  side:
+                    type: string
+                    description: Counterparty action -- buy or sell
+                  base_quantity:
+                    type: string
+                    description: Quantity of the asset you are buying or selling
+                  price:
+                    type: number
+                    description: Quoted unit price
+                  total_amount:
+                    type: number
+                    description: Total amount
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/trade/quote:
+    post:
+      summary: POST Firm Quote
+      tags:
+        - Trade
+      operationId: post_firm_quote
+      description:
+        Firm quotes shall be used in placing orders. The API Service shall fill the order parameters as indicated
+        in this endpoint and the quote response shall be served in full.
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quote_currency:
+                  type: string
+                  description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                base_currency:
+                  type: string
+                  description: PHP asset
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                side:
+                  type: string
+                  description: Counterparty action -- buy or sell
+                base_quantity:
+                  type: string
+                  description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote_id:
+                    type: string
+                    description: Firm quote reference ID
+                  expires_at:
+                    type: string
+                    description: Quote validity in ISO timestamp
+                  quote_currency:
+                    type: string
+                    description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                  base_currency:
+                    type: string
+                    description: PHP asset
+                  side:
+                    type: string
+                    description: Counterparty action -- buy or sell
+                  base_quantity:
+                    type: number
+                    description: Quantity of the asset you are buying or selling
+                  price:
+                    type: number
+                    description: Quoted unit price
+                  total_amount:
+                    type: number
+                    description: Total amount
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v2/trade/price:
+    get:
+      summary: GET Indicative Quote v2
+      tags:
+        - Trade
+      operationId: get_indicative_quote_v2
+      description: Get a price quotation for the selected cryptopair.
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                side:
+                  type: string
+                  description: Counterparty action -- buy or sell
+                quote_currency:
+                  type: string
+                  description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                base_currency:
+                  type: string
+                  description: PHP asset
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                currency:
+                  type: string
+                  description: The currency of which you want to receive
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                quantity:
+                  type: string
+                  description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  base_currency:
+                    type: string
+                    description: PHP asset
+                  quote_currency:
+                    type: string
+                    description: The crypto asset you want to buy or sell. Supported trading pairs can be found here
+                  side:
+                    type: string
+                    description: Counterparty action -- buy or sell
+                  base_quantity:
+                    type: number
+                    description: Quantity of the asset you are buying or selling
+                  price:
+                    type: number
+                    description: Quoted unit price
+                  total_amount:
+                    type: number
+                    description: Total amount
+              example:
+                data:
+                  base_currency: PHP
+                  quote_currency: USDC
+                  side: buy
+                  base_quantity: 17.18
+                  price: 58.196
+                  total_amount: 1000
+                status: success
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v2/trade/quote:
+    post:
+      summary: POST Firm Quote v2
+      tags:
+        - Trade
+      operationId: post_firm_quote_v2
+      description: Get a price quotation for the selected cryptopair.
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                side:
+                  type: string
+                  description: Counterparty action -- buy or sell
+                quote_currency:
+                  type: string
+                  description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                base_currency:
+                  type: string
+                  description: PHP asset
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                currency:
+                  type: string
+                  description: The currency of which you want to receive
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                quantity:
+                  type: string
+                  description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote_id:
+                    type: string
+                    description: Firm quote reference ID
+                  expires_at:
+                    type: string
+                    description: Quote validity in ISO timestamp
+                  base_currency:
+                    type: string
+                    description: PHP asset
+                  quote_currency:
+                    type: string
+                    description: The crypto asset you want to buy or sell. Supported trading pairs can be found here
+                  side:
+                    type: string
+                    description: Counterparty action -- buy or sell
+                  base_quantity:
+                    type: number
+                    description: Quantity of the asset you are buying or selling
+                  price:
+                    type: number
+                    description: Quoted unit price
+                  total_amount:
+                    type: number
+                    description: Total amount
+              example:
+                data:
+                  quote_id: 018fa0b8-b6e0-70e7-ad7e-1a9803695a86
+                  expires_at: '2024-05-22T14:33:46.111Z'
+                  base_currency: PHP
+                  quote_currency: USDC
+                  side: buy
+                  base_quantity: 17.18
+                  price: 58.196
+                  total_amount: 1000
+                status: success
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/trade:
+    post:
+      summary: POST Order
+      tags:
+        - Trade
+      operationId: post_order
+      description:
+        Place a market order using the firm quote reference. To check if the order has been completed, use the
+        Get Order Status endpoint.
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quote_id:
+                  type: string
+                  description: Firm quote reference ID
+                side:
+                  type: string
+                  description: Describes the side of the trade; this is dependent on the value of the side from Get Firm Quote
+                idempotency_id:
+                  type: string
+                  description:
+                    'Id of the request made. You may generate an idempotency id by using uuid ver 4 format  Sample
+                    here: https://www.uuidgenerator.net/version4'
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: number
+                    description: Id of the order
+                  status:
+                    type: string
+                    description: 'Possible Values : successful, failed'
+                  quote_currency:
+                    type: string
+                    description:
+                      If side is 'Buy' Quote currency is the asset you want to receive If side is 'Sell' Quote
+                      currency is the asset you want to sell
+                  base_currency:
+                    type: string
+                    description:
+                      If side is 'Buy' Base currency is the asset you want to sell If side is 'Sell' Base currency
+                      is the asset you want to receive
+                  side:
+                    type: string
+                    description: Counterparty side
+                  base_quantity:
+                    type: number
+                    description: Order quantity as per firm quote
+                  price:
+                    type: number
+                    description: Quoted unit price
+                  total_amount:
+                    type: number
+                    description: Total amount
+        4XX:
+          description: "Error responses
+
+
+            - `OT010000`: Unauthorized access
+
+            - `OT010001`: Request has been made several times
+
+            - `OT010002`: Failed to acquire database lock
+
+            - `OT010003`: ${resource} cannot be found or has been expire
+
+            - `OT010004`: ${resource} cannot be updated for some reason
+
+            - `OT010005`: Retrieval of ${userid}'s wallet failed
+
+            - `OT010006`: Insufficient ${asset} Balance
+
+            - `OT010007`: ${resource} cannot be created for some reason.
+
+            - `OT010008`: Cannot hold specified amounts
+
+            - `OT010009`: Cannot hold specified amounts
+
+            - `OT010010`: Cannot create specified entries
+
+            - `OT010011`: Cannot create specified entries
+
+            - `OT010012`: Cannot reverse hold specified amounts
+
+            - `OT010013`: Cannot reverse hold specified amounts
+
+            - `OT010014`: Invalid quantity step : ${step}
+
+            - `OT010015`: Cannot correct balances
+
+            - `OT010016`: Asset unavailable
+
+            - `OT010017`: User not found
+
+            - `OT010018`: Invalid parameters
+
+            - `OT010019`: Minimum quantity limit reached
+
+            - `OT010020`: Maximum quantity limit reached
+
+            - `OT010021`: User not allowed to perform transaction
+
+            - `OT010022`: Withdrawal limit reached
+
+            - `OT010023`: Unsupported Transaction
+
+            - `OT010024`: Crypto Transfer not found
+
+            - `OT010025`: ${resource} is inaccessible
+
+            - `OT010026`: Malformed parameters
+
+            - `OT010027`: Order quantity is less than minimum required quantity
+
+            - `OT010028`: Order quantity is greater than maximum required quantity
+
+            - `OT010029`: Invalid Quantity Step
+
+            - `OT010030`: Invalid Price Step
+
+            - `OT010031`: Balance Transfer Approve Not Allowed"
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/orders/{order_id}:
+    get:
+      summary: GET Order Status
+      tags:
+        - Trade
+      operationId: get_order_status
+      description: Use this endpoint to verify the status of your order.
+      security:
+        - bearerAuth: []
+          idToken: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order ID returned from Post Order endpoint
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: number
+                    description: Order id
+                  status:
+                    type: string
+                    description: 'Possible Values : SUCCESSFUL, FAILED'
+                  quote_currency:
+                    type: string
+                    description:
+                      If side is 'Buy' Quote currency is the asset you want to receive If side is 'Sell' Quote
+                      currency is the asset you want to sell
+                  base_currency:
+                    type: string
+                    description:
+                      If side is 'Buy' Base currency is the asset you want to sell If side is 'Sell' Base currency
+                      is the asset you want to receive
+                  side:
+                    type: string
+                    description: Counterparty side
+                  base_quantity:
+                    type: number
+                    description: Order quantity as per firm quote
+                  price:
+                    type: number
+                    description: Quoted unit price
+                  total_amount:
+                    type: number
+                    description: Indicative total price inclusive of fees
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/crypto/deposit:
+    get:
+      summary: Get Wallet (for Crypto Deposits)
+      tags:
+        - Funding
+      operationId: get_wallet__for_crypto_deposits
+      description: Deposit into your crypto wallet using the address returned by this endpoint.
+      security:
+        - bearerAuth: []
+          idToken: []
+      parameters:
+        - name: currency
+          in: query
+          schema:
+            type: string
+            enum:
+              - AAVE
+              - ADA
+              - ALGO
+              - APE
+              - AVAX
+              - AXS
+              - BAT
+              - BCH
+              - BNB
+              - BTC
+              - COMP
+              - DOGE
+              - DOT
+              - ENJ
+              - ETH
+              - GALA
+              - GMT
+              - GRT
+              - HBAR
+              - LINK
+              - LTC
+              - MANA
+              - POL
+              - PAXG
+              - PEPE
+              - PYUSD
+              - RON
+              - SAND
+              - SHIB
+              - SLP
+              - SOL
+              - SUSHI
+              - TON
+              - UNI
+              - USDCSOL
+              - USDCXLM
+              - USDCPOL
+              - USDC
+              - USDTPOL
+              - USDT
+              - USDTTRX
+              - WETHPOL
+              - XLM
+              - XRP
+              - XTZ
+              - YGGRON
+              - PYUSD
+              - CELO
+              - OP
+              - NEAR
+              - ETH
+              - USDC
+          description: Currency symbol including network of crypto token  e.g USDCXLM
+          required: true
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currency:
+                    type: string
+                    description: Currency symbol
+                  address:
+                    type: string
+                    description: Wallet address
+                  tag:
+                    type: string
+                    description: Address tag or memo
+              example:
+                data:
+                  currency: USDCXLM
+                  address: GA54SPC34JL3I57ENALTO2V26XOFFG4VGQLFQXDGF6KJ5TJY7ODY56ST
+                  tag: '123123123'
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/fiat/deposit:
+    post:
+      summary: POST Fiat In (for Fiat Deposits)
+      tags:
+        - Funding
+      operationId: post_fiat_in__for_fiat_deposits
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: string
+                  description: Amount to be sent to beneficiary
+                method:
+                  type: string
+                  description: See Method under Accepted Values section
+                  enum:
+                    - grabpay_cashin
+                    - dragonpay
+                    - instapay_upay_cashin
+                identifier:
+                  type: string
+                  description: Unique identifier supplied by client
+                sender_first_name:
+                  type: string
+                  description: Sender first name
+                sender_middle_name:
+                  type: string
+                  description: Sender middle name
+                sender_last_name:
+                  type: string
+                  description: Sender last name
+                sender_country_origin:
+                  type: string
+                  description: Where the sender is sending the funds fromSee Accepted Country List under Accepted Values section
+                  enum: &id001
+                    - Algeria
+                    - Albania
+                    - Antigua and Barbuda
+                    - Armenia
+                    - Angola
+                    - Andorra
+                    - Austria
+                    - Bahamas
+                    - Argentina
+                    - Australia
+                    - Azerbaijan
+                    - Bahrain
+                    - Barbados
+                    - Bangladesh
+                    - Belgium
+                    - Belize
+                    - Benin
+                    - Bhutan
+                    - Bolivia
+                    - Bosnia and Herzegovina
+                    - Botswana
+                    - Brazil
+                    - Brunei
+                    - Bulgaria
+                    - Burkina Faso
+                    - Burundi
+                    - Cabo Verde
+                    - Cambodia
+                    - Cameroon
+                    - Canada
+                    - Chad
+                    - Chile
+                    - Colombia
+                    - China
+                    - Comoros
+                    - Congo
+                    - Croatia
+                    - Costa Rica
+                    - Cyprus
+                    - Czech Republic
+                    - Djibouti
+                    - Denmark
+                    - Dominica
+                    - Dominican Republic
+                    - Ecuador
+                    - East Timor
+                    - Egypt
+                    - El Salvador
+                    - Eritrea
+                    - Estonia
+                    - Eswatini
+                    - Fiji
+                    - France
+                    - Gabon
+                    - Gambia
+                    - Germany
+                    - Greece
+                    - Ghana
+                    - Grenada
+                    - Guatemala
+                    - Guinea-Bissau
+                    - Guinea
+                    - Guyana
+                    - Honduras
+                    - Hungary
+                    - Iceland
+                    - India
+                    - Indonesia
+                    - Ireland
+                    - Israel
+                    - Italy
+                    - Jamaica
+                    - Japan
+                    - Jordan
+                    - Kazakhstan
+                    - Kenya
+                    - Kiribati
+                    - Kuwait
+                    - Kyrgyzstan
+                    - Laos
+                    - Latvia
+                    - Lebanon
+                    - Lesotho
+                    - Liberia
+                    - Lithuania
+                    - Luxembourg
+                    - Madagascar
+                    - Malawi
+                    - Malaysia
+                    - Maldives
+                    - Malta
+                    - Marshall Islands
+                    - Mauritius
+                    - Micronesia
+                    - Monaco
+                    - Montenegro
+                    - Mozambique
+                    - Namibia
+                    - Nauru
+                    - Nepal
+                    - New Zealand
+                    - Niger
+                    - Nigeria
+                    - North Macedonia
+                    - Norway
+                    - Oman
+                    - Pakistan
+                    - Palau
+                    - Panama
+                    - Papua New Guinea
+                    - Paraguay
+                    - Peru
+                    - Poland
+                    - Portugal
+                    - Qatar
+                    - Romania
+                    - Rwanda
+                    - Saint Kitts and Nevis
+                    - Saint Lucia
+                    - Saint Vincent and the Grenadines
+                    - Samoa
+                    - San Marino
+                    - Sao Tome and Principe
+                    - Saudi Arabia
+                    - Senegal
+                    - Serbia
+                    - Seychelles
+                    - Singapore
+                    - Slovakia
+                    - Slovenia
+                    - Solomon Islands
+                    - South Africa
+                    - Sri Lanka
+                    - Suriname
+                    - Switzerland
+                    - Taiwan
+                    - Tanzania
+                    - Thailand
+                    - Togo
+                    - Trinidad and Tobago
+                    - Turkey
+                    - Tuvalu
+                    - United Kingdom
+                    - United Arab Emirates
+                    - Uruguay
+                    - Uzbekistan
+                    - United States
+                    - Vatican City
+                    - Vietnam
+                    - Zambia
+                    - Vanuatu
+                sender_address_line_one:
+                  type: string
+                  description: Address line 1
+                sender_address_line_two:
+                  type: string
+                  description: Address line 2
+                sender_city:
+                  type: string
+                  description: City
+                sender_province:
+                  type: string
+                  description: Province
+                sender_country:
+                  type: string
+                  description: See Accepted Country List under Accepted Values section
+                  enum: *id001
+                sender_zip_code:
+                  type: string
+                  description: Zip code
+                sender_phone_number:
+                  type: string
+                  description: Phone number
+                sender_nationality:
+                  type: string
+                  description: See Accepted Country List under Accepted Values section
+                  enum: *id001
+                sender_national_identity_number:
+                  type: string
+                  description: Alphanumeric code from national IDs / government IDs
+                sender_dob:
+                  type: string
+                  description: Date of birth for individuals / Date of Incorporation for businessesmm-dd-yyyy format
+                sender_place_of_birth:
+                  type: string
+                  description: Place of birth for individuals / place of incorporation for businesses
+                source_of_funds:
+                  type: string
+                  description: Source of fundsSee Source of Funds under Accepted Values section
+                  enum: &id002
+                    - Compensation
+                    - Sale/Income from Property
+                    - Business Income
+                    - Pension/Benefit from the Government
+                    - Gift/Donation
+                    - Sale/Income from Investment
+                    - Inheritance/Insurance
+                    - 'Others: <Free Text>'
+                sender_email:
+                  type: string
+                  description: Sender's email
+                beneficiary_first_name:
+                  type: string
+                  description: Beneficiary first name
+                beneficiary_middle_name:
+                  type: string
+                  description: Beneficiary middle name
+                beneficiary_last_name:
+                  type: string
+                  description: Beneficiary last name
+                beneficiary_sex:
+                  type: string
+                  description: Sex of beneficiary
+                  enum: &id003
+                    - Male
+                    - Female
+                beneficiary_nationality:
+                  type: string
+                  description: Nationality of the beneficiarySee Accepted Country List under Accepted Values section
+                  enum: *id001
+                beneficiary_dob:
+                  type: string
+                  description: Date of birth for individuals / Date of Incorporation for businesses
+                beneficiary_address_line_one:
+                  type: string
+                  description: Beneficiary address line 1
+                beneficiary_address_line_two:
+                  type: string
+                  description: Beneficiary address line 2
+                beneficiary_barangay:
+                  type: string
+                  description: Barangay of beneficiary
+                beneficiary_city:
+                  type: string
+                  description: City of beneficiary
+                beneficiary_province:
+                  type: string
+                  description: Province of beneficiary
+                beneficiary_country:
+                  type: string
+                  description: Country of beneficiarySee Accepted Country List under Accepted Values section
+                  enum: *id001
+                beneficiary_zip_code:
+                  type: string
+                  description: Zip code of beneficiary
+                beneficiary_phone_number:
+                  type: string
+                  description: Phone number of beneficiary
+                beneficiary_government_issued_id:
+                  type: string
+                  description: Government issued id of beneficiary
+                purpose:
+                  type: string
+                  description: Purpose of the transactionSee Purpose accepted values under Accepted Values section
+                  enum: &id004
+                    - Business Expense/Employee Remittance
+                    - Business Transaction
+                    - Gift
+                    - Loan
+                    - Donation of Financial Aid
+                    - Investments/Savings
+                    - Purchase of Goods
+                    - Education and Training
+                    - Travel Expense
+                    - Family Support
+                    - Legal Obligation
+                relationship_of_sender_to_beneficiary:
+                  type: string
+                  description:
+                    Relationship of sender to beneficiarySee Relationship of Sender to Beneficiary under Accepted
+                    Values section
+                  enum: &id005
+                    - Spouse/Partner
+                    - Family
+                    - Acquaintance
+                    - Colleague
+                    - Business
+                    - Myself
+                currency:
+                  type: string
+                  description: Currency of the withdrawalPHP
+                nature_of_business:
+                  type: string
+                  description: Nature of business of beneficiary
+              required:
+                - amount
+                - method
+                - identifier
+                - sender_first_name
+                - sender_middle_name
+                - sender_last_name
+                - sender_country_origin
+                - source_of_funds
+                - beneficiary_first_name
+                - beneficiary_middle_name
+                - beneficiary_last_name
+                - purpose
+                - relationship_of_sender_to_beneficiary
+                - currency
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    description: The request id for your transaction
+                  identifier:
+                    type: string
+                    description: Unique identifier supplied by partner
+                  reference_number:
+                    type: string
+                    description: Reference number of the transaction
+                  amount:
+                    type: number
+                    description: Withdrawal amount
+                  method:
+                    type: string
+                    description: The chosen method for the fiat deposit
+                  payment_checkout_url:
+                    type: string
+                    description: The url to make the deposit,
+                  fee:
+                    type: number
+                    description: Amount collected for fees
+                  status:
+                    type: string
+                    description: 'Possible values: PENDING'
+              example:
+                request_id: a3bb3030-6974-11ed-998b-ef1ff47430fe
+                identifier: Zek_141
+                reference_number: eyJ0IjoiYW54IiwibSI6ImNpIiwiciI6ImVTaUNCa1hXIn0=
+                amount: 48000
+                method: gcash_cashin
+                payment_checkout_url: https://test-sources.paymongo.com/sources?id=src_ccURUdNjV9zjBsbph4rDZ6Bu
+                fee: 30
+                status: PENDING
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/fiat/withdraw:
+    post:
+      summary: POST Fiat Out
+      tags:
+        - Withdrawals
+      operationId: post_fiat_out
+      description: Withdraw Fiat from your account to a beneficiary
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifier:
+                  type: string
+                  description: Unique identifier supplied by client
+                sender_first_name:
+                  type: string
+                  description: Sender first name
+                sender_middle_name:
+                  type: string
+                  description: Sender middle name
+                sender_last_name:
+                  type: string
+                  description: Sender last name
+                sender_country_origin:
+                  type: string
+                  description: Where the sender is sending the funds fromSee Accepted Country List under Accepted Values section
+                  enum: *id001
+                sender_address_line_one:
+                  type: string
+                  description: Address line line one
+                sender_address_line_two:
+                  type: string
+                  description: Address line line two
+                sender_city:
+                  type: string
+                  description: City
+                sender_province:
+                  type: string
+                  description: Province
+                sender_country:
+                  type: string
+                  description: See Accepted Country List under Accepted Values section
+                  enum: *id001
+                sender_zip_code:
+                  type: string
+                  description: Zip code
+                sender_phone_number:
+                  type: string
+                  description: Phone number
+                sender_nationality:
+                  type: string
+                  description: See Accepted Country List under Accepted Values section
+                  enum: *id001
+                sender_national_identity_number:
+                  type: string
+                  description: Alphanumeric code from national IDs / government IDs
+                sender_dob:
+                  type: string
+                  description: Date of birth for individuals / Date of Incorporation for businessesmm-dd-yyyy format
+                sender_place_of_birth:
+                  type: string
+                  description: Place of birth for individuals / place of incorporation for businesses
+                source_of_funds:
+                  type: string
+                  description: Source of fundsSee Source of Funds under Accepted Values section
+                  enum: *id002
+                sender_email:
+                  type: string
+                  description: Sender's email
+                fee_type:
+                  type: string
+                  description:
+                    Fiat out fee to be shouldered either by Sender or Beneficiary, you may opt to choose either
+                    option to determine where fees will be debited fromSee Fee Type under Accepted Values section
+                  enum:
+                    - Sender
+                    - Beneficiary
+                beneficiary_first_name:
+                  type: string
+                  description: Beneficiary first name
+                beneficiary_middle_name:
+                  type: string
+                  description: Beneficiary middle name
+                beneficiary_last_name:
+                  type: string
+                  description: Beneficiary last name
+                beneficiary_sex:
+                  type: string
+                  description: Sex of beneficiary
+                  enum: *id003
+                beneficiary_nationality:
+                  type: string
+                  description: Nationality of the beneficiarySee Accepted Country List under Accepted Values section
+                  enum: *id001
+                beneficiary_dob:
+                  type: string
+                  description: Date of birth for individuals / Date of Incorporation for businesses
+                beneficiary_bank_code:
+                  type: string
+                  description:
+                    Bank code to determine which bank the funds will arrive atSee accepted Bank Codes under Accept
+                    Values section
+                  enum:
+                    - BAUBPPH
+                    - BAAIBPH
+                    - BAALIPH
+                    - BAALLPH
+                    - BAAUBPH
+                    - BAANZPH
+                    - BABDOPH
+                    - BABDNPH
+                    - BABOTPH
+                    - BABPIPH
+                    - BABAKPH
+                    - BABAMPH
+                    - BABNSPH
+                    - BABKBPH
+                    - BABOAPH
+                    - BABCHPH
+                    - BABOCPH
+                    - BABOFPH
+                    - BABOMPH
+                    - BACAMPH
+                    - BACANPH
+                    - BACABPH
+                    - BACASPH
+                    - BACIMPH
+                    - BACTBPH
+                    - BACLRPH
+                    - BACHBPH
+                    - BACBSPH
+                    - BACITPH
+                    - BACRBPH
+                    - BACBBPH
+                    - BADEVPH
+                    - BADUNPH
+                    - BADEBPH
+                    - BADCDPH
+                    - BAEWBPH
+                    - BAEWRPH
+                    - BAEQSPH
+                    - BAFCBPH
+                    - BAGRBPH
+                    - BAGTBPH
+                    - BAHSBPH
+                    - BAHSSPH
+                    - BAISLPH
+                    - BAICOPH
+                    - BAIBKPH
+                    - BAINGPH
+                    - BAIVBPH
+                    - BAJPMPH
+                    - BAKEBPH
+                    - BALABPH
+                    - BALSBPH
+                    - BALDBPH
+                    - BAICBPH
+                    - BAMBSPH
+                    - BAMAYPH
+                    - BAMCCPH
+                    - BAMBAPH
+                    - BAMIZPH
+                    - BAMUFPH
+                    - BANETPH
+                    - BAOMNPH
+                    - BAPBOPH
+                    - BAPASPH
+                    - BAPRBPH
+                    - BAPBBPH
+                    - BAPNBPH
+                    - BAPBAPH
+                    - BAPTCPH
+                    - BAPVBPH
+                    - BAPCBPH
+                    - BAPSBPH
+                    - BAQBAPH
+                    - BAQCRPH
+                    - BARANPH
+                    - BARCBPH
+                    - BAROBPH
+                    - BARBOPH
+                    - BARBDPH
+                    - BARBMPH
+                    - BASECPH
+                    - BASEAPH
+                    - BASHBPH
+                    - BASCBPH
+                    - BASTAPH
+                    - BASBOPH
+                    - BASMBPH
+                    - BASSBPH
+                    - BATDBPH
+                    - BATYBPH
+                    - BAUCPPH
+                    - BAUCCPH
+                    - BAUNOPH
+                    - BAUDLPH
+                    - BAUOVPH
+                    - BAWEBPH
+                    - BAYSBPH
+                    - BAMABPH
+                    - EWGXCPH
+                    - EWCISPH
+                    - EWGRAPH
+                    - EWLLFPH
+                    - EWPPPH
+                    - EWSPPPH
+                    - EWTACPH
+                    - EWUSCPH
+                    - EWJUCPH
+                    - EWPDXPH
+                    - EWPAYPH
+                beneficiary_account_name:
+                  type: string
+                  description: Bank account name of the beneficiary
+                beneficiary_account_number:
+                  type: string
+                  description: Bank account number of the beneficiary
+                beneficiary_address_line_one:
+                  type: string
+                  description: Beneficiary address line 1
+                beneficiary_address_line_two:
+                  type: string
+                  description: Beneficiary address line 2
+                beneficiary_barangay:
+                  type: string
+                  description: Barangay of beneficiary
+                beneficiary_city:
+                  type: string
+                  description: City of beneficiary
+                beneficiary_province:
+                  type: string
+                  description: Province of beneficiary
+                beneficiary_country:
+                  type: string
+                  description: Country of beneficiarySee Accepted Country List under Accepted Values section
+                  enum: *id001
+                beneficiary_zip_code:
+                  type: string
+                  description: Zip code of beneficiary
+                beneficiary_phone_number:
+                  type: string
+                  description: Phone number of beneficiary
+                beneficiary_government_issued_id:
+                  type: string
+                  description: Government issued id of beneficiary
+                nature_of_business:
+                  type: string
+                  description: Nature of business of beneficiary
+                purpose:
+                  type: string
+                  description: Purpose of the transactionSee Purpose accepted values under Accepted Values section
+                  enum: *id004
+                relationship_of_sender_to_beneficiary:
+                  type: string
+                  description:
+                    Relationship of sender to beneficiarySee Relationship of Sender to Beneficiary under Accepted
+                    Values section
+                  enum: *id005
+                currency:
+                  type: string
+                  description: Currency of the withdrawalPHP
+                amount:
+                  type: string
+                  description: Amount to be sent to beneficiary
+                method:
+                  type: string
+                  description: See Method under Accepted Values section
+                  enum:
+                    - PAY-TO-ACCOUNT-REAL-TIME
+                    - PAY-TO-ACCOUNT-NON-REAL-TIME
+                instructions:
+                  type: string
+                  description: Other instructions
+              required:
+                - identifier
+                - sender_first_name
+                - sender_middle_name
+                - sender_last_name
+                - sender_country_origin
+                - source_of_funds
+                - fee_type
+                - beneficiary_first_name
+                - beneficiary_middle_name
+                - beneficiary_last_name
+                - beneficiary_bank_code
+                - beneficiary_account_name
+                - beneficiary_account_number
+                - purpose
+                - relationship_of_sender_to_beneficiary
+                - currency
+                - amount
+                - method
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    description: The request id for your transaction
+                  identifier:
+                    type: string
+                    description: Unique identifier supplied by partner
+                  reference_number:
+                    type: string
+                    description: Reference number of the transaction
+                  amount:
+                    type: number
+                    description: Withdrawal amount
+                  method:
+                    type: string
+                    description: The chosen method for the fiat deposit
+                  fee:
+                    type: number
+                    description: Amount collected for fees
+                  status:
+                    type: string
+                    description: 'Possible values: PENDING'
+                  retry_methods:
+                    type: string
+                    description: The information of each attempted payment channel
+        '400':
+          description: Error Responses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/crypto/withdraw:
+    post:
+      summary: POST Crypto Out
+      tags:
+        - Withdrawals
+      operationId: post_crypto_out
+      description: Withdraw Crypto from your account to a beneficiary
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifier:
+                  type: string
+                  description: Unique identifier supplied by client
+                currency:
+                  type: string
+                  description: Cryptocurrency token that you would like to withdraw. Please see here for accepted tokens.
+                  enum:
+                    - AAVE
+                    - ADA
+                    - ALGO
+                    - APE
+                    - AVAX
+                    - AXS
+                    - BAT
+                    - BCH
+                    - BNB
+                    - BTC
+                    - COMP
+                    - DOGE
+                    - DOT
+                    - ENJ
+                    - ETH
+                    - GALA
+                    - GMT
+                    - GRT
+                    - HBAR
+                    - LINK
+                    - LTC
+                    - MANA
+                    - POL
+                    - PAXG
+                    - PEPE
+                    - PYUSD
+                    - RON
+                    - SAND
+                    - SHIB
+                    - SLP
+                    - SOL
+                    - SUSHI
+                    - TON
+                    - UNI
+                    - USDCSOL
+                    - USDCXLM
+                    - USDCPOL
+                    - USDC
+                    - USDTPOL
+                    - USDT
+                    - USDTTRX
+                    - WETHPOL
+                    - XLM
+                    - XRP
+                    - XTZ
+                    - YGGRON
+                    - PYUSD
+                    - CELO
+                    - OP
+                    - NEAR
+                    - ETH
+                    - USDC
+                address:
+                  type: string
+                  description: Wallet address of the beneficiary
+                amount:
+                  type: string
+                  description: Amount of crypto to be withdrawn
+                tag:
+                  type: string
+                  description: Address tag
+                beneficiary_first_name:
+                  type: string
+                  description: First name of the beneficiary
+                beneficiary_last_name:
+                  type: string
+                  description: Last name of the beneficiary
+                beneficiary_exchange:
+                  type: string
+                  description: Receiving exchange of the beneficiary.
+                send_to_self:
+                  type: string
+                  description: Parameter to indicate if withdrawal is to be sent to your own account in a different exchange
+                beneficiary_wallet:
+                  type: string
+                  description: Parameter to indicate if withdrawal is to be sent to a custodial or decentralized wallet
+              required:
+                - identifier
+                - currency
+                - address
+                - amount
+                - beneficiary_first_name
+                - beneficiary_last_name
+                - beneficiary_exchange
+                - send_to_self
+                - beneficiary_wallet
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identifier:
+                    type: string
+                    description: Unique identifier supplied by client
+                  transaction_id:
+                    type: number
+                    description: Unique transaction ID of the withdrawal
+                  amount:
+                    type: string
+                    description: Withdrawal amount exclusive of fees
+                  address:
+                    type: string
+                    description: Wallet address of the beneficiary
+                  tag:
+                    type: string
+                    description: Address tag
+                  total:
+                    type: string
+                    description: The amount of crypto being withdrawn, including network fees
+                  fee:
+                    type: string
+                    description: The network fee of the transaction
+                  currency:
+                    type: string
+                    description: The crypto token being withdrawn
+                  status:
+                    type: string
+                    description: 'Possible values: IN PROGRESS'
+                  created_at:
+                    type: string
+                    description: The date and time when the transaction was created
+        4XX:
+          description: "Error responses
+
+
+            - `OT000000` (500): Something went wrong
+
+            - `OT010001` (400): Request has been made several times.
+
+            - `OT010002` (500): Failed to acquire database lock.
+
+            - `OT010003` (500): ${resource} cannot be found or has been expired.
+
+            - `OT010004` (500): ${resource} cannot be updated for some reason.
+
+            - `OT010005` (500): Retrieval of ${userid}'s wallet failed
+
+            - `OT010006` (400): Insufficient ${asset} Balance
+
+            - `OT010007` (500): ${resource} cannot be created for some reason.
+
+            - `OT010008` (500): Cannot hold specified amounts
+
+            - `OT010009` (500): Cannot hold specified amounts
+
+            - `OT010010` (500): Cannot create specified entries
+
+            - `OT010011` (500): Cannot create specified entries
+
+            - `OT010012` (500): Cannot reverse hold specified amounts
+
+            - `OT010013` (500): Cannot reverse hold specified amounts
+
+            - `OT010014` (400): Invalid quantity step : ${step}
+
+            - `OT010015` (500): Cannot correct balances
+
+            - `OT010016` (500): Asset unavailable
+
+            - `OT010017` (500): User not found
+
+            - `OT010018` (400): Invalid parameters
+
+            - `OT010019` (400): Minimum quantity limit reached
+
+            - `OT010020` (400): Maximum quantity limit reached
+
+            - `OT010021` (400): User not allowed to perform transaction
+
+            - `OT010022` (400): Withdrawal limit reached
+
+            - `OT010023` (500): Unsupported Transaction
+
+            - `OT010024` (500): Crypto Transfer not found
+
+            - `OT010025` (500): ${resource} is inaccessible.
+
+            - `OT010026` (400): Malformed parameters
+
+            - `OT010027` (400): Order quantity is less than minimum required quantity
+
+            - `OT010028` (400): Order quantity is greater than maximum required quantity
+
+            - `OT010029` (400): Invalid Quantity Step
+
+            - `OT010030` (400): Invalid Price Step
+
+            - `OT010031` (500): Balance Transfer Approve Not Allowed
+
+            - `OT010032` (400): ${resource} rate limit exceeded
+
+            - `OT010033` (400): Missing parameter: ${param}
+
+            - `OT010034` (400): Invalid parameter: ${param}
+
+            - `OT010035` (400): Invalid ${field}
+
+            - `OT010036` (400): ${param} Request Failed
+
+            - `OT010037` (400): ${param} Verify Failed
+
+            - `OT010038` (400): ${param} Mismatch
+
+            - `OT010039` (400): Maximum retries reached. Account is now invalid.
+
+            - `OT010040` (500): Custody API failure encountered
+
+            - `OT010041` (500): Crypto withdrawal request not accepted by custody
+
+            - `OT010043` (400): Invalid Webhook Event
+
+            - `OT010044` (400): ${action} Not Allowed
+
+            - `OT010045` (500): Failed by Custody
+
+            - `OT010046` (500): Unable to fetch price for ${currencyPair}"
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/fiat/transactions:
+    get:
+      summary: GET Fiat Transactions
+      tags:
+        - Deposit and Withdrawal check
+      operationId: get_fiat_transactions
+      description: Track your Fiat deposits and withdrawals by querying the identifier or mode of the transaction
+      security:
+        - bearerAuth: []
+          idToken: []
+      parameters:
+        - name: mode
+          in: query
+          schema:
+            type: string
+          description: The mode of the transaction CashInCashOut
+        - name: identifier
+          in: query
+          schema:
+            type: string
+          description: Unique identifier supplied by client
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    description: The request id for your transaction
+                  transaction_id:
+                    type: string
+                    description: Transaction id from the deposit / withdrawal
+                  amount:
+                    type: number
+                    description: Amount of the deposit / withdrawal
+                  fee:
+                    type: number
+                    description: PDAX fee implemented on the deposit / withdrawal
+                  method:
+                    type: string
+                    description: See Method under Accepted Values
+                  mode:
+                    type: string
+                    description: The mode of the transaction, either Cash In or Cash Out
+                  reference_number:
+                    type: string
+                    description: The reference number generated from the Cash In or Cash Out transaction
+                  fulfilled_at:
+                    type: string
+                    description: If fulfilledAt contains a date and time, it is successful  If blank, it is pending
+                  declined_at:
+                    type: string
+                    description: If declinedAt contains a date and time, its failed  If blank, it is pending
+                  rejection_reason:
+                    type: string
+                    description:
+                      If the transaction failed, value is the reason why transaction was rejected  If the transaction
+                      is success, value is null
+                  currency:
+                    type: string
+                    description: Currency of the transaction
+                  created_at:
+                    type: string
+                    description: Timestamp of the transaction when it was created
+                  updated_at:
+                    type: string
+                    description: Timestamp of the transaction when it was updated
+                  status:
+                    type: string
+                    description: 'Possible values: IN-PROGRESS, COMPLETED, FAILED'
+                  identifier:
+                    type: string
+                    description: Unique identifier supplied by client
+                  fee_type:
+                    type: string
+                    description: Fiat out fee to be shouldered either by Sender or Beneficiary
+                  retried_methods:
+                    type: array
+                    description: Attempts per transaction
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/crypto/transactions:
+    get:
+      summary: GET Crypto Transactions
+      tags:
+        - Deposit and Withdrawal check
+      operationId: get_crypto_transactions
+      description: Track your crypto deposits and withdrawals by querying the identifier or transaction hash
+      security:
+        - bearerAuth: []
+          idToken: []
+      parameters:
+        - name: identifier
+          in: query
+          schema:
+            type: string
+          description: Unique identifier supplied by client
+        - name: txn_hash
+          in: query
+          schema:
+            type: string
+          description: Transaction hash
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                    description: Transaction id from the deposit / withdrawal
+                  type:
+                    type: string
+                    description: Type of transaction
+                  debit_ccy:
+                    type: string
+                    description: Currency of the debited amount
+                  credit_ccy:
+                    type: string
+                    description: Currency of the credited amount
+                  debit_amount:
+                    type: string
+                    description: Amount debited from the PDAX wallet
+                  debit_net_amount:
+                    type: string
+                    description: Net amount debited from the PDAX wallet (less fees)
+                  credit_amount:
+                    type: string
+                    description: Amount credited to the PDAX wallet
+                  credit_net_amount:
+                    type: string
+                    description: Net amount debited from the PDAX wallet (less fees)
+                  fee_amount:
+                    type: string
+                    description: The fees from the transaction
+                  status:
+                    type: string
+                    description: 'Possible values: pending, completed, failed'
+                  created_at:
+                    type: string
+                    description: Timestamp of the transaction when it was created
+                  txn_hash:
+                    type: string
+                    description: Unique identifier that is used to track the transaction on the blockchain
+                  sender_email:
+                    type: string
+                    description: Email of the sender
+                  sender_wallet_address:
+                    type: string
+                    description: Wallet address of the sender
+                  sender_wallet_address_tag:
+                    type: string
+                    description: Wallet address tag of the sender
+                  receiver_email:
+                    type: string
+                    description: Receiver email
+                  receiver_wallet_address:
+                    type: string
+                    description: Receiver wallet address
+                  receiver_wallet_address_tag:
+                    type: string
+                    description: Receiver wallet address tag
+              example:
+                data:
+                  - transaction_id: 22829
+                    type: crypto_in
+                    debit_ccy: null
+                    credit_ccy: UNI
+                    debit_amount: '0'
+                    debit_net_amount: '0'
+                    credit_amount: '0.68'
+                    credit_net_amount: '0.68'
+                    fee_amount: '0'
+                    status: completed
+                    created_at: '2023-07-17T11:06:25.285Z'
+                    txn_hash: '0xb14b15995b6456ac9b5c67ac53258084778a9eaa913bdecd8e7f32f03cc0b3b0'
+                    sender_email: null
+                    sender_wallet_address: null
+                    sender_wallet_address_tag: null
+                    receiver_email: null
+                    receiver_wallet_address: null
+                    receiver_wallet_address_tag: null
+                status: success
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/balances:
+    get:
+      summary: Get Balances
+      tags:
+        - Balances
+      operationId: get_balances
+      description: View the balance of all assets.
+      security:
+        - bearerAuth: []
+          idToken: []
+      parameters:
+        - name: currency
+          in: query
+          schema:
+            type: string
+          description: Currency
+      responses:
+        '200':
+          description: Schema of Response Payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currency:
+                    type: string
+                    description: Currency
+                  available:
+                    type: string
+                    description: Currency available for withdrawal and for trading
+                  hold:
+                    type: string
+                    description: Currency balance held due to open orders or pending withdrawal
+                  total:
+                    type: string
+                    description: The total balance sum of available and hold
+                  asset_type:
+                    type: string
+                    description: Fiat or Crypto
+              example:
+                data:
+                  - currency: USDCXLM
+                    available: '1000001'
+                    hold: '0'
+                    total: '1000001'
+                    asset_type: CRYPTO
+                  - currency: PHP
+                    available: '1000001'
+                    hold: '0'
+                    total: '1000001'
+                    asset_type: FIAT
+        '401':
+          description: Unauthorized - invalid or expired token
+  /pdax-institution/v1/config/webhook:
+    post:
+      summary: Webhook Events for Fiat Transactions
+      tags:
+        - Webhook
+      operationId: webhook_events_for_fiat_transactions
+      description: Register your URL to receive webhook events for Fiat Transactions
+      security:
+        - bearerAuth: []
+          idToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_type:
+                  type: string
+                  description: The type of events you would like to receive   fiat
+                webhook_endpoint:
+                  type: string
+                  description: Your deployed webhook endpoint
+      responses:
+        '200':
+          description: Schema of Fiat Event Data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identifier:
+                    type: string
+                    description: Unique identifier supplied by client
+                  user_id:
+                    type: string
+                    description: UUID of the user
+                  request_id:
+                    type: string
+                    description: Request ID of the transaction
+                  reference_number:
+                    type: string
+                    description: reference_number from the Fiat Out response payload
+                  amount:
+                    type: number
+                    description: The amount being withdrawn or deposited excluding fees
+                  asset:
+                    type: string
+                    description: The fiat currency being withdrawn or deposited
+                  asset_type:
+                    type: string
+                    description: The asset of the transaction, PHP only
+                  transaction_type:
+                    type: string
+                    description: The type of transaction WITHDRAWAL or DEPOSIT
+                  status:
+                    type: string
+                    description: 'Possible values: IN-PROGRESS, COMPLETED, FAILED'
+                  method:
+                    type: string
+                    description: The method of which was used for the transaction
+                  fee:
+                    type: number
+                    description: The deposit or withdrawal fee involved in the transaction
+              example:
+                data:
+                  webhook_endpoint: https://partner-url.com/api/pdax-api/pdax-institution/v1/webhook
+                  event_type: fiat
+                status: success
+        '401':
+          description: Unauthorized - invalid or expired token

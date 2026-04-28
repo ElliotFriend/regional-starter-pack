@@ -50,10 +50,23 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns only Etherfuse', () => {
+    it('returns Etherfuse and PDAX', () => {
         const anchors = getAllAnchors();
-        expect(anchors).toHaveLength(1);
-        expect(anchors[0].id).toBe('etherfuse');
+        const ids = anchors.map((a) => a.id);
+        expect(ids).toContain('etherfuse');
+        expect(ids).toContain('pdax');
+    });
+});
+
+describe('PDAX profile', () => {
+    it('exists and has Philippines as a coming-soon region with InstaPay and USDC', () => {
+        const pdax = getAnchor('pdax');
+        expect(pdax).toBeDefined();
+        expect(pdax!.name).toBe('PDAX');
+        expect(pdax!.regions.philippines).toBeDefined();
+        expect(pdax!.regions.philippines.comingSoon).toBe(true);
+        expect(pdax!.regions.philippines.paymentRails).toContain('instapay');
+        expect(pdax!.regions.philippines.tokens).toContain('USDC');
     });
 });
 
