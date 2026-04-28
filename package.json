@@ -1,10 +1,16 @@
 {
     "name": "regional-starter-pack",
     "private": true,
-    "version": "1.0.0",
+    "version": "2.0.0",
     "type": "module",
+    "homepage": "https://www.regionalstarterpack.com",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ElliotFriend/regional-starter-pack"
+    },
     "scripts": {
         "dev": "vite dev",
+        "dev:v1": "vite dev --mode v1",
         "build": "vite build",
         "preview": "vite preview",
         "prepare": "svelte-kit sync || echo ''",
