@@ -2811,24 +2811,32 @@ describe('client static properties', () => {
         expect(client.capabilities.requiresOffRampSigning).toBe(true);
     });
 
-    it('supports exactly one token (CETES) with correct issuer', () => {
+    it('supports CETES with correct issuer', () => {
         const client = createClient();
-        expect(client.supportedTokens).toHaveLength(1);
-        const token = client.supportedTokens[0];
-        expect(token.symbol).toBe('CETES');
-        expect(token.name).toBe('Etherfuse CETES');
-        expect(token.issuer).toBe('GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4');
-        expect(token.description).toBeTruthy();
+        const token = client.supportedTokens.find((t) => t.symbol === 'CETES');
+        expect(token).toBeDefined();
+        expect(token?.name).toBe('Etherfuse CETES');
+        expect(token?.issuer).toBe('GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4');
+        expect(token?.description).toBeTruthy();
     });
 
-    it('supports MXN as the only currency', () => {
+    it('lists TESOURO as a coming-soon token (no issuer yet)', () => {
         const client = createClient();
-        expect(client.supportedCurrencies).toEqual(['MXN']);
+        const token = client.supportedTokens.find((t) => t.symbol === 'TESOURO');
+        expect(token).toBeDefined();
+        expect(token?.name).toBe('Etherfuse TESOURO');
+        expect(token?.issuer).toBeUndefined();
+        expect(token?.description).toBeTruthy();
     });
 
-    it('supports spei as the only payment rail', () => {
+    it('supports MXN and BRL currencies', () => {
         const client = createClient();
-        expect(client.supportedRails).toEqual(['spei']);
+        expect(client.supportedCurrencies).toEqual(['MXN', 'BRL']);
+    });
+
+    it('supports spei and pix payment rails', () => {
+        const client = createClient();
+        expect(client.supportedRails).toEqual(['spei', 'pix']);
     });
 
     it('defaults blockchain to "stellar" when defaultBlockchain is not provided', async () => {

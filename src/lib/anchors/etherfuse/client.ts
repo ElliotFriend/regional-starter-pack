@@ -83,9 +83,15 @@ export class EtherfuseClient implements Anchor {
             description:
                 "Etherfuse CETES, officially known as Mexican Federal Treasury Certificates, are Mexico's oldest short-term debt securities issued by the Ministry of Finance.",
         },
+        {
+            symbol: 'TESOURO',
+            name: 'Etherfuse TESOURO',
+            description:
+                "Etherfuse TESOURO is a tokenized representation of Brazil's Tesouro Direto, the federal government's program of short-term debt securities. Coming soon.",
+        },
     ];
-    readonly supportedCurrencies: readonly string[] = ['MXN'];
-    readonly supportedRails: readonly string[] = ['spei'];
+    readonly supportedCurrencies: readonly string[] = ['MXN', 'BRL'];
+    readonly supportedRails: readonly string[] = ['spei', 'pix'];
     private readonly config: EtherfuseConfig;
     private readonly blockchain: string;
 
