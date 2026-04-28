@@ -2,8 +2,8 @@
  * Anchor API Functions
  *
  * Client-side functions that call the `/api/anchor/[provider]/` route handlers.
- * Used by Svelte components to interact with anchor services (Etherfuse,
- * AlfredPay, BlindPay) without importing server-side code directly.
+ * Used by Svelte components to interact with anchor services without importing
+ * server-side code directly.
  *
  * All functions accept a `fetch` parameter — use the one from SvelteKit's
  * load functions or component context for proper SSR support.
@@ -22,13 +22,6 @@ import type {
     RampIdentity,
     FiatAccountInput,
 } from '$lib/anchors/types';
-import type {
-    AlfredPayKycRequirementsResponse,
-    AlfredPayKycSubmissionResponse,
-    AlfredPayKycFileType,
-    AlfredPayKycFileResponse,
-    AlfredPayKycSubmissionStatusResponse,
-} from '$lib/anchors/alfredpay/types';
 
 type Fetch = typeof fetch;
 
@@ -343,20 +336,6 @@ export async function registerFiatAccount(
 // =============================================================================
 
 /**
- * Get KYC requirements for a country (AlfredPay-specific raw format)
- */
-export async function getKycRequirements(
-    fetch: Fetch,
-    provider: string,
-    country: string = 'MX',
-): Promise<AlfredPayKycRequirementsResponse> {
-    return apiRequest<AlfredPayKycRequirementsResponse>(
-        fetch,
-        `/api/anchor/${provider}/kyc?type=requirements-raw&country=${country}`,
-    );
-}
-
-/**
  * Get KYC field and document requirements in the shared format
  */
 export async function getKycFieldRequirements(
@@ -415,36 +394,6 @@ export async function submitKyc(
 }
 
 /**
- * Get a customer's KYC submission
- */
-export async function getKycSubmission(
-    fetch: Fetch,
-    provider: string,
-    customerId: string,
-): Promise<AlfredPayKycSubmissionResponse | null> {
-    const data = await apiRequest<{ submission: AlfredPayKycSubmissionResponse | null }>(
-        fetch,
-        `/api/anchor/${provider}/kyc?customerId=${customerId}&type=submission`,
-    );
-    return data.submission;
-}
-
-/**
- * Get the status of a KYC submission
- */
-export async function getKycSubmissionStatus(
-    fetch: Fetch,
-    provider: string,
-    customerId: string,
-    submissionId: string,
-): Promise<AlfredPayKycSubmissionStatusResponse> {
-    return apiRequest<AlfredPayKycSubmissionStatusResponse>(
-        fetch,
-        `/api/anchor/${provider}/kyc?customerId=${customerId}&submissionId=${submissionId}&type=submission-status`,
-    );
-}
-
-/**
  * Get a customer's current KYC status
  */
 export async function getKycStatus(
@@ -476,165 +425,9 @@ export async function getKycUrl(
     return data.url;
 }
 
-export interface SubmitKycDataOptions {
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string;
-    country: string;
-    city: string;
-    state: string;
-    address: string;
-    zipCode: string;
-    nationalities: string[];
-    email: string;
-    dni: string;
-}
-
-/**
- * Submit KYC personal data
- */
-export async function submitKycData(
-    fetch: Fetch,
-    provider: string,
-    customerId: string,
-    kycData: SubmitKycDataOptions,
-): Promise<AlfredPayKycSubmissionResponse> {
-    return postJson<AlfredPayKycSubmissionResponse>(
-        fetch,
-        `/api/anchor/${provider}/kyc?type=data`,
-        { customerId, kycData },
-    );
-}
-
-/**
- * Upload a KYC document file
- */
-export async function submitKycFile(
-    fetch: Fetch,
-    provider: string,
-    customerId: string,
-    submissionId: string,
-    fileType: AlfredPayKycFileType,
-    file: File,
-): Promise<AlfredPayKycFileResponse> {
-    const formData = new FormData();
-    formData.append('customerId', customerId);
-    formData.append('submissionId', submissionId);
-    formData.append('fileType', fileType);
-    formData.append('file', file);
-
-    const response = await fetch(`/api/anchor/${provider}/kyc?type=file`, {
-        method: 'POST',
-        body: formData,
-    });
-
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new ApiError(response.status, data.error || 'Failed to upload file');
-    }
-
-    return response.json();
-}
-
-/**
- * Finalize/submit a KYC submission for review
- */
-export async function finalizeKycSubmission(
-    fetch: Fetch,
-    provider: string,
-    customerId: string,
-    submissionId: string,
-): Promise<void> {
-    await postJson<{ success: boolean }>(fetch, `/api/anchor/${provider}/kyc?type=submit`, {
-        customerId,
-        submissionId,
-    });
-}
-
-// =============================================================================
-// BlindPay-specific API
-// =============================================================================
-
-/**
- * Get a BlindPay ToS acceptance URL
- */
-export async function getBlindPayTosUrl(
-    fetch: Fetch,
-    provider: string,
-    redirectUrl?: string,
-): Promise<string> {
-    let url = `/api/anchor/${provider}/kyc?type=tos`;
-    if (redirectUrl) url += `&redirectUrl=${encodeURIComponent(redirectUrl)}`;
-    const data = await apiRequest<{ url: string }>(fetch, url);
-    return data.url;
-}
-
-/**
- * Create a BlindPay receiver (combined customer + KYC submission)
- */
-export async function createBlindPayReceiver(
-    fetch: Fetch,
-    provider: string,
-    receiverData: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-    return postJson<Record<string, unknown>>(
-        fetch,
-        `/api/anchor/${provider}/kyc?type=receiver`,
-        receiverData,
-    );
-}
-
-/**
- * Register a blockchain wallet for a BlindPay receiver
- */
-export async function registerBlockchainWallet(
-    fetch: Fetch,
-    provider: string,
-    receiverId: string,
-    address: string,
-    name?: string,
-): Promise<Record<string, unknown>> {
-    return postJson<Record<string, unknown>>(fetch, `/api/anchor/${provider}/blockchain-wallets`, {
-        receiverId,
-        address,
-        name,
-    });
-}
-
-/**
- * Submit a signed Stellar payout transaction to BlindPay
- */
-export async function submitSignedPayout(
-    fetch: Fetch,
-    provider: string,
-    quoteId: string,
-    signedTransaction: string,
-    senderWalletAddress: string,
-): Promise<Record<string, unknown>> {
-    return postJson<Record<string, unknown>>(fetch, `/api/anchor/${provider}/payout-submit`, {
-        quoteId,
-        signedTransaction,
-        senderWalletAddress,
-    });
-}
-
 // =============================================================================
 // Sandbox API (Testing Only)
 // =============================================================================
-
-/**
- * Complete KYC in sandbox mode (testing only)
- */
-export async function completeKycSandbox(
-    fetch: Fetch,
-    provider: string,
-    submissionId: string,
-): Promise<void> {
-    await postJson<{ success: boolean }>(fetch, `/api/anchor/${provider}/sandbox`, {
-        action: 'completeKyc',
-        submissionId,
-    });
-}
 
 /**
  * Simulate fiat received for an on-ramp order in sandbox mode (testing only).

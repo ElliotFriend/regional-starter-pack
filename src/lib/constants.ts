@@ -24,10 +24,6 @@ export const DEFAULT_COUNTRY = 'MX';
 // Provider names
 export const PROVIDER = {
     ETHERFUSE: 'etherfuse',
-    ALFREDPAY: 'alfredpay',
-    BLINDPAY: 'blindpay',
-    ABROAD: 'abroad',
-    TRANSFERO: 'transfero',
 } as const;
 
 // KYC statuses (internal)
@@ -47,13 +43,4 @@ export const TX_STATUS = {
     FAILED: 'failed',
     EXPIRED: 'expired',
     CANCELLED: 'cancelled',
-} as const;
-
-// AlfredPay KYC submission statuses (from API)
-export const ALFREDPAY_KYC_STATUS = {
-    CREATED: 'CREATED',
-    IN_REVIEW: 'IN_REVIEW',
-    UPDATE_REQUIRED: 'UPDATE_REQUIRED',
-    COMPLETED: 'COMPLETED',
-    FAILED: 'FAILED',
 } as const;

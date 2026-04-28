@@ -1,6 +1,6 @@
 /**
  * Sandbox API endpoint
- * POST: Trigger sandbox-only operations (KYC completion, etc.)
+ * POST: Trigger sandbox-only operations (fiat simulation, etc.)
  * Only works in sandbox/development environments
  */
 
@@ -8,7 +8,6 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
 import { AnchorError } from '$lib/anchors/types';
-import { AlfredPayClient } from '$lib/anchors/alfredpay/client';
 import { EtherfuseClient } from '$lib/anchors/etherfuse/client';
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -29,21 +28,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
         const anchor = getAnchor(provider);
 
         switch (action) {
-            case 'completeKyc': {
-                if (!(anchor instanceof AlfredPayClient)) {
-                    throw error(400, { message: 'completeKyc not supported for this provider' });
-                }
-                const { submissionId } = body;
-                if (!submissionId) {
-                    throw error(400, {
-                        message: 'submissionId is required for completeKyc action',
-                    });
-                }
-                console.log('[Sandbox API] Completing KYC for submission:', submissionId);
-                await anchor.completeKycSandbox(submissionId);
-                return json({ success: true, message: 'KYC marked as completed' });
-            }
-
             case 'simulateFiatReceived': {
                 if (!(anchor instanceof EtherfuseClient)) {
                     throw error(400, {

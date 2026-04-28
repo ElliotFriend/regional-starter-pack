@@ -13,11 +13,10 @@
         provider: string;
         email: string;
         capabilities: AnchorCapabilities;
-        tosId?: string;
         onComplete: () => void;
     }
 
-    let { provider, email, capabilities, tosId, onComplete }: Props = $props();
+    let { provider, email, capabilities, onComplete }: Props = $props();
 
     // Requirements loaded from anchor
     let requirements = $state<KycRequirements | null>(null);
@@ -29,9 +28,7 @@
 
     // UI state
     let currentStep = $state<'personal' | 'documents' | 'uploading' | 'complete'>('personal');
-    let submissionId = $state<string | null>(null);
     let isSubmitting = $state(false);
-    let isCompletingKyc = $state(false);
     let error = $state<string | null>(null);
 
     onMount(async () => {
@@ -119,28 +116,10 @@
                 fieldValues.email = email;
             }
 
-            const metadata: Record<string, string> = {};
-            if (tosId) {
-                metadata.tosId = tosId;
-            }
-
-            const result = await api.submitKyc(fetch, provider, customer.id, {
+            await api.submitKyc(fetch, provider, customer.id, {
                 fields: { ...fieldValues },
                 documents: { ...documentValues },
-                metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
             });
-
-            submissionId = result.submissionId ?? null;
-
-            // For BlindPay, update the customer store with the real receiver ID
-            if (result.customerId && result.customerId !== customer.id) {
-                customerStore.set({
-                    ...customer,
-                    id: result.customerId,
-                    kycStatus: result.kycStatus,
-                    updatedAt: new Date().toISOString(),
-                });
-            }
 
             currentStep = 'complete';
             onComplete();
@@ -149,25 +128,6 @@
             currentStep = 'documents';
         } finally {
             isSubmitting = false;
-        }
-    }
-
-    async function handleSandboxComplete() {
-        if (!submissionId) {
-            error = 'No submission ID found';
-            return;
-        }
-
-        isCompletingKyc = true;
-        error = null;
-
-        try {
-            await api.completeKycSandbox(fetch, provider, submissionId);
-            onComplete();
-        } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to complete KYC';
-        } finally {
-            isCompletingKyc = false;
         }
     }
 </script>
@@ -372,22 +332,6 @@
             <p class="mt-2 text-sm text-gray-500">
                 Your documents have been submitted for review. This usually takes a few minutes.
             </p>
-
-            {#if capabilities.sandbox && submissionId}
-                <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
-                    <p class="mt-1 text-xs text-amber-700">
-                        In sandbox, you can manually approve your KYC for testing.
-                    </p>
-                    <button
-                        onclick={handleSandboxComplete}
-                        disabled={isCompletingKyc}
-                        class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                    >
-                        {isCompletingKyc ? 'Completing...' : 'Complete KYC (Sandbox)'}
-                    </button>
-                </div>
-            {/if}
         </div>
     {/if}
 </div>

@@ -60,9 +60,7 @@ Usage:
     // Trustline state (updated by TrustlineStatus callback)
     let hasTrustline = $state(false);
 
-    // Blockchain wallet registration state (BlindPay-specific)
-    let isRegisteringWallet = $state(false);
-    let walletRegistered = $state(false);
+    let walletRegistered = $state(true);
     let isSimulatingFiat = $state(false);
     let fiatSimulated = $state(false);
 
@@ -212,38 +210,7 @@ Usage:
         error = null;
     }
 
-    async function registerBlockchainWallet() {
-        const customer = customerStore.current;
-        if (!customer || !customer.id || !walletStore.publicKey || customer.blockchainWalletId) {
-            walletRegistered = true;
-            return;
-        }
-
-        isRegisteringWallet = true;
-        try {
-            const result = await api.registerBlockchainWallet(
-                fetch,
-                provider,
-                customer.id,
-                walletStore.publicKey,
-            );
-            const walletId = (result as { id: string }).id;
-            customerStore.set({ ...customer, blockchainWalletId: walletId });
-            walletRegistered = true;
-        } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to register wallet';
-            console.error('Wallet registration failed:', err);
-        } finally {
-            isRegisteringWallet = false;
-        }
-    }
-
     onMount(() => {
-        if (capabilities?.requiresBlockchainWalletRegistration) {
-            registerBlockchainWallet();
-        } else {
-            walletRegistered = true;
-        }
         return () => stopPolling();
     });
 </script>
@@ -274,16 +241,7 @@ Usage:
                 {isGettingQuote}
                 additionalDisabled={!walletRegistered}
                 onSubmit={getQuote}
-            >
-                {#if isRegisteringWallet}
-                    <div class="mt-4 flex items-center justify-center rounded-md bg-gray-50 p-3">
-                        <div
-                            class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
-                        ></div>
-                        <span class="ml-2 text-sm text-gray-500">Registering wallet...</span>
-                    </div>
-                {/if}
-            </AmountInput>
+            ></AmountInput>
         </div>
     {:else if step === 'quote'}
         <QuoteStep

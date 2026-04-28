@@ -8,12 +8,8 @@
         customer: Customer | null;
         email: string;
         capabilities: AnchorCapabilities;
-        tosId?: string;
         showKyc: boolean;
-        kycSubmissionId: string | null;
-        isCompletingKyc: boolean;
         onKycComplete: () => void;
-        onSandboxComplete: () => void;
         onShowKyc: () => void;
         onRefreshStatus: () => void;
     }
@@ -23,12 +19,8 @@
         customer,
         email,
         capabilities,
-        tosId,
         showKyc,
-        kycSubmissionId,
-        isCompletingKyc,
         onKycComplete,
-        onSandboxComplete,
         onShowKyc,
         onRefreshStatus,
     }: Props = $props();
@@ -42,7 +34,7 @@
                 Complete the verification below to start using the service.
             </p>
             <div class="mt-4">
-                <KycForm {provider} {email} {capabilities} {tosId} onComplete={onKycComplete} />
+                <KycForm {provider} {email} {capabilities} onComplete={onKycComplete} />
             </div>
         </div>
     {:else if customer?.kycStatus === KYC_STATUS.PENDING}
@@ -57,22 +49,6 @@
             >
                 Check Status
             </button>
-
-            {#if kycSubmissionId}
-                <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
-                    <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
-                    <p class="mt-1 text-xs text-amber-700">
-                        Manually approve your KYC for testing.
-                    </p>
-                    <button
-                        onclick={onSandboxComplete}
-                        disabled={isCompletingKyc}
-                        class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                    >
-                        {isCompletingKyc ? 'Completing...' : 'Complete KYC (Sandbox)'}
-                    </button>
-                </div>
-            {/if}
         </div>
     {:else if customer?.kycStatus === KYC_STATUS.REJECTED}
         <div class="rounded-lg border border-red-200 bg-red-50 p-6 text-center">

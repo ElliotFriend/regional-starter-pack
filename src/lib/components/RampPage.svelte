@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
     import type { Snippet } from 'svelte';
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
@@ -25,33 +24,11 @@
     let isRegistering = $state(false);
     let registrationError = $state<string | null>(null);
     let showKyc = $state(false);
-    let kycSubmissionId = $state<string | null>(null);
-    let isCompletingKyc = $state(false);
 
     // Iframe KYC state (for providers with kycFlow: 'iframe')
     let kycIframeUrl = $state<string | null>(null);
     let isLoadingIframeUrl = $state(false);
     let isRefreshingKycStatus = $state(false);
-
-    // ToS state (for providers with requiresTos, e.g. BlindPay)
-    let tosId = $state<string | null>(null);
-    let isRedirectingToTos = $state(false);
-
-    // Detect ToS redirect callback on mount
-    onMount(() => {
-        if (capabilities.requiresTos && typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            const returnedTosId = params.get('tos_id');
-            if (returnedTosId) {
-                tosId = returnedTosId;
-                showKyc = true;
-                // Clean the URL
-                const url = new URL(window.location.href);
-                url.searchParams.delete('tos_id');
-                window.history.replaceState({}, '', url.toString());
-            }
-        }
-    });
 
     // Hydrate customer from localStorage when wallet connects (or switches)
     $effect(() => {
@@ -81,42 +58,23 @@
     });
 
     // Auto-check KYC status for form-based providers when customer loads
-    // with non-approved status. AlfredPay's customer endpoint may return
-    // 'not_started' even when a KYC submission exists, so we also check
-    // for existing submissions and upgrade the status to 'pending'.
     let formKycAutoChecked = false;
     $effect(() => {
         const customer = customerStore.current;
         if (
             customer?.id &&
             capabilities.kycFlow === 'form' &&
-            !capabilities.requiresTos &&
             customer.kycStatus !== KYC_STATUS.APPROVED &&
             !formKycAutoChecked
         ) {
             formKycAutoChecked = true;
-            refreshFormKycStatus(customer.id);
+            refreshFormKycStatus();
         }
     });
 
-    async function refreshFormKycStatus(customerId: string) {
+    async function refreshFormKycStatus() {
         const status = await checkAndUpdateKycStatus();
-
-        // Check for existing KYC submission
-        try {
-            const submission = await api.getKycSubmission(fetch, provider, customerId);
-            if (submission) {
-                kycSubmissionId = submission.submissionId;
-            }
-        } catch {
-            // Ignore — submission may not exist
-        }
-
-        // AlfredPay's customer endpoint returns 'not_started' even when a
-        // submission is pending review. If we found a submission, upgrade.
-        if (status === KYC_STATUS.NOT_STARTED && kycSubmissionId) {
-            customerStore.updateKycStatus(KYC_STATUS.PENDING);
-        } else if (status === KYC_STATUS.NOT_STARTED && !kycSubmissionId) {
+        if (status === KYC_STATUS.NOT_STARTED) {
             showKyc = true;
         }
     }
@@ -158,31 +116,14 @@
                     await loadKycIframeUrl(customer.id);
                 }
             } else {
-                // For form-based KYC (AlfredPay + BlindPay)
-                if (capabilities.requiresTos) {
-                    // BlindPay: redirect to ToS page if no tosId yet
-                    showKyc = true;
-                } else {
-                    // Re-use the same refresh logic that the auto-check effect uses
-                    await refreshFormKycStatus(customer.id);
-                }
+                // For form-based KYC
+                await refreshFormKycStatus();
             }
         } catch (err) {
             registrationError = err instanceof Error ? err.message : 'Registration failed';
             console.error('Registration failed:', err);
         } finally {
             isRegistering = false;
-        }
-    }
-
-    async function redirectToTos() {
-        isRedirectingToTos = true;
-        try {
-            const tosUrl = await api.getBlindPayTosUrl(fetch, provider, window.location.href);
-            window.location.href = tosUrl;
-        } catch (err) {
-            registrationError = err instanceof Error ? err.message : 'Failed to get ToS URL';
-            isRedirectingToTos = false;
         }
     }
 
@@ -255,40 +196,9 @@
 
     async function handleKycComplete() {
         showKyc = false;
-        // After KYC form submission, update the store with the actual status from the API
-        // so KycStatusDisplay shows the "Pending" view instead of re-prompting.
         const status = await checkAndUpdateKycStatus();
-        // Capture the submission ID so the sandbox completion button is available
-        const customer = customerStore.current;
-        if (capabilities.kycFlow === 'form' && customer && !kycSubmissionId) {
-            try {
-                const submission = await api.getKycSubmission(fetch, provider, customer.id);
-                if (submission) {
-                    kycSubmissionId = submission.submissionId;
-                }
-            } catch {
-                // Ignore — submission lookup may fail
-            }
-        }
-        // If the API still reports not_started (hasn't caught up yet) but we know
-        // a submission was just made, force the status to pending so the user sees
-        // the "Verification Pending" view instead of looping back to "Start Verification".
         if (status === KYC_STATUS.NOT_STARTED) {
             customerStore.updateKycStatus(KYC_STATUS.PENDING);
-        }
-    }
-
-    async function handleSandboxComplete() {
-        if (!kycSubmissionId) return;
-
-        isCompletingKyc = true;
-        try {
-            await api.completeKycSandbox(fetch, provider, kycSubmissionId);
-            customerStore.updateKycStatus(KYC_STATUS.APPROVED);
-        } catch (err) {
-            console.error('Failed to complete KYC:', err);
-        } finally {
-            isCompletingKyc = false;
         }
     }
 
@@ -463,63 +373,17 @@
                 </button>
             </div>
         {:else}
-            <!-- Form-based KYC (AlfredPay + BlindPay) -->
-            {#if capabilities.requiresTos && !tosId}
-                <!-- ToS acceptance step (BlindPay) -->
-                <div
-                    class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
-                >
-                    <div
-                        class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
-                    >
-                        <svg
-                            class="h-6 w-6 text-indigo-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                    </div>
-                    <h2 class="mt-4 text-lg font-semibold text-gray-900">
-                        Accept Terms of Service
-                    </h2>
-                    <p class="mt-2 text-sm text-gray-500">
-                        You'll be redirected to accept the Terms of Service. After accepting, you'll
-                        return here to complete verification.
-                    </p>
-                    <button
-                        onclick={redirectToTos}
-                        disabled={isRedirectingToTos}
-                        class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                        {isRedirectingToTos ? 'Redirecting...' : 'Accept Terms of Service'}
-                    </button>
-                    {#if registrationError}
-                        <p class="mt-2 text-sm text-red-600">{registrationError}</p>
-                    {/if}
-                </div>
-            {:else}
-                <KycStatusDisplay
-                    {provider}
-                    customer={customerStore.current}
-                    email={customerStore.current?.email || email}
-                    {capabilities}
-                    tosId={tosId ?? undefined}
-                    {showKyc}
-                    {kycSubmissionId}
-                    {isCompletingKyc}
-                    onKycComplete={handleKycComplete}
-                    onSandboxComplete={handleSandboxComplete}
-                    onShowKyc={() => (showKyc = true)}
-                    onRefreshStatus={handleRefreshKycStatus}
-                />
-            {/if}
+            <!-- Form-based KYC -->
+            <KycStatusDisplay
+                {provider}
+                customer={customerStore.current}
+                email={customerStore.current?.email || email}
+                {capabilities}
+                {showKyc}
+                onKycComplete={handleKycComplete}
+                onShowKyc={() => (showKyc = true)}
+                onRefreshStatus={handleRefreshKycStatus}
+            />
         {/if}
     {:else}
         {@render children()}

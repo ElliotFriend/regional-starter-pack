@@ -289,8 +289,7 @@ Usage:
                 step = 'awaiting_signable';
                 startPollingForSignable();
             } else {
-                // Other providers (BlindPay, AlfredPay, etc.): build a payment
-                // transaction locally and sign it directly
+                // Build a payment transaction locally and sign it directly
                 await signAndSubmit();
             }
         } catch (err) {
@@ -332,19 +331,7 @@ Usage:
 
             const signed = await signWithFreighter(envelope, network);
 
-            if (capabilities?.requiresAnchorPayoutSubmission) {
-                // Submit signed XDR back to the anchor (step 2 of 2)
-                await api.submitSignedPayout(
-                    fetch,
-                    provider,
-                    quote.id,
-                    signed.signedXdr,
-                    walletStore.publicKey,
-                );
-            } else {
-                // Other providers: submit directly to the Stellar network
-                await submitTransaction(signed.signedXdr, network);
-            }
+            await submitTransaction(signed.signedXdr, network);
 
             step = 'pending';
             startPolling();
