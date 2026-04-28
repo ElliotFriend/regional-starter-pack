@@ -1,15 +1,36 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
+    import { QUALITY_CRITERIA } from '$lib/config/anchors';
     import type { PageProps } from './$types';
     const { data }: PageProps = $props();
 </script>
 
 <div class="mx-auto max-w-4xl">
     <div class="mb-8 text-center">
-        <h1 class="text-3xl font-bold text-gray-900">Anchor Providers</h1>
+        <h1 class="text-3xl font-bold text-gray-900">Curated Anchor Providers</h1>
         <p class="mt-2 text-gray-600">
             Anchors are regulated entities that bridge fiat currencies and the Stellar network. Each
             anchor operates in specific regions with different capabilities.
+        </p>
+    </div>
+
+    <!-- Quality Criteria Summary -->
+    <div class="mb-8 rounded-lg border border-gray-200 bg-white p-6">
+        <h2 class="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+            What We Look For
+        </h2>
+        <ul
+            class="mt-3 grid list-outside list-disc gap-2 gap-x-6 px-6 sm:grid-cols-2 lg:grid-cols-3"
+        >
+            {#each QUALITY_CRITERIA as criterion (criterion.id)}
+                <li class="text-sm text-gray-600">{criterion.label}</li>
+            {/each}
+        </ul>
+        <p class="mt-3 text-sm text-gray-500">
+            Providers that don't yet meet these criteria appear as alternatives on individual
+            <a href={resolve('/regions')} class="text-indigo-600 hover:text-indigo-800"
+                >region pages</a
+            >.
         </p>
     </div>
 
@@ -20,10 +41,17 @@
                 <p class="mt-2 text-sm text-gray-600">{anchor.description}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
                     {#each Object.keys(anchor.regions) as regionId (regionId)}
+                        {@const capability = anchor.regions[regionId]}
                         <span
-                            class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800"
+                            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                            class:bg-indigo-100={!capability.comingSoon}
+                            class:text-indigo-800={!capability.comingSoon}
+                            class:bg-amber-100={capability.comingSoon}
+                            class:text-amber-800={capability.comingSoon}
                         >
-                            {regionId.replace('_', ' ')}
+                            {regionId.replace('_', ' ')}{capability.comingSoon
+                                ? ' (coming soon)'
+                                : ''}
                         </span>
                     {/each}
                 </div>

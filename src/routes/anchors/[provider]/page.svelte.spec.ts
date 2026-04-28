@@ -13,7 +13,14 @@ const mockData = {
             currencySymbol: '$',
             flag: '\u{1F1F2}\u{1F1FD}',
             description: 'Mexico crypto ecosystem.',
-            paymentRails: [{ id: 'spei', name: 'SPEI', description: 'Mexican payments', type: 'bank_transfer' }],
+            paymentRails: [
+                {
+                    id: 'spei',
+                    name: 'SPEI',
+                    description: 'Mexican payments',
+                    type: 'bank_transfer',
+                },
+            ],
             anchors: ['etherfuse'],
         },
     ],
@@ -49,7 +56,12 @@ const mockData = {
     displayName: 'Etherfuse',
     capabilities: { kycFlow: 'iframe', sandbox: true },
     supportedTokens: [
-        { symbol: 'CETES', name: 'CETES Token', description: 'Tokenized Mexican treasury bills', issuer: 'GB3ZSE...' },
+        {
+            symbol: 'CETES',
+            name: 'CETES Token',
+            description: 'Tokenized Mexican treasury bills',
+            issuer: 'GB3ZSE...',
+        },
     ],
     supportedRails: ['spei'],
     fiatCurrency: 'MXN',
@@ -67,7 +79,9 @@ describe('/anchors/[provider]/+page.svelte', () => {
     it('renders anchor description', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByText('Bridges traditional finance and DeFi.')).toBeInTheDocument();
+        await expect
+            .element(page.getByText('Bridges traditional finance and DeFi.'))
+            .toBeInTheDocument();
     });
 
     it('renders external links', async () => {
@@ -75,7 +89,9 @@ describe('/anchors/[provider]/+page.svelte', () => {
 
         await expect.element(page.getByRole('link', { name: 'website' })).toBeInTheDocument();
         // 'documentation' matches both the header link and the DevBox link; target the exact one
-        await expect.element(page.getByRole('link', { name: 'documentation', exact: true })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('link', { name: 'documentation', exact: true }))
+            .toBeInTheDocument();
     });
 
     it('renders the Try section with on-ramp and off-ramp links', async () => {
@@ -88,14 +104,18 @@ describe('/anchors/[provider]/+page.svelte', () => {
     it('renders supported digital assets', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByRole('heading', { name: 'Supported Digital Assets' })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: 'Supported Digital Assets' }))
+            .toBeInTheDocument();
         await expect.element(page.getByRole('heading', { name: 'CETES' })).toBeInTheDocument();
     });
 
     it('renders the supported regions table', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByRole('heading', { name: 'Supported Regions' })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: 'Supported Regions' }))
+            .toBeInTheDocument();
         await expect.element(page.getByRole('table')).toBeInTheDocument();
         await expect.element(page.getByText('Mexico')).toBeInTheDocument();
     });
@@ -103,9 +123,13 @@ describe('/anchors/[provider]/+page.svelte', () => {
     it('renders the integration flow section', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByRole('heading', { name: 'Integration Flow' })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: 'Integration Flow' }))
+            .toBeInTheDocument();
         // 'Create Customer' also matches 'Create Customer + KYC'; use exact match
-        await expect.element(page.getByText('Create Customer', { exact: true })).toBeInTheDocument();
+        await expect
+            .element(page.getByText('Create Customer', { exact: true }))
+            .toBeInTheDocument();
     });
 
     it('renders a back link to anchors', async () => {

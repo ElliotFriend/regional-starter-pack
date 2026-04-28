@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { getAnchorsForRegion, getRegion } from '$lib/config/regions';
+import { getHonorableMentionsForRegion } from '$lib/config/anchors';
 import { getAnchor as getAnchorInstance, isValidProvider } from '$lib/server/anchorFactory';
 import { error } from '@sveltejs/kit';
 import type { TokenInfo } from '$lib/anchors/types';
@@ -19,12 +20,19 @@ export const load: PageServerLoad = ({ params }) => {
     const profiles = getAnchorsForRegion(regionId);
     const tokenMap = new Map<string, TokenInfo>();
     for (const p of profiles) {
-        if (isValidProvider(p.id)) {
-            for (const t of getAnchorInstance(p.id).supportedTokens) {
-                tokenMap.set(t.symbol, t);
-            }
+        if (!isValidProvider(p.id)) continue;
+        const regionTokens = new Set(p.regions[regionId]?.tokens ?? []);
+        for (const t of getAnchorInstance(p.id).supportedTokens) {
+            if (regionTokens.has(t.symbol)) tokenMap.set(t.symbol, t);
         }
     }
 
-    return { region, anchors: profiles, tokens: Array.from(tokenMap.values()) };
+    const honorableMentions = getHonorableMentionsForRegion(regionId);
+
+    return {
+        region,
+        anchors: profiles,
+        tokens: Array.from(tokenMap.values()),
+        honorableMentions,
+    };
 };

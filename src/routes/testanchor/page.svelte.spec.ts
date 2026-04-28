@@ -49,16 +49,24 @@ describe('/testanchor/+page.svelte', () => {
         render(Page, { data: mockData });
 
         await expect.element(page.getByRole('heading', { name: /Initialize/ })).toBeInTheDocument();
-        await expect.element(page.getByRole('heading', { name: /Authenticate/ })).toBeInTheDocument();
-        await expect.element(page.getByRole('heading', { name: /Deposit \/ Withdraw/ })).toBeInTheDocument();
-        await expect.element(page.getByRole('heading', { name: /Explore SEP Info/ })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: /Authenticate/ }))
+            .toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: /Deposit \/ Withdraw/ }))
+            .toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: /Explore SEP Info/ }))
+            .toBeInTheDocument();
     });
 
     it('shows initialized state with discovered endpoints', async () => {
         render(Page, { data: mockData });
 
         await expect.element(page.getByText('Initialized successfully')).toBeInTheDocument();
-        await expect.element(page.getByText('https://testanchor.stellar.org/sep24')).toBeInTheDocument();
+        await expect
+            .element(page.getByText('https://testanchor.stellar.org/sep24'))
+            .toBeInTheDocument();
     });
 
     it('shows supported asset badges', async () => {
@@ -72,6 +80,8 @@ describe('/testanchor/+page.svelte', () => {
     it('renders the About section', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByRole('heading', { name: /About the Test Anchor/ })).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('heading', { name: /About the Test Anchor/ }))
+            .toBeInTheDocument();
     });
 });

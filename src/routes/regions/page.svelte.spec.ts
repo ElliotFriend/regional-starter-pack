@@ -13,8 +13,15 @@ const mockData = {
             currencySymbol: '$',
             flag: '\u{1F1F2}\u{1F1FD}',
             description: 'Mexico has a growing crypto ecosystem.',
-            paymentRails: [{ id: 'spei', name: 'SPEI', description: 'Mexican payment system', type: 'bank_transfer' }],
-            anchors: ['etherfuse', 'alfredpay'],
+            paymentRails: [
+                {
+                    id: 'spei',
+                    name: 'SPEI',
+                    description: 'Mexican payment system',
+                    type: 'bank_transfer',
+                },
+            ],
+            anchors: ['etherfuse'],
         },
         {
             id: 'brazil',
@@ -24,8 +31,15 @@ const mockData = {
             currencySymbol: 'R$',
             flag: '\u{1F1E7}\u{1F1F7}',
             description: 'Brazil has a vibrant fintech ecosystem.',
-            paymentRails: [{ id: 'pix', name: 'PIX', description: 'Brazilian instant payments', type: 'bank_transfer' }],
-            anchors: ['alfredpay', 'abroad'],
+            paymentRails: [
+                {
+                    id: 'pix',
+                    name: 'PIX',
+                    description: 'Brazilian instant payments',
+                    type: 'bank_transfer',
+                },
+            ],
+            anchors: ['etherfuse'],
         },
     ],
     anchors: [],

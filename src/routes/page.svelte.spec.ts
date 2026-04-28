@@ -22,34 +22,17 @@ describe('/+page.svelte', () => {
         await expect.element(anchorsLink).toBeInTheDocument();
     });
 
-    it('renders the What\'s Inside section', async () => {
+    it('renders the Local Currency Advantage section', async () => {
         render(Page);
 
-        const heading = page.getByRole('heading', { name: "What's Inside" });
+        const heading = page.getByRole('heading', { name: 'The Local Currency Advantage' });
         await expect.element(heading).toBeInTheDocument();
-
-        const items = [
-            'Portable Anchor Library',
-            'Three Pre-Built Integrations',
-            'SEP Protocol Library',
-            'Live Demos',
-        ];
-        for (const item of items) {
-            const h3 = page.getByRole('heading', { name: item });
-            await expect.element(h3).toBeInTheDocument();
-        }
     });
 
-    it('renders the How to Use It steps', async () => {
+    it('renders the What We Look For section with quality criteria', async () => {
         render(Page);
 
-        const heading = page.getByRole('heading', { name: 'How to Use It' });
+        const heading = page.getByRole('heading', { name: 'What We Look For' });
         await expect.element(heading).toBeInTheDocument();
-
-        const steps = ['Clone & Configure', 'Try the Demos', 'Copy the Library', 'Build Your Own'];
-        for (const step of steps) {
-            const h3 = page.getByRole('heading', { name: step });
-            await expect.element(h3).toBeInTheDocument();
-        }
     });
 });

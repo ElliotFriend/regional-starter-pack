@@ -1,13 +1,11 @@
 <script lang="ts">
+    import HonorableMentionAnchors from '$lib/components/HonorableMentionAnchors.svelte';
+
     import { resolve } from '$app/paths';
     import type { PageProps } from './$types';
 
-    // we use `$props()` in SvelteKit to "grab" the various data that's been
-    // loaded from any relevant `+layout.server.ts` or `+page.server.ts` files
-    // in the directory structure.
     const { data }: PageProps = $props();
-    // pull out the pieces of data as `$derived()` state.
-    const { region, tokens, anchors } = $derived(data);
+    const { region, tokens, anchors, honorableMentions } = $derived(data);
 </script>
 
 {#if region}
@@ -58,6 +56,28 @@
             </div>
         </section>
 
+        <!-- About the Local Asset -->
+        <section class="mb-8">
+            <h2 class="mb-4 text-xl font-semibold text-gray-900">About the Local Asset</h2>
+            <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-6">
+                <p class="text-gray-700">
+                    Unlike USD-intermediated flows that require multiple conversion steps, locally
+                    denominated assets on Stellar enable direct on- and off-ramps between
+                    {region.currency} and the blockchain. This means fewer intermediaries, lower fees,
+                    and faster settlement.
+                </p>
+                <p class="mt-3 text-gray-700">
+                    Yield-bearing assets like stablebonds take this a step further by backing each
+                    token with local government treasury instruments, which generates yield that can
+                    be passed on as lower conversion costs — often below 25 basis points.
+                </p>
+                <p class="mt-3 text-sm text-gray-500">
+                    The result: cheaper, easier, and quicker access to on- and off-chain value for
+                    both developers building services and the end users they serve.
+                </p>
+            </div>
+        </section>
+
         <!-- Anchors -->
         <section class="mb-8">
             <h2 class="mb-4 text-xl font-semibold text-gray-900">Available Anchors</h2>
@@ -75,12 +95,20 @@
                                     </h3>
                                     <p class="mt-1 text-sm text-gray-500">{anchor.description}</p>
                                 </div>
-                                <a
-                                    href={resolve(`/anchors/${anchor.id}`)}
-                                    class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                                >
-                                    View Details
-                                </a>
+                                {#if capability?.comingSoon}
+                                    <span
+                                        class="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800"
+                                    >
+                                        Coming Soon
+                                    </span>
+                                {:else}
+                                    <a
+                                        href={resolve(`/anchors/${anchor.id}`)}
+                                        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                                    >
+                                        View Details
+                                    </a>
+                                {/if}
                             </div>
 
                             {#if capability}
@@ -106,6 +134,13 @@
                                             KYC Required
                                         </span>
                                     {/if}
+                                    {#if capability.comingSoon}
+                                        <span
+                                            class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+                                        >
+                                            API Not Yet Available
+                                        </span>
+                                    {/if}
                                 </div>
 
                                 <div class="mt-4 grid gap-4 text-sm sm:grid-cols-2">
@@ -129,6 +164,9 @@
                 </div>
             {/if}
         </section>
+
+        <!-- Honorable Mentions -->
+        <HonorableMentionAnchors {region} {honorableMentions} />
 
         <!-- Back Link -->
         <div class="mt-8">

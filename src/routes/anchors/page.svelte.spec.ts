@@ -10,17 +10,26 @@ const mockData = {
             id: 'etherfuse',
             name: 'Etherfuse',
             description: 'Bridges traditional finance and DeFi.',
-            links: { website: 'https://etherfuse.com', documentation: 'https://docs.etherfuse.com' },
-            regions: { mexico: { onRamp: true, offRamp: true, paymentRails: ['spei'], tokens: ['CETES'], kycRequired: true } },
-        },
-        {
-            id: 'alfredpay',
-            name: 'AlfredPay',
-            description: 'On and off ramp for Mexico.',
-            links: { website: 'https://alfredpay.io', documentation: 'https://docs.alfredpay.io' },
+            links: {
+                website: 'https://etherfuse.com',
+                documentation: 'https://docs.etherfuse.com',
+            },
             regions: {
-                mexico: { onRamp: true, offRamp: true, paymentRails: ['spei'], tokens: ['USDC'], kycRequired: true },
-                brazil: { onRamp: true, offRamp: false, paymentRails: ['pix'], tokens: ['USDC'], kycRequired: true },
+                mexico: {
+                    onRamp: true,
+                    offRamp: true,
+                    paymentRails: ['spei'],
+                    tokens: ['CETES'],
+                    kycRequired: true,
+                },
+                brazil: {
+                    onRamp: true,
+                    offRamp: true,
+                    paymentRails: ['pix'],
+                    tokens: ['TESOURO'],
+                    kycRequired: true,
+                    comingSoon: true,
+                },
             },
         },
     ],
@@ -31,36 +40,44 @@ describe('/anchors/+page.svelte', () => {
         render(Page, { data: mockData });
 
         const heading = page.getByRole('heading', { level: 1 });
-        await expect.element(heading).toHaveTextContent('Anchor Providers');
+        await expect.element(heading).toHaveTextContent('Curated Anchor Providers');
     });
 
-    it('renders a card for each anchor', async () => {
+    it('renders a card for Etherfuse', async () => {
         render(Page, { data: mockData });
 
         await expect.element(page.getByRole('heading', { name: 'Etherfuse' })).toBeInTheDocument();
-        await expect.element(page.getByRole('heading', { name: 'AlfredPay' })).toBeInTheDocument();
     });
 
-    it('displays anchor descriptions', async () => {
+    it('displays anchor description', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByText('Bridges traditional finance and DeFi.')).toBeInTheDocument();
+        await expect
+            .element(page.getByText('Bridges traditional finance and DeFi.'))
+            .toBeInTheDocument();
     });
 
-    it('renders View Details and Website links for each anchor', async () => {
+    it('renders View Details and Website links', async () => {
         render(Page, { data: mockData });
 
-        const detailLinks = page.getByRole('link', { name: 'View Details' });
-        await expect.element(detailLinks.first()).toBeInTheDocument();
+        const detailLink = page.getByRole('link', { name: 'View Details' });
+        await expect.element(detailLink).toBeInTheDocument();
 
-        const websiteLinks = page.getByRole('link', { name: 'Website' });
-        await expect.element(websiteLinks.first()).toBeInTheDocument();
+        const websiteLink = page.getByRole('link', { name: 'Website' });
+        await expect.element(websiteLink).toBeInTheDocument();
     });
 
-    it('renders region badges', async () => {
+    it('renders What We Look For section', async () => {
         render(Page, { data: mockData });
 
-        await expect.element(page.getByText('mexico').first()).toBeInTheDocument();
+        const heading = page.getByRole('heading', { name: 'What We Look For' });
+        await expect.element(heading).toBeInTheDocument();
+    });
+
+    it('shows coming soon badge for brazil region', async () => {
+        render(Page, { data: mockData });
+
+        await expect.element(page.getByText('brazil (coming soon)')).toBeInTheDocument();
     });
 
     it('renders a back link to home', async () => {
