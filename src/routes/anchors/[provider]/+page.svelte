@@ -32,7 +32,16 @@
 
 <!-- Header -->
 <div class="mb-8">
-    <h1 class="text-3xl font-bold text-gray-900">{anchor.name}</h1>
+    <div class="flex items-center gap-4">
+        {#if anchor.logo}
+            <img
+                src={anchor.logo}
+                alt="{anchor.name} logo"
+                class="h-12 w-12 rounded-md object-contain"
+            />
+        {/if}
+        <h1 class="text-3xl font-bold text-gray-900">{anchor.name}</h1>
+    </div>
     <p class="mt-2 text-gray-600">{anchor.description}</p>
     <div class="mt-3 flex flex-row flex-wrap gap-2">
         {#each Object.entries(anchor.links) as [label, url] (label)}

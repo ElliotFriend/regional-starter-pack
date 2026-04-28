@@ -85,6 +85,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         name: 'Etherfuse',
         description:
             'Etherfuse bridges traditional finance and decentralized finance, making financial systems more inclusive, transparent, and efficient for everyone.',
+        logo: '/anchor-logos/etherfuse.png',
         links: {
             website: 'https://www.etherfuse.com',
             documentation: 'https://docs.etherfuse.com',
@@ -182,6 +183,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         name: 'PDAX',
         description:
             'PDAX (Philippine Digital Asset Exchange) is the Philippines’ first BSP-licensed virtual asset service provider, bridging PHP and digital assets for retail and institutional users.',
+        logo: '/anchor-logos/pdax.png',
         links: {
             website: 'https://pdax.ph',
             documentation: 'https://doc.general.api.pdax.ph',
