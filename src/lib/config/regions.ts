@@ -31,9 +31,9 @@ export const REGIONS: Record<string, Region> = {
         currencySymbol: '$',
         flag: '🇲🇽',
         description:
-            'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Multiple anchors support MXN to USDC conversion.',
+            'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Locally denominated assets on Stellar enable low-cost on- and off-ramps with competitive FX rates.',
         paymentRails: [PAYMENT_RAILS.spei],
-        anchors: ['etherfuse', 'alfredpay', 'blindpay'],
+        anchors: ['etherfuse'],
     },
     brazil: {
         id: 'brazil',
@@ -43,9 +43,9 @@ export const REGIONS: Record<string, Region> = {
         currencySymbol: 'R$',
         flag: '🇧🇷',
         description:
-            'Brazil has a vibrant fintech ecosystem with PIX enabling instant payments 24/7. Multiple anchors support BRL to USDC conversion.',
+            'Brazil has a vibrant fintech ecosystem with PIX enabling instant payments 24/7. Locally denominated assets on Stellar enable low-cost on- and off-ramps with competitive FX rates.',
         paymentRails: [PAYMENT_RAILS.pix],
-        anchors: ['alfredpay', 'abroad', 'transfero'],
+        anchors: ['etherfuse'],
     },
 };
 

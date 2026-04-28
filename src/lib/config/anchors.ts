@@ -18,6 +18,7 @@ export interface AnchorCapability {
     kycRequired: boolean;
     minAmount?: string;
     maxAmount?: string;
+    comingSoon?: boolean;
 }
 
 export interface DevOnboardingStep {
@@ -52,6 +53,32 @@ export interface AnchorProfile {
     integrationFlow?: IntegrationFlow;
 }
 
+// =============================================================================
+// Quality Criteria
+// =============================================================================
+
+export interface QualityCriterion {
+    id: string;
+    label: string;
+    met: boolean;
+    note?: string;
+}
+
+export const QUALITY_CRITERIA = [
+    {
+        id: 'local-asset',
+        label: 'Locally denominated asset (stablecoin or stablebond) on Stellar',
+    },
+    { id: 'local-rails', label: 'Support for local payment rails connected to Stellar' },
+    { id: 'competitive-rates', label: 'Competitive rates (wholesale <25 bps conversion)' },
+    { id: 'open-access', label: 'Well-documented open access for application developers' },
+    { id: 'deep-liquidity', label: 'Deep liquidity for low slippage (local <-> global assets)' },
+] as const;
+
+// =============================================================================
+// Curated Anchors
+// =============================================================================
+
 export const ANCHORS: Record<string, AnchorProfile> = {
     etherfuse: {
         id: 'etherfuse',
@@ -76,6 +103,14 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 tokens: ['CETES'],
                 kycRequired: true,
             },
+            brazil: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['pix'],
+                tokens: ['TESOURO'],
+                kycRequired: true,
+                comingSoon: true,
+            },
         },
         devOnboarding: [
             {
@@ -96,19 +131,21 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 },
                 {
                     title: 'Get Quote',
-                    description: 'Request a quote for the MXN to CETES conversion.',
+                    description: 'Request a quote for the local currency to token conversion.',
                 },
                 {
                     title: 'Create On-Ramp Order',
-                    description: 'Submit the order and receive SPEI payment instructions.',
+                    description: 'Submit the order and receive local payment instructions.',
                 },
                 {
                     title: 'Transfer Fiat via Bank',
-                    description: 'The user sends MXN via SPEI using the provided payment details.',
+                    description:
+                        'The user sends local currency via their payment rail using the provided details.',
                 },
                 {
                     title: 'Receive Tokens',
-                    description: "The anchor delivers CETES tokens to the user's Stellar wallet.",
+                    description:
+                        "The anchor delivers locally denominated tokens to the user's Stellar wallet.",
                 },
             ],
             offRamp: [
@@ -118,7 +155,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 },
                 {
                     title: 'Get Quote',
-                    description: 'Request a quote for the CETES to MXN conversion.',
+                    description: 'Request a quote for the token to local currency conversion.',
                 },
                 {
                     title: 'Create Off-Ramp Order',
@@ -134,329 +171,8 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 },
                 {
                     title: 'Receive Fiat',
-                    description: "The anchor sends MXN to the user's bank via SPEI.",
-                },
-            ],
-        },
-    },
-    alfredpay: {
-        id: 'alfredpay',
-        name: 'Alfred Pay',
-        description:
-            'Alfred Pay provides fiat on/off ramp services across Latin America, enabling seamless conversion between local currencies and digital assets on the Stellar network.',
-        links: {
-            website: 'https://alfredpay.io',
-            documentation: 'https://alfredpay.readme.io',
-        },
-        knownIssues: [
-            {
-                text: 'The Alfred Pay sandbox allows for testing the customer creation and on-boarding process. However, the sandbox environment does not submit Testnet transactions, meaning tokens will not land the Testnet wallet of your users.',
-            },
-        ],
-        regions: {
-            mexico: {
-                onRamp: true,
-                offRamp: true,
-                paymentRails: ['spei'],
-                tokens: ['USDC'],
-                kycRequired: true,
-            },
-            brazil: {
-                onRamp: true,
-                offRamp: true,
-                paymentRails: ['pix'],
-                tokens: ['USDC'],
-                kycRequired: true,
-            },
-        },
-        devOnboarding: [
-            {
-                text: "Sandbox API credentials can be used immediately. Use example API credentials from Alfred's docs.",
-                link: 'https://alfredpay.readme.io/reference/post_customers-create-1',
-            },
-            { text: 'Staging and Production environments require a fuller onboarding process.' },
-        ],
-        integrationFlow: {
-            onRamp: [
-                {
-                    title: 'Create Customer',
-                    description: 'Register a new customer or look up an existing one by email.',
-                },
-                {
-                    title: 'Submit KYC Form',
-                    description: 'Collect and submit identity data via a form.',
-                },
-                {
-                    title: 'Get Quote',
-                    description: 'Request a quote for the MXN to USDC conversion.',
-                },
-                {
-                    title: 'Create On-Ramp Order',
-                    description: 'Submit the order and receive SPEI payment instructions.',
-                },
-                {
-                    title: 'Transfer Fiat via Bank',
-                    description: 'The user sends MXN via SPEI using the provided payment details.',
-                },
-                {
-                    title: 'Receive USDC',
-                    description: "The anchor delivers USDC to the user's Stellar wallet.",
-                },
-            ],
-            offRamp: [
-                {
-                    title: 'Create Customer + KYC',
-                    description: 'Register and submit identity data via form.',
-                },
-                {
-                    title: 'Get Quote',
-                    description: 'Request a quote for the USDC to MXN conversion.',
-                },
-                {
-                    title: 'Create Off-Ramp Order',
-                    description: 'Submit the off-ramp order to the anchor.',
-                },
-                {
-                    title: 'Build Payment Transaction',
                     description:
-                        "Build a USDC payment transaction to the anchor's Stellar address.",
-                },
-                {
-                    title: 'Sign and Submit',
-                    description:
-                        'Sign with Freighter and submit the transaction to the Stellar network.',
-                },
-                {
-                    title: 'Receive Fiat',
-                    description: "The anchor sends MXN to the user's bank via SPEI.",
-                },
-            ],
-        },
-    },
-    blindpay: {
-        id: 'blindpay',
-        name: 'BlindPay',
-        description:
-            'BlindPay is a global payment infrastructure that enables worldwide money transfers using both traditional fiat currencies and stablecoins.',
-        links: {
-            website: 'https://blindpay.com',
-            documentation: 'https://docs.blindpay.com',
-            dashboard: 'https://app.blindpay.com',
-        },
-        knownIssues: [
-            {
-                text: "USDB Testnet token issuer is incorrect on BlindPay's side — on-ramp blocked past trustline creation.",
-            },
-        ],
-        regions: {
-            mexico: {
-                onRamp: true,
-                offRamp: true,
-                paymentRails: ['spei'],
-                tokens: ['USDB'],
-                kycRequired: true,
-            },
-        },
-        devOnboarding: [
-            {
-                text: 'Development instances can be freely created and used.',
-                link: 'https://app.blindpay.com/',
-            },
-            { text: 'Production instances require developer onboarding and KYB/KYC' },
-        ],
-        integrationFlow: {
-            onRamp: [
-                {
-                    title: 'Accept Terms of Service',
-                    description: "The user must accept the anchor's Terms of Service.",
-                },
-                {
-                    title: 'Create Receiver + KYC',
-                    description: 'Register a receiver and complete KYC via redirect.',
-                },
-                {
-                    title: 'Register Blockchain Wallet',
-                    description: "Register the user's Stellar wallet address with the anchor.",
-                },
-                {
-                    title: 'Get Quote',
-                    description: 'Request a quote for the MXN to USDB conversion.',
-                },
-                {
-                    title: 'Create Payin Order',
-                    description: 'Submit the order and receive SPEI payment instructions.',
-                },
-                {
-                    title: 'Transfer Fiat via Bank',
-                    description: 'The user sends MXN via SPEI using the provided payment details.',
-                },
-                {
-                    title: 'Receive USDB',
-                    description: "The anchor delivers USDB to the user's Stellar wallet.",
-                },
-            ],
-            offRamp: [
-                {
-                    title: 'Accept Terms of Service',
-                    description: "The user must accept the anchor's Terms of Service.",
-                },
-                {
-                    title: 'Create Receiver + KYC',
-                    description: 'Register a receiver and complete KYC via redirect.',
-                },
-                {
-                    title: 'Register Bank Account',
-                    description: "Register the user's bank account details with the anchor.",
-                },
-                {
-                    title: 'Get Quote',
-                    description: 'Request a quote for the USDB to MXN conversion.',
-                },
-                {
-                    title: 'Create Payout Quote',
-                    description: 'Create a payout quote with the anchor.',
-                },
-                {
-                    title: 'Submit Payout',
-                    description:
-                        'Submit the payout to the anchor, which collects tokens and sends fiat via SPEI.',
-                },
-            ],
-        },
-    },
-    abroad: {
-        id: 'abroad',
-        name: 'Abroad Finance',
-        description:
-            'Abroad Finance provides cross-border off-ramp infrastructure, enabling seamless conversion from digital assets to local currencies via instant payment rails like PIX.',
-        links: {
-            website: 'https://abroad.finance',
-            documentation: 'https://docs.abroad.finance',
-        },
-        regions: {
-            brazil: {
-                onRamp: false,
-                offRamp: true,
-                paymentRails: ['pix'],
-                tokens: ['USDC'],
-                kycRequired: true,
-                minAmount: '10',
-                maxAmount: '10000',
-            },
-        },
-        devOnboarding: [
-            {
-                text: 'Contact support@abroad.com to obtain API keys.',
-                link: 'https://docs.abroad.finance',
-            },
-            {
-                text: 'No sandbox environment — test with small live amounts.',
-            },
-        ],
-        integrationFlow: {
-            onRamp: [],
-            offRamp: [
-                {
-                    title: 'Create Customer',
-                    description: 'Register the user via the API.',
-                },
-                {
-                    title: 'Get Quote',
-                    description: 'Request a BRL quote for the USDC amount.',
-                },
-                {
-                    title: 'Create Transaction',
-                    description:
-                        'Submit the off-ramp with bank details and quote. If KYC is required, redirect user to the provided KYC link.',
-                },
-                {
-                    title: 'Sign & Submit Payment',
-                    description:
-                        "Build and sign a USDC payment to Abroad's deposit address with the transaction reference as memo.",
-                },
-                {
-                    title: 'Receive Fiat',
-                    description: "Abroad delivers BRL to the user's bank via PIX.",
-                },
-            ],
-        },
-    },
-    transfero: {
-        id: 'transfero',
-        name: 'Transfero',
-        description:
-            'Transfero provides Banking-as-a-Service infrastructure for fiat on/off ramps in Brazil, and is the issuer of the BRZ stablecoin on Stellar.',
-        links: {
-            website: 'https://transfero.com',
-            documentation: 'https://docs.transfero.com',
-            ramp: 'https://ramp.transfero.com',
-        },
-        regions: {
-            brazil: {
-                onRamp: true,
-                offRamp: true,
-                paymentRails: ['pix'],
-                tokens: ['USDC', 'BRZ'],
-                kycRequired: false,
-            },
-        },
-        devOnboarding: [
-            {
-                text: 'Contact payments-support-br@transfero.com to obtain sandbox API credentials.',
-                link: 'https://docs.transfero.com/reference/getting-started-with-baasic-api',
-            },
-            {
-                text: 'Sandbox environment available at sandbox-api-baasic.transfero.com.',
-            },
-        ],
-        integrationFlow: {
-            onRamp: [
-                {
-                    title: 'Create Customer',
-                    description:
-                        'Register user identity (taxId, name, email) for Transfero API calls.',
-                },
-                {
-                    title: 'Get Quote',
-                    description: 'Request a quote for the BRL to USDC/BRZ conversion.',
-                },
-                {
-                    title: 'Create Swap Order',
-                    description:
-                        "Submit the on-ramp order with quote ID and user's Stellar address.",
-                },
-                {
-                    title: 'Fund via PIX',
-                    description: 'The user sends BRL via PIX using the provided payment details.',
-                },
-                {
-                    title: 'Receive Crypto',
-                    description: "Transfero delivers USDC or BRZ to the user's Stellar wallet.",
-                },
-            ],
-            offRamp: [
-                {
-                    title: 'Create Customer',
-                    description:
-                        'Register user identity (taxId, name, email) for Transfero API calls.',
-                },
-                {
-                    title: 'Register PIX Account',
-                    description: "Register the user's PIX key for fiat withdrawal.",
-                },
-                {
-                    title: 'Preview Off-Ramp',
-                    description:
-                        'Submit preview request with PIX key and quote details. Receive locked quote and deposit address.',
-                },
-                {
-                    title: 'Accept & Sign',
-                    description:
-                        "Accept the preview, then sign a USDC payment to Transfero's deposit address with the provided memo.",
-                },
-                {
-                    title: 'Receive Fiat',
-                    description: "Transfero delivers BRL to the user's bank via PIX.",
+                        "The anchor sends local currency to the user's bank via their payment rail.",
                 },
             ],
         },
@@ -469,4 +185,121 @@ export function getAnchor(id: string): AnchorProfile | undefined {
 
 export function getAllAnchors(): AnchorProfile[] {
     return Object.values(ANCHORS);
+}
+
+// =============================================================================
+// Honorable Mentions
+// =============================================================================
+
+export interface HonorableMention {
+    id: string;
+    name: string;
+    description: string;
+    website: string;
+    tokens: string[];
+    rails: string[];
+    regions: string[];
+    criteria: QualityCriterion[];
+}
+
+function makeCriteria(
+    overrides: Partial<Record<string, { met: boolean; note?: string }>>,
+): QualityCriterion[] {
+    return QUALITY_CRITERIA.map((c) => ({
+        id: c.id,
+        label: c.label,
+        met: overrides[c.id]?.met ?? false,
+        note: overrides[c.id]?.note,
+    }));
+}
+
+export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
+    alfredpay: {
+        id: 'alfredpay',
+        name: 'Alfred Pay',
+        description:
+            'Fiat on/off ramp services across Latin America, enabling conversion between local currencies and USDC on the Stellar network.',
+        website: 'https://alfredpay.io',
+        tokens: ['USDC'],
+        rails: ['spei', 'pix'],
+        regions: ['mexico', 'brazil'],
+        criteria: makeCriteria({
+            'local-asset': { met: false, note: 'USDC only — no locally denominated asset' },
+            'local-rails': { met: true },
+            'competitive-rates': { met: false, note: 'USD-intermediated conversion adds cost' },
+            'open-access': { met: true },
+            'deep-liquidity': {
+                met: false,
+                note: 'USDC has global liquidity but no local-currency depth',
+            },
+        }),
+    },
+    blindpay: {
+        id: 'blindpay',
+        name: 'BlindPay',
+        description:
+            'Global payment infrastructure enabling worldwide money transfers using traditional fiat currencies and stablecoins.',
+        website: 'https://blindpay.com',
+        tokens: ['USDB'],
+        rails: ['spei'],
+        regions: ['mexico'],
+        criteria: makeCriteria({
+            'local-asset': { met: false, note: 'USDB is a USD-pegged test token' },
+            'local-rails': { met: true },
+            'competitive-rates': { met: false },
+            'open-access': { met: true },
+            'deep-liquidity': { met: false, note: 'USDB has minimal on-chain liquidity' },
+        }),
+    },
+    abroad: {
+        id: 'abroad',
+        name: 'Abroad Finance',
+        description:
+            'Cross-border off-ramp infrastructure enabling conversion from digital assets to BRL via PIX.',
+        website: 'https://abroad.finance',
+        tokens: ['USDC'],
+        rails: ['pix'],
+        regions: ['brazil'],
+        criteria: makeCriteria({
+            'local-asset': { met: false, note: 'USDC only — no locally denominated asset' },
+            'local-rails': { met: true },
+            'competitive-rates': { met: false, note: 'USD-intermediated conversion adds cost' },
+            'open-access': { met: true },
+            'deep-liquidity': {
+                met: false,
+                note: 'USDC has global liquidity but no local-currency depth',
+            },
+        }),
+    },
+    transfero: {
+        id: 'transfero',
+        name: 'Transfero',
+        description:
+            'Banking-as-a-Service infrastructure for fiat on/off ramps in Brazil. Issuer of the BRZ stablecoin on Stellar.',
+        website: 'https://transfero.com',
+        tokens: ['USDC', 'BRZ'],
+        rails: ['pix'],
+        regions: ['brazil'],
+        criteria: makeCriteria({
+            'local-asset': {
+                met: false,
+                note: 'BRZ is locally denominated but does not meet all criteria',
+            },
+            'local-rails': { met: true },
+            'competitive-rates': { met: false },
+            'open-access': {
+                met: false,
+                note: 'Sandbox requires contacting support for credentials',
+            },
+            'deep-liquidity': { met: false, note: 'Limited on-chain BRZ liquidity' },
+        }),
+    },
+};
+
+export function getHonorableMentionsForRegion(regionId: string): HonorableMention[] {
+    return Object.values(HONORABLE_MENTIONS).filter((hm) => hm.regions.includes(regionId));
+}
+
+export function getAllHonorableMentions(): HonorableMention[] {
+    return Object.values(HONORABLE_MENTIONS);
 }

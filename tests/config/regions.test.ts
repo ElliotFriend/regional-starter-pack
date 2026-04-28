@@ -34,12 +34,16 @@ describe('getRegion', () => {
         expect(railIds).toContain('pix');
     });
 
-    it('Brazil has alfredpay, abroad, and transfero anchors', () => {
+    it('Brazil has etherfuse as its anchor', () => {
         const region = getRegion('brazil');
         expect(region).toBeDefined();
-        expect(region!.anchors).toContain('alfredpay');
-        expect(region!.anchors).toContain('abroad');
-        expect(region!.anchors).toContain('transfero');
+        expect(region!.anchors).toEqual(['etherfuse']);
+    });
+
+    it('Mexico has etherfuse as its only anchor', () => {
+        const region = getRegion('mexico');
+        expect(region).toBeDefined();
+        expect(region!.anchors).toEqual(['etherfuse']);
     });
 
     it('returns undefined for nonexistent region', () => {
@@ -58,22 +62,16 @@ describe('getAllRegions', () => {
 });
 
 describe('getAnchorsForRegion', () => {
-    it('returns all 3 anchors for Mexico', () => {
+    it('returns only Etherfuse for Mexico', () => {
         const anchors = getAnchorsForRegion('mexico');
-        expect(anchors).toHaveLength(3);
-        const ids = anchors.map((a) => a.id);
-        expect(ids).toContain('etherfuse');
-        expect(ids).toContain('alfredpay');
-        expect(ids).toContain('blindpay');
+        expect(anchors).toHaveLength(1);
+        expect(anchors[0].id).toBe('etherfuse');
     });
 
-    it('returns alfredpay, abroad, and transfero for Brazil', () => {
+    it('returns only Etherfuse for Brazil', () => {
         const anchors = getAnchorsForRegion('brazil');
-        expect(anchors).toHaveLength(3);
-        const ids = anchors.map((a) => a.id);
-        expect(ids).toContain('alfredpay');
-        expect(ids).toContain('abroad');
-        expect(ids).toContain('transfero');
+        expect(anchors).toHaveLength(1);
+        expect(anchors[0].id).toBe('etherfuse');
     });
 
     it('returns empty array for nonexistent region', () => {
@@ -82,36 +80,19 @@ describe('getAnchorsForRegion', () => {
 });
 
 describe('getRegionsForAnchor', () => {
-    it('returns Mexico for etherfuse', () => {
+    it('returns Mexico and Brazil for etherfuse', () => {
         const regions = getRegionsForAnchor('etherfuse');
-        expect(regions).toHaveLength(1);
-        expect(regions[0].id).toBe('mexico');
-    });
-
-    it('returns Mexico and Brazil for alfredpay', () => {
-        const regions = getRegionsForAnchor('alfredpay');
         expect(regions).toHaveLength(2);
         const ids = regions.map((r) => r.id);
         expect(ids).toContain('mexico');
         expect(ids).toContain('brazil');
     });
 
-    it('returns Brazil for abroad', () => {
-        const regions = getRegionsForAnchor('abroad');
-        expect(regions).toHaveLength(1);
-        expect(regions[0].id).toBe('brazil');
-    });
-
-    it('returns Brazil for transfero', () => {
-        const regions = getRegionsForAnchor('transfero');
-        expect(regions).toHaveLength(1);
-        expect(regions[0].id).toBe('brazil');
-    });
-
-    it('returns Mexico for blindpay', () => {
-        const regions = getRegionsForAnchor('blindpay');
-        expect(regions).toHaveLength(1);
-        expect(regions[0].id).toBe('mexico');
+    it('returns empty array for removed anchors', () => {
+        expect(getRegionsForAnchor('alfredpay')).toEqual([]);
+        expect(getRegionsForAnchor('blindpay')).toEqual([]);
+        expect(getRegionsForAnchor('abroad')).toEqual([]);
+        expect(getRegionsForAnchor('transfero')).toEqual([]);
     });
 
     it('returns empty array for nonexistent anchor', () => {

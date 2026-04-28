@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { getAnchor, getAllAnchors } from '$lib/config/anchors';
+import {
+    getAnchor,
+    getAllAnchors,
+    QUALITY_CRITERIA,
+    HONORABLE_MENTIONS,
+    getHonorableMentionsForRegion,
+    getAllHonorableMentions,
+} from '$lib/config/anchors';
 
 describe('getAnchor', () => {
     it('returns Etherfuse profile', () => {
@@ -9,82 +16,32 @@ describe('getAnchor', () => {
         expect(anchor!.name).toBe('Etherfuse');
     });
 
-    it('returns AlfredPay profile', () => {
-        const anchor = getAnchor('alfredpay');
+    it('Etherfuse has mexico region with on and off ramp', () => {
+        const anchor = getAnchor('etherfuse');
         expect(anchor).toBeDefined();
-        expect(anchor!.id).toBe('alfredpay');
+        expect(anchor!.regions.mexico).toBeDefined();
+        expect(anchor!.regions.mexico.onRamp).toBe(true);
+        expect(anchor!.regions.mexico.offRamp).toBe(true);
+        expect(anchor!.regions.mexico.paymentRails).toContain('spei');
+        expect(anchor!.regions.mexico.tokens).toContain('CETES');
     });
 
-    it('returns BlindPay profile', () => {
-        const anchor = getAnchor('blindpay');
-        expect(anchor).toBeDefined();
-        expect(anchor!.id).toBe('blindpay');
-    });
-
-    it('returns Abroad Finance profile', () => {
-        const anchor = getAnchor('abroad');
-        expect(anchor).toBeDefined();
-        expect(anchor!.id).toBe('abroad');
-        expect(anchor!.name).toBe('Abroad Finance');
-    });
-
-    it('Abroad profile has brazil region with offRamp only', () => {
-        const anchor = getAnchor('abroad');
-        expect(anchor).toBeDefined();
-        expect(anchor!.regions.brazil).toBeDefined();
-        expect(anchor!.regions.brazil.offRamp).toBe(true);
-        expect(anchor!.regions.brazil.onRamp).toBe(false);
-    });
-
-    it('Abroad brazil region has pix rail and USDC token', () => {
-        const anchor = getAnchor('abroad');
-        expect(anchor).toBeDefined();
-        expect(anchor!.regions.brazil.paymentRails).toContain('pix');
-        expect(anchor!.regions.brazil.tokens).toContain('USDC');
-    });
-
-    it('AlfredPay has brazil region with on and off ramp', () => {
-        const anchor = getAnchor('alfredpay');
+    it('Etherfuse has brazil region as coming soon', () => {
+        const anchor = getAnchor('etherfuse');
         expect(anchor).toBeDefined();
         expect(anchor!.regions.brazil).toBeDefined();
         expect(anchor!.regions.brazil.onRamp).toBe(true);
         expect(anchor!.regions.brazil.offRamp).toBe(true);
-    });
-
-    it('AlfredPay brazil region has pix rail and USDC token', () => {
-        const anchor = getAnchor('alfredpay');
-        expect(anchor).toBeDefined();
         expect(anchor!.regions.brazil.paymentRails).toContain('pix');
-        expect(anchor!.regions.brazil.tokens).toContain('USDC');
+        expect(anchor!.regions.brazil.tokens).toContain('TESOURO');
+        expect(anchor!.regions.brazil.comingSoon).toBe(true);
     });
 
-    it('returns Transfero profile', () => {
-        const anchor = getAnchor('transfero');
-        expect(anchor).toBeDefined();
-        expect(anchor!.id).toBe('transfero');
-        expect(anchor!.name).toBe('Transfero');
-    });
-
-    it('Transfero has brazil region with on and off ramp', () => {
-        const anchor = getAnchor('transfero');
-        expect(anchor).toBeDefined();
-        expect(anchor!.regions.brazil).toBeDefined();
-        expect(anchor!.regions.brazil.onRamp).toBe(true);
-        expect(anchor!.regions.brazil.offRamp).toBe(true);
-    });
-
-    it('Transfero brazil region has pix rail and USDC + BRZ tokens', () => {
-        const anchor = getAnchor('transfero');
-        expect(anchor).toBeDefined();
-        expect(anchor!.regions.brazil.paymentRails).toContain('pix');
-        expect(anchor!.regions.brazil.tokens).toContain('USDC');
-        expect(anchor!.regions.brazil.tokens).toContain('BRZ');
-    });
-
-    it('Transfero brazil does not require KYC', () => {
-        const anchor = getAnchor('transfero');
-        expect(anchor).toBeDefined();
-        expect(anchor!.regions.brazil.kycRequired).toBe(false);
+    it('does not return removed anchors', () => {
+        expect(getAnchor('alfredpay')).toBeUndefined();
+        expect(getAnchor('blindpay')).toBeUndefined();
+        expect(getAnchor('abroad')).toBeUndefined();
+        expect(getAnchor('transfero')).toBeUndefined();
     });
 
     it('returns undefined for nonexistent anchor', () => {
@@ -93,14 +50,109 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns all 5 anchors', () => {
+    it('returns only Etherfuse', () => {
         const anchors = getAllAnchors();
-        expect(anchors).toHaveLength(5);
-        const ids = anchors.map((a) => a.id);
-        expect(ids).toContain('etherfuse');
+        expect(anchors).toHaveLength(1);
+        expect(anchors[0].id).toBe('etherfuse');
+    });
+});
+
+describe('QUALITY_CRITERIA', () => {
+    it('has 5 criteria', () => {
+        expect(QUALITY_CRITERIA).toHaveLength(5);
+    });
+
+    it('has expected criteria IDs', () => {
+        const ids = QUALITY_CRITERIA.map((c) => c.id);
+        expect(ids).toContain('local-asset');
+        expect(ids).toContain('local-rails');
+        expect(ids).toContain('competitive-rates');
+        expect(ids).toContain('open-access');
+        expect(ids).toContain('deep-liquidity');
+    });
+
+    it('each criterion has id and label', () => {
+        for (const criterion of QUALITY_CRITERIA) {
+            expect(criterion.id).toBeTruthy();
+            expect(criterion.label).toBeTruthy();
+        }
+    });
+});
+
+describe('HONORABLE_MENTIONS', () => {
+    it('has 4 entries', () => {
+        const mentions = Object.keys(HONORABLE_MENTIONS);
+        expect(mentions).toHaveLength(4);
+    });
+
+    it('includes alfredpay', () => {
+        const mention = HONORABLE_MENTIONS['alfredpay'];
+        expect(mention).toBeDefined();
+        expect(mention.name).toBe('Alfred Pay');
+        expect(mention.website).toBeTruthy();
+        expect(mention.regions).toContain('mexico');
+        expect(mention.regions).toContain('brazil');
+    });
+
+    it('includes blindpay', () => {
+        const mention = HONORABLE_MENTIONS['blindpay'];
+        expect(mention).toBeDefined();
+        expect(mention.name).toBe('BlindPay');
+        expect(mention.regions).toContain('mexico');
+    });
+
+    it('includes abroad', () => {
+        const mention = HONORABLE_MENTIONS['abroad'];
+        expect(mention).toBeDefined();
+        expect(mention.name).toBe('Abroad Finance');
+        expect(mention.regions).toContain('brazil');
+    });
+
+    it('includes transfero', () => {
+        const mention = HONORABLE_MENTIONS['transfero'];
+        expect(mention).toBeDefined();
+        expect(mention.name).toBe('Transfero');
+        expect(mention.regions).toContain('brazil');
+    });
+
+    it('each mention has criteria array with 5 items', () => {
+        for (const mention of Object.values(HONORABLE_MENTIONS)) {
+            expect(mention.criteria).toHaveLength(5);
+            for (const criterion of mention.criteria) {
+                expect(criterion.id).toBeTruthy();
+                expect(criterion.label).toBeTruthy();
+                expect(typeof criterion.met).toBe('boolean');
+            }
+        }
+    });
+});
+
+describe('getHonorableMentionsForRegion', () => {
+    it('returns alfredpay and blindpay for mexico', () => {
+        const mentions = getHonorableMentionsForRegion('mexico');
+        expect(mentions).toHaveLength(2);
+        const ids = mentions.map((m) => m.id);
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('blindpay');
+    });
+
+    it('returns alfredpay, abroad, and transfero for brazil', () => {
+        const mentions = getHonorableMentionsForRegion('brazil');
+        expect(mentions).toHaveLength(3);
+        const ids = mentions.map((m) => m.id);
+        expect(ids).toContain('alfredpay');
         expect(ids).toContain('abroad');
         expect(ids).toContain('transfero');
+    });
+
+    it('returns empty array for nonexistent region', () => {
+        expect(getHonorableMentionsForRegion('nonexistent')).toEqual([]);
+    });
+});
+
+describe('getAllHonorableMentions', () => {
+    it('returns all 4 honorable mentions', () => {
+        const mentions = getAllHonorableMentions();
+        expect(mentions).toHaveLength(4);
     });
 });
