@@ -70,19 +70,36 @@ export interface EtherfuseOrderRequest {
     memo?: string;
 }
 
+/** SPEI-shaped account body for Mexican (CLABE) bank-account registration. */
+export interface EtherfuseSpeiAccountBody {
+    /** 18-digit CLABE interbank code. */
+    clabe: string;
+    /** Name of the account beneficiary. */
+    beneficiary: string;
+    /** Name of the bank. */
+    bankName?: string;
+}
+
+/** PIX-shaped account body for Brazilian bank-account registration. */
+export interface EtherfusePixAccountBody {
+    /** PIX key (CPF, CNPJ, email, phone, or random/EVP UUID). */
+    pixKey: string;
+    /** PIX key type: `'evp'` (random UUID), `'cpf'`, `'cnpj'`, `'email'`, or `'phone'`. */
+    pixKeyType: string;
+    /** First name of the account holder (matches CPF registration). */
+    firstName: string;
+    /** Last name of the account holder. */
+    lastName: string;
+    /** 11-digit CPF (Brazilian individual tax ID). */
+    cpf: string;
+}
+
 /** Request body for `POST /ramp/bank-account`. */
 export interface EtherfuseBankAccountRequest {
     /** Presigned onboarding URL that authenticates this request. */
     presignedUrl: string;
-    /** Bank account details. */
-    account: {
-        /** 18-digit CLABE interbank code. */
-        clabe: string;
-        /** Name of the account beneficiary. */
-        beneficiary: string;
-        /** Name of the bank. */
-        bankName?: string;
-    };
+    /** Bank account details — discriminated by which fields are present. */
+    account: EtherfuseSpeiAccountBody | EtherfusePixAccountBody;
 }
 
 /** Request body for `POST /ramp/customer/{id}/kyc` (programmatic KYC identity submission). */
@@ -205,15 +222,25 @@ export interface EtherfuseDepositDetails {
     currency: string;
 }
 
-/** Response from `POST /ramp/order` (on-ramp creation). */
+/** Response from `POST /ramp/order` (on-ramp creation). Carries either SPEI or PIX deposit fields. */
 export interface EtherfuseCreateOnRampResponse {
     onramp: {
         /** Order ID echoed back. */
         orderId: string;
-        /** CLABE for SPEI deposit. */
-        depositClabe: string;
-        /** Amount to deposit. */
+        /** Amount to deposit (in fiat). */
         depositAmount: string;
+        /** CLABE for SPEI deposit (Mexico). */
+        depositClabe?: string;
+        /** Name of the receiving bank (Mexico). */
+        bankName?: string;
+        /** Name of the account beneficiary (both rails). */
+        beneficiary?: string;
+        /** PIX key for direct transfer (Brazil). */
+        depositPixKey?: string;
+        /** PIX key type (Brazil): `'evp'`, `'cpf'`, `'cnpj'`, `'email'`, or `'phone'`. */
+        depositPixKeyType?: string;
+        /** PIX BR-Code / EMV copy-paste string (Brazil). */
+        depositPixCode?: string;
     };
 }
 
@@ -239,7 +266,7 @@ export interface EtherfuseOrderResponse {
     deletedAt?: string;
     /** ISO 8601 completion timestamp. */
     completedAt?: string;
-    /** Amount in fiat currency (MXN). */
+    /** Amount in the order's fiat currency (MXN or BRL). */
     amountInFiat?: string;
     /** Amount in crypto tokens. */
     amountInTokens?: string;
@@ -253,8 +280,14 @@ export interface EtherfuseOrderResponse {
     burnTransaction?: string;
     /** Optional memo for the order. */
     memo?: string;
-    /** CLABE number for deposit (on-ramp orders only). */
+    /** CLABE number for deposit (Mexican on-ramp orders only). */
     depositClabe?: string;
+    /** PIX key for deposit (Brazilian on-ramp orders only). */
+    depositPixKey?: string;
+    /** PIX key type for deposit (Brazilian on-ramp orders only). */
+    depositPixKeyType?: string;
+    /** PIX BR-Code / EMV copy-paste string for deposit (Brazilian on-ramp orders only). */
+    depositPixCode?: string;
     /** Order type. */
     orderType: 'onramp' | 'offramp';
     /** Current order status. */
@@ -309,7 +342,7 @@ export interface EtherfuseKycStatusResponse {
     approvedAt?: string | null;
 }
 
-/** Response from `POST /ramp/bank-account`. */
+/** Response from `POST /ramp/bank-account`. Carries either SPEI or PIX fields depending on the rail. */
 export interface EtherfuseBankAccountResponse {
     /** Bank account ID. */
     bankAccountId: string;
@@ -319,10 +352,16 @@ export interface EtherfuseBankAccountResponse {
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
     updatedAt: string;
-    /** Abbreviated CLABE. */
+    /** Abbreviated CLABE (Mexico). */
     abbrClabe?: string;
-    /** Etherfuse deposit CLABE. */
+    /** Etherfuse deposit CLABE (Mexico). */
     etherfuseDepositClabe?: string;
+    /** PIX key (Brazil). */
+    pixKey?: string;
+    /** PIX key type (Brazil). */
+    pixKeyType?: string;
+    /** Account holder full name (Brazil). */
+    accountHolderName?: string;
     /** Whether the account is compliant. */
     compliant?: boolean;
     /** Account status. */
@@ -357,10 +396,16 @@ export interface EtherfuseBankAccountListItem {
     updatedAt: string;
     /** ISO 8601 deletion timestamp, if applicable. */
     deletedAt?: string | null;
-    /** Abbreviated CLABE (e.g. "1067...8699"). */
-    abbrClabe: string;
-    /** Etherfuse deposit CLABE for receiving funds. */
-    etherfuseDepositClabe: string;
+    /** Abbreviated CLABE (Mexico, e.g. "1067...8699"). */
+    abbrClabe?: string;
+    /** Etherfuse deposit CLABE for receiving funds (Mexico). */
+    etherfuseDepositClabe?: string;
+    /** PIX key (Brazil). */
+    pixKey?: string;
+    /** PIX key type (Brazil). */
+    pixKeyType?: string;
+    /** Account holder full name (Brazil). */
+    accountHolderName?: string;
     /** Human-readable label. */
     label?: string | null;
     /** Whether the account is compliant. */

@@ -26,7 +26,7 @@ describe('getAnchor', () => {
         expect(anchor!.regions.mexico.tokens).toContain('CETES');
     });
 
-    it('Etherfuse has brazil region as coming soon', () => {
+    it('Etherfuse has brazil region with on and off ramp via PIX/TESOURO', () => {
         const anchor = getAnchor('etherfuse');
         expect(anchor).toBeDefined();
         expect(anchor!.regions.brazil).toBeDefined();
@@ -34,7 +34,7 @@ describe('getAnchor', () => {
         expect(anchor!.regions.brazil.offRamp).toBe(true);
         expect(anchor!.regions.brazil.paymentRails).toContain('pix');
         expect(anchor!.regions.brazil.tokens).toContain('TESOURO');
-        expect(anchor!.regions.brazil.comingSoon).toBe(true);
+        expect(anchor!.regions.brazil.comingSoon).toBeFalsy();
     });
 
     it('does not return removed anchors', () => {

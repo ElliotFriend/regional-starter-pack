@@ -93,6 +93,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
+                text: 'Support for PIX ramping in Brazil is currently Sandbox only, and not documented all that well. The Etherfuse API is baseline working for this, but is a bit of a work-in-progress still.',
+            },
+            {
                 text: 'If you try to create your customers through API calls, submitting the various "agreements" via POST requests to Etherfuse currently fails with a 406 error. This blocks customer KYC via these API methods. The Onboarding URL approach still works.',
             },
         ],
@@ -110,7 +113,6 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 paymentRails: ['pix'],
                 tokens: ['TESOURO'],
                 kycRequired: true,
-                comingSoon: true,
             },
         },
         devOnboarding: [

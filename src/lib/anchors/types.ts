@@ -27,6 +27,9 @@ export interface Customer {
     email?: string;
     /** Current KYC verification status. */
     kycStatus: KycStatus;
+    /** ISO 3166-1 alpha-2 country code the customer registered with (e.g. `"MX"`, `"BR"`).
+     *  Used to drive region-specific UI (currency, payment rail, asset) for returning customers. */
+    country?: string;
     /** Bank account ID — generated at registration time for providers that require it (e.g. Etherfuse). */
     bankAccountId?: string;
     /** Blockchain wallet ID — generated at registration time for providers that require it (e.g. BlindPay). */
@@ -89,9 +92,11 @@ export interface SpeiPaymentInstructions extends PaymentInstructionsBase {
 export interface PixPaymentInstructions extends PaymentInstructionsBase {
     /** Discriminant for the PIX rail. */
     type: 'pix';
-    /** PIX code (key or QR code string). */
+    /** PIX BR-Code / EMV copy-paste string for QR or pasted entry into a banking app. */
     pixCode: string;
-    /** PIX key type (e.g. `"cpf"`, `"cnpj"`, `"email"`, `"phone"`, `"random"`). */
+    /** PIX key (the underlying identity — CPF, CNPJ, email, phone, or EVP UUID) for manual transfers. */
+    pixKey?: string;
+    /** PIX key type (e.g. `"evp"`, `"cpf"`, `"cnpj"`, `"email"`, `"phone"`). */
     pixKeyType?: string;
     /** Name of the account beneficiary. */
     beneficiary?: string;

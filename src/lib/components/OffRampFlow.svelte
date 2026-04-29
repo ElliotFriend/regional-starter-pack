@@ -86,8 +86,10 @@ Usage:
     let taxId = $state('');
     let accountHolderName = $state('');
 
-    // Derive payment rail from region data
-    const paymentRail = $derived(page.data.regions?.[0]?.paymentRails?.[0]?.id || 'spei');
+    // Derive payment rail from the active region (set via ?region= URL param
+    // or the country dropdown on the registration step). Falls back to SPEI
+    // for backwards-compatibility when neither is available.
+    const paymentRail = $derived(page.data.paymentRail ?? 'spei');
 
     // Steps: 'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
     let step = $state<
