@@ -1,6 +1,11 @@
 # Etherfuse Client
 
-Server-side TypeScript client for the [Etherfuse](https://etherfuse.com) anchor API. Handles fiat on/off ramps between MXN and Stellar-based assets (USDC, CETES) via Mexico's SPEI payment system.
+Server-side TypeScript client for the [Etherfuse](https://etherfuse.com) anchor API. Handles fiat on/off ramps in two regions:
+
+- **Mexico** — MXN ↔ CETES on Stellar via the SPEI payment rail.
+- **Brazil** — BRL ↔ TESOURO on Stellar via the PIX payment rail.
+
+Both regions use the same `EtherfuseClient` and the same Stellar issuer for the stablebond assets; the client dispatches between SPEI- and PIX-shaped request/response bodies based on the input rail.
 
 **This client must only run on the server.** It authenticates with an API key that should never be exposed to browsers.
 
@@ -21,17 +26,15 @@ Every Etherfuse integration follows the same sequence of steps. Both on-ramp and
 3. **Quote** - Request a price quote for the conversion. Quotes expire after **2 minutes**.
 4. **Order creation** - Create an on-ramp or off-ramp order using the quote.
 5. **Fulfillment** - Depends on the direction:
-    - **On-ramp:** The user sends MXN to a CLABE via SPEI. Once Etherfuse confirms receipt, the crypto asset is minted/transferred to the user's Stellar wallet.
-    - **Off-ramp:** Etherfuse prepares a burn transaction (base64 XDR). The user signs it with their wallet (e.g. Freighter) and submits it to the Stellar network. Once confirmed on-chain, Etherfuse transfers MXN to the user's linked bank account.
+    - **On-ramp:** The user sends fiat to the deposit instructions returned in the order — a CLABE via SPEI in Mexico, or a PIX key / BR-Code (EMV copy-paste string) in Brazil. Once Etherfuse confirms receipt, the crypto asset is minted/transferred to the user's Stellar wallet.
+    - **Off-ramp:** Etherfuse prepares a burn transaction (base64 XDR). The user signs it with their wallet (e.g. Freighter) and submits it to the Stellar network. Once confirmed on-chain, Etherfuse transfers fiat to the user's linked bank account via the appropriate rail.
 6. **Status polling** - Poll `GET /ramp/order/{id}` to track the order through `created -> funded -> completed`.
 
 ## Supported Assets and Currencies
 
-- **Fiat:** MXN (Mexican Peso), transferred via SPEI
-- **Crypto:** USDC and CETES on the Stellar network (in `CODE:ISSUER` format)
-- **Ramp types:** on-ramp (fiat -> crypto), off-ramp (crypto -> fiat), swap (crypto -> crypto)
-
-This client supports on-ramp and off-ramp. Swaps are not currently implemented.
+- **Fiat:** MXN (Mexican Peso) via SPEI; BRL (Brazilian Real) via PIX.
+- **Crypto:** CETES (Mexico) and TESOURO (Brazil) on the Stellar network — both issued by the same Etherfuse issuer account, plus USDC. Asset codes are resolved to `CODE:ISSUER` automatically.
+- **Ramp types:** on-ramp (fiat → crypto) and off-ramp (crypto → fiat). Swaps are not currently implemented.
 
 ## Fee Structure
 
@@ -173,11 +176,12 @@ const quote = await etherfuse.getQuote({
 
 Short currency codes like `CETES` are automatically resolved to their full `CODE:ISSUER` identifiers via `GET /ramp/assets`. Codes that already contain `:` pass through unchanged.
 
-### 4. On-Ramp (MXN -> Crypto)
+### 4. On-Ramp (Fiat → Crypto)
 
-User pays MXN via SPEI and receives crypto tokens on Stellar.
+User pays fiat via SPEI (Mexico) or PIX (Brazil) and receives stablebond tokens on Stellar.
 
 ```typescript
+// Mexico: MXN → CETES via SPEI
 const tx = await etherfuse.createOnRamp({
     customerId: customer.id,
     quoteId: quote.id,
@@ -187,32 +191,54 @@ const tx = await etherfuse.createOnRamp({
     stellarAddress: 'G...', // user's Stellar public key
 });
 
-// tx.paymentInstructions contains the SPEI deposit details:
-//   .clabe - 18-digit CLABE to send the transfer to
-//   .amount - exact amount to transfer
-//   .currency - fiat currency code
+// Brazil: BRL → TESOURO via PIX
+const tx = await etherfuse.createOnRamp({
+    customerId: customer.id,
+    quoteId: quote.id,
+    fromCurrency: 'BRL',
+    toCurrency: 'TESOURO:GC3CW7ED...',
+    amount: '100',
+    stellarAddress: 'G...',
+});
 ```
 
-The user sends MXN to the provided CLABE via SPEI. Once Etherfuse confirms receipt, the order moves to `funded` and the crypto asset is minted/transferred to the user's Stellar wallet. Poll for status updates:
+`tx.paymentInstructions` is a discriminated union — `type: 'spei'` carries `clabe`/`bankName`/`beneficiary`, while `type: 'pix'` carries `pixKey`/`pixCode` (the BR-Code/EMV copy-paste string)/`pixKeyType`. Both also include `amount` and `currency`.
+
+The user completes the fiat transfer using the rail-appropriate details. Once Etherfuse confirms receipt, the order moves to `funded` and the crypto asset is minted/transferred to the user's Stellar wallet. Poll for status updates:
 
 ```typescript
 const updated = await etherfuse.getOnRampTransaction(tx.id);
 // updated.status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'refunded'
 ```
 
-### 5. Off-Ramp (Crypto -> MXN)
+### 5. Off-Ramp (Crypto → Fiat)
 
-User burns crypto tokens on Stellar and receives MXN to their bank account. The off-ramp flow has a **deferred signing** step - the burn transaction XDR is not included in the creation response and must be polled for.
+User burns crypto tokens on Stellar and receives fiat to their bank account via SPEI (Mexico) or PIX (Brazil). The off-ramp flow has a **deferred signing** step — the burn transaction XDR is not included in the creation response and must be polled for.
 
 ```typescript
-// Register the user's bank account (if not already registered)
+// Register a Mexican (SPEI) bank account
 const account = await etherfuse.registerFiatAccount({
     customerId: customer.id,
+    publicKey: 'G...',
     account: {
         type: 'spei',
         bankName: 'BBVA',
         clabe: '012345678901234567',
         beneficiary: 'Jane Doe',
+    },
+});
+
+// ... or a Brazilian (PIX) bank account. The shared accountHolderName is split
+// into firstName/lastName for the Etherfuse PIX request body.
+const account = await etherfuse.registerFiatAccount({
+    customerId: customer.id,
+    publicKey: 'G...',
+    account: {
+        type: 'pix',
+        pixKey: '4465393f-f1b6-4838-9b6b-0be33b228390',
+        pixKeyType: 'evp', // 'evp' (random UUID) | 'cpf' | 'cnpj' | 'email' | 'phone'
+        taxId: '37155878661', // 11-digit CPF
+        accountHolderName: 'Jane Doe',
     },
 });
 

@@ -109,7 +109,6 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 paymentRails: ['pix'],
                 tokens: ['TESOURO'],
                 kycRequired: true,
-                comingSoon: true,
             },
         },
         devOnboarding: [

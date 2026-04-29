@@ -89,9 +89,11 @@ export interface SpeiPaymentInstructions extends PaymentInstructionsBase {
 export interface PixPaymentInstructions extends PaymentInstructionsBase {
     /** Discriminant for the PIX rail. */
     type: 'pix';
-    /** PIX code (key or QR code string). */
+    /** PIX BR-Code / EMV copy-paste string for QR or pasted entry into a banking app. */
     pixCode: string;
-    /** PIX key type (e.g. `"cpf"`, `"cnpj"`, `"email"`, `"phone"`, `"random"`). */
+    /** PIX key (the underlying identity — CPF, CNPJ, email, phone, or EVP UUID) for manual transfers. */
+    pixKey?: string;
+    /** PIX key type (e.g. `"evp"`, `"cpf"`, `"cnpj"`, `"email"`, `"phone"`). */
     pixKeyType?: string;
     /** Name of the account beneficiary. */
     beneficiary?: string;

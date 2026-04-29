@@ -452,29 +452,6 @@ describe('registerFiatAccount', () => {
             expect(anchorErr.statusCode).toBe(400);
         }
     });
-
-    it('throws UNSUPPORTED_RAIL when a PIX account is provided', async () => {
-        const client = createClient();
-
-        try {
-            await client.registerFiatAccount({
-                customerId: 'cust-1',
-                publicKey: STELLAR_PUBKEY,
-                account: {
-                    type: 'pix',
-                    pixKey: 'user@example.com',
-                    taxId: '12345678901',
-                    accountHolderName: 'Test User',
-                },
-            });
-            expect.unreachable('should have thrown');
-        } catch (err) {
-            expect(err).toBeInstanceOf(AnchorError);
-            const anchorErr = err as AnchorError;
-            expect(anchorErr.code).toBe('UNSUPPORTED_RAIL');
-            expect(anchorErr.statusCode).toBe(400);
-        }
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -2820,15 +2797,6 @@ describe('client static properties', () => {
         expect(token?.description).toBeTruthy();
     });
 
-    it('lists TESOURO as a coming-soon token (no issuer yet)', () => {
-        const client = createClient();
-        const token = client.supportedTokens.find((t) => t.symbol === 'TESOURO');
-        expect(token).toBeDefined();
-        expect(token?.name).toBe('Etherfuse TESOURO');
-        expect(token?.issuer).toBeUndefined();
-        expect(token?.description).toBeTruthy();
-    });
-
     it('supports MXN and BRL currencies', () => {
         const client = createClient();
         expect(client.supportedCurrencies).toEqual(['MXN', 'BRL']);
@@ -3941,5 +3909,378 @@ describe('createOffRamp() unified EtherfuseOrderRequest body', () => {
         });
 
         expect(capturedBody!.memo).toBe('off-ramp-ref-123');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Brazil / PIX
+// ---------------------------------------------------------------------------
+
+describe('Brazil / PIX support', () => {
+    describe('getQuote currency parameterization', () => {
+        it('queries /ramp/assets with currency=brl when fromCurrency is BRL', async () => {
+            const client = createClient();
+            let capturedCurrency: string | null = null;
+
+            server.use(
+                http.get(`${BASE_URL}/ramp/assets`, ({ request }) => {
+                    const url = new URL(request.url);
+                    capturedCurrency = url.searchParams.get('currency');
+                    return HttpResponse.json({
+                        assets: [
+                            {
+                                symbol: 'TESOURO',
+                                identifier:
+                                    'TESOURO:GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4',
+                                name: 'TESOURO Token',
+                                currency: null,
+                                balance: null,
+                                image: null,
+                            },
+                            {
+                                symbol: 'BRL',
+                                identifier: 'BRL',
+                                name: 'Brazilian Real',
+                                currency: 'BRL',
+                                balance: null,
+                                image: null,
+                            },
+                        ],
+                    });
+                }),
+                http.post(`${BASE_URL}/ramp/quote`, () => {
+                    return HttpResponse.json({
+                        quoteId: 'quote-brl-1',
+                        customerId: 'cust-1',
+                        blockchain: 'stellar',
+                        quoteAssets: {
+                            type: 'onramp',
+                            sourceAsset: 'BRL',
+                            targetAsset:
+                                'TESOURO:GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4',
+                        },
+                        sourceAmount: '100',
+                        destinationAmount: '20',
+                        destinationAmountAfterFee: '19.8',
+                        exchangeRate: '0.2',
+                        feeBps: '100',
+                        feeAmount: '0.2',
+                        expiresAt: '2025-07-01T00:00:00Z',
+                        createdAt: '2025-06-30T00:00:00Z',
+                        updatedAt: '2025-06-30T00:00:00Z',
+                    });
+                }),
+            );
+
+            await client.getQuote({
+                fromCurrency: 'BRL',
+                toCurrency: 'TESOURO',
+                fromAmount: '100',
+                customerId: 'cust-1',
+                stellarAddress: STELLAR_PUBKEY,
+            });
+
+            expect(capturedCurrency).toBe('brl');
+        });
+
+        it('queries /ramp/assets with currency=mxn when fromCurrency is MXN (regression)', async () => {
+            const client = createClient();
+            let capturedCurrency: string | null = null;
+
+            server.use(
+                http.get(`${BASE_URL}/ramp/assets`, ({ request }) => {
+                    const url = new URL(request.url);
+                    capturedCurrency = url.searchParams.get('currency');
+                    return HttpResponse.json({
+                        assets: [
+                            {
+                                symbol: 'CETES',
+                                identifier: 'CETES:GCRYUGD5ISSUER',
+                                name: 'CETES Token',
+                                currency: null,
+                                balance: null,
+                                image: null,
+                            },
+                            {
+                                symbol: 'MXN',
+                                identifier: 'MXN',
+                                name: 'Mexican Peso',
+                                currency: 'MXN',
+                                balance: null,
+                                image: null,
+                            },
+                        ],
+                    });
+                }),
+                http.post(`${BASE_URL}/ramp/quote`, () => {
+                    return HttpResponse.json({
+                        quoteId: 'quote-mxn-1',
+                        customerId: 'cust-1',
+                        blockchain: 'stellar',
+                        quoteAssets: {
+                            type: 'onramp',
+                            sourceAsset: 'MXN',
+                            targetAsset: 'CETES:GCRYUGD5ISSUER',
+                        },
+                        sourceAmount: '1000',
+                        destinationAmount: '50',
+                        destinationAmountAfterFee: '49.5',
+                        exchangeRate: '0.05',
+                        feeBps: '100',
+                        feeAmount: '0.5',
+                        expiresAt: '2025-07-01T00:00:00Z',
+                        createdAt: '2025-06-30T00:00:00Z',
+                        updatedAt: '2025-06-30T00:00:00Z',
+                    });
+                }),
+            );
+
+            await client.getQuote({
+                fromCurrency: 'MXN',
+                toCurrency: 'CETES',
+                fromAmount: '1000',
+                customerId: 'cust-1',
+                stellarAddress: STELLAR_PUBKEY,
+            });
+
+            expect(capturedCurrency).toBe('mxn');
+        });
+    });
+
+    describe('TESOURO supportedTokens entry', () => {
+        it('lists TESOURO with the same Stellar issuer as CETES and a non-coming-soon description', () => {
+            const client = createClient();
+            const tesouro = client.supportedTokens.find((t) => t.symbol === 'TESOURO');
+            expect(tesouro).toBeDefined();
+            expect(tesouro!.name).toBe('Etherfuse TESOURO');
+            expect(tesouro!.issuer).toBe(
+                'GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4',
+            );
+            expect(tesouro!.description).toBeTruthy();
+            expect(tesouro!.description.toLowerCase()).not.toContain('coming soon');
+        });
+    });
+
+    describe('registerFiatAccount with PIX', () => {
+        it('POSTs the PIX-shaped body and returns a RegisteredFiatAccount with type "PIX"', async () => {
+            const client = createClient();
+            let capturedBody: Record<string, unknown> | undefined;
+
+            server.use(
+                http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                    return HttpResponse.json({ presigned_url: 'https://onboard.test/abc' });
+                }),
+                http.post(`${BASE_URL}/ramp/bank-account`, async ({ request }) => {
+                    capturedBody = (await request.json()) as Record<string, unknown>;
+                    return HttpResponse.json({
+                        bankAccountId: 'bank-pix-1',
+                        customerId: 'cust-br-1',
+                        status: 'active',
+                        createdAt: '2025-07-01T00:00:00Z',
+                    });
+                }),
+            );
+
+            const result = await client.registerFiatAccount({
+                customerId: 'cust-br-1',
+                publicKey: STELLAR_PUBKEY,
+                account: {
+                    type: 'pix',
+                    pixKey: '4465393f-f1b6-4838-9b6b-0be33b228390',
+                    pixKeyType: 'evp',
+                    taxId: '37155878661',
+                    accountHolderName: 'Sandboxed Testered',
+                },
+            });
+
+            expect(capturedBody).toBeDefined();
+            const account = capturedBody!.account as Record<string, unknown>;
+            expect(account.firstName).toBe('Sandboxed');
+            expect(account.lastName).toBe('Testered');
+            expect(account.cpf).toBe('37155878661');
+            expect(account.pixKey).toBe('4465393f-f1b6-4838-9b6b-0be33b228390');
+            expect(account.pixKeyType).toBe('evp');
+
+            expect(result.id).toBe('bank-pix-1');
+            expect(result.customerId).toBe('cust-br-1');
+            expect(result.type).toBe('PIX');
+            expect(result.status).toBe('active');
+            expect(result.createdAt).toBe('2025-07-01T00:00:00Z');
+        });
+
+        it('handles single-name accountHolderName by leaving lastName empty', async () => {
+            const client = createClient();
+            let capturedBody: Record<string, unknown> | undefined;
+
+            server.use(
+                http.post(`${BASE_URL}/ramp/onboarding-url`, () => {
+                    return HttpResponse.json({ presigned_url: 'https://onboard.test/abc' });
+                }),
+                http.post(`${BASE_URL}/ramp/bank-account`, async ({ request }) => {
+                    capturedBody = (await request.json()) as Record<string, unknown>;
+                    return HttpResponse.json({
+                        bankAccountId: 'bank-pix-2',
+                        customerId: 'cust-br-2',
+                        status: 'active',
+                        createdAt: '2025-07-01T00:00:00Z',
+                    });
+                }),
+            );
+
+            await client.registerFiatAccount({
+                customerId: 'cust-br-2',
+                publicKey: STELLAR_PUBKEY,
+                account: {
+                    type: 'pix',
+                    pixKey: 'someone@example.com',
+                    pixKeyType: 'email',
+                    taxId: '11111111111',
+                    accountHolderName: 'Mononymous',
+                },
+            });
+
+            const account = capturedBody!.account as Record<string, unknown>;
+            expect(account.firstName).toBe('Mononymous');
+            expect(account.lastName).toBe('');
+        });
+    });
+
+    describe('getFiatAccounts maps PIX-shaped items', () => {
+        it('returns SavedFiatAccount with type "PIX" when items carry PIX fields', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/ramp/customer/cust-br-1/bank-accounts`, () => {
+                    return HttpResponse.json({
+                        items: [
+                            {
+                                bankAccountId: 'bank-pix-1',
+                                customerId: 'cust-br-1',
+                                createdAt: '2025-07-01T00:00:00Z',
+                                updatedAt: '2025-07-01T00:00:00Z',
+                                pixKey: '4465393f-f1b6-4838-9b6b-0be33b228390',
+                                pixKeyType: 'evp',
+                                accountHolderName: 'Sandboxed Testered',
+                                label: 'brat2',
+                                compliant: true,
+                                status: 'active',
+                            },
+                        ],
+                        totalItems: 1,
+                        pageSize: 100,
+                        pageNumber: 0,
+                        totalPages: 1,
+                    });
+                }),
+            );
+
+            const accounts = await client.getFiatAccounts('cust-br-1');
+            expect(accounts).toHaveLength(1);
+            expect(accounts[0].id).toBe('bank-pix-1');
+            expect(accounts[0].type).toBe('PIX');
+            expect(accounts[0].accountNumber).toBe('4465393f-f1b6-4838-9b6b-0be33b228390');
+            expect(accounts[0].accountHolderName).toBe('Sandboxed Testered');
+        });
+    });
+
+    describe('createOnRamp with BRL maps PIX deposit instructions', () => {
+        it('returns paymentInstructions of the PIX variant when the order response carries PIX fields', async () => {
+            const client = createClient();
+
+            server.use(
+                http.post(`${BASE_URL}/ramp/customer/cust-br-1/bank-accounts`, () => {
+                    return HttpResponse.json({
+                        items: [
+                            {
+                                bankAccountId: 'bank-pix-auto',
+                                customerId: 'cust-br-1',
+                                createdAt: '2025-07-01T00:00:00Z',
+                                updatedAt: '2025-07-01T00:00:00Z',
+                                pixKey: '4465393f-f1b6-4838-9b6b-0be33b228390',
+                                pixKeyType: 'evp',
+                                accountHolderName: 'Sandboxed Testered',
+                                compliant: true,
+                                status: 'active',
+                            },
+                        ],
+                        totalItems: 1,
+                        pageSize: 100,
+                        pageNumber: 0,
+                        totalPages: 1,
+                    });
+                }),
+                http.post(`${BASE_URL}/ramp/order`, () => {
+                    return HttpResponse.json({
+                        onramp: {
+                            orderId: 'order-onramp-br-1',
+                            depositPixKey: 'etherfuse-deposit-pix-key-uuid',
+                            depositPixKeyType: 'evp',
+                            depositPixCode:
+                                '00020126360014BR.GOV.BCB.PIX0114deposit-pix-key52040000530398654041005802BR5910Etherfuse6009Sao Paulo62070503***6304ABCD',
+                            depositAmount: '100.00',
+                            beneficiary: 'Etherfuse BR',
+                        },
+                    });
+                }),
+            );
+
+            const tx = await client.createOnRamp({
+                customerId: 'cust-br-1',
+                quoteId: 'quote-brl-1',
+                stellarAddress: STELLAR_PUBKEY,
+                fromCurrency: 'BRL',
+                toCurrency: 'TESOURO',
+                amount: '100',
+            });
+
+            expect(tx.id).toBe('order-onramp-br-1');
+            expect(tx.fromCurrency).toBe('BRL');
+            expect(tx.toCurrency).toBe('TESOURO');
+            expect(tx.paymentInstructions).toBeDefined();
+            expect(tx.paymentInstructions!.type).toBe('pix');
+            const pix = tx.paymentInstructions as { type: 'pix' } & Record<string, unknown>;
+            expect(pix.pixKey).toBe('etherfuse-deposit-pix-key-uuid');
+            expect(pix.pixKeyType).toBe('evp');
+            expect(pix.pixCode).toBe(
+                '00020126360014BR.GOV.BCB.PIX0114deposit-pix-key52040000530398654041005802BR5910Etherfuse6009Sao Paulo62070503***6304ABCD',
+            );
+            expect(pix.amount).toBe('100.00');
+            expect(pix.currency).toBe('BRL');
+        });
+    });
+
+    describe('mapOnRampTransaction PIX branch', () => {
+        it('maps PIX deposit fields when present in EtherfuseOrderResponse', async () => {
+            const client = createClient();
+
+            server.use(
+                http.get(`${BASE_URL}/ramp/order/order-pix-1`, () => {
+                    return HttpResponse.json({
+                        orderId: 'order-pix-1',
+                        customerId: 'cust-br-1',
+                        createdAt: '2025-07-01T00:00:00Z',
+                        updatedAt: '2025-07-02T00:00:00Z',
+                        amountInFiat: '100',
+                        amountInTokens: '20',
+                        walletId: 'wallet-1',
+                        bankAccountId: 'bank-pix-1',
+                        depositPixKey: 'etherfuse-deposit-pix-key-uuid',
+                        depositPixKeyType: 'evp',
+                        depositPixCode: 'BR-EMV-COPYPASTE-STRING',
+                        orderType: 'onramp',
+                        status: 'funded',
+                        statusPage: 'https://status.test/order-pix-1',
+                    });
+                }),
+            );
+
+            const tx = await client.getOnRampTransaction('order-pix-1');
+            expect(tx).not.toBeNull();
+            expect(tx!.paymentInstructions).toBeDefined();
+            expect(tx!.paymentInstructions!.type).toBe('pix');
+            const pix = tx!.paymentInstructions as { type: 'pix' } & Record<string, unknown>;
+            expect(pix.pixKey).toBe('etherfuse-deposit-pix-key-uuid');
+            expect(pix.pixCode).toBe('BR-EMV-COPYPASTE-STRING');
+        });
     });
 });
