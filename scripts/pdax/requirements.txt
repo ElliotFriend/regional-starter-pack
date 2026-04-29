@@ -1,0 +1,10 @@
+# Python dependencies for scripts/pdax/generate-openapi.py
+#
+# Install with:
+#     pip install -r scripts/pdax/requirements.txt
+#
+# Only PyYAML is strictly required to generate the spec.
+# openapi-spec-validator powers the --validate flag and is optional.
+
+PyYAML>=6.0
+openapi-spec-validator>=0.7.0

@@ -26,5 +26,13 @@ vite.config.ts.timestamp-*
 .agents/
 .claude/
 
+# Python (scripts/pdax/ tooling)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.python-version
+
 # DX test projects (temporary, recreated each round)
 sample-dx-project/
