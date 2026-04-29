@@ -192,6 +192,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
+                text: "USDC is the only digital asset PDAX supports for our flow — no PHP-denominated stablecoin or stablebond exists on Stellar yet. PDAX is included as the best available Philippines option despite not meeting the 'locally denominated asset' quality criterion that other curated anchors satisfy.",
+            },
+            {
                 text: 'PDAX API documentation at doc.general.api.pdax.ph is currently password-gated. PDAX is evaluating whether they can open public access.',
             },
             {
@@ -199,6 +202,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             },
             {
                 text: 'PDAX is an institutional shared-account API: there are no endpoints to provision per-end-user accounts. End-user identity is passed per transaction through sender/beneficiary KYC fields on /fiat/deposit and /fiat/withdraw, correlated by a custom `identifier`.',
+            },
+            {
+                text: 'PDAX delegates end-user KYC and account management to the integrator. This reference implementation collects identity via a form for the demo flow — production deployments need real KYC verification, customer record management, and applicable licensing (e.g., BSP VASP registration where applicable).',
             },
         ],
         regions: {
