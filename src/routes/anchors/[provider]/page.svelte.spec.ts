@@ -18,7 +18,7 @@ const mockData = {
                     id: 'spei',
                     name: 'SPEI',
                     description: 'Mexican payments',
-                    type: 'bank_transfer',
+                    type: 'bank_transfer' as const,
                 },
             ],
             anchors: ['etherfuse'],
@@ -54,7 +54,7 @@ const mockData = {
         },
     },
     displayName: 'Etherfuse',
-    capabilities: { kycFlow: 'iframe', sandbox: true },
+    capabilities: { kycFlow: 'iframe' as const, sandbox: true },
     supportedTokens: [
         {
             symbol: 'CETES',
@@ -66,18 +66,27 @@ const mockData = {
     supportedRails: ['spei'],
     fiatCurrency: 'MXN',
     primaryToken: 'CETES',
+    activeRegion: undefined,
+    activeRegionId: 'mexico',
+    paymentRail: 'spei',
+};
+
+const props = {
+    data: mockData,
+    params: { provider: 'etherfuse' },
+    form: null,
 };
 
 describe('/anchors/[provider]/+page.svelte', () => {
     it('renders the anchor name as heading', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         const heading = page.getByRole('heading', { level: 1 });
         await expect.element(heading).toHaveTextContent('Etherfuse');
     });
 
     it('renders anchor description', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect
             .element(page.getByText('Bridges traditional finance and DeFi.'))
@@ -85,7 +94,7 @@ describe('/anchors/[provider]/+page.svelte', () => {
     });
 
     it('renders external links', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect.element(page.getByRole('link', { name: 'website' })).toBeInTheDocument();
         // 'documentation' matches both the header link and the DevBox link; target the exact one
@@ -95,14 +104,14 @@ describe('/anchors/[provider]/+page.svelte', () => {
     });
 
     it('renders the Try section with on-ramp and off-ramp links', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect.element(page.getByRole('link', { name: 'Try On-Ramp' })).toBeInTheDocument();
         await expect.element(page.getByRole('link', { name: 'Try Off-Ramp' })).toBeInTheDocument();
     });
 
     it('renders supported digital assets', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect
             .element(page.getByRole('heading', { name: 'Supported Digital Assets' }))
@@ -111,7 +120,7 @@ describe('/anchors/[provider]/+page.svelte', () => {
     });
 
     it('renders the supported regions table', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect
             .element(page.getByRole('heading', { name: 'Supported Regions' }))
@@ -121,7 +130,7 @@ describe('/anchors/[provider]/+page.svelte', () => {
     });
 
     it('renders the integration flow section', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect
             .element(page.getByRole('heading', { name: 'Integration Flow' }))
@@ -133,7 +142,7 @@ describe('/anchors/[provider]/+page.svelte', () => {
     });
 
     it('renders a back link to anchors', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         const backLink = page.getByRole('link', { name: /Back to Anchors/i });
         await expect.element(backLink).toBeInTheDocument();

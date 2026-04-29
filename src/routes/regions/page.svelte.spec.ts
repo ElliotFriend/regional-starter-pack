@@ -18,7 +18,7 @@ const mockData = {
                     id: 'spei',
                     name: 'SPEI',
                     description: 'Mexican payment system',
-                    type: 'bank_transfer',
+                    type: 'bank_transfer' as const,
                 },
             ],
             anchors: ['etherfuse'],
@@ -36,7 +36,7 @@ const mockData = {
                     id: 'pix',
                     name: 'PIX',
                     description: 'Brazilian instant payments',
-                    type: 'bank_transfer',
+                    type: 'bank_transfer' as const,
                 },
             ],
             anchors: ['etherfuse'],
@@ -45,16 +45,22 @@ const mockData = {
     anchors: [],
 };
 
+const props = {
+    data: mockData,
+    params: {},
+    form: null,
+};
+
 describe('/regions/+page.svelte', () => {
     it('renders the page heading', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         const heading = page.getByRole('heading', { level: 1 });
         await expect.element(heading).toHaveTextContent('Supported Regions');
     });
 
     it('renders a card for each region', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         const mexico = page.getByRole('heading', { name: 'Mexico' });
         await expect.element(mexico).toBeInTheDocument();
@@ -64,21 +70,21 @@ describe('/regions/+page.svelte', () => {
     });
 
     it('displays currency codes', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect.element(page.getByText('MXN')).toBeInTheDocument();
         await expect.element(page.getByText('BRL')).toBeInTheDocument();
     });
 
     it('displays payment rail badges', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         await expect.element(page.getByText('SPEI')).toBeInTheDocument();
         await expect.element(page.getByText('PIX')).toBeInTheDocument();
     });
 
     it('renders a back link to home', async () => {
-        render(Page, { data: mockData });
+        render(Page, props);
 
         const backLink = page.getByRole('link', { name: /Back to Home/i });
         await expect.element(backLink).toBeInTheDocument();

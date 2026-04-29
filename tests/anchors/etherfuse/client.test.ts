@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { EtherfuseClient } from '$lib/anchors/etherfuse/client';
 import { AnchorError } from '$lib/anchors/types';
+import type { PixPaymentInstructions } from '$lib/anchors/types';
 import type {
     EtherfuseKycIdentityRequest,
     EtherfuseKycDocumentRequest,
@@ -4238,7 +4239,7 @@ describe('Brazil / PIX support', () => {
             expect(tx.toCurrency).toBe('TESOURO');
             expect(tx.paymentInstructions).toBeDefined();
             expect(tx.paymentInstructions!.type).toBe('pix');
-            const pix = tx.paymentInstructions as { type: 'pix' } & Record<string, unknown>;
+            const pix = tx.paymentInstructions as PixPaymentInstructions;
             expect(pix.pixKey).toBe('etherfuse-deposit-pix-key-uuid');
             expect(pix.pixKeyType).toBe('evp');
             expect(pix.pixCode).toBe(
@@ -4278,7 +4279,7 @@ describe('Brazil / PIX support', () => {
             expect(tx).not.toBeNull();
             expect(tx!.paymentInstructions).toBeDefined();
             expect(tx!.paymentInstructions!.type).toBe('pix');
-            const pix = tx!.paymentInstructions as { type: 'pix' } & Record<string, unknown>;
+            const pix = tx!.paymentInstructions as PixPaymentInstructions;
             expect(pix.pixKey).toBe('etherfuse-deposit-pix-key-uuid');
             expect(pix.pixCode).toBe('BR-EMV-COPYPASTE-STRING');
         });

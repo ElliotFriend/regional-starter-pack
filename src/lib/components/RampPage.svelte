@@ -32,20 +32,24 @@
     // so we can keep the URL's ?region= param in sync with the dropdown.
     const codeToRegionId = $derived(new Map(anchorRegions.map((r) => [r.code, r.id] as const)));
 
-    // Initial country: returning customer's stored country → URL ?region= →
-    // the first supported country → DEFAULT_COUNTRY.
-    const initialCountry = $derived.by(() => {
+    // Initial country at component-init time: returning customer's stored
+    // country → URL ?region= → the first supported country → DEFAULT_COUNTRY.
+    // Computed once via a regular function call so the $state below doesn't
+    // trip Svelte's "only captures initial value" warning — that one-shot
+    // capture is exactly what we want here, since the dropdown takes over
+    // as the source of truth after mount.
+    function computeInitialCountry(): string {
         const stored = customerStore.current?.country;
         if (stored && availableCountries.some((c) => c.code === stored)) return stored;
         const fromUrl = page.data.activeRegion?.code;
         if (fromUrl && availableCountries.some((c) => c.code === fromUrl)) return fromUrl;
         if (availableCountries.length > 0) return availableCountries[0].code;
         return DEFAULT_COUNTRY;
-    });
+    }
 
     // Local UI state
     let email = $state('');
-    let country = $state(initialCountry);
+    let country = $state(computeInitialCountry());
     let isRegistering = $state(false);
     let registrationError = $state<string | null>(null);
     let showKyc = $state(false);
@@ -54,10 +58,8 @@
     function onCountryChange() {
         const regionId = codeToRegionId.get(country);
         if (!regionId) return;
-        const url = new URL(page.url);
-        if (url.searchParams.get('region') === regionId) return;
-        url.searchParams.set('region', regionId);
-        goto(resolve(`${url.pathname}${url.search}`), {
+        if (page.url.searchParams.get('region') === regionId) return;
+        goto(resolve(`/anchors/${provider}/${direction}?region=${regionId}`), {
             replaceState: true,
             keepFocus: true,
             noScroll: true,
@@ -83,9 +85,7 @@
             return;
         }
         urlHydratedFromCustomer = true;
-        const url = new URL(page.url);
-        url.searchParams.set('region', matchingRegionId);
-        goto(resolve(`${url.pathname}${url.search}`), {
+        goto(resolve(`/anchors/${provider}/${direction}?region=${matchingRegionId}`), {
             replaceState: true,
             keepFocus: true,
             noScroll: true,

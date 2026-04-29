@@ -19,7 +19,7 @@ const mockData = {
                 id: 'spei',
                 name: 'SPEI',
                 description: 'Mexican real-time payment system',
-                type: 'bank_transfer',
+                type: 'bank_transfer' as const,
             },
         ],
         anchors: ['etherfuse'],
@@ -79,6 +79,8 @@ const props = {
         ...mockData,
         anchors: mockData.anchors_detail,
     },
+    params: { region: 'mexico' },
+    form: null,
 };
 
 describe('/regions/[region]/+page.svelte', () => {
