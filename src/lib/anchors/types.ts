@@ -27,6 +27,9 @@ export interface Customer {
     email?: string;
     /** Current KYC verification status. */
     kycStatus: KycStatus;
+    /** ISO 3166-1 alpha-2 country code the customer registered with (e.g. `"MX"`, `"BR"`).
+     *  Used to drive region-specific UI (currency, payment rail, asset) for returning customers. */
+    country?: string;
     /** Bank account ID — generated at registration time for providers that require it (e.g. Etherfuse). */
     bankAccountId?: string;
     /** Blockchain wallet ID — generated at registration time for providers that require it (e.g. BlindPay). */

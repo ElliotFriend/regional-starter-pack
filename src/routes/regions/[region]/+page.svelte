@@ -103,7 +103,7 @@
                                     </span>
                                 {:else}
                                     <a
-                                        href={resolve(`/anchors/${anchor.id}`)}
+                                        href={resolve(`/anchors/${anchor.id}?region=${region.id}`)}
                                         class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                                     >
                                         View Details

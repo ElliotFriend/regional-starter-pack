@@ -1,11 +1,14 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
     import { page } from '$app/state';
+    import { goto } from '$app/navigation';
+    import { resolve } from '$app/paths';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { AnchorCapabilities, KycStatus } from '$lib/anchors/types';
+    import type { Region } from '$lib/config/regions';
     import * as api from '$lib/api/anchor';
 
     interface Props {
@@ -17,13 +20,77 @@
     const direction = $derived<'onramp' | 'offramp'>(page.data.direction);
     const provider: string = $derived(page.data.anchor.id);
     const capabilities: AnchorCapabilities = $derived(page.data.capabilities);
+    const anchorRegions: Region[] = $derived(page.data.regions ?? []);
+
+    // Country options shown in the registration dropdown — narrowed to the
+    // regions this anchor actually supports.
+    const availableCountries = $derived(
+        SUPPORTED_COUNTRIES.filter((c) => anchorRegions.some((r) => r.code === c.code)),
+    );
+
+    // Map ISO country code → region id (e.g. "MX" → "mexico", "BR" → "brazil")
+    // so we can keep the URL's ?region= param in sync with the dropdown.
+    const codeToRegionId = $derived(new Map(anchorRegions.map((r) => [r.code, r.id] as const)));
+
+    // Initial country: returning customer's stored country → URL ?region= →
+    // the first supported country → DEFAULT_COUNTRY.
+    const initialCountry = $derived.by(() => {
+        const stored = customerStore.current?.country;
+        if (stored && availableCountries.some((c) => c.code === stored)) return stored;
+        const fromUrl = page.data.activeRegion?.code;
+        if (fromUrl && availableCountries.some((c) => c.code === fromUrl)) return fromUrl;
+        if (availableCountries.length > 0) return availableCountries[0].code;
+        return DEFAULT_COUNTRY;
+    });
 
     // Local UI state
     let email = $state('');
-    let country = $state(DEFAULT_COUNTRY);
+    let country = $state(initialCountry);
     let isRegistering = $state(false);
     let registrationError = $state<string | null>(null);
     let showKyc = $state(false);
+
+    // Keep URL `?region=` in sync when the user changes the country dropdown.
+    function onCountryChange() {
+        const regionId = codeToRegionId.get(country);
+        if (!regionId) return;
+        const url = new URL(page.url);
+        if (url.searchParams.get('region') === regionId) return;
+        url.searchParams.set('region', regionId);
+        goto(resolve(`${url.pathname}${url.search}`), {
+            replaceState: true,
+            keepFocus: true,
+            noScroll: true,
+        });
+    }
+
+    // One-time hydration for returning customers: if the URL has no explicit
+    // ?region= but the stored customer has a country, sync the URL so
+    // page.data.fiatCurrency / paymentRail / primaryToken reflect that
+    // customer's region instead of the anchor's first-region default.
+    let urlHydratedFromCustomer = $state(false);
+    $effect(() => {
+        if (urlHydratedFromCustomer) return;
+        if (page.url.searchParams.has('region')) {
+            urlHydratedFromCustomer = true;
+            return;
+        }
+        const stored = customerStore.current?.country;
+        if (!stored) return;
+        const matchingRegionId = codeToRegionId.get(stored);
+        if (!matchingRegionId) {
+            urlHydratedFromCustomer = true;
+            return;
+        }
+        urlHydratedFromCustomer = true;
+        const url = new URL(page.url);
+        url.searchParams.set('region', matchingRegionId);
+        goto(resolve(`${url.pathname}${url.search}`), {
+            replaceState: true,
+            keepFocus: true,
+            noScroll: true,
+        });
+    });
 
     // Iframe KYC state (for providers with kycFlow: 'iframe')
     let kycIframeUrl = $state<string | null>(null);
@@ -271,9 +338,11 @@
                     <select
                         id="country"
                         bind:value={country}
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        onchange={onCountryChange}
+                        disabled={availableCountries.length <= 1}
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500 sm:text-sm"
                     >
-                        {#each SUPPORTED_COUNTRIES as c (c.code)}
+                        {#each availableCountries as c (c.code)}
                             <option value={c.code}>{c.name}</option>
                         {/each}
                     </select>

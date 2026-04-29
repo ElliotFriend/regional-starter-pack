@@ -9,7 +9,13 @@
     // in the directory structure.
     const { data }: PageProps = $props();
     // pull out the pieces of data as `$derived()` state.
-    const { anchor, regions, supportedTokens, capabilities } = $derived(data);
+    const { anchor, regions, supportedTokens, capabilities, activeRegionId } = $derived(data);
+
+    // Regions where the anchor's flows are actually usable today (skip
+    // coming-soon capabilities). When there's more than one, the Try buttons
+    // render once per region; otherwise we render a single button pair without
+    // a region label.
+    const liveRegions = $derived(regions.filter((r) => !anchor.regions[r.id]?.comingSoon));
 
     const devBoxItems = $derived.by(() => {
         if (!anchor) return [];
@@ -55,27 +61,65 @@
         Experience the on-ramp and off-ramp flows with {anchor.name}'s integration. Check out the
         process your users might go through as they interact with {anchor.name} from within your application.
     </p>
-    <div class="mt-4 flex gap-3">
-        <a
-            href={resolve(`/anchors/${anchor.id}/onramp`)}
-            class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-            Try On-Ramp
-        </a>
-        <a
-            href={resolve(`/anchors/${anchor.id}/offramp`)}
-            class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
-        >
-            Try Off-Ramp
-        </a>
-        <a
-            href={`https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/anchors/${anchor.id}`}
-            target="_blank"
-            class="rounded-md bg-white px-4 py-2 text-sm font-medium text-green-600 ring-1 ring-green-600 hover:bg-green-50"
-        >
-            View {anchor.name} Client Code
-        </a>
-    </div>
+    {#if liveRegions.length > 1}
+        <div class="mt-4 space-y-3">
+            {#each liveRegions as region (region.id)}
+                <div class="flex flex-wrap items-center gap-3">
+                    <span
+                        class="inline-flex w-32 items-center gap-2 text-sm font-medium text-indigo-900"
+                    >
+                        <span>{region.flag}</span>
+                        {region.name}
+                    </span>
+                    <a
+                        href={resolve(`/anchors/${anchor.id}/onramp?region=${region.id}`)}
+                        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                        Try On-Ramp
+                    </a>
+                    <a
+                        href={resolve(`/anchors/${anchor.id}/offramp?region=${region.id}`)}
+                        class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
+                    >
+                        Try Off-Ramp
+                    </a>
+                </div>
+            {/each}
+        </div>
+        <div class="mt-4">
+            <a
+                href={`https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/anchors/${anchor.id}`}
+                target="_blank"
+                class="inline-block rounded-md bg-white px-4 py-2 text-sm font-medium text-green-600 ring-1 ring-green-600 hover:bg-green-50"
+            >
+                View {anchor.name} Client Code
+            </a>
+        </div>
+    {:else}
+        {@const regionId = liveRegions[0]?.id ?? activeRegionId}
+        {@const regionParam = regionId ? `?region=${regionId}` : ''}
+        <div class="mt-4 flex gap-3">
+            <a
+                href={resolve(`/anchors/${anchor.id}/onramp${regionParam}`)}
+                class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+                Try On-Ramp
+            </a>
+            <a
+                href={resolve(`/anchors/${anchor.id}/offramp${regionParam}`)}
+                class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
+            >
+                Try Off-Ramp
+            </a>
+            <a
+                href={`https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/anchors/${anchor.id}`}
+                target="_blank"
+                class="rounded-md bg-white px-4 py-2 text-sm font-medium text-green-600 ring-1 ring-green-600 hover:bg-green-50"
+            >
+                View {anchor.name} Client Code
+            </a>
+        </div>
+    {/if}
 </div>
 
 <!-- Known Issues -->

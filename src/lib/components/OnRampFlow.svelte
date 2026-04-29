@@ -35,6 +35,7 @@ Usage:
     const toCurrency = $derived(page.data.primaryToken);
     const fiatCurrency = $derived(page.data.fiatCurrency);
     const capabilities = $derived(page.data.capabilities);
+    const inputPrefix = $derived(page.data.activeRegion?.currencySymbol ?? '$');
     const tokenIssuer = $derived(
         page.data.supportedTokens.find((t: TokenInfo) => t.symbol === page.data.primaryToken)
             ?.issuer,
@@ -233,9 +234,9 @@ Usage:
 
             <AmountInput
                 bind:amount
-                label="Amount (Local Currency)"
+                label="Amount ({fiatCurrency})"
                 placeholder="1000"
-                inputPrefix="$"
+                {inputPrefix}
                 isWalletConnected={walletStore.isConnected}
                 {hasTrustline}
                 {isGettingQuote}
@@ -289,6 +290,37 @@ Usage:
                                 <span class="text-sm text-gray-500">Beneficiary</span>
                                 <p class="font-medium">{pi.beneficiary || 'N/A'}</p>
                             </div>
+                        {:else if pi.type === 'pix'}
+                            {#if pi.pixCode}
+                                <div>
+                                    <span class="text-sm text-gray-500"
+                                        >PIX Code (BR-Code / Copy-Paste)</span
+                                    >
+                                    <p class="font-medium break-all">
+                                        <CopyableField value={pi.pixCode} mono />
+                                    </p>
+                                </div>
+                            {/if}
+                            {#if pi.pixKey}
+                                <div>
+                                    <span class="text-sm text-gray-500">PIX Key</span>
+                                    <p class="font-medium">
+                                        <CopyableField value={pi.pixKey} mono />
+                                    </p>
+                                </div>
+                            {/if}
+                            {#if pi.pixKeyType}
+                                <div>
+                                    <span class="text-sm text-gray-500">PIX Key Type</span>
+                                    <p class="font-medium uppercase">{pi.pixKeyType}</p>
+                                </div>
+                            {/if}
+                            {#if pi.beneficiary}
+                                <div>
+                                    <span class="text-sm text-gray-500">Beneficiary</span>
+                                    <p class="font-medium">{pi.beneficiary}</p>
+                                </div>
+                            {/if}
                         {/if}
                         {#if pi.reference}
                             <div>

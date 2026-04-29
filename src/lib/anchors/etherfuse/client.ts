@@ -410,6 +410,7 @@ export class EtherfuseClient implements Anchor {
                 id: customerId,
                 email: input.email,
                 kycStatus: 'not_started',
+                country: input.country,
                 bankAccountId,
                 createdAt: now,
                 updatedAt: now,
@@ -446,6 +447,7 @@ export class EtherfuseClient implements Anchor {
                         id: existingCustomerId,
                         email: input.email,
                         kycStatus: 'not_started', // Will be updated by subsequent KYC status check
+                        country: input.country,
                         bankAccountId: existingBankAccountId,
                         createdAt: now,
                         updatedAt: now,
