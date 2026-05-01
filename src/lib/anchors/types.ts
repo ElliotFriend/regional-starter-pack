@@ -496,6 +496,12 @@ export interface AnchorCapabilities {
     requiresAnchorPayoutSubmission?: boolean;
     /** Whether the anchor has sandbox simulation support. */
     sandbox?: boolean;
+    /**
+     * How new fiat/bank accounts are registered.
+     * - `'inline'` (default) — partner code submits account details via {@link Anchor.registerFiatAccount}.
+     * - `'hosted'` — registration happens in the anchor's hosted onboarding UI; partner code only requests a presigned URL via {@link Anchor.getKycUrl} and the user fills in account details there.
+     */
+    fiatAccountRegistration?: 'inline' | 'hosted';
 }
 
 // =============================================================================
@@ -565,12 +571,14 @@ export interface Anchor {
     getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
 
     /**
-     * Register a fiat bank account for a customer.
+     * Register a fiat bank account for a customer. Optional — anchors with
+     * `capabilities.fiatAccountRegistration === 'hosted'` register accounts via
+     * their hosted onboarding UI instead and may omit this method.
      * @param input - Customer ID and bank account details.
      * @returns The newly registered account.
      * @throws {AnchorError} On API error.
      */
-    registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
+    registerFiatAccount?(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
 
     /**
      * List all registered fiat accounts for a customer.

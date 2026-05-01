@@ -20,7 +20,6 @@ import type {
     KycSubmissionData,
     KycSubmissionResult,
     RampIdentity,
-    FiatAccountInput,
 } from '$lib/anchors/types';
 
 type Fetch = typeof fetch;
@@ -241,19 +240,15 @@ export interface CreateOffRampOptions {
     fromCurrency: string;
     toCurrency: string;
     amount: string;
+    /** Registered fiat account ID to receive the payout. Register first via {@link registerFiatAccount} or the anchor's hosted onboarding UI. */
+    fiatAccountId: string;
     memo?: string;
     /** Identity for providers requiring inline identity on ramp requests (e.g. Transfero). */
     identity?: RampIdentity;
-    // For new bank account registration
-    bankAccount?: FiatAccountInput;
-    // For existing fiat account
-    fiatAccountId?: string;
 }
 
 /**
- * Create an off-ramp transaction (crypto to fiat)
- * If bankAccount is provided, registers a new fiat account first
- * If fiatAccountId is provided, uses existing account
+ * Create an off-ramp transaction (crypto to fiat) using an already-registered fiat account.
  */
 export async function createOffRamp(
     fetch: Fetch,

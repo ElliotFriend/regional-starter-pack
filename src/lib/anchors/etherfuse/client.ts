@@ -31,8 +31,6 @@ import type {
     GetQuoteInput,
     CreateOnRampInput,
     CreateOffRampInput,
-    RegisterFiatAccountInput,
-    RegisteredFiatAccount,
     SavedFiatAccount,
     KycStatus,
     PaymentInstructions,
@@ -49,7 +47,6 @@ import type {
     EtherfuseCreateOffRampResponse,
     EtherfuseOrderResponse,
     EtherfuseKycStatusResponse,
-    EtherfuseBankAccountResponse,
     EtherfuseBankAccountListResponse,
     EtherfuseAssetsResponse,
     EtherfuseAgreementResponse,
@@ -57,7 +54,6 @@ import type {
     EtherfuseOrderStatus,
     EtherfuseKycIdentityRequest,
     EtherfuseKycDocumentRequest,
-    EtherfusePixAccountBody,
 } from './types';
 
 /**
@@ -76,6 +72,7 @@ export class EtherfuseClient implements Anchor {
         kycFlow: 'iframe',
         deferredOffRampSigning: true,
         sandbox: true,
+        fiatAccountRegistration: 'hosted',
     };
     readonly supportedTokens: readonly TokenInfo[] = [
         {
@@ -279,22 +276,6 @@ export class EtherfuseClient implements Anchor {
             };
         }
         return undefined;
-    }
-
-    /**
-     * Split a full name into first and last name parts on the first whitespace.
-     * Used to map the shared `accountHolderName` field onto Etherfuse's PIX
-     * registration body, which expects `firstName` and `lastName` separately
-     * (matching Brazilian CPF registration).
-     *
-     * @param fullName - Full name string.
-     * @returns Tuple of `[firstName, lastName]`.
-     */
-    private splitName(fullName: string): [string, string] {
-        const trimmed = fullName.trim();
-        const idx = trimmed.indexOf(' ');
-        if (idx === -1) return [trimmed, ''];
-        return [trimmed.slice(0, idx), trimmed.slice(idx + 1).trim()];
     }
 
     /**
@@ -604,79 +585,6 @@ export class EtherfuseClient implements Anchor {
             }
             throw error;
         }
-    }
-
-    /**
-     * Register a bank account for a customer. Dispatches to a SPEI (Mexico) or
-     * PIX (Brazil) registration based on the input's discriminant.
-     *
-     * Both rails share the same `/ramp/bank-account` endpoint and require a
-     * presigned onboarding URL for auth.
-     *
-     * @param input - Customer ID and fiat account details.
-     * @returns The newly registered {@link RegisteredFiatAccount}.
-     * @throws {AnchorError} On API failure.
-     */
-    async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
-        if (!input.publicKey) {
-            throw new AnchorError(
-                'publicKey is required to register a bank account with Etherfuse',
-                'MISSING_PUBLIC_KEY',
-                400,
-            );
-        }
-
-        // The Etherfuse bank-account endpoint requires a presigned URL for auth.
-        // Generate one via the onboarding endpoint.
-        const presignedUrl = await this.getKycUrl(input.customerId, input.publicKey);
-
-        const accountBody =
-            input.account.type === 'pix'
-                ? this.buildPixAccountBody(input.account)
-                : {
-                      clabe: input.account.clabe,
-                      beneficiary: input.account.beneficiary,
-                      bankName: input.account.bankName || undefined,
-                  };
-
-        const response = await this.request<EtherfuseBankAccountResponse>(
-            'POST',
-            '/ramp/bank-account',
-            { presignedUrl, account: accountBody },
-        );
-
-        return {
-            id: response.bankAccountId,
-            customerId: response.customerId,
-            type: input.account.type === 'pix' ? 'PIX' : 'SPEI',
-            status: response.status,
-            createdAt: response.createdAt,
-        };
-    }
-
-    /**
-     * Build the PIX-shaped `account` body for Etherfuse's `/ramp/bank-account`
-     * endpoint. Splits the shared `accountHolderName` into `firstName` /
-     * `lastName` to match Brazilian CPF registration.
-     *
-     * @param account - The PIX fiat account input.
-     * @returns The PIX-shaped account body.
-     */
-    private buildPixAccountBody(account: {
-        type: 'pix';
-        pixKey: string;
-        pixKeyType?: string;
-        taxId: string;
-        accountHolderName: string;
-    }): EtherfusePixAccountBody {
-        const [firstName, lastName] = this.splitName(account.accountHolderName);
-        return {
-            firstName,
-            lastName,
-            cpf: account.taxId,
-            pixKey: account.pixKey,
-            pixKeyType: account.pixKeyType ?? 'evp',
-        };
     }
 
     /**

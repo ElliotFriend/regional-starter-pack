@@ -31,3 +31,29 @@ export const SANDBOX_KYC_DOCUMENTS: Record<string, string> = {
     proofOfAddress:
         'https://pub-4fabf5dd55154f19a0384b16f2b816d9.r2.dev/1000_F_365165797_VwQbNaD4yjWwQ6y1ENKh1xS0TXauOQvj.jpg',
 };
+
+/** Pre-filled SPEI bank account fields for sandbox/demo off-ramps (Mexico). */
+export const SANDBOX_SPEI_ACCOUNT = {
+    bankName: 'BBVA',
+    clabe: '012180001234567890',
+    beneficiary: 'María García',
+};
+
+/** Sample PIX key for each supported PIX key type. `random` returns a fresh UUID on every access. */
+export const SANDBOX_PIX_KEYS: Record<string, string> = {
+    cpf: '12345678901',
+    cnpj: '12345678000199',
+    email: 'joao.silva@example.com',
+    phone: '+5511912345678',
+    get random() {
+        return crypto.randomUUID();
+    },
+};
+
+/** Pre-filled PIX bank account fields for sandbox/demo off-ramps (Brazil). */
+export const SANDBOX_PIX_ACCOUNT = {
+    pixKey: SANDBOX_PIX_KEYS.cpf,
+    pixKeyType: 'cpf',
+    taxId: '12345678901',
+    accountHolderName: 'João Silva',
+};
