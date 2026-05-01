@@ -59,12 +59,12 @@ describe('getAllAnchors', () => {
 });
 
 describe('PDAX profile', () => {
-    it('exists and has Philippines as a coming-soon region with InstaPay and USDC', () => {
+    it('exists and has Philippines as a live region with InstaPay and USDC', () => {
         const pdax = getAnchor('pdax');
         expect(pdax).toBeDefined();
         expect(pdax!.name).toBe('PDAX');
         expect(pdax!.regions.philippines).toBeDefined();
-        expect(pdax!.regions.philippines.comingSoon).toBe(true);
+        expect(pdax!.regions.philippines.comingSoon).toBeFalsy();
         expect(pdax!.regions.philippines.paymentRails).toContain('instapay');
         expect(pdax!.regions.philippines.tokens).toContain('USDC');
     });

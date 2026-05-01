@@ -518,6 +518,23 @@ SCHEMA_NAMES = {
     "relationships": "Relationship",
 }
 
+# Mapping of schema name (as resolved by `resolve_schema_ref`) to the
+# TypeScript const exported by `reference.ts`. Used by the identity-fields
+# emitter so each field can point at the value-set the form should pull from.
+# `Token` is intentionally absent — identity fields never carry the crypto
+# token enum (the relevant token list at runtime is the curated STELLAR_TOKENS).
+SCHEMA_TO_TS_CONST = {
+    "Country": "COUNTRIES",
+    "BankCode": "BANK_CODES",
+    "FiatInMethod": "FIAT_IN_METHODS",
+    "FiatOutMethod": "FIAT_OUT_METHODS",
+    "SourceOfFunds": "SOURCES_OF_FUNDS",
+    "Purpose": "PURPOSES",
+    "FeeType": "FEE_TYPES",
+    "Sex": "SEX_VALUES",
+    "Relationship": "RELATIONSHIPS",
+}
+
 
 def schema_ref(name):
     """Render a $ref to a components schema by name."""
@@ -1579,18 +1596,190 @@ def _emit_bank_codes(refs):
     )
 
 
-def _emit_error_codes(refs):
-    """Emit the global ERROR_CODES lookup."""
-    if not refs["error_codes"]:
+def _identity_field_kind(field_name, path, refs, description):
+    """Return `(kind, enum_const)` for an identity field.
+
+    `kind` is `'enum'` if the field maps to a known accepted-values list,
+    `'date'` for `*_dob` fields (PDAX docs document these as mm-dd-yyyy
+    strings), or `'string'` otherwise. `enum_const` is the TypeScript
+    const name from this module (`COUNTRIES`, `SOURCES_OF_FUNDS`, etc.) or
+    `None` for non-enum fields.
+    """
+    ref = resolve_schema_ref(field_name, path, refs, description)
+    if ref:
+        schema_name = ref.rsplit("/", 1)[-1]
+        const = SCHEMA_TO_TS_CONST.get(schema_name)
+        if const:
+            return ("enum", const)
+    if field_name.lower().endswith("_dob"):
+        return ("date", None)
+    return ("string", None)
+
+
+# Endpoints whose body params we expose as KYC-style identity fields. Path
+# is the final OpenAPI path; the const name is what we export to TypeScript.
+_IDENTITY_FIELD_TARGETS = {
+    "/pdax-institution/v1/fiat/deposit": "FIAT_DEPOSIT_IDENTITY_FIELDS",
+    "/pdax-institution/v1/fiat/withdraw": "FIAT_WITHDRAW_IDENTITY_FIELDS",
+}
+
+
+def _emit_identity_fields(refs, sections):
+    """Emit identity-field arrays for /fiat/deposit and /fiat/withdraw.
+
+    The PDAX client's `getKycRequirements()` returns the union of these
+    two arrays; the KycForm renders inputs from them directly. Sourcing
+    this from the parsed OpenAPI body schemas keeps the form in sync with
+    the docs without hand-maintained field lists in client.ts.
+    """
+    arrays = []
+    for section in sections or []:
+        path = section.get("path") or ""
+        const_name = _IDENTITY_FIELD_TARGETS.get(path)
+        if not const_name:
+            continue
+        items = []
+        for p in section.get("body_params", []) or []:
+            name = field_name_of(p)
+            if not name:
+                continue
+            description = clean_description(p.get("description", "") or "") or ""
+            kind, enum_const = _identity_field_kind(name, path, refs, description)
+            items.append({
+                "name": name,
+                "required": is_required(p),
+                "kind": kind,
+                "enumConst": enum_const,
+                "description": description,
+            })
+        if not items:
+            continue
+        body_lines = []
+        for it in items:
+            parts = [
+                f"name: {json.dumps(it['name'])}",
+                f"required: {'true' if it['required'] else 'false'}",
+                f"kind: {json.dumps(it['kind'])}",
+            ]
+            if it.get("enumConst"):
+                parts.append(f"enumConst: {json.dumps(it['enumConst'])}")
+            if it.get("description"):
+                parts.append(f"description: {json.dumps(it['description'])}")
+            body_lines.append("    { " + ", ".join(parts) + " }")
+        body = "[\n" + ",\n".join(body_lines) + ",\n]"
+        arrays.append(
+            f"export const {const_name}: readonly IdentityFieldSpec[] = {body};\n"
+        )
+
+    if not arrays:
         return None
+
+    enum_union = " | ".join(f"'{c}'" for c in SCHEMA_TO_TS_CONST.values())
+    header = (
+        "// Required and optional identity fields per fiat endpoint, sourced from\n"
+        "// the request-body schemas of /fiat/deposit and /fiat/withdraw. The PDAX\n"
+        "// client's getKycRequirements() returns the union of these two arrays;\n"
+        "// `enumConst` points at the matching value-set exported above so the\n"
+        "// KycForm can render dropdowns without a separate field-to-enum map.\n"
+        "export type IdentityFieldKind = 'string' | 'date' | 'enum';\n"
+        "export type IdentityFieldEnum = " + enum_union + ";\n"
+        "export interface IdentityFieldSpec {\n"
+        "    name: string;\n"
+        "    required: boolean;\n"
+        "    kind: IdentityFieldKind;\n"
+        "    enumConst?: IdentityFieldEnum;\n"
+        "    description?: string;\n"
+        "}\n"
+    )
+    return header + "\n" + "\n".join(arrays)
+
+
+def _collect_all_error_codes(refs, sections):
+    """Build a {code: {code, name, httpStatus, message}} dict from the
+    global error table plus every endpoint's per-response error codes.
+
+    Dedupes by code; global entries (which carry canonical names) win.
+    Skips blank-code rows from validation-style tables (the docs include
+    a few trailing entries with empty `Response` cells).
+    """
+    by_code = {}
+
+    for e in refs.get("error_codes", []) or []:
+        code = (e.get("code") or "").strip()
+        if not code:
+            continue
+        by_code[code] = {
+            "code": code,
+            "name": e.get("name", "") or "",
+            "httpStatus": e.get("http_status"),
+            "message": e.get("message", "") or "",
+        }
+
+    for section in sections or []:
+        if not section.get("error_codes"):
+            continue
+        status_lookup = _tag_error_status_lookup(refs, section.get("group"))
+        per_endpoint = categorize_error_codes(
+            section["error_codes"], status_lookup
+        )
+        for status, codes in per_endpoint.items():
+            for c in codes:
+                code = (c.get("code") or "").strip()
+                if not code:
+                    continue
+                if code in by_code:
+                    existing = by_code[code]
+                    if not existing.get("name") and c.get("name"):
+                        existing["name"] = c["name"]
+                    if not existing.get("message") and c.get("message"):
+                        existing["message"] = c["message"]
+                    continue
+                by_code[code] = {
+                    "code": code,
+                    "name": c.get("name") or "",
+                    "httpStatus": status,
+                    "message": c.get("message") or "",
+                }
+
+    return by_code
+
+
+def _emit_error_codes(refs, sections):
+    """Emit the ERROR_CODES table.
+
+    Sources:
+      - Global table from the docs' "Error Codes" section (PAP-prefixed).
+      - Per-endpoint error responses for every section that carries one
+        (Trade OT010xxx codes, Crypto Out OT* codes, Fiat Out validation
+        strings).
+
+    Sorted: PAP* codes first by status, then OT* codes lexicographically,
+    then everything else (textual validation codes from /fiat/withdraw).
+    """
+    by_code = _collect_all_error_codes(refs, sections)
+    if not by_code:
+        return None
+
+    def sort_key(item):
+        code = item["code"]
+        if code.startswith("PAP"):
+            return (0, item["httpStatus"] or 0, code)
+        if code.startswith("OT"):
+            return (1, code)
+        return (2, code)
+
+    items = sorted(by_code.values(), key=sort_key)
     rows = ",\n".join(
         f"    {{ code: {json.dumps(e['code'])}, name: {json.dumps(e['name'])}, "
-        f"httpStatus: {e['http_status'] if e['http_status'] is not None else 'null'}, "
+        f"httpStatus: {e['httpStatus'] if e['httpStatus'] is not None else 'null'}, "
         f"message: {json.dumps(e['message'])} }}"
-        for e in refs["error_codes"]
+        for e in items
     )
     return (
-        "// Global error codes from the PDAX API.\n"
+        "// Error codes returned by the PDAX API. Includes global PAP* codes plus\n"
+        "// per-endpoint OT01xxxx codes from Trade / Crypto Out responses, and the\n"
+        "// textual validation codes from /fiat/withdraw (\"Missing identifier\",\n"
+        "// \"Invalid sender_phone_number\", etc.). Sorted PAP → OT → textual.\n"
         "export interface ErrorInfo {\n"
         "    code: string;\n"
         "    name: string;\n"
@@ -1601,18 +1790,23 @@ def _emit_error_codes(refs):
     )
 
 
-def build_reference_module(refs):
+def build_reference_module(refs, sections):
     """Return TypeScript source for src/lib/anchors/pdax/reference.ts."""
     blocks = [TS_HEADER, *_emit_simple_unions(refs)]
     for emit in (
         _emit_fiat_in_methods_info,
         _emit_stellar_tokens,
         _emit_bank_codes,
-        _emit_error_codes,
     ):
         block = emit(refs)
         if block:
             blocks.append(block)
+    identity_block = _emit_identity_fields(refs, sections)
+    if identity_block:
+        blocks.append(identity_block)
+    error_block = _emit_error_codes(refs, sections)
+    if error_block:
+        blocks.append(error_block)
     return "\n".join(blocks)
 
 
@@ -1976,7 +2170,7 @@ def main():
     print(f"  Paths: {len(spec['paths'])}")
     print(f"  Operations: {sum(len(v) for v in spec['paths'].values())}")
 
-    ts_source = build_reference_module(refs)
+    ts_source = build_reference_module(refs, sections)
     with open(args.reference, "w") as f:
         f.write(ts_source)
     print(f"\nWrote {args.reference}")

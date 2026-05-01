@@ -214,7 +214,6 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 paymentRails: ['instapay', 'pesonet'],
                 tokens: ['USDC'],
                 kycRequired: true,
-                comingSoon: true,
             },
         },
         devOnboarding: [

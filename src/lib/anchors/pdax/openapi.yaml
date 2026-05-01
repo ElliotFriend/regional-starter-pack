@@ -6,27 +6,27 @@ info:
   license:
     name: Proprietary
 servers:
-- url: https://services.pdax.ph/api/pdax-api
-  description: Production
-- url: https://stage.services.sandbox.pdax.ph/api/pdax-api
-  description: Stage / Sandbox
+  - url: https://services.pdax.ph/api/pdax-api
+    description: Production
+  - url: https://stage.services.sandbox.pdax.ph/api/pdax-api
+    description: Stage / Sandbox
 security:
-- bearerAuth: []
-  idToken: []
+  - bearerAuth: []
+    idToken: []
 tags:
-- name: Authentication
-- name: Balances
-- name: Deposit and Withdrawal check
-- name: Funding
-- name: Trade
-- name: Webhook
-- name: Withdrawals
+  - name: Authentication
+  - name: Balances
+  - name: Deposit and Withdrawal check
+  - name: Funding
+  - name: Trade
+  - name: Webhook
+  - name: Withdrawals
 paths:
   /pdax-institution/v1/login:
     post:
       summary: POST Login
       tags:
-      - Authentication
+        - Authentication
       operationId: post_login
       security: []
       requestBody:
@@ -43,8 +43,8 @@ paths:
                   type: string
                   description: Password of PDAX account
               required:
-              - username
-              - password
+                - username
+                - password
       responses:
         '200':
           description: Successful response (multiple variants)
@@ -52,56 +52,56 @@ paths:
             application/json:
               schema:
                 oneOf:
-                - type: object
-                  properties:
-                    email:
-                      type: string
-                      description: Email address of PDAX account
-                    username:
-                      type: string
-                      description: ID number of PDAX account
-                    groups:
-                      type: array
-                      description: List of groups user belongs to
-                    token_type:
-                      type: string
-                      description: Type of authentication token (e.g., "Bearer")
-                    preferred_mfa:
-                      type: string
-                      description: MFA preference status (e.g., "NOT_SET", "SOFTWARE_TOKEN_MFA")
-                    expiry:
-                      type: number
-                      description: Token validity period in seconds
-                    access_token:
-                      type: string
-                      description: JWT token for API authorization
-                    id_token:
-                      type: string
-                      description: JWT token for user identity
-                    refresh_token:
-                      type: string
-                      description: Token to refresh authentication without reauthentication
-                  title: Schema of Response Payload (Without MFA Setup)
-                - type: object
-                  properties:
-                    code:
-                      type: string
-                      description: Response code from authentication service
-                    message:
-                      type: string
-                      description: Descriptive message about the MFA challenge
-                    challenge_name:
-                      type: string
-                      description: Type of challenge required (e.g., "SOFTWARE_TOKEN_MFA")
-                    session:
-                      type: string
-                      description: Session token for completing the MFA challenge
-                  title: Schema of Response Payload (With MFA Setup)
+                  - type: object
+                    properties:
+                      email:
+                        type: string
+                        description: Email address of PDAX account
+                      username:
+                        type: string
+                        description: ID number of PDAX account
+                      groups:
+                        type: array
+                        description: List of groups user belongs to
+                      token_type:
+                        type: string
+                        description: Type of authentication token (e.g., "Bearer")
+                      preferred_mfa:
+                        type: string
+                        description: MFA preference status (e.g., "NOT_SET", "SOFTWARE_TOKEN_MFA")
+                      expiry:
+                        type: number
+                        description: Token validity period in seconds
+                      access_token:
+                        type: string
+                        description: JWT token for API authorization
+                      id_token:
+                        type: string
+                        description: JWT token for user identity
+                      refresh_token:
+                        type: string
+                        description: Token to refresh authentication without reauthentication
+                    title: Schema of Response Payload (Without MFA Setup)
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Response code from authentication service
+                      message:
+                        type: string
+                        description: Descriptive message about the MFA challenge
+                      challenge_name:
+                        type: string
+                        description: Type of challenge required (e.g., "SOFTWARE_TOKEN_MFA")
+                      session:
+                        type: string
+                        description: Session token for completing the MFA challenge
+                    title: Schema of Response Payload (With MFA Setup)
               example:
                 email: example@gmail.com
                 username: 96a8c8b5-8fee-40c9-9242-a5cd172e9a96
                 groups:
-                - exchange_user
+                  - exchange_user
                 token_type: Bearer
                 preferred_mfa: SOFTWARE_TOKEN_MFA
                 expiry: 600
@@ -118,7 +118,7 @@ paths:
     post:
       summary: POST OTP
       tags:
-      - Authentication
+        - Authentication
       operationId: post_otp
       description: This endpoint is required if you enable MFA on your account
       security: []
@@ -139,9 +139,9 @@ paths:
                   type: string
                   description: One-time password code
               required:
-              - session
-              - username
-              - otp
+                - session
+                - username
+                - otp
       responses:
         '200':
           description: Schema of Response Payload
@@ -181,7 +181,7 @@ paths:
                 email: example@gmail.com
                 username: 96a8c8b5-8fee-40c9-9242-a5cd172e9a96
                 groups:
-                - exchange_user
+                  - exchange_user
                 token_type: Bearer
                 preferred_mfa: SOFTWARE_TOKEN_MFA
                 expiry: 600
@@ -198,7 +198,7 @@ paths:
     put:
       summary: PUT Refresh Token
       tags:
-      - Authentication
+        - Authentication
       operationId: put_refresh_token
       security: []
       requestBody:
@@ -215,8 +215,8 @@ paths:
                   type: string
                   description: Token for refresh session
               required:
-              - username
-              - refreshToken
+                - username
+                - refreshToken
       responses:
         '200':
           description: Schema of Response Payload
@@ -256,7 +256,7 @@ paths:
                 email: test@pdax.ph
                 username: 48e0fe9e-0724-4b80-9eb7-c61b53cd7346
                 groups:
-                - insti_user
+                  - insti_user
                 token_type: Bearer
                 preferred_mfa: NOT_SET
                 expiry: 600
@@ -273,39 +273,39 @@ paths:
     get:
       summary: GET Indicative Quote
       tags:
-      - Trade
+        - Trade
       operationId: get_indicative_quote
       description: Get a price quotation for the selected cryptopair.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       parameters:
-      - name: quote_currency
-        in: query
-        schema:
-          $ref: '#/components/schemas/Token'
-        description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
-        required: true
-      - name: base_currency
-        in: query
-        schema:
-          type: string
-          enum:
-          - PHP
-        description: PHP asset
-        required: true
-      - name: side
-        in: query
-        schema:
-          type: string
-        description: Counterparty action -- buy or sell
-        required: true
-      - name: base_quantity
-        in: query
-        schema:
-          type: string
-        description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
-        required: true
+        - name: quote_currency
+          in: query
+          schema:
+            $ref: '#/components/schemas/Token'
+          description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+          required: true
+        - name: base_currency
+          in: query
+          schema:
+            type: string
+            enum:
+              - PHP
+          description: PHP asset
+          required: true
+        - name: side
+          in: query
+          schema:
+            type: string
+          description: Counterparty action -- buy or sell
+          required: true
+        - name: base_quantity
+          in: query
+          schema:
+            type: string
+          description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
+          required: true
       responses:
         '200':
           description: Schema of Response Payload
@@ -313,30 +313,30 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        quote_currency:
-                          type: string
-                          description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
-                        base_currency:
-                          type: string
-                          description: PHP asset
-                        side:
-                          type: string
-                          description: Counterparty action -- buy or sell
-                        base_quantity:
-                          type: string
-                          description: Quantity of the asset you are buying or selling
-                        price:
-                          type: number
-                          description: Quoted unit price
-                        total_amount:
-                          type: number
-                          description: Total amount
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          quote_currency:
+                            type: string
+                            description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                          base_currency:
+                            type: string
+                            description: PHP asset
+                          side:
+                            type: string
+                            description: Counterparty action -- buy or sell
+                          base_quantity:
+                            type: string
+                            description: Quantity of the asset you are buying or selling
+                          price:
+                            type: number
+                            description: Quoted unit price
+                          total_amount:
+                            type: number
+                            description: Total amount
               example:
                 data:
                   quote_currency: USDC
@@ -359,13 +359,14 @@ paths:
     post:
       summary: POST Firm Quote
       tags:
-      - Trade
+        - Trade
       operationId: post_firm_quote
-      description: Firm quotes shall be used in placing orders. The API Service shall fill the order parameters as indicated
+      description:
+        Firm quotes shall be used in placing orders. The API Service shall fill the order parameters as indicated
         in this endpoint and the quote response shall be served in full.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -379,7 +380,7 @@ paths:
                 base_currency:
                   type: string
                   enum:
-                  - PHP
+                    - PHP
                   description: PHP asset
                 side:
                   type: string
@@ -388,10 +389,10 @@ paths:
                   type: string
                   description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
               required:
-              - quote_currency
-              - base_currency
-              - side
-              - base_quantity
+                - quote_currency
+                - base_currency
+                - side
+                - base_quantity
       responses:
         '200':
           description: Schema of Response Payload
@@ -399,36 +400,36 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        quote_id:
-                          type: string
-                          description: Firm quote reference ID
-                        expires_at:
-                          type: string
-                          description: Quote validity in ISO timestamp
-                        quote_currency:
-                          type: string
-                          description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
-                        base_currency:
-                          type: string
-                          description: PHP asset
-                        side:
-                          type: string
-                          description: Counterparty action -- buy or sell
-                        base_quantity:
-                          type: number
-                          description: Quantity of the asset you are buying or selling
-                        price:
-                          type: number
-                          description: Quoted unit price
-                        total_amount:
-                          type: number
-                          description: Total amount
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          quote_id:
+                            type: string
+                            description: Firm quote reference ID
+                          expires_at:
+                            type: string
+                            description: Quote validity in ISO timestamp
+                          quote_currency:
+                            type: string
+                            description: The crypto asset you want to buy or sell . Supported trading pairs can be found here
+                          base_currency:
+                            type: string
+                            description: PHP asset
+                          side:
+                            type: string
+                            description: Counterparty action -- buy or sell
+                          base_quantity:
+                            type: number
+                            description: Quantity of the asset you are buying or selling
+                          price:
+                            type: number
+                            description: Quoted unit price
+                          total_amount:
+                            type: number
+                            description: Total amount
               example:
                 data:
                   quote_id: 0188b945-cbfa-7b8b-9fea-bfcc2ac25c8c
@@ -453,12 +454,12 @@ paths:
     get:
       summary: GET Indicative Quote v2
       tags:
-      - Trade
+        - Trade
       operationId: get_indicative_quote_v2
       description: Get a price quotation for the selected cryptopair.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -475,7 +476,7 @@ paths:
                 base_currency:
                   type: string
                   enum:
-                  - PHP
+                    - PHP
                   description: PHP asset
                 currency:
                   $ref: '#/components/schemas/Token'
@@ -484,11 +485,11 @@ paths:
                   type: string
                   description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
               required:
-              - side
-              - quote_currency
-              - base_currency
-              - currency
-              - quantity
+                - side
+                - quote_currency
+                - base_currency
+                - currency
+                - quantity
       responses:
         '200':
           description: Schema of Response Payload
@@ -496,30 +497,30 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        base_currency:
-                          type: string
-                          description: PHP asset
-                        quote_currency:
-                          type: string
-                          description: The crypto asset you want to buy or sell. Supported trading pairs can be found here
-                        side:
-                          type: string
-                          description: Counterparty action -- buy or sell
-                        base_quantity:
-                          type: number
-                          description: Quantity of the asset you are buying or selling
-                        price:
-                          type: number
-                          description: Quoted unit price
-                        total_amount:
-                          type: number
-                          description: Total amount
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          base_currency:
+                            type: string
+                            description: PHP asset
+                          quote_currency:
+                            type: string
+                            description: The crypto asset you want to buy or sell. Supported trading pairs can be found here
+                          side:
+                            type: string
+                            description: Counterparty action -- buy or sell
+                          base_quantity:
+                            type: number
+                            description: Quantity of the asset you are buying or selling
+                          price:
+                            type: number
+                            description: Quoted unit price
+                          total_amount:
+                            type: number
+                            description: Total amount
               example:
                 data:
                   base_currency: PHP
@@ -541,12 +542,12 @@ paths:
     post:
       summary: POST Firm Quote v2
       tags:
-      - Trade
+        - Trade
       operationId: post_firm_quote_v2
       description: Get a price quotation for the selected cryptopair.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -563,7 +564,7 @@ paths:
                 base_currency:
                   type: string
                   enum:
-                  - PHP
+                    - PHP
                   description: PHP asset
                 currency:
                   $ref: '#/components/schemas/Token'
@@ -572,11 +573,11 @@ paths:
                   type: string
                   description: Quantity to buy or sell.   Note:Quantity step rules apply. For more information, see here
               required:
-              - side
-              - quote_currency
-              - base_currency
-              - currency
-              - quantity
+                - side
+                - quote_currency
+                - base_currency
+                - currency
+                - quantity
       responses:
         '200':
           description: Schema of Response Payload
@@ -584,36 +585,36 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        quote_id:
-                          type: string
-                          description: Firm quote reference ID
-                        expires_at:
-                          type: string
-                          description: Quote validity in ISO timestamp
-                        base_currency:
-                          type: string
-                          description: PHP asset
-                        quote_currency:
-                          type: string
-                          description: The crypto asset you want to buy or sell. Supported trading pairs can be found here
-                        side:
-                          type: string
-                          description: Counterparty action -- buy or sell
-                        base_quantity:
-                          type: number
-                          description: Quantity of the asset you are buying or selling
-                        price:
-                          type: number
-                          description: Quoted unit price
-                        total_amount:
-                          type: number
-                          description: Total amount
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          quote_id:
+                            type: string
+                            description: Firm quote reference ID
+                          expires_at:
+                            type: string
+                            description: Quote validity in ISO timestamp
+                          base_currency:
+                            type: string
+                            description: PHP asset
+                          quote_currency:
+                            type: string
+                            description: The crypto asset you want to buy or sell. Supported trading pairs can be found here
+                          side:
+                            type: string
+                            description: Counterparty action -- buy or sell
+                          base_quantity:
+                            type: number
+                            description: Quantity of the asset you are buying or selling
+                          price:
+                            type: number
+                            description: Quoted unit price
+                          total_amount:
+                            type: number
+                            description: Total amount
               example:
                 data:
                   quote_id: 018fa0b8-b6e0-70e7-ad7e-1a9803695a86
@@ -637,13 +638,14 @@ paths:
     post:
       summary: POST Order
       tags:
-      - Trade
+        - Trade
       operationId: post_order
-      description: Place a market order using the firm quote reference. To check if the order has been completed, use the
+      description:
+        Place a market order using the firm quote reference. To check if the order has been completed, use the
         Get Order Status endpoint.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -659,12 +661,13 @@ paths:
                   description: Describes the side of the trade; this is dependent on the value of the side from Get Firm Quote
                 idempotency_id:
                   type: string
-                  description: 'Id of the request made. You may generate an idempotency id by using uuid ver 4 format  Sample
+                  description:
+                    'Id of the request made. You may generate an idempotency id by using uuid ver 4 format  Sample
                     here: https://www.uuidgenerator.net/version4'
               required:
-              - quote_id
-              - side
-              - idempotency_id
+                - quote_id
+                - side
+                - idempotency_id
       responses:
         '200':
           description: Schema of Response Payload
@@ -672,38 +675,40 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        order_id:
-                          type: number
-                          description: Id of the order
-                        status:
-                          type: string
-                          description: 'Possible Values : successful, failed'
-                        quote_currency:
-                          type: string
-                          description: If side is 'Buy' Quote currency is the asset you want to receive If side is 'Sell'
-                            Quote currency is the asset you want to sell
-                        base_currency:
-                          type: string
-                          description: If side is 'Buy' Base currency is the asset you want to sell If side is 'Sell' Base
-                            currency is the asset you want to receive
-                        side:
-                          type: string
-                          description: Counterparty side
-                        base_quantity:
-                          type: number
-                          description: Order quantity as per firm quote
-                        price:
-                          type: number
-                          description: Quoted unit price
-                        total_amount:
-                          type: number
-                          description: Total amount
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order_id:
+                            type: number
+                            description: Id of the order
+                          status:
+                            type: string
+                            description: 'Possible Values : successful, failed'
+                          quote_currency:
+                            type: string
+                            description:
+                              If side is 'Buy' Quote currency is the asset you want to receive If side is 'Sell'
+                              Quote currency is the asset you want to sell
+                          base_currency:
+                            type: string
+                            description:
+                              If side is 'Buy' Base currency is the asset you want to sell If side is 'Sell' Base
+                              currency is the asset you want to receive
+                          side:
+                            type: string
+                            description: Counterparty side
+                          base_quantity:
+                            type: number
+                            description: Order quantity as per firm quote
+                          price:
+                            type: number
+                            description: Quoted unit price
+                          total_amount:
+                            type: number
+                            description: Total amount
               example:
                 data:
                   order_id: 122121
@@ -727,19 +732,19 @@ paths:
     get:
       summary: GET Order Status
       tags:
-      - Trade
+        - Trade
       operationId: get_order_status
       description: Use this endpoint to verify the status of your order.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       parameters:
-      - name: order_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Order ID returned from Post Order endpoint
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order ID returned from Post Order endpoint
       responses:
         '200':
           description: Schema of Response Payload
@@ -747,38 +752,40 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        order_id:
-                          type: number
-                          description: Order id
-                        status:
-                          type: string
-                          description: 'Possible Values : SUCCESSFUL, FAILED'
-                        quote_currency:
-                          type: string
-                          description: If side is 'Buy' Quote currency is the asset you want to receive If side is 'Sell'
-                            Quote currency is the asset you want to sell
-                        base_currency:
-                          type: string
-                          description: If side is 'Buy' Base currency is the asset you want to sell If side is 'Sell' Base
-                            currency is the asset you want to receive
-                        side:
-                          type: string
-                          description: Counterparty side
-                        base_quantity:
-                          type: number
-                          description: Order quantity as per firm quote
-                        price:
-                          type: number
-                          description: Quoted unit price
-                        total_amount:
-                          type: number
-                          description: Indicative total price inclusive of fees
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order_id:
+                            type: number
+                            description: Order id
+                          status:
+                            type: string
+                            description: 'Possible Values : SUCCESSFUL, FAILED'
+                          quote_currency:
+                            type: string
+                            description:
+                              If side is 'Buy' Quote currency is the asset you want to receive If side is 'Sell'
+                              Quote currency is the asset you want to sell
+                          base_currency:
+                            type: string
+                            description:
+                              If side is 'Buy' Base currency is the asset you want to sell If side is 'Sell' Base
+                              currency is the asset you want to receive
+                          side:
+                            type: string
+                            description: Counterparty side
+                          base_quantity:
+                            type: number
+                            description: Order quantity as per firm quote
+                          price:
+                            type: number
+                            description: Quoted unit price
+                          total_amount:
+                            type: number
+                            description: Indicative total price inclusive of fees
               example:
                 data:
                   order_id: '122121'
@@ -802,19 +809,19 @@ paths:
     get:
       summary: Get Wallet (for Crypto Deposits)
       tags:
-      - Funding
+        - Funding
       operationId: get_wallet__for_crypto_deposits
       description: Deposit into your crypto wallet using the address returned by this endpoint.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       parameters:
-      - name: currency
-        in: query
-        schema:
-          $ref: '#/components/schemas/Token'
-        description: Currency symbol including network of crypto token  e.g USDCXLM
-        required: true
+        - name: currency
+          in: query
+          schema:
+            $ref: '#/components/schemas/Token'
+          description: Currency symbol including network of crypto token  e.g USDCXLM
+          required: true
       responses:
         '200':
           description: Schema of Response Payload
@@ -822,21 +829,21 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        currency:
-                          type: string
-                          description: Currency symbol
-                        address:
-                          type: string
-                          description: Wallet address
-                        tag:
-                          type: string
-                          description: Address tag or memo
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          currency:
+                            type: string
+                            description: Currency symbol
+                          address:
+                            type: string
+                            description: Wallet address
+                          tag:
+                            type: string
+                            description: Address tag or memo
               example:
                 data:
                   currency: USDCXLM
@@ -854,11 +861,11 @@ paths:
     post:
       summary: POST Fiat In (for Fiat Deposits)
       tags:
-      - Funding
+        - Funding
       operationId: post_fiat_in__for_fiat_deposits
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -981,20 +988,20 @@ paths:
                   type: string
                   description: Nature of business of beneficiary
               required:
-              - amount
-              - method
-              - identifier
-              - sender_first_name
-              - sender_middle_name
-              - sender_last_name
-              - sender_country_origin
-              - source_of_funds
-              - beneficiary_first_name
-              - beneficiary_middle_name
-              - beneficiary_last_name
-              - purpose
-              - relationship_of_sender_to_beneficiary
-              - currency
+                - amount
+                - method
+                - identifier
+                - sender_first_name
+                - sender_middle_name
+                - sender_last_name
+                - sender_country_origin
+                - source_of_funds
+                - beneficiary_first_name
+                - beneficiary_middle_name
+                - beneficiary_last_name
+                - purpose
+                - relationship_of_sender_to_beneficiary
+                - currency
       responses:
         '200':
           description: Schema of Response Payload
@@ -1048,12 +1055,12 @@ paths:
     post:
       summary: POST Fiat Out
       tags:
-      - Withdrawals
+        - Withdrawals
       operationId: post_fiat_out
       description: Withdraw Fiat from your account to a beneficiary
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -1115,7 +1122,8 @@ paths:
                   description: Sender's email
                 fee_type:
                   $ref: '#/components/schemas/FeeType'
-                  description: Fiat out fee to be shouldered either by Sender or Beneficiary, you may opt to choose either
+                  description:
+                    Fiat out fee to be shouldered either by Sender or Beneficiary, you may opt to choose either
                     option to determine where fees will be debited from
                 beneficiary_first_name:
                   type: string
@@ -1192,24 +1200,24 @@ paths:
                   type: string
                   description: Other instructions
               required:
-              - identifier
-              - sender_first_name
-              - sender_middle_name
-              - sender_last_name
-              - sender_country_origin
-              - source_of_funds
-              - fee_type
-              - beneficiary_first_name
-              - beneficiary_middle_name
-              - beneficiary_last_name
-              - beneficiary_bank_code
-              - beneficiary_account_name
-              - beneficiary_account_number
-              - purpose
-              - relationship_of_sender_to_beneficiary
-              - currency
-              - amount
-              - method
+                - identifier
+                - sender_first_name
+                - sender_middle_name
+                - sender_last_name
+                - sender_country_origin
+                - source_of_funds
+                - fee_type
+                - beneficiary_first_name
+                - beneficiary_middle_name
+                - beneficiary_last_name
+                - beneficiary_bank_code
+                - beneficiary_account_name
+                - beneficiary_account_number
+                - purpose
+                - relationship_of_sender_to_beneficiary
+                - currency
+                - amount
+                - method
       responses:
         '200':
           description: Schema of Response Payload
@@ -1217,49 +1225,49 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        request_id:
-                          type: string
-                          description: The request id for your transaction
-                        identifier:
-                          type: string
-                          description: Unique identifier supplied by partner
-                        reference_number:
-                          type: string
-                          description: Reference number of the transaction
-                        amount:
-                          type: number
-                          description: Withdrawal amount
-                        method:
-                          type: string
-                          description: The chosen method for the fiat deposit
-                        fee:
-                          type: number
-                          description: Amount collected for fees
-                        status:
-                          type: string
-                          description: 'Possible values: PENDING'
-                        retry_methods:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              request_id:
-                                type: string
-                              channel:
-                                type: string
-                              status:
-                                type: string
-                              fail_reason:
-                                type: string
-                              time:
-                                type: string
-                          description: The information of each attempted payment channel
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          request_id:
+                            type: string
+                            description: The request id for your transaction
+                          identifier:
+                            type: string
+                            description: Unique identifier supplied by partner
+                          reference_number:
+                            type: string
+                            description: Reference number of the transaction
+                          amount:
+                            type: number
+                            description: Withdrawal amount
+                          method:
+                            type: string
+                            description: The chosen method for the fiat deposit
+                          fee:
+                            type: number
+                            description: Amount collected for fees
+                          status:
+                            type: string
+                            description: 'Possible values: PENDING'
+                          retry_methods:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                request_id:
+                                  type: string
+                                channel:
+                                  type: string
+                                status:
+                                  type: string
+                                fail_reason:
+                                  type: string
+                                time:
+                                  type: string
+                            description: The information of each attempted payment channel
               example:
                 data:
                   identifier: ABC123
@@ -1267,16 +1275,16 @@ paths:
                   amount: 1000
                   method: PAY-TO-ACCOUNT-NON-REAL-TIME
                   retry_methods:
-                  - request_id: a3bb3320-6974-11ed-998b-ef1ff47430fv
-                    channel: ubp_partner_cashout
-                    status: failed
-                    fail_reason: Internal Server Error
-                    time: '2024-02-15T07:25:09.850Z'
-                  - request_id: a3bb3030-6974-11ed-998b-ef1ff47430fe
-                    channel: instapay_emi_p2p_cashout
-                    status: success
-                    fail_reason: ''
-                    time: '2024-02-15T07:25:09.850Z'
+                    - request_id: a3bb3320-6974-11ed-998b-ef1ff47430fv
+                      channel: ubp_partner_cashout
+                      status: failed
+                      fail_reason: Internal Server Error
+                      time: '2024-02-15T07:25:09.850Z'
+                    - request_id: a3bb3030-6974-11ed-998b-ef1ff47430fe
+                      channel: instapay_emi_p2p_cashout
+                      status: success
+                      fail_reason: ''
+                      time: '2024-02-15T07:25:09.850Z'
                   status: PENDING
                   fee: 0
                 status: success
@@ -1292,12 +1300,12 @@ paths:
     post:
       summary: POST Crypto Out
       tags:
-      - Withdrawals
+        - Withdrawals
       operationId: post_crypto_out
       description: Withdraw Crypto from your account to a beneficiary
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -1336,15 +1344,15 @@ paths:
                   type: string
                   description: Parameter to indicate if withdrawal is to be sent to a custodial or decentralized wallet
               required:
-              - identifier
-              - currency
-              - address
-              - amount
-              - beneficiary_first_name
-              - beneficiary_last_name
-              - beneficiary_exchange
-              - send_to_self
-              - beneficiary_wallet
+                - identifier
+                - currency
+                - address
+                - amount
+                - beneficiary_first_name
+                - beneficiary_last_name
+                - beneficiary_exchange
+                - send_to_self
+                - beneficiary_wallet
       responses:
         '200':
           description: Schema of Response Payload
@@ -1407,23 +1415,23 @@ paths:
     get:
       summary: GET Fiat Transactions
       tags:
-      - Deposit and Withdrawal check
+        - Deposit and Withdrawal check
       operationId: get_fiat_transactions
       description: Track your Fiat deposits and withdrawals by querying the identifier or mode of the transaction
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       parameters:
-      - name: mode
-        in: query
-        schema:
-          type: string
-        description: The mode of the transaction CashInCashOut
-      - name: identifier
-        in: query
-        schema:
-          type: string
-        description: Unique identifier supplied by client
+        - name: mode
+          in: query
+          schema:
+            type: string
+          description: The mode of the transaction CashInCashOut
+        - name: identifier
+          in: query
+          schema:
+            type: string
+          description: Unique identifier supplied by client
       responses:
         '200':
           description: Schema of Response Payload
@@ -1431,65 +1439,66 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          request_id:
-                            type: string
-                            description: The request id for your transaction
-                          transaction_id:
-                            type: string
-                            description: Transaction id from the deposit / withdrawal
-                          amount:
-                            type: number
-                            description: Amount of the deposit / withdrawal
-                          fee:
-                            type: number
-                            description: PDAX fee implemented on the deposit / withdrawal
-                          method:
-                            type: string
-                          mode:
-                            type: string
-                            description: The mode of the transaction, either Cash In or Cash Out
-                          reference_number:
-                            type: string
-                            description: The reference number generated from the Cash In or Cash Out transaction
-                          fulfilled_at:
-                            type: string
-                            description: If fulfilledAt contains a date and time, it is successful  If blank, it is pending
-                          declined_at:
-                            type: string
-                            description: If declinedAt contains a date and time, its failed  If blank, it is pending
-                          rejection_reason:
-                            type: string
-                            description: If the transaction failed, value is the reason why transaction was rejected  If the
-                              transaction is success, value is null
-                          currency:
-                            type: string
-                            description: Currency of the transaction
-                          created_at:
-                            type: string
-                            description: Timestamp of the transaction when it was created
-                          updated_at:
-                            type: string
-                            description: Timestamp of the transaction when it was updated
-                          status:
-                            type: string
-                            description: 'Possible values: IN-PROGRESS, COMPLETED, FAILED'
-                          identifier:
-                            type: string
-                            description: Unique identifier supplied by client
-                          fee_type:
-                            type: string
-                            description: Fiat out fee to be shouldered either by Sender or Beneficiary
-                          retried_methods:
-                            type: array
-                            description: Attempts per transaction
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            request_id:
+                              type: string
+                              description: The request id for your transaction
+                            transaction_id:
+                              type: string
+                              description: Transaction id from the deposit / withdrawal
+                            amount:
+                              type: number
+                              description: Amount of the deposit / withdrawal
+                            fee:
+                              type: number
+                              description: PDAX fee implemented on the deposit / withdrawal
+                            method:
+                              type: string
+                            mode:
+                              type: string
+                              description: The mode of the transaction, either Cash In or Cash Out
+                            reference_number:
+                              type: string
+                              description: The reference number generated from the Cash In or Cash Out transaction
+                            fulfilled_at:
+                              type: string
+                              description: If fulfilledAt contains a date and time, it is successful  If blank, it is pending
+                            declined_at:
+                              type: string
+                              description: If declinedAt contains a date and time, its failed  If blank, it is pending
+                            rejection_reason:
+                              type: string
+                              description:
+                                If the transaction failed, value is the reason why transaction was rejected  If the
+                                transaction is success, value is null
+                            currency:
+                              type: string
+                              description: Currency of the transaction
+                            created_at:
+                              type: string
+                              description: Timestamp of the transaction when it was created
+                            updated_at:
+                              type: string
+                              description: Timestamp of the transaction when it was updated
+                            status:
+                              type: string
+                              description: 'Possible values: IN-PROGRESS, COMPLETED, FAILED'
+                            identifier:
+                              type: string
+                              description: Unique identifier supplied by client
+                            fee_type:
+                              type: string
+                              description: Fiat out fee to be shouldered either by Sender or Beneficiary
+                            retried_methods:
+                              type: array
+                              description: Attempts per transaction
         '400':
           $ref: '#/components/responses/PdaxError400'
         '401':
@@ -1502,23 +1511,23 @@ paths:
     get:
       summary: GET Crypto Transactions
       tags:
-      - Deposit and Withdrawal check
+        - Deposit and Withdrawal check
       operationId: get_crypto_transactions
       description: Track your crypto deposits and withdrawals by querying the identifier or transaction hash
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       parameters:
-      - name: identifier
-        in: query
-        schema:
-          type: string
-        description: Unique identifier supplied by client
-      - name: txn_hash
-        in: query
-        schema:
-          type: string
-        description: Transaction hash
+        - name: identifier
+          in: query
+          schema:
+            type: string
+          description: Unique identifier supplied by client
+        - name: txn_hash
+          in: query
+          schema:
+            type: string
+          description: Transaction hash
       responses:
         '200':
           description: Schema of Response Payload
@@ -1526,88 +1535,88 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          transaction_id:
-                            type: string
-                            description: Transaction id from the deposit / withdrawal
-                          type:
-                            type: string
-                            description: Type of transaction
-                          debit_ccy:
-                            type: string
-                            description: Currency of the debited amount
-                          credit_ccy:
-                            type: string
-                            description: Currency of the credited amount
-                          debit_amount:
-                            type: string
-                            description: Amount debited from the PDAX wallet
-                          debit_net_amount:
-                            type: string
-                            description: Net amount debited from the PDAX wallet (less fees)
-                          credit_amount:
-                            type: string
-                            description: Amount credited to the PDAX wallet
-                          credit_net_amount:
-                            type: string
-                            description: Net amount debited from the PDAX wallet (less fees)
-                          fee_amount:
-                            type: string
-                            description: The fees from the transaction
-                          status:
-                            type: string
-                            description: 'Possible values: pending, completed, failed'
-                          created_at:
-                            type: string
-                            description: Timestamp of the transaction when it was created
-                          txn_hash:
-                            type: string
-                            description: Unique identifier that is used to track the transaction on the blockchain
-                          sender_email:
-                            type: string
-                            description: Email of the sender
-                          sender_wallet_address:
-                            type: string
-                            description: Wallet address of the sender
-                          sender_wallet_address_tag:
-                            type: string
-                            description: Wallet address tag of the sender
-                          receiver_email:
-                            type: string
-                            description: Receiver email
-                          receiver_wallet_address:
-                            type: string
-                            description: Receiver wallet address
-                          receiver_wallet_address_tag:
-                            type: string
-                            description: Receiver wallet address tag
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            transaction_id:
+                              type: string
+                              description: Transaction id from the deposit / withdrawal
+                            type:
+                              type: string
+                              description: Type of transaction
+                            debit_ccy:
+                              type: string
+                              description: Currency of the debited amount
+                            credit_ccy:
+                              type: string
+                              description: Currency of the credited amount
+                            debit_amount:
+                              type: string
+                              description: Amount debited from the PDAX wallet
+                            debit_net_amount:
+                              type: string
+                              description: Net amount debited from the PDAX wallet (less fees)
+                            credit_amount:
+                              type: string
+                              description: Amount credited to the PDAX wallet
+                            credit_net_amount:
+                              type: string
+                              description: Net amount debited from the PDAX wallet (less fees)
+                            fee_amount:
+                              type: string
+                              description: The fees from the transaction
+                            status:
+                              type: string
+                              description: 'Possible values: pending, completed, failed'
+                            created_at:
+                              type: string
+                              description: Timestamp of the transaction when it was created
+                            txn_hash:
+                              type: string
+                              description: Unique identifier that is used to track the transaction on the blockchain
+                            sender_email:
+                              type: string
+                              description: Email of the sender
+                            sender_wallet_address:
+                              type: string
+                              description: Wallet address of the sender
+                            sender_wallet_address_tag:
+                              type: string
+                              description: Wallet address tag of the sender
+                            receiver_email:
+                              type: string
+                              description: Receiver email
+                            receiver_wallet_address:
+                              type: string
+                              description: Receiver wallet address
+                            receiver_wallet_address_tag:
+                              type: string
+                              description: Receiver wallet address tag
               example:
                 data:
-                - transaction_id: 22829
-                  type: crypto_in
-                  debit_ccy: null
-                  credit_ccy: UNI
-                  debit_amount: '0'
-                  debit_net_amount: '0'
-                  credit_amount: '0.68'
-                  credit_net_amount: '0.68'
-                  fee_amount: '0'
-                  status: completed
-                  created_at: '2023-07-17T11:06:25.285Z'
-                  txn_hash: '0xb14b15995b6456ac9b5c67ac53258084778a9eaa913bdecd8e7f32f03cc0b3b0'
-                  sender_email: null
-                  sender_wallet_address: null
-                  sender_wallet_address_tag: null
-                  receiver_email: null
-                  receiver_wallet_address: null
-                  receiver_wallet_address_tag: null
+                  - transaction_id: 22829
+                    type: crypto_in
+                    debit_ccy: null
+                    credit_ccy: UNI
+                    debit_amount: '0'
+                    debit_net_amount: '0'
+                    credit_amount: '0.68'
+                    credit_net_amount: '0.68'
+                    fee_amount: '0'
+                    status: completed
+                    created_at: '2023-07-17T11:06:25.285Z'
+                    txn_hash: '0xb14b15995b6456ac9b5c67ac53258084778a9eaa913bdecd8e7f32f03cc0b3b0'
+                    sender_email: null
+                    sender_wallet_address: null
+                    sender_wallet_address_tag: null
+                    receiver_email: null
+                    receiver_wallet_address: null
+                    receiver_wallet_address_tag: null
                 status: success
         '400':
           $ref: '#/components/responses/PdaxError400'
@@ -1621,18 +1630,18 @@ paths:
     get:
       summary: Get Balances
       tags:
-      - Balances
+        - Balances
       operationId: get_balances
       description: View the balance of all assets.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       parameters:
-      - name: currency
-        in: query
-        schema:
-          type: string
-        description: Currency
+        - name: currency
+          in: query
+          schema:
+            type: string
+          description: Currency
       responses:
         '200':
           description: Schema of Response Payload
@@ -1640,41 +1649,41 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/SuccessEnvelope'
-                - type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          currency:
-                            type: string
-                            description: Currency
-                          available:
-                            type: string
-                            description: Currency available for withdrawal and for trading
-                          hold:
-                            type: string
-                            description: Currency balance held due to open orders or pending withdrawal
-                          total:
-                            type: string
-                            description: The total balance sum of available and hold
-                          asset_type:
-                            type: string
-                            description: Fiat or Crypto
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            currency:
+                              type: string
+                              description: Currency
+                            available:
+                              type: string
+                              description: Currency available for withdrawal and for trading
+                            hold:
+                              type: string
+                              description: Currency balance held due to open orders or pending withdrawal
+                            total:
+                              type: string
+                              description: The total balance sum of available and hold
+                            asset_type:
+                              type: string
+                              description: Fiat or Crypto
               example:
                 data:
-                - currency: USDCXLM
-                  available: '1000001'
-                  hold: '0'
-                  total: '1000001'
-                  asset_type: CRYPTO
-                - currency: PHP
-                  available: '1000001'
-                  hold: '0'
-                  total: '1000001'
-                  asset_type: FIAT
+                  - currency: USDCXLM
+                    available: '1000001'
+                    hold: '0'
+                    total: '1000001'
+                    asset_type: CRYPTO
+                  - currency: PHP
+                    available: '1000001'
+                    hold: '0'
+                    total: '1000001'
+                    asset_type: FIAT
         '400':
           $ref: '#/components/responses/PdaxError400'
         '401':
@@ -1687,13 +1696,14 @@ paths:
     post:
       summary: Register webhook endpoint
       tags:
-      - Webhook
+        - Webhook
       operationId: register_webhook_endpoint
-      description: Register a URL to receive webhook events for fiat or crypto transactions. Set `event_type` to `crypto`
+      description:
+        Register a URL to receive webhook events for fiat or crypto transactions. Set `event_type` to `crypto`
         or `fiat`. To receive both, register twice.
       security:
-      - bearerAuth: []
-        idToken: []
+        - bearerAuth: []
+          idToken: []
       requestBody:
         required: true
         content:
@@ -1704,15 +1714,15 @@ paths:
                 event_type:
                   type: string
                   enum:
-                  - crypto
-                  - fiat
+                    - crypto
+                    - fiat
                   description: Which event stream to subscribe to.
                 webhook_endpoint:
                   type: string
                   description: Your deployed webhook endpoint.
               required:
-              - event_type
-              - webhook_endpoint
+                - event_type
+                - webhook_endpoint
       responses:
         '200':
           description: Webhook registered
@@ -1729,7 +1739,8 @@ webhooks:
     post:
       summary: Webhook Events for Crypto Transactions
       operationId: crypto_transactions_webhook
-      description: PDAX delivers this payload to your registered webhook endpoint when a crypto transaction event occurs.
+      description:
+        PDAX delivers this payload to your registered webhook endpoint when a crypto transaction event occurs.
         Register your URL via `POST /pdax-institution/v1/config/webhook` to start receiving.
       requestBody:
         required: true
@@ -1744,7 +1755,8 @@ webhooks:
     post:
       summary: Webhook Events for Fiat Transactions
       operationId: fiat_transactions_webhook
-      description: PDAX delivers this payload to your registered webhook endpoint when a fiat transaction event occurs. Register
+      description:
+        PDAX delivers this payload to your registered webhook endpoint when a fiat transaction event occurs. Register
         your URL via `POST /pdax-institution/v1/config/webhook` to start receiving.
       requestBody:
         required: true
@@ -1770,7 +1782,8 @@ components:
   schemas:
     SuccessEnvelope:
       type: object
-      description: Standard PDAX success response envelope. Every successful response wraps its payload in this shape. Endpoints
+      description:
+        Standard PDAX success response envelope. Every successful response wraps its payload in this shape. Endpoints
         override the `data` field's type via `allOf` — single-object endpoints set it to a typed object, list endpoints set
         it to a typed array.
       properties:
@@ -1780,11 +1793,12 @@ components:
         data:
           description: Endpoint-specific payload. See the per-endpoint response schema for the actual shape (object or array).
       required:
-      - data
-      - status
+        - data
+        - status
     ErrorEnvelope:
       type: object
-      description: Standard PDAX error response envelope. Specific endpoints constrain the `code` field to a known enum via
+      description:
+        Standard PDAX error response envelope. Specific endpoints constrain the `code` field to a known enum via
         `allOf` in their response components.
       properties:
         status:
@@ -1797,163 +1811,163 @@ components:
           type: string
           description: Human-readable error message.
       required:
-      - code
-      - message
+        - code
+        - message
     Country:
       type: string
       description: Country accepted by PDAX, sourced from the docs' Accepted Country List.
       enum:
-      - Algeria
-      - Albania
-      - Antigua and Barbuda
-      - Armenia
-      - Angola
-      - Andorra
-      - Austria
-      - Bahamas
-      - Argentina
-      - Australia
-      - Azerbaijan
-      - Bahrain
-      - Barbados
-      - Bangladesh
-      - Belgium
-      - Belize
-      - Benin
-      - Bhutan
-      - Bolivia
-      - Bosnia and Herzegovina
-      - Botswana
-      - Brazil
-      - Brunei
-      - Bulgaria
-      - Burkina Faso
-      - Burundi
-      - Cabo Verde
-      - Cambodia
-      - Cameroon
-      - Canada
-      - Chad
-      - Chile
-      - Colombia
-      - China
-      - Comoros
-      - Congo
-      - Croatia
-      - Costa Rica
-      - Cyprus
-      - Czech Republic
-      - Djibouti
-      - Denmark
-      - Dominica
-      - Dominican Republic
-      - Ecuador
-      - East Timor
-      - Egypt
-      - El Salvador
-      - Eritrea
-      - Estonia
-      - Eswatini
-      - Fiji
-      - France
-      - Gabon
-      - Gambia
-      - Germany
-      - Greece
-      - Ghana
-      - Grenada
-      - Guatemala
-      - Guinea-Bissau
-      - Guinea
-      - Guyana
-      - Honduras
-      - Hungary
-      - Iceland
-      - India
-      - Indonesia
-      - Ireland
-      - Israel
-      - Italy
-      - Jamaica
-      - Japan
-      - Jordan
-      - Kazakhstan
-      - Kenya
-      - Kiribati
-      - Kuwait
-      - Kyrgyzstan
-      - Laos
-      - Latvia
-      - Lebanon
-      - Lesotho
-      - Liberia
-      - Lithuania
-      - Luxembourg
-      - Madagascar
-      - Malawi
-      - Malaysia
-      - Maldives
-      - Malta
-      - Marshall Islands
-      - Mauritius
-      - Micronesia
-      - Monaco
-      - Montenegro
-      - Mozambique
-      - Namibia
-      - Nauru
-      - Nepal
-      - New Zealand
-      - Niger
-      - Nigeria
-      - North Macedonia
-      - Norway
-      - Oman
-      - Pakistan
-      - Palau
-      - Panama
-      - Papua New Guinea
-      - Paraguay
-      - Peru
-      - Poland
-      - Portugal
-      - Qatar
-      - Romania
-      - Rwanda
-      - Saint Kitts and Nevis
-      - Saint Lucia
-      - Saint Vincent and the Grenadines
-      - Samoa
-      - San Marino
-      - Sao Tome and Principe
-      - Saudi Arabia
-      - Senegal
-      - Serbia
-      - Seychelles
-      - Singapore
-      - Slovakia
-      - Slovenia
-      - Solomon Islands
-      - South Africa
-      - Sri Lanka
-      - Suriname
-      - Switzerland
-      - Taiwan
-      - Tanzania
-      - Thailand
-      - Togo
-      - Trinidad and Tobago
-      - Turkey
-      - Tuvalu
-      - United Kingdom
-      - United Arab Emirates
-      - Uruguay
-      - Uzbekistan
-      - United States
-      - Vatican City
-      - Vietnam
-      - Zambia
-      - Vanuatu
+        - Algeria
+        - Albania
+        - Antigua and Barbuda
+        - Armenia
+        - Angola
+        - Andorra
+        - Austria
+        - Bahamas
+        - Argentina
+        - Australia
+        - Azerbaijan
+        - Bahrain
+        - Barbados
+        - Bangladesh
+        - Belgium
+        - Belize
+        - Benin
+        - Bhutan
+        - Bolivia
+        - Bosnia and Herzegovina
+        - Botswana
+        - Brazil
+        - Brunei
+        - Bulgaria
+        - Burkina Faso
+        - Burundi
+        - Cabo Verde
+        - Cambodia
+        - Cameroon
+        - Canada
+        - Chad
+        - Chile
+        - Colombia
+        - China
+        - Comoros
+        - Congo
+        - Croatia
+        - Costa Rica
+        - Cyprus
+        - Czech Republic
+        - Djibouti
+        - Denmark
+        - Dominica
+        - Dominican Republic
+        - Ecuador
+        - East Timor
+        - Egypt
+        - El Salvador
+        - Eritrea
+        - Estonia
+        - Eswatini
+        - Fiji
+        - France
+        - Gabon
+        - Gambia
+        - Germany
+        - Greece
+        - Ghana
+        - Grenada
+        - Guatemala
+        - Guinea-Bissau
+        - Guinea
+        - Guyana
+        - Honduras
+        - Hungary
+        - Iceland
+        - India
+        - Indonesia
+        - Ireland
+        - Israel
+        - Italy
+        - Jamaica
+        - Japan
+        - Jordan
+        - Kazakhstan
+        - Kenya
+        - Kiribati
+        - Kuwait
+        - Kyrgyzstan
+        - Laos
+        - Latvia
+        - Lebanon
+        - Lesotho
+        - Liberia
+        - Lithuania
+        - Luxembourg
+        - Madagascar
+        - Malawi
+        - Malaysia
+        - Maldives
+        - Malta
+        - Marshall Islands
+        - Mauritius
+        - Micronesia
+        - Monaco
+        - Montenegro
+        - Mozambique
+        - Namibia
+        - Nauru
+        - Nepal
+        - New Zealand
+        - Niger
+        - Nigeria
+        - North Macedonia
+        - Norway
+        - Oman
+        - Pakistan
+        - Palau
+        - Panama
+        - Papua New Guinea
+        - Paraguay
+        - Peru
+        - Poland
+        - Portugal
+        - Qatar
+        - Romania
+        - Rwanda
+        - Saint Kitts and Nevis
+        - Saint Lucia
+        - Saint Vincent and the Grenadines
+        - Samoa
+        - San Marino
+        - Sao Tome and Principe
+        - Saudi Arabia
+        - Senegal
+        - Serbia
+        - Seychelles
+        - Singapore
+        - Slovakia
+        - Slovenia
+        - Solomon Islands
+        - South Africa
+        - Sri Lanka
+        - Suriname
+        - Switzerland
+        - Taiwan
+        - Tanzania
+        - Thailand
+        - Togo
+        - Trinidad and Tobago
+        - Turkey
+        - Tuvalu
+        - United Kingdom
+        - United Arab Emirates
+        - Uruguay
+        - Uzbekistan
+        - United States
+        - Vatican City
+        - Vietnam
+        - Zambia
+        - Vanuatu
     Token:
       type: string
       description: |-
@@ -2011,55 +2025,55 @@ components:
         | OP | Ethereum (ERC20) |
         | NEAR | Ethereum (ERC20) |
       enum:
-      - AAVE
-      - ADA
-      - ALGO
-      - APE
-      - AVAX
-      - AXS
-      - BAT
-      - BCH
-      - BNB
-      - BTC
-      - COMP
-      - DOGE
-      - DOT
-      - ENJ
-      - ETH
-      - GALA
-      - GMT
-      - GRT
-      - HBAR
-      - LINK
-      - LTC
-      - MANA
-      - POL
-      - PAXG
-      - PEPE
-      - PYUSD
-      - RON
-      - SAND
-      - SHIB
-      - SLP
-      - SOL
-      - SUSHI
-      - TON
-      - UNI
-      - USDCSOL
-      - USDCXLM
-      - USDCPOL
-      - USDC
-      - USDTPOL
-      - USDT
-      - USDTTRX
-      - WETHPOL
-      - XLM
-      - XRP
-      - XTZ
-      - YGGRON
-      - CELO
-      - OP
-      - NEAR
+        - AAVE
+        - ADA
+        - ALGO
+        - APE
+        - AVAX
+        - AXS
+        - BAT
+        - BCH
+        - BNB
+        - BTC
+        - COMP
+        - DOGE
+        - DOT
+        - ENJ
+        - ETH
+        - GALA
+        - GMT
+        - GRT
+        - HBAR
+        - LINK
+        - LTC
+        - MANA
+        - POL
+        - PAXG
+        - PEPE
+        - PYUSD
+        - RON
+        - SAND
+        - SHIB
+        - SLP
+        - SOL
+        - SUSHI
+        - TON
+        - UNI
+        - USDCSOL
+        - USDCXLM
+        - USDCPOL
+        - USDC
+        - USDTPOL
+        - USDT
+        - USDTTRX
+        - WETHPOL
+        - XLM
+        - XRP
+        - XTZ
+        - YGGRON
+        - CELO
+        - OP
+        - NEAR
     BankCode:
       type: string
       description: |-
@@ -2177,115 +2191,115 @@ components:
         | EWPDXPH | Philippine Digital Asset Exchange | Ewallet |
         | EWPAYPH | Maya Wallet | Ewallet |
       enum:
-      - BAUBPPH
-      - BAAIBPH
-      - BAALIPH
-      - BAALLPH
-      - BAAUBPH
-      - BAANZPH
-      - BABDOPH
-      - BABDNPH
-      - BABOTPH
-      - BABPIPH
-      - BABAKPH
-      - BABAMPH
-      - BABNSPH
-      - BABKBPH
-      - BABOAPH
-      - BABCHPH
-      - BABOCPH
-      - BABOFPH
-      - BABOMPH
-      - BACAMPH
-      - BACANPH
-      - BACABPH
-      - BACASPH
-      - BACIMPH
-      - BACTBPH
-      - BACLRPH
-      - BACHBPH
-      - BACBSPH
-      - BACITPH
-      - BACRBPH
-      - BACBBPH
-      - BADEVPH
-      - BADUNPH
-      - BADEBPH
-      - BADCDPH
-      - BAEWBPH
-      - BAEWRPH
-      - BAEQSPH
-      - BAFCBPH
-      - BAGRBPH
-      - BAGTBPH
-      - BAHSBPH
-      - BAHSSPH
-      - BAISLPH
-      - BAICOPH
-      - BAIBKPH
-      - BAINGPH
-      - BAIVBPH
-      - BAJPMPH
-      - BAKEBPH
-      - BALABPH
-      - BALSBPH
-      - BALDBPH
-      - BAICBPH
-      - BAMBSPH
-      - BAMAYPH
-      - BAMCCPH
-      - BAMBAPH
-      - BAMIZPH
-      - BAMUFPH
-      - BANETPH
-      - BAOMNPH
-      - BAPBOPH
-      - BAPASPH
-      - BAPRBPH
-      - BAPBBPH
-      - BAPNBPH
-      - BAPBAPH
-      - BAPTCPH
-      - BAPVBPH
-      - BAPCBPH
-      - BAPSBPH
-      - BAQBAPH
-      - BAQCRPH
-      - BARANPH
-      - BARCBPH
-      - BAROBPH
-      - BARBOPH
-      - BARBDPH
-      - BARBMPH
-      - BASECPH
-      - BASEAPH
-      - BASHBPH
-      - BASCBPH
-      - BASTAPH
-      - BASBOPH
-      - BASMBPH
-      - BASSBPH
-      - BATDBPH
-      - BATYBPH
-      - BAUCPPH
-      - BAUCCPH
-      - BAUNOPH
-      - BAUDLPH
-      - BAUOVPH
-      - BAWEBPH
-      - BAYSBPH
-      - BAMABPH
-      - EWGXCPH
-      - EWCISPH
-      - EWGRAPH
-      - EWLLFPH
-      - EWPPPH
-      - EWSPPPH
-      - EWTACPH
-      - EWUSCPH
-      - EWJUCPH
-      - EWPDXPH
-      - EWPAYPH
+        - BAUBPPH
+        - BAAIBPH
+        - BAALIPH
+        - BAALLPH
+        - BAAUBPH
+        - BAANZPH
+        - BABDOPH
+        - BABDNPH
+        - BABOTPH
+        - BABPIPH
+        - BABAKPH
+        - BABAMPH
+        - BABNSPH
+        - BABKBPH
+        - BABOAPH
+        - BABCHPH
+        - BABOCPH
+        - BABOFPH
+        - BABOMPH
+        - BACAMPH
+        - BACANPH
+        - BACABPH
+        - BACASPH
+        - BACIMPH
+        - BACTBPH
+        - BACLRPH
+        - BACHBPH
+        - BACBSPH
+        - BACITPH
+        - BACRBPH
+        - BACBBPH
+        - BADEVPH
+        - BADUNPH
+        - BADEBPH
+        - BADCDPH
+        - BAEWBPH
+        - BAEWRPH
+        - BAEQSPH
+        - BAFCBPH
+        - BAGRBPH
+        - BAGTBPH
+        - BAHSBPH
+        - BAHSSPH
+        - BAISLPH
+        - BAICOPH
+        - BAIBKPH
+        - BAINGPH
+        - BAIVBPH
+        - BAJPMPH
+        - BAKEBPH
+        - BALABPH
+        - BALSBPH
+        - BALDBPH
+        - BAICBPH
+        - BAMBSPH
+        - BAMAYPH
+        - BAMCCPH
+        - BAMBAPH
+        - BAMIZPH
+        - BAMUFPH
+        - BANETPH
+        - BAOMNPH
+        - BAPBOPH
+        - BAPASPH
+        - BAPRBPH
+        - BAPBBPH
+        - BAPNBPH
+        - BAPBAPH
+        - BAPTCPH
+        - BAPVBPH
+        - BAPCBPH
+        - BAPSBPH
+        - BAQBAPH
+        - BAQCRPH
+        - BARANPH
+        - BARCBPH
+        - BAROBPH
+        - BARBOPH
+        - BARBDPH
+        - BARBMPH
+        - BASECPH
+        - BASEAPH
+        - BASHBPH
+        - BASCBPH
+        - BASTAPH
+        - BASBOPH
+        - BASMBPH
+        - BASSBPH
+        - BATDBPH
+        - BATYBPH
+        - BAUCPPH
+        - BAUCCPH
+        - BAUNOPH
+        - BAUDLPH
+        - BAUOVPH
+        - BAWEBPH
+        - BAYSBPH
+        - BAMABPH
+        - EWGXCPH
+        - EWCISPH
+        - EWGRAPH
+        - EWLLFPH
+        - EWPPPH
+        - EWSPPPH
+        - EWTACPH
+        - EWUSCPH
+        - EWJUCPH
+        - EWPDXPH
+        - EWPAYPH
     FiatInMethod:
       type: string
       description: |-
@@ -2297,64 +2311,65 @@ components:
         | dragonpay | All dragonpay supported banks | Debit Pull |
         | instapay_upay_cashin | All banks and e-wallets with QRPh enabled | Scan QRPh |
       enum:
-      - grabpay_cashin
-      - dragonpay
-      - instapay_upay_cashin
+        - grabpay_cashin
+        - dragonpay
+        - instapay_upay_cashin
     FiatOutMethod:
       type: string
       description: Cash-out method for /fiat/withdraw (real-time vs batch bank rail).
       enum:
-      - PAY-TO-ACCOUNT-REAL-TIME
-      - PAY-TO-ACCOUNT-NON-REAL-TIME
+        - PAY-TO-ACCOUNT-REAL-TIME
+        - PAY-TO-ACCOUNT-NON-REAL-TIME
     SourceOfFunds:
       type: string
       enum:
-      - Compensation
-      - Sale/Income from Property
-      - Business Income
-      - Pension/Benefit from the Government
-      - Gift/Donation
-      - Sale/Income from Investment
-      - Inheritance/Insurance
-      - 'Others: <Free Text>'
+        - Compensation
+        - Sale/Income from Property
+        - Business Income
+        - Pension/Benefit from the Government
+        - Gift/Donation
+        - Sale/Income from Investment
+        - Inheritance/Insurance
+        - 'Others: <Free Text>'
     Purpose:
       type: string
       description: Purpose of the transaction (per-txn KYC requirement).
       enum:
-      - Business Expense/Employee Remittance
-      - Business Transaction
-      - Gift
-      - Loan
-      - Donation of Financial Aid
-      - Investments/Savings
-      - Purchase of Goods
-      - Education and Training
-      - Travel Expense
-      - Family Support
-      - Legal Obligation
+        - Business Expense/Employee Remittance
+        - Business Transaction
+        - Gift
+        - Loan
+        - Donation of Financial Aid
+        - Investments/Savings
+        - Purchase of Goods
+        - Education and Training
+        - Travel Expense
+        - Family Support
+        - Legal Obligation
     FeeType:
       type: string
       description: Whether the sender or beneficiary bears the fiat-out fee.
       enum:
-      - Sender
-      - Beneficiary
+        - Sender
+        - Beneficiary
     Sex:
       type: string
       enum:
-      - Male
-      - Female
+        - Male
+        - Female
     Relationship:
       type: string
       description: Relationship of sender to beneficiary.
       enum:
-      - Spouse/Partner
-      - Family
-      - Acquaintance
-      - Colleague
-      - Business
-      - Myself
+        - Spouse/Partner
+        - Family
+        - Acquaintance
+        - Colleague
+        - Business
+        - Myself
     CryptoWebhookEvent:
-      description: Payload PDAX POSTs to your registered webhook endpoint when a crypto transaction reaches a terminal status.
+      description:
+        Payload PDAX POSTs to your registered webhook endpoint when a crypto transaction reaches a terminal status.
         The wrapper PDAX actually sends has a `data` envelope; the fields below describe that inner data object.
       type: object
       properties:
@@ -2372,7 +2387,8 @@ components:
           description: '"The type of transaction   WITHDRAWAL or DEPOSIT"'
         transaction_hash:
           type: string
-          description: A transaction hash is a unique identifier generated through cryptographic hashing, representing a specific
+          description:
+            A transaction hash is a unique identifier generated through cryptographic hashing, representing a specific
             transaction and providing a way to trace and verify its details on the blockchain
         amount:
           type: number
@@ -2405,7 +2421,8 @@ components:
           type: string
           description: 'Possible values: completed, failed'
     FiatWebhookEvent:
-      description: Payload PDAX POSTs to your registered webhook endpoint when a fiat transaction reaches a terminal status.
+      description:
+        Payload PDAX POSTs to your registered webhook endpoint when a fiat transaction reaches a terminal status.
         The wrapper PDAX actually sends has a `data` envelope; the fields below describe that inner data object.
       type: object
       properties:
@@ -2451,13 +2468,13 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - PAP0400
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - PAP0400
     PdaxError401:
       description: |-
         Unauthorized — invalid or expired token. Possible codes:
@@ -2466,13 +2483,13 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - PAP0401
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - PAP0401
     PdaxError500:
       description: |-
         Internal server error. Possible codes:
@@ -2481,13 +2498,13 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - PAP0500
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - PAP0500
     PdaxError503:
       description: |-
         Service unavailable. Possible codes:
@@ -2496,13 +2513,13 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - PAP0503
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - PAP0503
     PostOrderError400:
       description: |-
         Bad request. Possible codes:
@@ -2540,42 +2557,42 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - OT010000
-                  - OT010001
-                  - OT010002
-                  - OT010003
-                  - OT010004
-                  - OT010005
-                  - OT010006
-                  - OT010007
-                  - OT010008
-                  - OT010009
-                  - OT010010
-                  - OT010011
-                  - OT010012
-                  - OT010013
-                  - OT010014
-                  - OT010015
-                  - OT010017
-                  - OT010018
-                  - OT010019
-                  - OT010020
-                  - OT010021
-                  - OT010022
-                  - OT010023
-                  - OT010024
-                  - OT010026
-                  - OT010027
-                  - OT010028
-                  - OT010029
-                  - OT010030
-                  - OT010031
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - OT010000
+                      - OT010001
+                      - OT010002
+                      - OT010003
+                      - OT010004
+                      - OT010005
+                      - OT010006
+                      - OT010007
+                      - OT010008
+                      - OT010009
+                      - OT010010
+                      - OT010011
+                      - OT010012
+                      - OT010013
+                      - OT010014
+                      - OT010015
+                      - OT010017
+                      - OT010018
+                      - OT010019
+                      - OT010020
+                      - OT010021
+                      - OT010022
+                      - OT010023
+                      - OT010024
+                      - OT010026
+                      - OT010027
+                      - OT010028
+                      - OT010029
+                      - OT010030
+                      - OT010031
     PostOrderError500:
       description: |-
         Internal server error. Possible codes:
@@ -2585,14 +2602,14 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - OT010016
-                  - OT010025
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - OT010016
+                      - OT010025
     PostFiatOutError400:
       description: |-
         Bad request. Possible codes:
@@ -2650,62 +2667,62 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - Missing identifier
-                  - Missing sender_first_name
-                  - Missing sender_middle_name
-                  - Missing sender_last_name
-                  - Missing sender_country_origin
-                  - Missing source_of_funds
-                  - Missing beneficiary_first_name
-                  - Missing beneficiary_middle_name
-                  - Missing beneficiary_last_name
-                  - Missing beneficiary_account_name
-                  - Missing beneficiary_account_number
-                  - Missing purpose
-                  - Missing relationship_of_sender_to_beneficiary
-                  - Missing currency
-                  - Missing amount
-                  - Missing method
-                  - Missing beneficiary_bank_code
-                  - Invalid sender_country_origin
-                  - Invalid sender_nationality
-                  - Invalid sender_country
-                  - Invalid beneficiary_country
-                  - Invalid beneficiary_nationality
-                  - Invalid sender_phone_number
-                  - Invalid sender DOB
-                  - Invalid sender_email
-                  - Invalid source_of_funds
-                  - Invalid sex
-                  - Invalid sender_zip_code
-                  - Invalid beneficiary_zip_code
-                  - Invalid beneficiary_phone_number
-                  - Invalid beneficiary DOB
-                  - Invalid purpose
-                  - Invalid relationship_of_sender_to_beneficiary
-                  - Invalid currency
-                  - Invalid amount
-                  - Invalid fee_type
-                  - Invalid method
-                  - Invalid beneficiary_bank_code
-                  - Identifier previously used. Identifier value should be unique for each request.
-                  - Required field for amount >= 50k PHP
-                  - Amount exceeds the maximum for PAY-TO-ACCOUNT-REAL-TIME method
-                  - Maximum Limit (UBP)
-                  - Amount exceeds the maximum for PAY-TO-ACCOUNT-NON-REAL-TIME method
-                  - Account has insufficient funds for the request
-                  - Unauthorized
-                  - ''
-                  - ''
-                  - ''
-                  - ''
-                  - ''
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - Missing identifier
+                      - Missing sender_first_name
+                      - Missing sender_middle_name
+                      - Missing sender_last_name
+                      - Missing sender_country_origin
+                      - Missing source_of_funds
+                      - Missing beneficiary_first_name
+                      - Missing beneficiary_middle_name
+                      - Missing beneficiary_last_name
+                      - Missing beneficiary_account_name
+                      - Missing beneficiary_account_number
+                      - Missing purpose
+                      - Missing relationship_of_sender_to_beneficiary
+                      - Missing currency
+                      - Missing amount
+                      - Missing method
+                      - Missing beneficiary_bank_code
+                      - Invalid sender_country_origin
+                      - Invalid sender_nationality
+                      - Invalid sender_country
+                      - Invalid beneficiary_country
+                      - Invalid beneficiary_nationality
+                      - Invalid sender_phone_number
+                      - Invalid sender DOB
+                      - Invalid sender_email
+                      - Invalid source_of_funds
+                      - Invalid sex
+                      - Invalid sender_zip_code
+                      - Invalid beneficiary_zip_code
+                      - Invalid beneficiary_phone_number
+                      - Invalid beneficiary DOB
+                      - Invalid purpose
+                      - Invalid relationship_of_sender_to_beneficiary
+                      - Invalid currency
+                      - Invalid amount
+                      - Invalid fee_type
+                      - Invalid method
+                      - Invalid beneficiary_bank_code
+                      - Identifier previously used. Identifier value should be unique for each request.
+                      - Required field for amount >= 50k PHP
+                      - Amount exceeds the maximum for PAY-TO-ACCOUNT-REAL-TIME method
+                      - Maximum Limit (UBP)
+                      - Amount exceeds the maximum for PAY-TO-ACCOUNT-NON-REAL-TIME method
+                      - Account has insufficient funds for the request
+                      - Unauthorized
+                      - ''
+                      - ''
+                      - ''
+                      - ''
+                      - ''
     PostFiatOutError500:
       description: |-
         Internal server error. Possible codes:
@@ -2714,13 +2731,13 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - Internal server error
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - Internal server error
     PostCryptoOutError500:
       description: |-
         Internal server error. Possible codes:
@@ -2751,35 +2768,35 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - OT000000
-                  - OT010002
-                  - OT010003
-                  - OT010004
-                  - OT010005
-                  - OT010007
-                  - OT010008
-                  - OT010009
-                  - OT010010
-                  - OT010011
-                  - OT010012
-                  - OT010013
-                  - OT010015
-                  - OT010016
-                  - OT010017
-                  - OT010023
-                  - OT010024
-                  - OT010025
-                  - OT010031
-                  - OT010040
-                  - OT010041
-                  - OT010045
-                  - OT010046
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - OT000000
+                      - OT010002
+                      - OT010003
+                      - OT010004
+                      - OT010005
+                      - OT010007
+                      - OT010008
+                      - OT010009
+                      - OT010010
+                      - OT010011
+                      - OT010012
+                      - OT010013
+                      - OT010015
+                      - OT010016
+                      - OT010017
+                      - OT010023
+                      - OT010024
+                      - OT010025
+                      - OT010031
+                      - OT010040
+                      - OT010041
+                      - OT010045
+                      - OT010046
     PostCryptoOutError400:
       description: |-
         Bad request. Possible codes:
@@ -2810,32 +2827,32 @@ components:
         application/json:
           schema:
             allOf:
-            - $ref: '#/components/schemas/ErrorEnvelope'
-            - type: object
-              properties:
-                code:
-                  type: string
-                  enum:
-                  - OT010001
-                  - OT010006
-                  - OT010014
-                  - OT010018
-                  - OT010019
-                  - OT010020
-                  - OT010021
-                  - OT010022
-                  - OT010026
-                  - OT010027
-                  - OT010028
-                  - OT010029
-                  - OT010030
-                  - OT010032
-                  - OT010033
-                  - OT010034
-                  - OT010035
-                  - OT010036
-                  - OT010037
-                  - OT010038
-                  - OT010039
-                  - OT010043
-                  - OT010044
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - OT010001
+                      - OT010006
+                      - OT010014
+                      - OT010018
+                      - OT010019
+                      - OT010020
+                      - OT010021
+                      - OT010022
+                      - OT010026
+                      - OT010027
+                      - OT010028
+                      - OT010029
+                      - OT010030
+                      - OT010032
+                      - OT010033
+                      - OT010034
+                      - OT010035
+                      - OT010036
+                      - OT010037
+                      - OT010038
+                      - OT010039
+                      - OT010043
+                      - OT010044

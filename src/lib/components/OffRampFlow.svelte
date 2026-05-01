@@ -17,6 +17,7 @@ Usage:
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { kycStore } from '$lib/stores/kyc.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -254,8 +255,7 @@ Usage:
             window.open(url, 'anchor_register', 'width=600,height=800,popup');
             hasOpenedRegistration = true;
         } catch (err) {
-            error =
-                err instanceof Error ? err.message : 'Failed to open bank-account registration';
+            error = err instanceof Error ? err.message : 'Failed to open bank-account registration';
         } finally {
             isOpeningRegistration = false;
         }
@@ -315,6 +315,7 @@ Usage:
                 toCurrency: quote.toCurrency,
                 amount: quote.fromAmount,
                 fiatAccountId,
+                identity: kycStore.current ?? undefined,
             });
 
             transaction = tx;

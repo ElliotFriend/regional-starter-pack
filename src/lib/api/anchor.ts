@@ -19,7 +19,7 @@ import type {
     KycRequirements,
     KycSubmissionData,
     KycSubmissionResult,
-    RampIdentity,
+    IdentityFields,
 } from '$lib/anchors/types';
 
 type Fetch = typeof fetch;
@@ -192,8 +192,8 @@ export interface CreateOnRampOptions {
     amount: string;
     memo?: string;
     bankAccountId?: string;
-    /** Identity for providers requiring inline identity on ramp requests (e.g. Transfero). */
-    identity?: RampIdentity;
+    /** Identity for providers requiring per-transaction identity (e.g. PDAX). */
+    identity?: IdentityFields;
 }
 
 /**
@@ -243,8 +243,8 @@ export interface CreateOffRampOptions {
     /** Registered fiat account ID to receive the payout. Register first via {@link registerFiatAccount} or the anchor's hosted onboarding UI. */
     fiatAccountId: string;
     memo?: string;
-    /** Identity for providers requiring inline identity on ramp requests (e.g. Transfero). */
-    identity?: RampIdentity;
+    /** Identity for providers requiring per-transaction identity (e.g. PDAX). */
+    identity?: IdentityFields;
 }
 
 /**

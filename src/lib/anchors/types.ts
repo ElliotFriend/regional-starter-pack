@@ -34,6 +34,9 @@ export interface Customer {
     bankAccountId?: string;
     /** Blockchain wallet ID — generated at registration time for providers that require it (e.g. BlindPay). */
     blockchainWalletId?: string;
+    /** Stored per-transaction identity fields for providers that own customer/KYC state locally
+     *  (e.g. PDAX, where the API does not retain customer records and identity is replayed per ramp). */
+    kycData?: IdentityFields;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
@@ -284,17 +287,16 @@ export interface OffRampTransaction {
 // Identity (for providers that require inline identity on ramp requests)
 // =============================================================================
 
-/** Identity fields for providers that require user identity on each ramp request (e.g. Transfero). */
-export interface RampIdentity {
-    /** Full name of the user. */
-    name: string;
-    /** Email address. */
-    email: string;
-    /** Tax identification number (e.g. CPF/CNPJ for Brazil). */
-    taxId: string;
-    /** ISO 3166-1 alpha-3 country code for the tax ID (e.g. `"BRA"`). Defaults to `"BRA"` if omitted. */
-    taxIdCountry?: string;
-}
+/**
+ * Per-transaction identity fields keyed by provider-specific field name.
+ *
+ * Providers like PDAX accept a flat record of sender/beneficiary identity
+ * fields on each ramp request (e.g. `sender_first_name`, `source_of_funds`,
+ * `beneficiary_bank_code`). The exact field set is provider-defined and
+ * surfaced via {@link Anchor.getKycRequirements}; the consumer collects
+ * values for those fields and forwards them through this map.
+ */
+export type IdentityFields = Record<string, string>;
 
 // =============================================================================
 // Input types
@@ -362,8 +364,8 @@ export interface CreateOnRampInput {
     memo?: string;
     /** Bank account ID — required by some providers (e.g. Etherfuse). */
     bankAccountId?: string;
-    /** Identity fields for providers that require inline identity (e.g. Transfero). */
-    identity?: RampIdentity;
+    /** Identity fields for providers that require per-transaction identity (e.g. PDAX). */
+    identity?: IdentityFields;
 }
 
 /** Input for {@link Anchor.createOffRamp}. */
@@ -384,8 +386,8 @@ export interface CreateOffRampInput {
     fiatAccountId: string;
     /** Optional memo for the Stellar transaction. */
     memo?: string;
-    /** Identity fields for providers that require inline identity (e.g. Transfero). */
-    identity?: RampIdentity;
+    /** Identity fields for providers that require per-transaction identity (e.g. PDAX). */
+    identity?: IdentityFields;
 }
 
 // =============================================================================

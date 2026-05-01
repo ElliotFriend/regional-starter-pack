@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { kycStore } from '$lib/stores/kyc.svelte';
     import type {
         AnchorCapabilities,
         KycRequirements,
@@ -91,6 +92,10 @@
             return;
         }
         error = null;
+        if (requirements && requirements.documents.length === 0) {
+            await handleDocumentsSubmit();
+            return;
+        }
         currentStep = 'documents';
     }
 
@@ -120,6 +125,8 @@
                 fields: { ...fieldValues },
                 documents: { ...documentValues },
             });
+
+            kycStore.set({ ...fieldValues });
 
             currentStep = 'complete';
             onComplete();
@@ -204,7 +211,9 @@
                     onclick={handlePersonalSubmit}
                     class="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    Continue to Documents
+                    {requirements.documents.length === 0
+                        ? 'Submit Verification'
+                        : 'Continue to Documents'}
                 </button>
             </div>
         </div>

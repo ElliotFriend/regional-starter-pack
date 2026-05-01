@@ -16,6 +16,7 @@ Usage:
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { kycStore } from '$lib/stores/kyc.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -128,6 +129,7 @@ Usage:
                 fromCurrency: quote.fromCurrency,
                 toCurrency: quote.toCurrency,
                 amount: quote.fromAmount,
+                identity: kycStore.current ?? undefined,
             });
             step = 'payment';
             startPolling();

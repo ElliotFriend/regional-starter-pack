@@ -8,6 +8,7 @@
 
 /** Pre-filled personal info for sandbox/demo KYC submissions (Mexico). */
 export const SANDBOX_KYC_DATA: Record<string, string> = {
+    // Etherfuse / Mexico
     firstName: 'María',
     lastName: 'García',
     dateOfBirth: '1990-06-15',
@@ -20,6 +21,43 @@ export const SANDBOX_KYC_DATA: Record<string, string> = {
     country: 'MX',
     dni: 'GARM900615MDFRRL09',
     email: '', // filled at runtime from component prop
+
+    // PDAX / Philippines — sender + beneficiary identity is the same individual for self-onramp
+    sender_first_name: 'Juan',
+    sender_middle_name: 'Cruz',
+    sender_last_name: 'Reyes',
+    sender_country_origin: 'Philippines',
+    sender_address_line_one: '123 Ayala Avenue',
+    sender_address_line_two: '',
+    sender_city: 'Makati',
+    sender_province: 'Metro Manila',
+    sender_country: 'Philippines',
+    sender_zip_code: '1226',
+    sender_phone_number: '639171234567',
+    sender_nationality: 'Philippines',
+    sender_national_identity_number: '1111-2222-3333',
+    sender_dob: '06-15-1990',
+    sender_place_of_birth: 'Manila',
+    source_of_funds: 'Compensation',
+    sender_email: '', // filled at runtime
+    beneficiary_first_name: 'Juan',
+    beneficiary_middle_name: 'Cruz',
+    beneficiary_last_name: 'Reyes',
+    beneficiary_sex: 'Male',
+    beneficiary_nationality: 'Philippines',
+    beneficiary_dob: '06-15-1990',
+    beneficiary_address_line_one: '123 Ayala Avenue',
+    beneficiary_address_line_two: '',
+    beneficiary_barangay: 'Bel-Air',
+    beneficiary_city: 'Makati',
+    beneficiary_province: 'Metro Manila',
+    beneficiary_country: 'Philippines',
+    beneficiary_zip_code: '1226',
+    beneficiary_phone_number: '639171234567',
+    purpose: 'Investments/Savings',
+    relationship_of_sender_to_beneficiary: 'Myself',
+    nature_of_business: '',
+    instructions: '',
 };
 
 /** Placeholder document URLs for sandbox KYC (used by url_reference mode). */

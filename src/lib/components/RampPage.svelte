@@ -5,6 +5,7 @@
     import { resolve } from '$app/paths';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { kycStore } from '$lib/stores/kyc.svelte';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { AnchorCapabilities, KycStatus } from '$lib/anchors/types';
@@ -102,8 +103,10 @@
         const pk = walletStore.publicKey;
         if (pk) {
             customerStore.load(pk, provider);
+            kycStore.load(pk, provider);
         } else {
             customerStore.clear();
+            kycStore.clear();
         }
     });
 

@@ -11,9 +11,16 @@
 
 import type { Anchor } from '$lib/anchors/types';
 import { EtherfuseClient } from '$lib/anchors/etherfuse';
-import { ETHERFUSE_API_KEY, ETHERFUSE_BASE_URL } from '$env/static/private';
+import { PdaxClient } from '$lib/anchors/pdax';
+import {
+    ETHERFUSE_API_KEY,
+    ETHERFUSE_BASE_URL,
+    PDAX_USERNAME,
+    PDAX_PASSWORD,
+    PDAX_BASE_URL,
+} from '$env/static/private';
 
-export type AnchorProvider = 'etherfuse';
+export type AnchorProvider = 'etherfuse' | 'pdax';
 
 const anchorInstances = new Map<AnchorProvider, Anchor>();
 
@@ -36,6 +43,13 @@ export function getAnchor(provider: AnchorProvider): Anchor {
                     baseUrl: ETHERFUSE_BASE_URL,
                 });
                 break;
+            case 'pdax':
+                anchor = new PdaxClient({
+                    username: PDAX_USERNAME,
+                    password: PDAX_PASSWORD,
+                    baseUrl: PDAX_BASE_URL,
+                });
+                break;
             default:
                 throw new Error(`Unknown anchor provider: ${provider}`);
         }
@@ -52,5 +66,5 @@ export function getAnchor(provider: AnchorProvider): Anchor {
  * @returns `true` if the string is a known {@link AnchorProvider}.
  */
 export function isValidProvider(provider: string): provider is AnchorProvider {
-    return ['etherfuse'].includes(provider);
+    return ['etherfuse', 'pdax'].includes(provider);
 }
