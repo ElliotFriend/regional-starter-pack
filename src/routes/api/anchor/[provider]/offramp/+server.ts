@@ -25,74 +25,28 @@ export const POST: RequestHandler = async ({ params, request }) => {
             fromCurrency,
             toCurrency,
             amount,
-            bankAccount,
-            fiatAccountId: existingFiatAccountId,
+            fiatAccountId,
             memo,
             identity,
         } = body;
 
-        if (!customerId || !quoteId || !stellarAddress || !fromCurrency || !toCurrency || !amount) {
+        if (
+            !customerId ||
+            !quoteId ||
+            !stellarAddress ||
+            !fromCurrency ||
+            !toCurrency ||
+            !amount ||
+            !fiatAccountId
+        ) {
             throw error(400, {
                 message:
-                    'customerId, quoteId, stellarAddress, fromCurrency, toCurrency, and amount are required',
-            });
-        }
-
-        // Either need existing fiatAccountId or bankAccount to register new one
-        if (!existingFiatAccountId && !bankAccount) {
-            throw error(400, {
-                message: 'Either fiatAccountId or bankAccount is required',
+                    'customerId, quoteId, stellarAddress, fromCurrency, toCurrency, amount, and fiatAccountId are required',
             });
         }
 
         const anchor = getAnchor(provider);
-        let fiatAccountId: string;
 
-        if (existingFiatAccountId) {
-            // Use existing fiat account
-            fiatAccountId = existingFiatAccountId;
-        } else {
-            // Register new fiat account
-            let account;
-
-            if (bankAccount.type === 'pix') {
-                const { pixKey, pixKeyType, taxId, accountHolderName } = bankAccount;
-                if (!pixKey || !taxId || !accountHolderName) {
-                    throw error(400, {
-                        message:
-                            'bankAccount must include pixKey, taxId, and accountHolderName for PIX',
-                    });
-                }
-                account = {
-                    type: 'pix' as const,
-                    pixKey,
-                    pixKeyType: pixKeyType || undefined,
-                    taxId,
-                    accountHolderName,
-                };
-            } else {
-                const { bankName, clabe, beneficiary } = bankAccount;
-                if (!clabe || !beneficiary) {
-                    throw error(400, {
-                        message: 'bankAccount must include clabe and beneficiary',
-                    });
-                }
-                account = {
-                    type: 'spei' as const,
-                    clabe,
-                    bankName: bankName || undefined,
-                    beneficiary,
-                };
-            }
-
-            const fiatAccount = await anchor.registerFiatAccount({
-                customerId,
-                account,
-            });
-            fiatAccountId = fiatAccount.id;
-        }
-
-        // Create the offramp transaction
         const transaction = await anchor.createOffRamp({
             customerId,
             quoteId,

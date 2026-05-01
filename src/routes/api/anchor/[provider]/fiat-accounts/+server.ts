@@ -56,6 +56,12 @@ export const POST: RequestHandler = async ({ params, request }) => {
             };
         }
 
+        if (!anchor.registerFiatAccount) {
+            throw error(400, {
+                message: `${provider} does not support inline fiat-account registration; register accounts via the anchor's hosted onboarding UI instead`,
+            });
+        }
+
         const result = await anchor.registerFiatAccount({
             customerId,
             publicKey: publicKey || undefined,

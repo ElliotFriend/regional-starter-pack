@@ -75,6 +75,12 @@ Usage:
     let selectedAccountId = $state<string | null>(null);
     let useNewAccount = $state(false);
 
+    // Hosted bank-account registration state (anchors with kycFlow: 'iframe')
+    let isOpeningRegistration = $state(false);
+    let hasOpenedRegistration = $state(false);
+
+    const fiatAccountRegistration = $derived(capabilities?.fiatAccountRegistration ?? 'inline');
+
     // Bank account details (for new accounts) — SPEI
     let bankName = $state('');
     let clabe = $state('');
@@ -233,52 +239,83 @@ Usage:
         await loadSavedAccounts();
     }
 
+    /**
+     * Open the anchor's hosted onboarding UI in a popup so the user can register
+     * a new bank account. Used by anchors with `fiatAccountRegistration: 'hosted'`.
+     */
+    async function handleRegisterNewAccount() {
+        const customer = customerStore.current;
+        if (!customer || !walletStore.publicKey) return;
+
+        isOpeningRegistration = true;
+        error = null;
+        try {
+            const url = await api.getKycUrl(fetch, provider, customer.id, walletStore.publicKey);
+            window.open(url, 'anchor_register', 'width=600,height=800,popup');
+            hasOpenedRegistration = true;
+        } catch (err) {
+            error =
+                err instanceof Error ? err.message : 'Failed to open bank-account registration';
+        } finally {
+            isOpeningRegistration = false;
+        }
+    }
+
+    /**
+     * Re-fetch saved fiat accounts after the user has finished hosted registration.
+     */
+    async function handleRefreshAccounts() {
+        await loadSavedAccounts();
+    }
+
     async function confirmOrder() {
         const customer = customerStore.current;
         if (!quote || !walletStore.publicKey || !customer) return;
 
-        // Validate: either selected account or new account details
-        if (!useNewAccount && !selectedAccountId) return;
-        if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
-            return;
-        if (useNewAccount && paymentRail !== 'pix' && (!clabe || !beneficiary)) return;
+        // Hosted-registration anchors require a saved (selected) account — there's no inline form.
+        if (fiatAccountRegistration === 'hosted' && !selectedAccountId) return;
+        if (fiatAccountRegistration === 'inline') {
+            if (!useNewAccount && !selectedAccountId) return;
+            if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
+                return;
+            if (useNewAccount && paymentRail !== 'pix' && (!clabe || !beneficiary)) return;
+        }
 
         isCreatingTransaction = true;
         error = null;
 
         try {
-            let tx: OffRampTransaction;
-
-            if (useNewAccount) {
-                // Create with new bank account
-                const bankAccount =
+            // Inline anchors: register the new account first, then create the offramp.
+            // Hosted anchors: registration already happened in the hosted UI; selectedAccountId is set.
+            let fiatAccountId = selectedAccountId;
+            if (fiatAccountRegistration === 'inline' && useNewAccount) {
+                const accountDetails =
                     paymentRail === 'pix'
                         ? { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName }
-                        : { type: 'spei' as const, bankName, clabe, beneficiary };
-
-                tx = await api.createOffRamp(fetch, provider, {
-                    customerId: customer.id,
-                    quoteId: quote.id,
-                    stellarAddress: walletStore.publicKey,
-                    fromCurrency: quote.fromCurrency,
-                    toCurrency: quote.toCurrency,
-                    amount: quote.fromAmount,
-                    bankAccount,
-                });
-            } else {
-                // Use existing fiat account
-                if (!selectedAccountId) return;
-
-                tx = await api.createOffRamp(fetch, provider, {
-                    customerId: customer.id,
-                    quoteId: quote.id,
-                    stellarAddress: walletStore.publicKey,
-                    fromCurrency: quote.fromCurrency,
-                    toCurrency: quote.toCurrency,
-                    amount: quote.fromAmount,
-                    fiatAccountId: selectedAccountId,
-                });
+                        : { bankName, clabe, beneficiary };
+                const registered = await api.registerFiatAccount(
+                    fetch,
+                    provider,
+                    customer.id,
+                    accountDetails,
+                    walletStore.publicKey,
+                );
+                fiatAccountId = registered.id;
+                selectedAccountId = registered.id;
+                useNewAccount = false;
             }
+
+            if (!fiatAccountId) return;
+
+            const tx = await api.createOffRamp(fetch, provider, {
+                customerId: customer.id,
+                quoteId: quote.id,
+                stellarAddress: walletStore.publicKey,
+                fromCurrency: quote.fromCurrency,
+                toCurrency: quote.toCurrency,
+                amount: quote.fromAmount,
+                fiatAccountId,
+            });
 
             transaction = tx;
 
@@ -430,6 +467,7 @@ Usage:
         accountHolderName = '';
         selectedAccountId = null;
         useNewAccount = false;
+        hasOpenedRegistration = false;
         error = null;
         step = 'input';
         stopPolling();
@@ -537,6 +575,11 @@ Usage:
             hasQuote={quote !== null}
             {isGettingQuote}
             {isCreatingTransaction}
+            {fiatAccountRegistration}
+            onRegisterNewAccount={handleRegisterNewAccount}
+            onRefreshAccounts={handleRefreshAccounts}
+            {isOpeningRegistration}
+            {hasOpenedRegistration}
             onBack={handleBankBack}
             onSubmit={handleBankSubmit}
         />
