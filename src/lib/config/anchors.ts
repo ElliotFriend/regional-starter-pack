@@ -10,6 +10,8 @@
  * interface and client classes in `$lib/anchors/`.
  */
 
+import type { SandboxHours } from '$lib/utils/sandboxHours';
+
 export interface AnchorCapability {
     onRamp: boolean;
     offRamp: boolean;
@@ -41,6 +43,11 @@ export interface KnownIssue {
     link?: string;
 }
 
+export interface DevNote {
+    text: string;
+    link?: string;
+}
+
 export interface AnchorProfile {
     id: string;
     name: string;
@@ -51,6 +58,9 @@ export interface AnchorProfile {
     regions: Record<string, AnchorCapability>; // keyed by region ID
     devOnboarding?: DevOnboardingStep[];
     integrationFlow?: IntegrationFlow;
+    sandboxHours?: SandboxHours;
+    /** Extra bullets appended to the "For Developers" box on the anchor page. */
+    devNotes?: DevNote[];
 }
 
 // =============================================================================
@@ -198,6 +208,11 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'PDAX API documentation at doc.general.api.pdax.ph is currently password-gated. PDAX is evaluating whether they can open public access.',
             },
             {
+                text: 'PDAX staging is only available 6:00am-10:00pm Philippine Standard Time (UTC+8), Monday through Friday, excluding Philippine holidays. Requests outside that window will fail; the badge next to the anchor name reflects the current open/closed status (the holiday calendar is not enforced).',
+            },
+        ],
+        devNotes: [
+            {
                 text: 'Authentication uses email + password rather than an API key. Login returns a JWT pair (access_token + id_token) that must both be sent on every authenticated request, plus a refresh_token for renewal. MFA via OTP is optional.',
             },
             {
@@ -215,6 +230,13 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 tokens: ['USDC'],
                 kycRequired: true,
             },
+        },
+        sandboxHours: {
+            timezone: 'Asia/Manila',
+            days: [1, 2, 3, 4, 5],
+            startHour: 6,
+            endHour: 22,
+            note: 'Mon-Fri, 6:00am-10:00pm Philippine Standard Time. Excludes Philippine holidays.',
         },
         devOnboarding: [
             {

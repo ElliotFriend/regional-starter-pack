@@ -1,7 +1,9 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
+    import { onMount } from 'svelte';
     import { getPaymentRail } from '$lib/config/rails';
     import DevBox from '$lib/components/ui/DevBox.svelte';
+    import { isSandboxOpen } from '$lib/utils/sandboxHours';
     import type { PageProps } from './$types';
 
     // we use `$props()` in SvelteKit to "grab" the various data that's been
@@ -16,6 +18,20 @@
     // render once per region; otherwise we render a single button pair without
     // a region label.
     const liveRegions = $derived(regions.filter((r) => !anchor.regions[r.id]?.comingSoon));
+
+    // Tick a minute-resolution clock so the sandbox badge can flip when the
+    // window opens or closes without a page reload.
+    let now = $state(new Date());
+    onMount(() => {
+        const id = setInterval(() => {
+            now = new Date();
+        }, 60_000);
+        return () => clearInterval(id);
+    });
+
+    const sandboxOpen = $derived(
+        anchor.sandboxHours ? isSandboxOpen(anchor.sandboxHours, now) : null,
+    );
 
     const devBoxItems = $derived.by(() => {
         if (!anchor) return [];
@@ -32,13 +48,16 @@
         if (capabilities?.kycFlow) {
             items.push({ text: `KYC flow: ${capabilities.kycFlow}` });
         }
+        if (anchor.devNotes) {
+            items.push(...anchor.devNotes);
+        }
         return items;
     });
 </script>
 
 <!-- Header -->
 <div class="mb-8">
-    <div class="flex items-center gap-4">
+    <div class="flex flex-wrap items-center gap-4">
         {#if anchor.logo}
             <img
                 src={anchor.logo}
@@ -47,6 +66,23 @@
             />
         {/if}
         <h1 class="text-3xl font-bold text-gray-900">{anchor.name}</h1>
+        {#if sandboxOpen !== null}
+            <span
+                title={anchor.sandboxHours?.note}
+                class={[
+                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1',
+                    sandboxOpen
+                        ? 'bg-green-100 text-green-800 ring-green-200'
+                        : 'bg-gray-100 text-gray-700 ring-gray-200',
+                ]}
+            >
+                <span
+                    class={['h-2 w-2 rounded-full', sandboxOpen ? 'bg-green-500' : 'bg-gray-400']}
+                    aria-hidden="true"
+                ></span>
+                Sandbox {sandboxOpen ? 'open' : 'closed'}
+            </span>
+        {/if}
     </div>
     <p class="mt-2 text-gray-600">{anchor.description}</p>
     <div class="mt-3 flex flex-row flex-wrap gap-2">
