@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { PdaxClient } from '$lib/anchors/pdax/client';
+import { createProxiedFetch } from '$lib/anchors/pdax/proxiedFetch';
 import { AnchorError } from '$lib/anchors/types';
 import type { IdentityFields } from '$lib/anchors/types';
 
@@ -106,6 +107,58 @@ describe('PdaxClient authed requests', () => {
         expect(captured).not.toBeNull();
         expect(captured!.get('access_token')).toBe('access-token-v1');
         expect(captured!.get('id_token')).toBe('id-token-v1');
+    });
+
+    it('forwards X-Proxy-Secret on login and authed calls when fetchFn is wrapped', async () => {
+        let loginHeader: string | null = null;
+        let authedHeader: string | null = null;
+        server.use(
+            http.post(LOGIN_PATH, ({ request }) => {
+                loginHeader = request.headers.get('X-Proxy-Secret');
+                return HttpResponse.json({
+                    email: USERNAME,
+                    username: 'pdax-uuid-1',
+                    groups: ['insti_user'],
+                    token_type: 'Bearer',
+                    preferred_mfa: 'NOT_SET',
+                    expiry: 600,
+                    access_token: 'access-token-v1',
+                    id_token: 'id-token-v1',
+                    refresh_token: 'refresh-token-v1',
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, ({ request }) => {
+                authedHeader = request.headers.get('X-Proxy-Secret');
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: 'q-1',
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                });
+            }),
+        );
+
+        const client = new PdaxClient({
+            username: USERNAME,
+            password: PASSWORD,
+            baseUrl: BASE_URL,
+            fetchFn: createProxiedFetch('the-secret'),
+        });
+        await client.getQuote({
+            fromCurrency: 'PHP',
+            toCurrency: 'USDC',
+            fromAmount: '1000',
+        });
+
+        expect(loginHeader).toBe('the-secret');
+        expect(authedHeader).toBe('the-secret');
     });
 });
 

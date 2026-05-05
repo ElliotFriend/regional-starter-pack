@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { PdaxAuth } from '$lib/anchors/pdax/auth';
+import { createProxiedFetch } from '$lib/anchors/pdax/proxiedFetch';
 import { AnchorError } from '$lib/anchors/types';
 
 const BASE_URL = 'http://pdax.test/api/pdax-api';
@@ -152,6 +153,43 @@ describe('PdaxAuth.getTokens', () => {
             code: 'PAP0400',
             statusCode: 400,
         });
+    });
+
+    it('forwards X-Proxy-Secret on login and refresh when fetchFn is wrapped', async () => {
+        let loginHeader: string | null = null;
+        let refreshHeader: string | null = null;
+        server.use(
+            http.post(LOGIN_PATH, ({ request }) => {
+                loginHeader = request.headers.get('X-Proxy-Secret');
+                return HttpResponse.json(loginResponse({ expiry: 600 }));
+            }),
+            http.put(REFRESH_PATH, ({ request }) => {
+                refreshHeader = request.headers.get('X-Proxy-Secret');
+                return HttpResponse.json(
+                    loginResponse({
+                        expiry: 600,
+                        access_token: 'access-token-v2',
+                        id_token: 'id-token-v2',
+                        refresh_token: 'refresh-token-v2',
+                    }),
+                );
+            }),
+        );
+
+        const auth = new PdaxAuth({
+            username: USERNAME,
+            password: PASSWORD,
+            baseUrl: BASE_URL,
+            fetchFn: createProxiedFetch('the-secret'),
+        });
+
+        await auth.getTokens();
+        expect(loginHeader).toBe('the-secret');
+
+        // Trip the refresh window to force a refresh call.
+        vi.advanceTimersByTime(6 * 60 * 1000);
+        await auth.getTokens();
+        expect(refreshHeader).toBe('the-secret');
     });
 
     it('throws AnchorError when login returns an MFA challenge', async () => {

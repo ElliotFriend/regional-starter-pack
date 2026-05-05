@@ -12,12 +12,14 @@
 import type { Anchor } from '$lib/anchors/types';
 import { EtherfuseClient } from '$lib/anchors/etherfuse';
 import { PdaxClient } from '$lib/anchors/pdax';
+import { createProxiedFetch } from '$lib/anchors/pdax/proxiedFetch';
 import {
     ETHERFUSE_API_KEY,
     ETHERFUSE_BASE_URL,
     PDAX_USERNAME,
     PDAX_PASSWORD,
     PDAX_BASE_URL,
+    PDAX_PROXY_SECRET,
 } from '$env/static/private';
 
 export type AnchorProvider = 'etherfuse' | 'pdax';
@@ -48,6 +50,7 @@ export function getAnchor(provider: AnchorProvider): Anchor {
                     username: PDAX_USERNAME,
                     password: PDAX_PASSWORD,
                     baseUrl: PDAX_BASE_URL,
+                    fetchFn: createProxiedFetch(PDAX_PROXY_SECRET),
                 });
                 break;
             default:
