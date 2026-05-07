@@ -39,6 +39,15 @@ HOP_BY_HOP = frozenset(
     }
 )
 
+# PDAX requires underscored auth header names (`access_token`, `id_token`),
+# but WSGI collapses underscored and dashed header names into the same env
+# var, so we can't preserve them through this proxy untouched. Callers send
+# the dashed wrapper names and we re-emit the underscored form on egress.
+WRAPPER_HEADERS = {
+    "x-pdax-access-token": "access_token",
+    "x-pdax-id-token": "id_token",
+}
+
 
 def _authorized() -> bool:
     if not PROXY_SECRET:
@@ -67,11 +76,15 @@ def proxy(path: str) -> Response:
 
     target_url = urljoin(UPSTREAM_BASE_URL.rstrip("/") + "/", path)
 
-    forwarded_headers = {
-        k: v
-        for k, v in request.headers.items()
-        if k.lower() not in HOP_BY_HOP and k.lower() != "x-proxy-secret"
-    }
+    forwarded_headers: dict[str, str] = {}
+    for k, v in request.headers.items():
+        lk = k.lower()
+        if lk in HOP_BY_HOP or lk == "x-proxy-secret":
+            continue
+        if lk in WRAPPER_HEADERS:
+            forwarded_headers[WRAPPER_HEADERS[lk]] = v
+        else:
+            forwarded_headers[k] = v
 
     # Buffers the entire request and response in memory. Fine for sandbox JSON;
     # would need streaming for large uploads/downloads.

@@ -260,8 +260,14 @@ export class PdaxClient implements Anchor {
     }
 
     async getKycStatus(_customerId: string): Promise<KycStatus> {
-        // KYC status lives in the browser (customerStore.kycStatus).
-        return 'not_started';
+        // PDAX has no server-side customer record, so the server can't report
+        // status. Throwing lets RampPage.checkAndUpdateKycStatus' catch block
+        // preserve whatever the browser store already holds.
+        throw new AnchorError(
+            'PDAX does not track KYC status server-side; the browser store is authoritative.',
+            'KYC_STATUS_NOT_SERVER_TRACKED',
+            501,
+        );
     }
 
     async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {

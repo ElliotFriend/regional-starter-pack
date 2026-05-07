@@ -98,8 +98,11 @@ UPSTREAM_BASE_URL="https://stage.services.sandbox.pdax.ph/api/pdax-api"
 PROXY_SECRET="<same value as PDAX_PROXY_SECRET>"
 ```
 
-The proxy is otherwise fully transparent — request shape, response shape, and
-PDAX's own auth headers (`access_token`, `id_token`) all pass through unchanged.
+The proxy is otherwise transparent for request and response bodies. The one
+exception is PDAX's underscored auth headers: WSGI normalizes `access_token`
+and `Access-Token` into the same env var, so the SvelteKit-side fetch wrapper
+sends them as `X-Pdax-Access-Token` / `X-Pdax-Id-Token`, and the proxy rewrites
+them back to `access_token` / `id_token` on the way to PDAX.
 
 ## Operational notes
 

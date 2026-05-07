@@ -55,6 +55,50 @@ describe('createProxiedFetch', () => {
         expect(createProxiedFetch('', customFetch)).toBe(customFetch);
     });
 
+    it('rewrites access_token / id_token headers as wrapper names the proxy can re-emit', async () => {
+        let captured: Headers | null = null;
+        server.use(
+            http.get('http://upstream.test/quote', ({ request }) => {
+                captured = request.headers;
+                return HttpResponse.json({ ok: true });
+            }),
+        );
+
+        const proxied = createProxiedFetch('the-secret');
+        await proxied('http://upstream.test/quote', {
+            headers: {
+                access_token: 'access-jwt',
+                id_token: 'id-jwt',
+                'Content-Type': 'application/json',
+            },
+        });
+
+        expect(captured?.get('access_token')).toBeNull();
+        expect(captured?.get('id_token')).toBeNull();
+        expect(captured?.get('X-Pdax-Access-Token')).toBe('access-jwt');
+        expect(captured?.get('X-Pdax-Id-Token')).toBe('id-jwt');
+        expect(captured?.get('Content-Type')).toBe('application/json');
+    });
+
+    it('leaves auth headers untouched when no proxy secret is configured', async () => {
+        let captured: Headers | null = null;
+        server.use(
+            http.get('http://upstream.test/direct', ({ request }) => {
+                captured = request.headers;
+                return HttpResponse.json({ ok: true });
+            }),
+        );
+
+        const proxied = createProxiedFetch(undefined);
+        await proxied('http://upstream.test/direct', {
+            headers: { access_token: 'access-jwt', id_token: 'id-jwt' },
+        });
+
+        expect(captured?.get('access_token')).toBe('access-jwt');
+        expect(captured?.get('id_token')).toBe('id-jwt');
+        expect(captured?.get('X-Pdax-Access-Token')).toBeNull();
+    });
+
     it('routes outbound requests through the injected baseFetch when wrapping', async () => {
         const customFetch = vi.fn(
             async () =>

@@ -361,9 +361,11 @@ describe('PdaxClient.submitKyc / getKycStatus', () => {
         expect(result.kycStatus).toBe('approved');
     });
 
-    it('getKycStatus returns not_started by default', async () => {
+    it('getKycStatus throws because PDAX has no server-side customer record', async () => {
         const client = createClient();
-        expect(await client.getKycStatus('cust-anything')).toBe('not_started');
+        await expect(client.getKycStatus('cust-anything')).rejects.toMatchObject({
+            code: 'KYC_STATUS_NOT_SERVER_TRACKED',
+        });
     });
 });
 

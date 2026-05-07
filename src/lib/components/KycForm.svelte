@@ -121,11 +121,12 @@
                 fieldValues.email = email;
             }
 
-            await api.submitKyc(fetch, provider, customer.id, {
+            const result = await api.submitKyc(fetch, provider, customer.id, {
                 fields: { ...fieldValues },
                 documents: { ...documentValues },
             });
 
+            customerStore.updateKycStatus(result.kycStatus);
             kycStore.set({ ...fieldValues });
 
             currentStep = 'complete';

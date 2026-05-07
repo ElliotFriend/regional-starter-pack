@@ -35,7 +35,7 @@ export const SANDBOX_KYC_DATA: Record<string, string> = {
     sender_zip_code: '1226',
     sender_phone_number: '639171234567',
     sender_nationality: 'Philippines',
-    sender_national_identity_number: '1111-2222-3333',
+    sender_national_identity_number: '111122223333',
     sender_dob: '06-15-1990',
     sender_place_of_birth: 'Manila',
     source_of_funds: 'Compensation',
