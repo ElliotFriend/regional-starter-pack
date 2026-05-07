@@ -38,10 +38,11 @@ export const load: LayoutServerLoad = ({ params, url }) => {
 
     const activeRegion = activeRegionId ? getRegion(activeRegionId) : undefined;
     const activeCapability = activeRegionId ? profile.regions[activeRegionId] : undefined;
-    const fiatCurrency = activeRegion?.currency ?? 'MXN';
-    const primaryToken =
-        activeCapability?.tokens[0] ?? instance.supportedTokens[0]?.symbol ?? 'USDC';
-    const paymentRail = activeCapability?.paymentRails[0] ?? 'spei';
+    // No silent country/rail defaults — a missing capability for this anchor is
+    // a config error worth surfacing downstream rather than masking with MX/SPEI.
+    const fiatCurrency = activeRegion?.currency;
+    const primaryToken = activeCapability?.tokens[0] ?? instance.supportedTokens[0]?.symbol;
+    const paymentRail = activeCapability?.paymentRails[0];
 
     return {
         anchor: profile,

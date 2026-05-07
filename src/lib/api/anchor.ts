@@ -74,7 +74,7 @@ export async function getCustomerByEmail(
     fetch: Fetch,
     provider: string,
     email: string,
-    country: string = 'MX',
+    country: string,
 ): Promise<Customer | null> {
     try {
         return await apiRequest<Customer>(
@@ -96,7 +96,7 @@ export async function createCustomer(
     fetch: Fetch,
     provider: string,
     email: string | undefined,
-    country: string = 'MX',
+    country: string,
     publicKey?: string,
 ): Promise<Customer> {
     return postJson<Customer>(fetch, `/api/anchor/${provider}/customers`, {
@@ -114,7 +114,7 @@ export async function getOrCreateCustomer(
     fetch: Fetch,
     provider: string,
     email: string | undefined,
-    country: string = 'MX',
+    country: string,
     options?: { supportsEmailLookup?: boolean; publicKey?: string },
 ): Promise<Customer> {
     const supportsEmailLookup = options?.supportsEmailLookup ?? false;

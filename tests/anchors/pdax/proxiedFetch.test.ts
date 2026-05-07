@@ -16,7 +16,8 @@ describe('createProxiedFetch', () => {
         const proxied = createProxiedFetch('the-secret');
         await proxied('http://upstream.test/foo');
 
-        expect(captured?.get('X-Proxy-Secret')).toBe('the-secret');
+        expect(captured).not.toBeNull();
+        expect(captured!.get('X-Proxy-Secret')).toBe('the-secret');
     });
 
     it('preserves method, body, and other headers', async () => {
@@ -43,9 +44,10 @@ describe('createProxiedFetch', () => {
         });
 
         expect(capturedMethod).toBe('POST');
-        expect(capturedHeaders?.get('Content-Type')).toBe('application/json');
-        expect(capturedHeaders?.get('Authorization')).toBe('Bearer abc');
-        expect(capturedHeaders?.get('X-Proxy-Secret')).toBe('the-secret');
+        expect(capturedHeaders).not.toBeNull();
+        expect(capturedHeaders!.get('Content-Type')).toBe('application/json');
+        expect(capturedHeaders!.get('Authorization')).toBe('Bearer abc');
+        expect(capturedHeaders!.get('X-Proxy-Secret')).toBe('the-secret');
         expect(capturedBody).toBe(JSON.stringify({ hello: 'world' }));
     });
 
@@ -73,11 +75,12 @@ describe('createProxiedFetch', () => {
             },
         });
 
-        expect(captured?.get('access_token')).toBeNull();
-        expect(captured?.get('id_token')).toBeNull();
-        expect(captured?.get('X-Pdax-Access-Token')).toBe('access-jwt');
-        expect(captured?.get('X-Pdax-Id-Token')).toBe('id-jwt');
-        expect(captured?.get('Content-Type')).toBe('application/json');
+        expect(captured).not.toBeNull();
+        expect(captured!.get('access_token')).toBeNull();
+        expect(captured!.get('id_token')).toBeNull();
+        expect(captured!.get('X-Pdax-Access-Token')).toBe('access-jwt');
+        expect(captured!.get('X-Pdax-Id-Token')).toBe('id-jwt');
+        expect(captured!.get('Content-Type')).toBe('application/json');
     });
 
     it('leaves auth headers untouched when no proxy secret is configured', async () => {
@@ -94,9 +97,10 @@ describe('createProxiedFetch', () => {
             headers: { access_token: 'access-jwt', id_token: 'id-jwt' },
         });
 
-        expect(captured?.get('access_token')).toBe('access-jwt');
-        expect(captured?.get('id_token')).toBe('id-jwt');
-        expect(captured?.get('X-Pdax-Access-Token')).toBeNull();
+        expect(captured).not.toBeNull();
+        expect(captured!.get('access_token')).toBe('access-jwt');
+        expect(captured!.get('id_token')).toBe('id-jwt');
+        expect(captured!.get('X-Pdax-Access-Token')).toBeNull();
     });
 
     it('routes outbound requests through the injected baseFetch when wrapping', async () => {

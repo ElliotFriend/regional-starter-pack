@@ -13,7 +13,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
     const { provider } = params;
     const customerId = url.searchParams.get('customerId');
     const type = url.searchParams.get('type') || 'status';
-    const country = url.searchParams.get('country') || 'MX';
+    const country = url.searchParams.get('country') ?? undefined;
     const publicKey = url.searchParams.get('publicKey') || undefined;
 
     if (!isValidProvider(provider)) {

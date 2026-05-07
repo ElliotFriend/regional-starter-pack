@@ -18,6 +18,24 @@ import { AnchorError } from '../types';
 /** API-path prefix shared by every endpoint. */
 export const API_PREFIX = '/pdax-institution/v1';
 
+/**
+ * Pull the `exp` (expiration) claim from a JWT and return it as ms-since-epoch.
+ * Returns `null` if the token isn't a well-formed JWT or has no numeric `exp`.
+ * No signature verification — we only use this to tighten the local cache TTL,
+ * never to make a trust decision.
+ */
+function readJwtExp(token: string): number | null {
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        if (typeof payload.exp !== 'number') return null;
+        return payload.exp * 1000;
+    } catch {
+        return null;
+    }
+}
+
 /** Refresh tokens this many milliseconds before they expire. */
 const REFRESH_LEAD_MS = 5 * 60 * 1000;
 
@@ -107,7 +125,11 @@ export class PdaxAuth {
         try {
             return await this.refresh(prev.refreshToken);
         } catch (err) {
-            if (err instanceof AnchorError && err.statusCode === 401) {
+            // Any AnchorError from /refresh-token (401, 400, 404, etc.) means
+            // the refresh token is no good. Fall back to a full login rather
+            // than bubbling — PDAX has been observed to return non-401 codes
+            // for stale refresh tokens.
+            if (err instanceof AnchorError) {
                 this.session = null;
                 return this.login();
             }
@@ -159,13 +181,17 @@ export class PdaxAuth {
                 500,
             );
         }
+        // Prefer the JWT's `exp` claim — it's authoritative — and only fall back
+        // to the response `expiry` field (then a hardcoded 10min) if the token
+        // can't be decoded.
+        const jwtExpiresAt = readJwtExp(data.access_token);
         const expirySeconds =
             typeof data.expiry === 'number' && data.expiry > 0 ? data.expiry : 600;
         const session: CachedSession = {
             accessToken: data.access_token,
             idToken: data.id_token,
             refreshToken: data.refresh_token,
-            expiresAt: Date.now() + expirySeconds * 1000,
+            expiresAt: jwtExpiresAt ?? Date.now() + expirySeconds * 1000,
         };
         this.session = session;
         return session;

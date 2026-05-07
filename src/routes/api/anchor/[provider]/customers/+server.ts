@@ -18,7 +18,11 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     try {
         const body = await request.json();
-        const { email, country = 'MX', publicKey, name, taxId, taxIdCountry } = body;
+        const { email, country, publicKey, name, taxId, taxIdCountry } = body;
+
+        if (!country) {
+            throw error(400, { message: 'country is required' });
+        }
 
         const anchor = getAnchor(provider);
         const customer = await anchor.createCustomer({
@@ -42,7 +46,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 export const GET: RequestHandler = async ({ params, url }) => {
     const { provider } = params;
     const email = url.searchParams.get('email');
-    const country = url.searchParams.get('country') || 'MX';
+    const country = url.searchParams.get('country');
 
     if (!isValidProvider(provider)) {
         throw error(400, { message: `Invalid provider: ${provider}` });
@@ -50,6 +54,10 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
     if (!email) {
         throw error(400, { message: 'email query parameter is required' });
+    }
+
+    if (!country) {
+        throw error(400, { message: 'country query parameter is required' });
     }
 
     try {

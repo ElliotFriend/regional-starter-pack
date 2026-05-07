@@ -12,6 +12,17 @@ const PASSWORD = 'sandbox-password';
 const LOGIN_PATH = `${BASE_URL}/pdax-institution/v1/login`;
 const REFRESH_PATH = `${BASE_URL}/pdax-institution/v1/refresh-token`;
 
+/**
+ * Build a JWT-shaped string with the given payload. Signature segment is a
+ * placeholder — PdaxAuth only decodes the payload for the `exp` claim, never
+ * verifies signatures.
+ */
+function makeTestJwt(payload: Record<string, unknown>): string {
+    const b64 = (obj: Record<string, unknown>) =>
+        Buffer.from(JSON.stringify(obj)).toString('base64url');
+    return `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64(payload)}.signature`;
+}
+
 function loginResponse(overrides: Record<string, unknown> = {}) {
     return {
         email: USERNAME,
@@ -135,6 +146,83 @@ describe('PdaxAuth.getTokens', () => {
 
         expect((await auth.getTokens()).accessToken).toBe('access-token-v2');
         expect(loginCalls).toBe(2);
+    });
+
+    it('falls back to login when refresh-token returns any 4xx (not just 401)', async () => {
+        let loginCalls = 0;
+        server.use(
+            http.post(LOGIN_PATH, () => {
+                loginCalls += 1;
+                return HttpResponse.json(
+                    loginResponse({
+                        expiry: 600,
+                        access_token: `access-token-v${loginCalls}`,
+                        id_token: `id-token-v${loginCalls}`,
+                        refresh_token: `refresh-token-v${loginCalls}`,
+                    }),
+                );
+            }),
+            http.put(REFRESH_PATH, () =>
+                HttpResponse.json(
+                    { status: 'error', code: 'PAP0400', message: 'Bad refresh token' },
+                    { status: 400 },
+                ),
+            ),
+        );
+
+        const auth = createAuth();
+        expect((await auth.getTokens()).accessToken).toBe('access-token-v1');
+        expect(loginCalls).toBe(1);
+
+        // Trip the refresh window — refresh returns 400, must still fall back to login.
+        vi.advanceTimersByTime(6 * 60 * 1000);
+
+        expect((await auth.getTokens()).accessToken).toBe('access-token-v2');
+        expect(loginCalls).toBe(2);
+    });
+
+    it('respects the JWT `exp` claim for cache TTL when shorter than the expiry field', async () => {
+        // JWT that expires 60 seconds from "now" (vi.setSystemTime is 2026-05-01T12:00:00Z).
+        const jwtExpSeconds = Math.floor(new Date('2026-05-01T12:00:00Z').getTime() / 1000) + 60;
+        const shortLivedAccess = makeTestJwt({ exp: jwtExpSeconds });
+
+        let loginCalls = 0;
+        let refreshCalls = 0;
+        server.use(
+            http.post(LOGIN_PATH, () => {
+                loginCalls += 1;
+                return HttpResponse.json(
+                    loginResponse({
+                        // expiry says 10 minutes, but the JWT itself expires in 60s
+                        expiry: 600,
+                        access_token: shortLivedAccess,
+                    }),
+                );
+            }),
+            http.put(REFRESH_PATH, () => {
+                refreshCalls += 1;
+                return HttpResponse.json(
+                    loginResponse({
+                        expiry: 600,
+                        access_token: 'access-token-v2',
+                        id_token: 'id-token-v2',
+                        refresh_token: 'refresh-token-v2',
+                    }),
+                );
+            }),
+        );
+
+        const auth = createAuth();
+        expect((await auth.getTokens()).accessToken).toBe(shortLivedAccess);
+        expect(loginCalls).toBe(1);
+
+        // The JWT only has 60s of life, so we should refresh well before the
+        // 5-minute pre-expiry window suggested by the response `expiry: 600`.
+        // Specifically: with exp at +60s and REFRESH_LEAD_MS=5min, every poll
+        // immediately after t=0 already triggers a refresh.
+        vi.advanceTimersByTime(1000);
+        await auth.getTokens();
+        expect(refreshCalls).toBe(1);
     });
 
     it('throws AnchorError when login returns an error response', async () => {

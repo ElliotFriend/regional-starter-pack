@@ -3,8 +3,10 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { PdaxClient } from '$lib/anchors/pdax/client';
 import { createProxiedFetch } from '$lib/anchors/pdax/proxiedFetch';
+import { InMemoryPdaxStateStore } from '$lib/anchors/pdax/stateStore';
 import { AnchorError } from '$lib/anchors/types';
 import type { IdentityFields } from '$lib/anchors/types';
+import type { PdaxOffRampState } from '$lib/anchors/pdax/types';
 
 const BASE_URL = 'http://pdax.test/api/pdax-api';
 const USERNAME = 'test@pdax.example';
@@ -638,11 +640,8 @@ describe('PdaxClient.getOffRampTransaction state machine', () => {
                     data: { currency: 'USDCXLM', address: 'GPDAX-DEP', tag: 'memo-1' },
                 }),
             ),
-            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, ({ request }) => {
-                const url = new URL(request.url);
-                const identifier = url.searchParams.get('identifier');
-                expect(identifier).toBeTruthy();
-                return HttpResponse.json({
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, () =>
+                HttpResponse.json({
                     status: 'success',
                     data: cryptoArrived
                         ? [
@@ -652,12 +651,13 @@ describe('PdaxClient.getOffRampTransaction state machine', () => {
                                   credit_ccy: 'USDCXLM',
                                   credit_amount: '50',
                                   status: 'completed',
+                                  receiver_wallet_address_tag: 'memo-1',
                                   txn_hash: 'hash-in',
                               },
                           ]
                         : [],
-                });
-            }),
+                }),
+            ),
             http.post(`${BASE_URL}/pdax-institution/v1/trade`, () =>
                 HttpResponse.json({
                     status: 'success',
@@ -745,5 +745,333 @@ describe('PdaxClient.getOffRampTransaction state machine', () => {
         fiatStatus = 'COMPLETED';
         polled = await client.getOffRampTransaction(tx.id);
         expect(polled?.status).toBe('completed');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 1 hardenings
+// ---------------------------------------------------------------------------
+
+describe('PdaxClient.getOffRampTransaction safety guards', () => {
+    it('throws if reaching /fiat/withdraw without an expectedFiatAmount instead of falling back to USDC quantity', async () => {
+        const stateStore = new InMemoryPdaxStateStore();
+        const client = new PdaxClient({
+            username: USERNAME,
+            password: PASSWORD,
+            baseUrl: BASE_URL,
+            stateStore,
+        });
+
+        let withdrawCalls = 0;
+        server.use(
+            loginHandler(),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/withdraw`, () => {
+                withdrawCalls += 1;
+                return HttpResponse.json({ status: 'success', data: {} });
+            }),
+        );
+
+        // Plant a corrupt state (e.g. recovered from a partial Phase-4 write).
+        const corrupt: PdaxOffRampState = {
+            id: 'tx-corrupt',
+            customerId: 'cust-1',
+            quoteId: 'q-2',
+            stellarAddress: 'GA-USER',
+            fromCurrency: 'USDC',
+            toCurrency: 'PHP',
+            amount: '50',
+            expectedFiatAmount: '',
+            method: 'PAY-TO-ACCOUNT-REAL-TIME',
+            bankCode: 'BAUBPPH',
+            accountName: 'Juan Reyes',
+            accountNumber: '1234567890',
+            identity: { ...VALID_IDENTITY, fee_type: 'Sender' } as Record<string, string>,
+            depositAddress: 'GPDAX',
+            depositMemo: 'memo-1',
+            stage: 'trade_executed',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        await stateStore.putOffRamp(corrupt);
+
+        await expect(client.getOffRampTransaction('tx-corrupt')).rejects.toMatchObject({
+            code: 'MISSING_EXPECTED_FIAT_AMOUNT',
+        });
+        expect(withdrawCalls).toBe(0);
+    });
+});
+
+describe('PdaxClient off-ramp deposit-memo matching', () => {
+    it('only advances crypto_pending when an inbound tx with the matching memo arrives', async () => {
+        const client = createClient();
+
+        let inboundTx: Record<string, unknown> | null = null;
+        let withdrawCalled = false;
+
+        server.use(
+            loginHandler(),
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/deposit`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: { currency: 'USDCXLM', address: 'GPDAX-DEP', tag: 'memo-target' },
+                }),
+            ),
+            // Returns a noisy mix of unrelated txs, plus optionally the matching inbound.
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        // Wrong direction: completed crypto_out — must not advance us.
+                        {
+                            transaction_id: 'tx-out-old',
+                            type: 'crypto_out',
+                            credit_ccy: 'USDCXLM',
+                            credit_amount: '100',
+                            status: 'completed',
+                            receiver_wallet_address_tag: 'memo-target',
+                            txn_hash: 'hash-out',
+                        },
+                        // Right direction, wrong memo — must not advance us.
+                        {
+                            transaction_id: 'tx-in-other',
+                            type: 'crypto_in',
+                            credit_ccy: 'USDCXLM',
+                            credit_amount: '25',
+                            status: 'completed',
+                            receiver_wallet_address_tag: 'someone-elses-memo',
+                            txn_hash: 'hash-other',
+                        },
+                        ...(inboundTx ? [inboundTx] : []),
+                    ],
+                }),
+            ),
+            http.post(`${BASE_URL}/pdax-institution/v1/trade`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        order_id: 1234,
+                        status: 'successful',
+                        quote_currency: 'USDCXLM',
+                        base_currency: 'PHP',
+                        side: 'sell',
+                        base_quantity: 50,
+                        price: 55,
+                        total_amount: 2750,
+                    },
+                }),
+            ),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/withdraw`, async () => {
+                withdrawCalled = true;
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        request_id: 'req-fiat-out',
+                        identifier: 'noop',
+                        reference_number: 'ref-out',
+                        amount: 2750,
+                        method: 'PAY-TO-ACCOUNT-REAL-TIME',
+                        status: 'PENDING',
+                        fee: 0,
+                    },
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/fiat/transactions`, () =>
+                HttpResponse.json({ status: 'success', data: [] }),
+            ),
+        );
+
+        const tx = await client.createOffRamp({
+            customerId: 'cust-1',
+            quoteId: 'q-2',
+            stellarAddress: 'GA-USER',
+            fromCurrency: 'USDC',
+            toCurrency: 'PHP',
+            amount: '50',
+            fiatAccountId: 'local-acct-1',
+            identity: {
+                ...VALID_IDENTITY,
+                method: 'PAY-TO-ACCOUNT-REAL-TIME',
+                fee_type: 'Sender',
+                beneficiary_bank_code: 'BAUBPPH',
+                beneficiary_account_name: 'Juan Reyes',
+                beneficiary_account_number: '1234567890',
+                amount: '50',
+            },
+        });
+
+        // First poll — only noise on the wire, none matches our memo+direction.
+        let polled = await client.getOffRampTransaction(tx.id);
+        expect(polled?.status).toBe('pending');
+        expect(withdrawCalled).toBe(false);
+
+        // Now the matching inbound deposit lands.
+        inboundTx = {
+            transaction_id: 'tx-in-mine',
+            type: 'crypto_in',
+            credit_ccy: 'USDCXLM',
+            credit_amount: '50',
+            status: 'completed',
+            receiver_wallet_address_tag: 'memo-target',
+            txn_hash: 'hash-mine',
+        };
+
+        polled = await client.getOffRampTransaction(tx.id);
+        expect(polled?.status).toBe('processing');
+        expect(withdrawCalled).toBe(true);
+    });
+});
+
+describe('PdaxClient findFiatTxn matching', () => {
+    it('does not advance fiat_pending when no transaction matches the identifier', async () => {
+        const client = createClient();
+
+        server.use(
+            loginHandler(),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/deposit`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    request_id: 'req-1',
+                    identifier: reqBody.identifier,
+                    reference_number: 'ref-1',
+                    amount: 1000,
+                    method: 'instapay_upay_cashin',
+                    payment_checkout_url: 'https://checkout.test/abc',
+                    fee: 30,
+                    status: 'PENDING',
+                });
+            }),
+            // Returns an unrelated COMPLETED tx with a different identifier.
+            http.get(`${BASE_URL}/pdax-institution/v1/fiat/transactions`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        {
+                            request_id: 'req-other',
+                            transaction_id: 'tx-other',
+                            identifier: 'somebody-elses-id',
+                            amount: 500,
+                            mode: 'Cash In',
+                            method: 'instapay_upay_cashin',
+                            status: 'COMPLETED',
+                            currency: 'PHP',
+                            fulfilled_at: '2026-05-01T12:05:00Z',
+                        },
+                    ],
+                }),
+            ),
+        );
+
+        const tx = await client.createOnRamp({
+            customerId: 'cust-1',
+            quoteId: 'q-1',
+            stellarAddress: 'GA',
+            fromCurrency: 'PHP',
+            toCurrency: 'USDC',
+            amount: '1000',
+            identity: { ...VALID_IDENTITY, method: 'instapay_upay_cashin', amount: '1000' },
+        });
+
+        const polled = await client.getOnRampTransaction(tx.id);
+        // The unrelated COMPLETED tx must NOT advance our state.
+        expect(polled?.status).toBe('pending');
+    });
+});
+
+describe('PdaxClient trade idempotency', () => {
+    it('uses the on/off-ramp transactionId as idempotency_id so retries dedupe', async () => {
+        const client = createClient();
+        const tradeBodies: Array<Record<string, unknown>> = [];
+
+        let cryptoArrived = false;
+        server.use(
+            loginHandler(),
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/deposit`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: { currency: 'USDCXLM', address: 'GPDAX-DEP', tag: 'memo-1' },
+                }),
+            ),
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: cryptoArrived
+                        ? [
+                              {
+                                  transaction_id: 'tx-crypto-in-1',
+                                  type: 'crypto_in',
+                                  credit_ccy: 'USDCXLM',
+                                  credit_amount: '50',
+                                  status: 'completed',
+                                  receiver_wallet_address_tag: 'memo-1',
+                                  txn_hash: 'hash-in',
+                              },
+                          ]
+                        : [],
+                }),
+            ),
+            http.post(`${BASE_URL}/pdax-institution/v1/trade`, async ({ request }) => {
+                tradeBodies.push((await request.json()) as Record<string, unknown>);
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        order_id: 1234,
+                        status: 'successful',
+                        quote_currency: 'USDCXLM',
+                        base_currency: 'PHP',
+                        side: 'sell',
+                        base_quantity: 50,
+                        price: 55,
+                        total_amount: 2750,
+                    },
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/withdraw`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        request_id: 'req-fiat-out',
+                        identifier: reqBody.identifier,
+                        reference_number: 'ref-out',
+                        amount: 2750,
+                        method: 'PAY-TO-ACCOUNT-REAL-TIME',
+                        status: 'PENDING',
+                        fee: 0,
+                    },
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/fiat/transactions`, () =>
+                HttpResponse.json({ status: 'success', data: [] }),
+            ),
+        );
+
+        const tx = await client.createOffRamp({
+            customerId: 'cust-1',
+            quoteId: 'q-2',
+            stellarAddress: 'GA-USER',
+            fromCurrency: 'USDC',
+            toCurrency: 'PHP',
+            amount: '50',
+            fiatAccountId: 'local-acct-1',
+            identity: {
+                ...VALID_IDENTITY,
+                method: 'PAY-TO-ACCOUNT-REAL-TIME',
+                fee_type: 'Sender',
+                beneficiary_bank_code: 'BAUBPPH',
+                beneficiary_account_name: 'Juan Reyes',
+                beneficiary_account_number: '1234567890',
+                amount: '50',
+            },
+        });
+
+        cryptoArrived = true;
+        await client.getOffRampTransaction(tx.id);
+
+        expect(tradeBodies.length).toBe(1);
+        expect(tradeBodies[0]).toMatchObject({
+            quote_id: 'q-2',
+            side: 'sell',
+            idempotency_id: tx.id,
+        });
     });
 });

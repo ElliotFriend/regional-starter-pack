@@ -390,7 +390,7 @@ export class PdaxClient implements Anchor {
         }
 
         if (state.stage === 'fiat_fulfilled') {
-            const order = await this.executeTrade(state.quoteId, 'buy');
+            const order = await this.executeTrade(state.quoteId, 'buy', transactionId);
             state.orderId = String(order.order_id);
             state.expectedCryptoAmount = String(order.base_quantity);
             state.stage = 'trade_executed';
@@ -475,7 +475,19 @@ export class PdaxClient implements Anchor {
         if (!state) return null;
 
         if (state.stage === 'crypto_pending') {
-            const cryptoTx = await this.findCryptoTxn(transactionId);
+            // Inbound deposits don't carry our identifier (PDAX assigns its own
+            // ids server-side and only echoes our `identifier` for outbound
+            // withdrawals). Match the user's signed Stellar payment by memo
+            // instead — that's the value PDAX gave us in /crypto/deposit and
+            // the value the user includes when signing.
+            if (!state.depositMemo) {
+                throw new AnchorError(
+                    'PDAX off-ramp state is missing a deposit memo; cannot match inbound payment.',
+                    'MISSING_DEPOSIT_MEMO',
+                    500,
+                );
+            }
+            const cryptoTx = await this.findCryptoDepositByMemo(state.depositMemo);
             if (cryptoTx?.status === 'completed') {
                 state.stage = 'crypto_received';
             } else if (cryptoTx?.status === 'failed') {
@@ -484,17 +496,26 @@ export class PdaxClient implements Anchor {
         }
 
         if (state.stage === 'crypto_received') {
-            const order = await this.executeTrade(state.quoteId, 'sell');
+            const order = await this.executeTrade(state.quoteId, 'sell', transactionId);
             state.orderId = String(order.order_id);
             state.expectedFiatAmount = String(order.total_amount);
             state.stage = 'trade_executed';
         }
 
         if (state.stage === 'trade_executed') {
+            // Fail closed rather than fall back to the USDC quantity — sending
+            // the wrong-currency amount to /fiat/withdraw is worse than halting.
+            if (!state.expectedFiatAmount) {
+                throw new AnchorError(
+                    'PDAX off-ramp reached /fiat/withdraw without a trade-derived fiat amount.',
+                    'MISSING_EXPECTED_FIAT_AMOUNT',
+                    500,
+                );
+            }
             const body: FiatWithdrawRequest = {
                 ...(state.identity as IdentityFields),
                 identifier: transactionId,
-                amount: state.expectedFiatAmount || state.amount,
+                amount: state.expectedFiatAmount,
                 currency: 'PHP',
                 method: state.method,
                 fee_type: (state.identity.fee_type as FiatWithdrawRequest['fee_type']) ?? 'Sender',
@@ -534,7 +555,9 @@ export class PdaxClient implements Anchor {
             'GET',
             `/fiat/transactions?identifier=${encodeURIComponent(identifier)}`,
         );
-        return res.data?.find((t) => t.identifier === identifier) ?? res.data?.[0];
+        // No first-record fallback: an unrelated tx with a different identifier
+        // must not advance our state machine.
+        return res.data?.find((t) => t.identifier === identifier);
     }
 
     private async findCryptoTxn(identifier: string): Promise<CryptoTransaction | undefined> {
@@ -545,11 +568,37 @@ export class PdaxClient implements Anchor {
         return res.data?.[0];
     }
 
-    private async executeTrade(quoteId: string, side: TradeSide): Promise<TradeOrderData> {
+    /**
+     * Off-ramp inbound matcher. PDAX's /crypto/transactions filter only accepts
+     * `identifier` and `txn_hash` — neither of which we can supply for a user-
+     * initiated deposit. Pull the recent list and match by memo + direction
+     * client-side. (Open question for PDAX: does the endpoint support a `tag`
+     * filter? If yes we can push this back to the server.)
+     */
+    private async findCryptoDepositByMemo(
+        memo: string,
+    ): Promise<CryptoTransaction | undefined> {
+        const res = await this.request<SuccessEnvelope<CryptoTransaction[]>>(
+            'GET',
+            '/crypto/transactions',
+        );
+        return res.data?.find(
+            (t) => t.type === 'crypto_in' && t.receiver_wallet_address_tag === memo,
+        );
+    }
+
+    private async executeTrade(
+        quoteId: string,
+        side: TradeSide,
+        transactionId: string,
+    ): Promise<TradeOrderData> {
+        // Use the on/off-ramp transactionId (a UUID v4) as the idempotency_id
+        // so a retried poll dedupes against a prior trade rather than placing
+        // a second order on the same quote.
         const body: TradeOrderRequest = {
             quote_id: quoteId,
             side,
-            idempotency_id: randomUUID(),
+            idempotency_id: transactionId,
         };
         const res = await this.request<SuccessEnvelope<TradeOrderData>>('POST', '/trade', {
             body,
