@@ -74,7 +74,7 @@ const pdax = new PdaxClient({
 The interface is six methods (get/put/delete for on-ramp and off-ramp records). Pick the implementation that fits your deployment:
 
 - **Single-process Node / dev / tests** → `InMemoryPdaxStateStore` (default). Records live on the client instance.
-- **Vercel / Lambda / multi-instance serverless** → write a small adapter against your KV of choice. The interface is intentionally minimal; a Vercel KV adapter is ~25 lines:
+- **Vercel / Lambda / multi-instance serverless** → write a small adapter against your KV of choice. **Do not ship the in-memory default to serverless** — different request invocations land on different isolates, so `getOnRampTransaction` will return `null` for a transaction that `createOnRamp` just created on a sibling isolate, and the off-ramp poll loop will quietly stop. The interface is intentionally minimal; a Vercel KV adapter is ~25 lines:
 
     ```ts
     import { kv } from '@vercel/kv';

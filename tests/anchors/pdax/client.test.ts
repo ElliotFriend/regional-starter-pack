@@ -388,6 +388,21 @@ describe('PdaxClient.registerFiatAccount / getFiatAccounts', () => {
         const accounts = await client.getFiatAccounts('cust-empty');
         expect(accounts).toEqual([]);
     });
+
+    it('registerFiatAccount accepts the InstaPay/PESONet (Philippines) account shape', async () => {
+        const client = createClient();
+        const result = await client.registerFiatAccount!({
+            customerId: 'cust-1',
+            account: {
+                type: 'instapay',
+                bank_code: 'BAUBPPH',
+                account_name: 'Juan Reyes',
+                account_number: '1234567890',
+            },
+        });
+        expect(result.type).toBe('instapay');
+        expect(result.id).toMatch(/^[0-9a-f-]{36}$/);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -751,6 +766,128 @@ describe('PdaxClient.getOffRampTransaction state machine', () => {
 // ---------------------------------------------------------------------------
 // Phase 1 hardenings
 // ---------------------------------------------------------------------------
+
+describe('PdaxClient state-machine atomicity', () => {
+    it('persists intermediate state between side effects so a re-entered poll does not double-execute the trade', async () => {
+        const stateStore = new InMemoryPdaxStateStore();
+        const client = new PdaxClient({
+            username: USERNAME,
+            password: PASSWORD,
+            baseUrl: BASE_URL,
+            stateStore,
+        });
+
+        let tradeCalls = 0;
+        let withdrawCalls = 0;
+        let cryptoWithdrawShouldThrow = true;
+
+        server.use(
+            loginHandler(),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/deposit`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    request_id: 'req-1',
+                    identifier: reqBody.identifier,
+                    reference_number: 'ref-1',
+                    amount: 1000,
+                    method: 'instapay_upay_cashin',
+                    payment_checkout_url: 'https://checkout.test/abc',
+                    fee: 30,
+                    status: 'PENDING',
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/fiat/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                const identifier = url.searchParams.get('identifier');
+                return HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        {
+                            request_id: 'req-1',
+                            transaction_id: 'tx-fiat-1',
+                            identifier,
+                            amount: 1000,
+                            mode: 'Cash In',
+                            method: 'instapay_upay_cashin',
+                            status: 'COMPLETED',
+                            currency: 'PHP',
+                        },
+                    ],
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v1/trade`, () => {
+                tradeCalls += 1;
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        order_id: 999,
+                        status: 'successful',
+                        quote_currency: 'USDCXLM',
+                        base_currency: 'PHP',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v1/crypto/withdraw`, async ({ request }) => {
+                withdrawCalls += 1;
+                if (cryptoWithdrawShouldThrow) {
+                    return HttpResponse.json(
+                        { status: 'error', code: 'OT010099', message: 'Transient network blip' },
+                        { status: 503 },
+                    );
+                }
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    identifier: reqBody.identifier,
+                    transaction_id: 555,
+                    amount: '17.18',
+                    address: reqBody.address,
+                    total: '17.18',
+                    fee: '0',
+                    currency: 'USDCXLM',
+                    status: 'IN PROGRESS',
+                    created_at: '2026-05-01T12:10:00Z',
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, () =>
+                HttpResponse.json({ status: 'success', data: [] }),
+            ),
+        );
+
+        const tx = await client.createOnRamp({
+            customerId: 'cust-1',
+            quoteId: 'q-1',
+            stellarAddress: 'GA-DEST',
+            fromCurrency: 'PHP',
+            toCurrency: 'USDC',
+            amount: '1000',
+            identity: { ...VALID_IDENTITY, method: 'instapay_upay_cashin', amount: '1000' },
+        });
+
+        // First poll: fiat completes → trade succeeds → cryptoWithdraw 503s.
+        await expect(client.getOnRampTransaction(tx.id)).rejects.toMatchObject({
+            statusCode: 503,
+        });
+        expect(tradeCalls).toBe(1);
+        expect(withdrawCalls).toBe(1);
+
+        // Verify we persisted the trade_executed stage so the next poll skips trade.
+        const persisted = await stateStore.getOnRamp(tx.id);
+        expect(persisted?.stage).toBe('trade_executed');
+
+        // Allow the next withdraw call to succeed and re-poll.
+        cryptoWithdrawShouldThrow = false;
+        const polled = await client.getOnRampTransaction(tx.id);
+
+        // Trade must NOT have been called again — we resumed from trade_executed.
+        expect(tradeCalls).toBe(1);
+        expect(withdrawCalls).toBe(2);
+        expect(polled?.status).toBe('processing');
+    });
+});
 
 describe('PdaxClient.getOffRampTransaction safety guards', () => {
     it('throws if reaching /fiat/withdraw without an expectedFiatAmount instead of falling back to USDC quantity', async () => {

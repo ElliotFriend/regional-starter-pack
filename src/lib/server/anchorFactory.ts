@@ -46,6 +46,12 @@ export function getAnchor(provider: AnchorProvider): Anchor {
                 });
                 break;
             case 'pdax':
+                // No `stateStore` is passed → the client falls back to
+                // `InMemoryPdaxStateStore`. That's fine for the demo (single
+                // Node process), but a serverless deployment must inject a
+                // persistent adapter or the on/off-ramp polls will lose track
+                // of in-flight transactions. See `src/lib/anchors/pdax/README.md`
+                // for a Vercel KV / Upstash Redis sketch.
                 anchor = new PdaxClient({
                     username: PDAX_USERNAME,
                     password: PDAX_PASSWORD,

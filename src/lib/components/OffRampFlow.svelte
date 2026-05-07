@@ -93,10 +93,18 @@ Usage:
     let taxId = $state('');
     let accountHolderName = $state('');
 
+    // Bank account details (for new accounts) — InstaPay / PESONet (Philippines)
+    let bankCode = $state('');
+    let accountName = $state('');
+    let accountNumber = $state('');
+
     // Derive payment rail from the active region (set via ?region= URL param
-    // or the country dropdown on the registration step). Falls back to SPEI
-    // for backwards-compatibility when neither is available.
-    const paymentRail = $derived(page.data.paymentRail ?? 'spei');
+    // or the country dropdown on the registration step). Should always come
+    // from the active capability — no silent fallback so missing config surfaces.
+    const paymentRail = $derived<string | undefined>(page.data.paymentRail);
+    const isInstaPayPesonet = $derived(
+        paymentRail === 'instapay' || paymentRail === 'pesonet',
+    );
 
     // Steps: 'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
     let step = $state<
@@ -167,6 +175,34 @@ Usage:
      * Register bank account (if new), then get quote with bank_account_id.
      * Called from the bank step when the provider needs bank details before quoting.
      */
+    /**
+     * Build the rail-specific account-registration body for `api.registerFiatAccount`.
+     * The discriminated union mirrors the server route's validator at
+     * `routes/api/anchor/[provider]/fiat-accounts/+server.ts`.
+     */
+    function buildAccountDetails() {
+        if (paymentRail === 'pix') {
+            return { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName };
+        }
+        if (paymentRail === 'instapay') {
+            return {
+                type: 'instapay' as const,
+                bank_code: bankCode,
+                account_name: accountName,
+                account_number: accountNumber,
+            };
+        }
+        if (paymentRail === 'pesonet') {
+            return {
+                type: 'pesonet' as const,
+                bank_code: bankCode,
+                account_name: accountName,
+                account_number: accountNumber,
+            };
+        }
+        return { bankName, clabe, beneficiary };
+    }
+
     async function handleBankThenQuote() {
         const customer = customerStore.current;
         if (!customer) return;
@@ -174,17 +210,22 @@ Usage:
         if (!useNewAccount && !selectedAccountId) return;
         if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
             return;
-        if (useNewAccount && paymentRail !== 'pix' && (!clabe || !beneficiary)) return;
+        if (useNewAccount && isInstaPayPesonet && (!bankCode || !accountName || !accountNumber))
+            return;
+        if (
+            useNewAccount &&
+            paymentRail !== 'pix' &&
+            !isInstaPayPesonet &&
+            (!clabe || !beneficiary)
+        )
+            return;
 
         error = null;
         isGettingQuote = true;
 
         try {
             if (useNewAccount) {
-                const accountDetails =
-                    paymentRail === 'pix'
-                        ? { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName }
-                        : { bankName, clabe, beneficiary };
+                const accountDetails = buildAccountDetails();
                 const result = await api.registerFiatAccount(
                     fetch,
                     provider,
@@ -278,7 +319,19 @@ Usage:
             if (!useNewAccount && !selectedAccountId) return;
             if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
                 return;
-            if (useNewAccount && paymentRail !== 'pix' && (!clabe || !beneficiary)) return;
+            if (
+                useNewAccount &&
+                isInstaPayPesonet &&
+                (!bankCode || !accountName || !accountNumber)
+            )
+                return;
+            if (
+                useNewAccount &&
+                paymentRail !== 'pix' &&
+                !isInstaPayPesonet &&
+                (!clabe || !beneficiary)
+            )
+                return;
         }
 
         isCreatingTransaction = true;
@@ -289,10 +342,7 @@ Usage:
             // Hosted anchors: registration already happened in the hosted UI; selectedAccountId is set.
             let fiatAccountId = selectedAccountId;
             if (fiatAccountRegistration === 'inline' && useNewAccount) {
-                const accountDetails =
-                    paymentRail === 'pix'
-                        ? { type: 'pix' as const, pixKey, pixKeyType, taxId, accountHolderName }
-                        : { bankName, clabe, beneficiary };
+                const accountDetails = buildAccountDetails();
                 const registered = await api.registerFiatAccount(
                     fetch,
                     provider,
@@ -307,6 +357,24 @@ Usage:
 
             if (!fiatAccountId) return;
 
+            // PDAX has no server-side bank-account record — the per-transaction
+            // /fiat/withdraw call needs the bank fields directly. Merge them into
+            // the identity blob so the PdaxClient can read them off `identity`.
+            const baseIdentity = kycStore.current ?? {};
+            const identityForRamp = isInstaPayPesonet
+                ? {
+                      ...baseIdentity,
+                      beneficiary_bank_code: bankCode,
+                      beneficiary_account_name: accountName,
+                      beneficiary_account_number: accountNumber,
+                      method:
+                          paymentRail === 'instapay'
+                              ? 'PAY-TO-ACCOUNT-REAL-TIME'
+                              : 'PAY-TO-ACCOUNT-NON-REAL-TIME',
+                      fee_type: baseIdentity.fee_type ?? 'Sender',
+                  }
+                : (kycStore.current ?? undefined);
+
             const tx = await api.createOffRamp(fetch, provider, {
                 customerId: customer.id,
                 quoteId: quote.id,
@@ -315,7 +383,7 @@ Usage:
                 toCurrency: quote.toCurrency,
                 amount: quote.fromAmount,
                 fiatAccountId,
-                identity: kycStore.current ?? undefined,
+                identity: identityForRamp,
             });
 
             transaction = tx;
@@ -466,6 +534,9 @@ Usage:
         pixKeyType = 'cpf';
         taxId = '';
         accountHolderName = '';
+        bankCode = '';
+        accountName = '';
+        accountNumber = '';
         selectedAccountId = null;
         useNewAccount = false;
         hasOpenedRegistration = false;
@@ -571,7 +642,10 @@ Usage:
             bind:pixKeyType
             bind:taxId
             bind:accountHolderName
-            {paymentRail}
+            bind:bankCode
+            bind:accountName
+            bind:accountNumber
+            paymentRail={paymentRail ?? ''}
             isBankBeforeQuote={capabilities?.requiresBankBeforeQuote ?? false}
             hasQuote={quote !== null}
             {isGettingQuote}

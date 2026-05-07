@@ -18,7 +18,9 @@ the saved-accounts list.
         SANDBOX_SPEI_ACCOUNT,
         SANDBOX_PIX_ACCOUNT,
         SANDBOX_PIX_KEYS,
+        SANDBOX_PDAX_BANK_ACCOUNT,
     } from '$lib/anchors/sandbox';
+    import { BANK_CODES } from '$lib/anchors/pdax/reference';
 
     interface Props {
         savedAccounts: SavedFiatAccount[];
@@ -34,7 +36,11 @@ the saved-accounts list.
         pixKeyType: string;
         taxId: string;
         accountHolderName: string;
-        /** Payment rail determines which inline form fields to show. Defaults to 'spei'. */
+        /** InstaPay/PESONet fields (Philippines) — only used when paymentRail is 'instapay' or 'pesonet'. */
+        bankCode: string;
+        accountName: string;
+        accountNumber: string;
+        /** Payment rail determines which inline form fields to show. */
         paymentRail: string;
         isBankBeforeQuote: boolean;
         hasQuote: boolean;
@@ -66,7 +72,10 @@ the saved-accounts list.
         pixKeyType = $bindable(),
         taxId = $bindable(),
         accountHolderName = $bindable(),
-        paymentRail = 'spei',
+        bankCode = $bindable(),
+        accountName = $bindable(),
+        accountNumber = $bindable(),
+        paymentRail,
         isBankBeforeQuote,
         hasQuote,
         isGettingQuote,
@@ -81,12 +90,17 @@ the saved-accounts list.
     }: Props = $props();
 
     const isPix = $derived(paymentRail === 'pix');
+    const isInstaPayPesonet = $derived(paymentRail === 'instapay' || paymentRail === 'pesonet');
     const isHosted = $derived(fiatAccountRegistration === 'hosted');
     const showNewAccountSection = $derived(useNewAccount || savedAccounts.length === 0);
     const pixKeyPlaceholder = $derived(SANDBOX_PIX_KEYS[pixKeyType] ?? '');
 
     function fillTestData() {
-        if (isPix) {
+        if (isInstaPayPesonet) {
+            bankCode = SANDBOX_PDAX_BANK_ACCOUNT.bank_code;
+            accountName = SANDBOX_PDAX_BANK_ACCOUNT.account_name;
+            accountNumber = SANDBOX_PDAX_BANK_ACCOUNT.account_number;
+        } else if (isPix) {
             pixKey = SANDBOX_PIX_KEYS[pixKeyType] ?? SANDBOX_PIX_ACCOUNT.pixKey;
             taxId = SANDBOX_PIX_ACCOUNT.taxId;
             accountHolderName = SANDBOX_PIX_ACCOUNT.accountHolderName;
@@ -98,6 +112,9 @@ the saved-accounts list.
     }
 
     const isInlineFormValid = $derived.by(() => {
+        if (isInstaPayPesonet) {
+            return !!bankCode && !!accountName && !!accountNumber;
+        }
         if (isPix) {
             return !!pixKey && !!taxId && !!accountHolderName;
         }
@@ -250,7 +267,55 @@ the saved-accounts list.
                             Fill Test Data (Sandbox)
                         </button>
 
-                        {#if isPix}
+                        {#if isInstaPayPesonet}
+                            <!-- InstaPay / PESONet fields (Philippines) -->
+                            <div>
+                                <label
+                                    for="bankCode"
+                                    class="block text-sm font-medium text-gray-700">Bank</label
+                                >
+                                <select
+                                    id="bankCode"
+                                    bind:value={bankCode}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                >
+                                    <option value="" disabled>Select a bank…</option>
+                                    {#each BANK_CODES as bank (bank.code)}
+                                        <option value={bank.code}>{bank.name} ({bank.code})</option>
+                                    {/each}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    for="accountName"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Account Holder Name</label
+                                >
+                                <input
+                                    type="text"
+                                    id="accountName"
+                                    bind:value={accountName}
+                                    placeholder="Full name as it appears on the account"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    for="accountNumber"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Account Number</label
+                                >
+                                <input
+                                    type="text"
+                                    id="accountNumber"
+                                    bind:value={accountNumber}
+                                    placeholder="1234567890"
+                                    class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                />
+                            </div>
+                        {:else if isPix}
                             <!-- PIX fields (Brazil) -->
                             <div>
                                 <label for="pixKey" class="block text-sm font-medium text-gray-700"

@@ -394,6 +394,12 @@ export class PdaxClient implements Anchor {
             state.orderId = String(order.order_id);
             state.expectedCryptoAmount = String(order.base_quantity);
             state.stage = 'trade_executed';
+            // Persist between side effects: if cryptoWithdraw or this process
+            // dies before the final write, the next poll picks up at
+            // trade_executed and skips the trade leg (PDAX would still dedupe
+            // by idempotency_id, but this avoids the round-trip).
+            state.updatedAt = new Date().toISOString();
+            await this.stateStore.putOnRamp(state);
         }
 
         if (state.stage === 'trade_executed') {
@@ -410,6 +416,8 @@ export class PdaxClient implements Anchor {
                 beneficiary_wallet: 'decentralized',
             });
             state.stage = 'crypto_dispatched';
+            state.updatedAt = new Date().toISOString();
+            await this.stateStore.putOnRamp(state);
         }
 
         if (state.stage === 'crypto_dispatched') {
@@ -500,6 +508,10 @@ export class PdaxClient implements Anchor {
             state.orderId = String(order.order_id);
             state.expectedFiatAmount = String(order.total_amount);
             state.stage = 'trade_executed';
+            // Persist between side effects so a re-entered poll resumes at
+            // trade_executed instead of re-running the trade.
+            state.updatedAt = new Date().toISOString();
+            await this.stateStore.putOffRamp(state);
         }
 
         if (state.stage === 'trade_executed') {
@@ -530,6 +542,8 @@ export class PdaxClient implements Anchor {
             ).then((r) => r.data);
             state.fiatWithdrawId = res.request_id;
             state.stage = 'fiat_dispatched';
+            state.updatedAt = new Date().toISOString();
+            await this.stateStore.putOffRamp(state);
         }
 
         if (state.stage === 'fiat_dispatched') {

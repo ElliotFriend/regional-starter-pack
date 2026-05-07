@@ -95,3 +95,13 @@ export const SANDBOX_PIX_ACCOUNT = {
     taxId: '12345678901',
     accountHolderName: 'João Silva',
 };
+
+/**
+ * Pre-filled InstaPay/PESONet bank account fields for sandbox/demo off-ramps
+ * (Philippines). `bank_code` matches an entry in PDAX's `BANK_CODES` enum.
+ */
+export const SANDBOX_PDAX_BANK_ACCOUNT = {
+    bank_code: 'BAUBPPH',
+    account_name: 'Juan Reyes',
+    account_number: '1234567890',
+};

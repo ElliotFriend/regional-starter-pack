@@ -41,6 +41,20 @@ export const POST: RequestHandler = async ({ params, request }) => {
                 taxId,
                 accountHolderName,
             };
+        } else if (type === 'instapay' || type === 'pesonet') {
+            const { bank_code, account_name, account_number } = body;
+            if (!bank_code || !account_name || !account_number) {
+                throw error(400, {
+                    message:
+                        'bank_code, account_name, and account_number are required for InstaPay/PESONet accounts',
+                });
+            }
+            account = {
+                type: type as 'instapay' | 'pesonet',
+                bank_code,
+                account_name,
+                account_number,
+            };
         } else {
             const { clabe, bankName, beneficiary } = body;
             if (!clabe || !beneficiary) {

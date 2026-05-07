@@ -142,8 +142,27 @@ export interface PixFiatAccountInput {
     accountHolderName: string;
 }
 
+/**
+ * Input for registering a new Philippine bank account (InstaPay real-time or
+ * PESONet next-day). PDAX has no server-side account registration, so the
+ * fields are kept locally and forwarded into each off-ramp's identity payload.
+ */
+export interface InstaPayPesonetFiatAccountInput {
+    /** Discriminant for the rail (real-time vs next-day). */
+    type: 'instapay' | 'pesonet';
+    /** PDAX-issued bank code, e.g. `BAUBPPH`. */
+    bank_code: string;
+    /** Beneficiary account holder name. */
+    account_name: string;
+    /** Beneficiary account number. */
+    account_number: string;
+}
+
 /** Discriminated union of fiat account registration inputs for all supported rails. */
-export type FiatAccountInput = SpeiFiatAccountInput | PixFiatAccountInput;
+export type FiatAccountInput =
+    | SpeiFiatAccountInput
+    | PixFiatAccountInput
+    | InstaPayPesonetFiatAccountInput;
 
 /** Input for {@link Anchor.registerFiatAccount}. */
 export interface RegisterFiatAccountInput {

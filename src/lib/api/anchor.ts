@@ -316,6 +316,12 @@ export async function registerFiatAccount(
               pixKeyType?: string;
               taxId: string;
               accountHolderName: string;
+          }
+        | {
+              type: 'instapay' | 'pesonet';
+              bank_code: string;
+              account_name: string;
+              account_number: string;
           },
     publicKey?: string,
 ): Promise<RegisteredFiatAccount> {
