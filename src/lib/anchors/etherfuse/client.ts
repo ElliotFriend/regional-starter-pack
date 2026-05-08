@@ -71,7 +71,7 @@ export class EtherfuseClient implements Anchor {
         requiresOffRampSigning: true,
         kycFlow: 'iframe',
         deferredOffRampSigning: true,
-        sandbox: true,
+        simulateFiatReceived: true,
         fiatAccountRegistration: 'hosted',
     };
     readonly supportedTokens: readonly TokenInfo[] = [

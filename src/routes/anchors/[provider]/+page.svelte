@@ -42,9 +42,6 @@
             },
             { text: `${anchor.name} API documentation`, link: anchor.links.documentation },
         ];
-        if (capabilities?.sandbox) {
-            items.push({ text: 'Sandbox environment available for testing' });
-        }
         if (capabilities?.kycFlow) {
             items.push({ text: `KYC flow: ${capabilities.kycFlow}` });
         }

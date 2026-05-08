@@ -146,7 +146,7 @@ export class PdaxClient implements Anchor {
     readonly capabilities: AnchorCapabilities = {
         kycFlow: 'form',
         emailLookup: false,
-        sandbox: true,
+        sandboxKycData: true,
         requiresOffRampSigning: true,
         deferredOffRampSigning: false,
         fiatAccountRegistration: 'inline',

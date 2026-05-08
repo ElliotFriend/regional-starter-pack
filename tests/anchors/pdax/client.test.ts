@@ -58,7 +58,7 @@ describe('PdaxClient metadata', () => {
         expect(client.displayName).toBe('PDAX');
         expect(client.capabilities.kycFlow).toBe('form');
         expect(client.capabilities.emailLookup).toBe(false);
-        expect(client.capabilities.sandbox).toBe(true);
+        expect(client.capabilities.sandboxKycData).toBe(true);
         expect(client.capabilities.requiresOffRampSigning).toBe(true);
         expect(client.capabilities.deferredOffRampSigning).toBe(false);
     });

@@ -515,8 +515,10 @@ export interface AnchorCapabilities {
     deferredOffRampSigning?: boolean;
     /** Whether the anchor uses a separate payout submission endpoint instead of direct Stellar submission. */
     requiresAnchorPayoutSubmission?: boolean;
-    /** Whether the anchor has sandbox simulation support. */
-    sandbox?: boolean;
+    /** Whether the anchor's sandbox accepts dummy KYC data (enables "Fill Test Data" helper in the inline KYC form). */
+    sandboxKycData?: boolean;
+    /** Whether the anchor exposes a fiat-received simulation endpoint (mock bank deposit during on-ramp). */
+    simulateFiatReceived?: boolean;
     /**
      * How new fiat/bank accounts are registered.
      * - `'inline'` (default) — partner code submits account details via {@link Anchor.registerFiatAccount}.

@@ -274,6 +274,23 @@ Usage:
                     Transfer the following amount via bank transfer to complete your purchase.
                 </p>
 
+                {#if !transaction.paymentInstructions && transaction.interactiveUrl}
+                    <div class="mt-6 rounded-md bg-gray-50 p-4">
+                        <p class="text-sm text-gray-600">
+                            Complete your payment on the anchor's hosted checkout page. This page
+                            will update automatically once the payment is confirmed.
+                        </p>
+                        <a
+                            href={transaction.interactiveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-3 inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                            Continue to Checkout
+                        </a>
+                    </div>
+                {/if}
+
                 {#if transaction.paymentInstructions}
                     {@const pi = transaction.paymentInstructions}
                     <div class="mt-6 space-y-4 rounded-md bg-gray-50 p-4">
@@ -350,7 +367,7 @@ Usage:
                     </p>
                 </div>
 
-                {#if capabilities?.sandbox}
+                {#if capabilities?.simulateFiatReceived}
                     <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
                         <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
                         <p class="mt-1 text-xs text-amber-700">

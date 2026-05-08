@@ -6,7 +6,7 @@ The on-ramp got partway through this morning before the sandbox closed. The off-
 
 ## Setup
 
-1. Clone, `pnpm install`.
+1. Clone, checkout `feat/philippines`, `pnpm install`.
 2. Set `.env`:
 
     ```text

@@ -2554,7 +2554,7 @@ describe('client static properties', () => {
         const client = createClient();
         expect(client.capabilities.kycFlow).toBe('iframe');
         expect(client.capabilities.deferredOffRampSigning).toBe(true);
-        expect(client.capabilities.sandbox).toBe(true);
+        expect(client.capabilities.simulateFiatReceived).toBe(true);
         expect(client.capabilities.kycUrl).toBe(true);
         expect(client.capabilities.requiresOffRampSigning).toBe(true);
     });
