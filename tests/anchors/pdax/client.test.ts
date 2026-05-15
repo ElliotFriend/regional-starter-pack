@@ -1540,3 +1540,96 @@ describe('PdaxClient trade idempotency', () => {
         expect(tradeBodies[0].quote_id).not.toBe('q-indicative-pre-checkout');
     });
 });
+
+// ---------------------------------------------------------------------------
+// getBalances
+// ---------------------------------------------------------------------------
+
+describe('PdaxClient.getBalances', () => {
+    it('GETs /balances with auth headers and returns the parsed array', async () => {
+        const client = createClient();
+        let captured: { headers: Headers; url: string } | null = null;
+        server.use(
+            loginHandler(),
+            http.get(`${BASE_URL}/pdax-institution/v1/balances`, ({ request }) => {
+                captured = { headers: request.headers, url: request.url };
+                return HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        {
+                            currency: 'PHP',
+                            available: '250',
+                            hold: '0',
+                            total: '250',
+                            asset_type: 'FIAT',
+                        },
+                        {
+                            currency: 'USDCXLM',
+                            available: '0',
+                            hold: '0',
+                            total: '0',
+                            asset_type: 'CRYPTO',
+                        },
+                    ],
+                });
+            }),
+        );
+
+        const balances = await client.getBalances();
+        expect(captured).not.toBeNull();
+        expect(captured!.headers.get('access_token')).toBe('access-token-v1');
+        expect(captured!.headers.get('id_token')).toBe('id-token-v1');
+        expect(balances).toHaveLength(2);
+        expect(balances[0]).toMatchObject({
+            currency: 'PHP',
+            available: '250',
+            asset_type: 'FIAT',
+        });
+        expect(balances[1]).toMatchObject({ currency: 'USDCXLM', asset_type: 'CRYPTO' });
+    });
+
+    it('passes ?currency= filter when a currency is supplied', async () => {
+        const client = createClient();
+        let capturedUrl: string | null = null;
+        server.use(
+            loginHandler(),
+            http.get(`${BASE_URL}/pdax-institution/v1/balances`, ({ request }) => {
+                capturedUrl = request.url;
+                return HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        {
+                            currency: 'PHP',
+                            available: '250',
+                            hold: '0',
+                            total: '250',
+                            asset_type: 'FIAT',
+                        },
+                    ],
+                });
+            }),
+        );
+
+        await client.getBalances('PHP');
+        expect(capturedUrl).toContain('currency=PHP');
+    });
+
+    it('maps upstream errors into AnchorError', async () => {
+        const client = createClient();
+        server.use(
+            loginHandler(),
+            http.get(`${BASE_URL}/pdax-institution/v1/balances`, () =>
+                HttpResponse.json(
+                    { status: 'error', code: 'OT010099', message: 'Unavailable' },
+                    { status: 503 },
+                ),
+            ),
+        );
+
+        await expect(client.getBalances()).rejects.toMatchObject({
+            name: 'AnchorError',
+            code: 'OT010099',
+            statusCode: 503,
+        });
+    });
+});

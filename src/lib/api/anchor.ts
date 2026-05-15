@@ -427,6 +427,38 @@ export async function getKycUrl(
 }
 
 // =============================================================================
+// Balances API (PDAX-only)
+// =============================================================================
+
+export interface AnchorBalance {
+    currency: string;
+    available: string;
+    hold: string;
+    total: string;
+    asset_type: 'FIAT' | 'CRYPTO';
+}
+
+/**
+ * Fetch wallet balances from a provider that exposes them (PDAX only today).
+ * Returns an empty array for providers that don't support balances.
+ */
+export async function getAnchorBalances(
+    fetch: Fetch,
+    provider: string,
+    currency?: string,
+): Promise<AnchorBalance[]> {
+    const qs = currency ? `?currency=${encodeURIComponent(currency)}` : '';
+    try {
+        return await apiRequest<AnchorBalance[]>(fetch, `/api/anchor/${provider}/balances${qs}`);
+    } catch (err) {
+        if (err instanceof ApiError && err.statusCode === 400) {
+            return [];
+        }
+        throw err;
+    }
+}
+
+// =============================================================================
 // Sandbox API (Testing Only)
 // =============================================================================
 

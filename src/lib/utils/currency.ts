@@ -15,6 +15,7 @@ const FIAT_CURRENCIES = new Set([
     'COP',
     'CLP',
     'PEN',
+    'PHP',
     'GBP',
     'JPY',
     'CAD',

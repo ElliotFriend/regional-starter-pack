@@ -271,6 +271,19 @@ export interface CryptoTransaction {
 }
 
 // =============================================================================
+// Balances
+// =============================================================================
+
+export interface PdaxBalance {
+    currency: string;
+    available: string;
+    hold: string;
+    total: string;
+    /** PDAX returns `'FIAT'` or `'CRYPTO'`. */
+    asset_type: 'FIAT' | 'CRYPTO';
+}
+
+// =============================================================================
 // Local-only stored state
 // =============================================================================
 

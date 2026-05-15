@@ -9,6 +9,7 @@
 export { PdaxClient, type PdaxClientOptions } from './client';
 export { PdaxAuth, API_PREFIX, type PdaxAuthOptions } from './auth';
 export { InMemoryPdaxStateStore, type PdaxStateStore } from './stateStore';
+export type { PdaxBalance } from './types';
 export type {
     IdentityFieldKind,
     IdentityFieldEnum,

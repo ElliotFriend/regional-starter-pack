@@ -71,6 +71,7 @@ import type {
     FiatTransaction,
     FiatWithdrawData,
     FiatWithdrawRequest,
+    PdaxBalance,
     PdaxOffRampState,
     PdaxOnRampState,
     SuccessEnvelope,
@@ -331,6 +332,12 @@ export class PdaxClient implements Anchor {
             expiresAt: data.expires_at,
             createdAt: new Date().toISOString(),
         };
+    }
+
+    async getBalances(currency?: string): Promise<PdaxBalance[]> {
+        const path = currency ? `/balances?currency=${encodeURIComponent(currency)}` : '/balances';
+        const res = await this.request<SuccessEnvelope<PdaxBalance[]>>('GET', path);
+        return res.data;
     }
 
     async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
