@@ -505,6 +505,22 @@ describe('PdaxClient.getOnRampTransaction state machine', () => {
                     ],
                 });
             }),
+            // firm trade quote (fetched at trade time, post-fiat)
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, async () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: 'firm-quote-buy',
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                }),
+            ),
             // trade
             http.post(`${BASE_URL}/pdax-institution/v1/trade`, async () =>
                 HttpResponse.json({
@@ -673,6 +689,22 @@ describe('PdaxClient.getOffRampTransaction state machine', () => {
                         : [],
                 }),
             ),
+            // firm trade quote (fetched at trade time, post-deposit)
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, async () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: 'firm-quote-sell',
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'sell',
+                        base_quantity: 50,
+                        price: 55,
+                        total_amount: 2750,
+                    },
+                }),
+            ),
             http.post(`${BASE_URL}/pdax-institution/v1/trade`, () =>
                 HttpResponse.json({
                     status: 'success',
@@ -778,6 +810,7 @@ describe('PdaxClient state-machine atomicity', () => {
         });
 
         let tradeCalls = 0;
+        let firmQuoteCalls = 0;
         let withdrawCalls = 0;
         let cryptoWithdrawShouldThrow = true;
 
@@ -813,6 +846,22 @@ describe('PdaxClient state-machine atomicity', () => {
                             currency: 'PHP',
                         },
                     ],
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, () => {
+                firmQuoteCalls += 1;
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: `firm-${firmQuoteCalls}`,
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
                 });
             }),
             http.post(`${BASE_URL}/pdax-institution/v1/trade`, () => {
@@ -867,10 +916,11 @@ describe('PdaxClient state-machine atomicity', () => {
             identity: { ...VALID_IDENTITY, method: 'instapay_upay_cashin', amount: '1000' },
         });
 
-        // First poll: fiat completes → trade succeeds → cryptoWithdraw 503s.
+        // First poll: fiat completes → firm quote + trade succeed → cryptoWithdraw 503s.
         await expect(client.getOnRampTransaction(tx.id)).rejects.toMatchObject({
             statusCode: 503,
         });
+        expect(firmQuoteCalls).toBe(1);
         expect(tradeCalls).toBe(1);
         expect(withdrawCalls).toBe(1);
 
@@ -882,7 +932,8 @@ describe('PdaxClient state-machine atomicity', () => {
         cryptoWithdrawShouldThrow = false;
         const polled = await client.getOnRampTransaction(tx.id);
 
-        // Trade must NOT have been called again — we resumed from trade_executed.
+        // Firm quote and trade must NOT have been called again — we resumed from trade_executed.
+        expect(firmQuoteCalls).toBe(1);
         expect(tradeCalls).toBe(1);
         expect(withdrawCalls).toBe(2);
         expect(polled?.status).toBe('processing');
@@ -980,6 +1031,21 @@ describe('PdaxClient off-ramp deposit-memo matching', () => {
                         },
                         ...(inboundTx ? [inboundTx] : []),
                     ],
+                }),
+            ),
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: 'firm-sell-1',
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'sell',
+                        base_quantity: 50,
+                        price: 55,
+                        total_amount: 2750,
+                    },
                 }),
             ),
             http.post(`${BASE_URL}/pdax-institution/v1/trade`, () =>
@@ -1115,7 +1181,7 @@ describe('PdaxClient findFiatTxn matching', () => {
 });
 
 describe('PdaxClient trade idempotency', () => {
-    it('uses the on/off-ramp transactionId as idempotency_id so retries dedupe', async () => {
+    it('uses a fresh UUID idempotency_id per trade attempt — never the on/off-ramp id', async () => {
         const client = createClient();
         const tradeBodies: Array<Record<string, unknown>> = [];
 
@@ -1144,6 +1210,21 @@ describe('PdaxClient trade idempotency', () => {
                               },
                           ]
                         : [],
+                }),
+            ),
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: 'firm-sell',
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'sell',
+                        base_quantity: 50,
+                        price: 55,
+                        total_amount: 2750,
+                    },
                 }),
             ),
             http.post(`${BASE_URL}/pdax-institution/v1/trade`, async ({ request }) => {
@@ -1184,7 +1265,7 @@ describe('PdaxClient trade idempotency', () => {
 
         const tx = await client.createOffRamp({
             customerId: 'cust-1',
-            quoteId: 'q-2',
+            quoteId: 'q-indicative-discarded',
             stellarAddress: 'GA-USER',
             fromCurrency: 'USDC',
             toCurrency: 'PHP',
@@ -1205,10 +1286,257 @@ describe('PdaxClient trade idempotency', () => {
         await client.getOffRampTransaction(tx.id);
 
         expect(tradeBodies.length).toBe(1);
-        expect(tradeBodies[0]).toMatchObject({
-            quote_id: 'q-2',
-            side: 'sell',
-            idempotency_id: tx.id,
+        // The pre-checkout quote id is discarded; the firm quote id is used.
+        expect(tradeBodies[0]).toMatchObject({ quote_id: 'firm-sell', side: 'sell' });
+        expect(tradeBodies[0].quote_id).not.toBe('q-indicative-discarded');
+        // Idempotency must be a fresh UUID v4 — not the on/off-ramp id (which PDAX
+        // burns one-shot, blocking any subsequent attempt under the same value).
+        expect(tradeBodies[0].idempotency_id).not.toBe(tx.id);
+        expect(tradeBodies[0].idempotency_id).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('mints a new idempotency_id when the firm trade fails and is retried', async () => {
+        const stateStore = new InMemoryPdaxStateStore();
+        const client = new PdaxClient({
+            username: USERNAME,
+            password: PASSWORD,
+            baseUrl: BASE_URL,
+            stateStore,
         });
+
+        const tradeBodies: Array<Record<string, unknown>> = [];
+        let tradeCalls = 0;
+
+        server.use(
+            loginHandler(),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/deposit`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    request_id: 'req-1',
+                    identifier: reqBody.identifier,
+                    reference_number: 'ref-1',
+                    amount: 1000,
+                    method: 'instapay_upay_cashin',
+                    payment_checkout_url: 'https://checkout.test/abc',
+                    fee: 30,
+                    status: 'PENDING',
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/fiat/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                const identifier = url.searchParams.get('identifier');
+                return HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        {
+                            request_id: 'req-1',
+                            transaction_id: 'tx-fiat-1',
+                            identifier,
+                            amount: 1000,
+                            mode: 'Cash In',
+                            method: 'instapay_upay_cashin',
+                            status: 'COMPLETED',
+                            currency: 'PHP',
+                        },
+                    ],
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, () =>
+                HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: `firm-${tradeCalls + 1}`,
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                }),
+            ),
+            http.post(`${BASE_URL}/pdax-institution/v1/trade`, async ({ request }) => {
+                tradeCalls += 1;
+                tradeBodies.push((await request.json()) as Record<string, unknown>);
+                if (tradeCalls === 1) {
+                    return HttpResponse.json(
+                        { status: 'error', code: 'OT010003', message: 'Quote expired' },
+                        { status: 400 },
+                    );
+                }
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        order_id: 999,
+                        status: 'successful',
+                        quote_currency: 'USDCXLM',
+                        base_currency: 'PHP',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v1/crypto/withdraw`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    identifier: reqBody.identifier,
+                    transaction_id: 555,
+                    amount: '17.18',
+                    address: reqBody.address,
+                    total: '17.18',
+                    fee: '0',
+                    currency: 'USDCXLM',
+                    status: 'IN PROGRESS',
+                    created_at: '2026-05-01T12:10:00Z',
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, () =>
+                HttpResponse.json({ status: 'success', data: [] }),
+            ),
+        );
+
+        const tx = await client.createOnRamp({
+            customerId: 'cust-1',
+            quoteId: 'q-indicative',
+            stellarAddress: 'GA-DEST',
+            fromCurrency: 'PHP',
+            toCurrency: 'USDC',
+            amount: '1000',
+            identity: { ...VALID_IDENTITY, method: 'instapay_upay_cashin', amount: '1000' },
+        });
+
+        // First poll: trade fails with quote-expired. State stays at fiat_fulfilled.
+        await expect(client.getOnRampTransaction(tx.id)).rejects.toMatchObject({
+            code: 'OT010003',
+        });
+        const afterFirst = await stateStore.getOnRamp(tx.id);
+        expect(afterFirst?.stage).toBe('fiat_fulfilled');
+
+        // Second poll: trade succeeds. The retry must use a fresh idempotency_id.
+        await client.getOnRampTransaction(tx.id);
+        expect(tradeBodies.length).toBe(2);
+        expect(tradeBodies[0].idempotency_id).not.toEqual(tradeBodies[1].idempotency_id);
+        expect(tradeBodies[0].idempotency_id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(tradeBodies[1].idempotency_id).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('discards the pre-checkout quote_id and fetches a firm quote at trade time', async () => {
+        const client = createClient();
+        const quoteBodies: Array<Record<string, unknown>> = [];
+        const tradeBodies: Array<Record<string, unknown>> = [];
+
+        server.use(
+            loginHandler(),
+            http.post(`${BASE_URL}/pdax-institution/v1/fiat/deposit`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    request_id: 'req-1',
+                    identifier: reqBody.identifier,
+                    reference_number: 'ref-1',
+                    amount: 1000,
+                    method: 'instapay_upay_cashin',
+                    payment_checkout_url: 'https://checkout.test/abc',
+                    fee: 30,
+                    status: 'PENDING',
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/fiat/transactions`, ({ request }) => {
+                const url = new URL(request.url);
+                const identifier = url.searchParams.get('identifier');
+                return HttpResponse.json({
+                    status: 'success',
+                    data: [
+                        {
+                            request_id: 'req-1',
+                            transaction_id: 'tx-fiat-1',
+                            identifier,
+                            amount: 1000,
+                            mode: 'Cash In',
+                            method: 'instapay_upay_cashin',
+                            status: 'COMPLETED',
+                            currency: 'PHP',
+                        },
+                    ],
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v2/trade/quote`, async ({ request }) => {
+                quoteBodies.push((await request.json()) as Record<string, unknown>);
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        quote_id: 'firm-quote-fresh',
+                        expires_at: '2026-05-01T12:10:00Z',
+                        base_currency: 'PHP',
+                        quote_currency: 'USDCXLM',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v1/trade`, async ({ request }) => {
+                tradeBodies.push((await request.json()) as Record<string, unknown>);
+                return HttpResponse.json({
+                    status: 'success',
+                    data: {
+                        order_id: 999,
+                        status: 'successful',
+                        quote_currency: 'USDCXLM',
+                        base_currency: 'PHP',
+                        side: 'buy',
+                        base_quantity: 17.18,
+                        price: 58.2,
+                        total_amount: 1000,
+                    },
+                });
+            }),
+            http.post(`${BASE_URL}/pdax-institution/v1/crypto/withdraw`, async ({ request }) => {
+                const reqBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    identifier: reqBody.identifier,
+                    transaction_id: 555,
+                    amount: '17.18',
+                    address: reqBody.address,
+                    total: '17.18',
+                    fee: '0',
+                    currency: 'USDCXLM',
+                    status: 'IN PROGRESS',
+                    created_at: '2026-05-01T12:10:00Z',
+                });
+            }),
+            http.get(`${BASE_URL}/pdax-institution/v1/crypto/transactions`, () =>
+                HttpResponse.json({ status: 'success', data: [] }),
+            ),
+        );
+
+        const tx = await client.createOnRamp({
+            customerId: 'cust-1',
+            quoteId: 'q-indicative-pre-checkout',
+            stellarAddress: 'GA-DEST',
+            fromCurrency: 'PHP',
+            toCurrency: 'USDC',
+            amount: '1000',
+            identity: { ...VALID_IDENTITY, method: 'instapay_upay_cashin', amount: '1000' },
+        });
+
+        await client.getOnRampTransaction(tx.id);
+
+        // Firm quote was minted from the PHP amount, not reusing 'q-indicative-pre-checkout'.
+        expect(quoteBodies.length).toBe(1);
+        expect(quoteBodies[0]).toMatchObject({
+            side: 'buy',
+            base_currency: 'PHP',
+            quote_currency: 'USDCXLM',
+            currency: 'PHP',
+            quantity: '1000',
+        });
+        // /trade carries the firm quote, not the indicative one.
+        expect(tradeBodies.length).toBe(1);
+        expect(tradeBodies[0].quote_id).toBe('firm-quote-fresh');
+        expect(tradeBodies[0].quote_id).not.toBe('q-indicative-pre-checkout');
     });
 });

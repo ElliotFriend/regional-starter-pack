@@ -104,9 +104,7 @@ Usage:
     // or the country dropdown on the registration step). Should always come
     // from the active capability — no silent fallback so missing config surfaces.
     const paymentRail = $derived<string | undefined>(page.data.paymentRail);
-    const isInstaPayPesonet = $derived(
-        paymentRail === 'instapay' || paymentRail === 'pesonet',
-    );
+    const isInstaPayPesonet = $derived(paymentRail === 'instapay' || paymentRail === 'pesonet');
 
     // Steps: 'input' | 'quote' | 'bank' | 'awaiting_signable' | 'signing' | 'pending' | 'complete'
     let step = $state<
@@ -321,11 +319,7 @@ Usage:
             if (!useNewAccount && !selectedAccountId) return;
             if (useNewAccount && paymentRail === 'pix' && (!pixKey || !taxId || !accountHolderName))
                 return;
-            if (
-                useNewAccount &&
-                isInstaPayPesonet &&
-                (!bankCode || !accountName || !accountNumber)
-            )
+            if (useNewAccount && isInstaPayPesonet && (!bankCode || !accountName || !accountNumber))
                 return;
             if (
                 useNewAccount &&
@@ -649,6 +643,7 @@ Usage:
             onRefresh={refreshQuote}
             onCancel={reset}
             onConfirm={handleQuoteConfirm}
+            indicative={capabilities?.lateFirmQuote ?? false}
         />
     {:else if step === 'bank'}
         <FiatAccountStep

@@ -3,6 +3,10 @@
 
 Thin wrapper that renders a `<QuoteDisplay>` alongside Cancel and Confirm buttons.
 
+Set `indicative` to `true` for anchors whose upfront quote is non-binding (the
+firm rate is fetched server-side at trade time, so the pre-checkout figure is
+display-only). Forwarded to `<QuoteDisplay>`.
+
 Usage:
 ```html
 <QuoteStep
@@ -13,6 +17,7 @@ Usage:
     onRefresh={refreshQuote}
     onCancel={reset}
     onConfirm={confirmQuote}
+    indicative={capabilities?.lateFirmQuote ?? false}
 />
 ```
 -->
@@ -29,6 +34,7 @@ Usage:
         onRefresh: () => void;
         onCancel: () => void;
         onConfirm: () => void;
+        indicative?: boolean;
     }
 
     let {
@@ -40,12 +46,13 @@ Usage:
         onRefresh,
         onCancel,
         onConfirm,
+        indicative = false,
     }: Props = $props();
 </script>
 
 <div class="space-y-4">
     {#if quote}
-        <QuoteDisplay {quote} {onRefresh} {isRefreshing} />
+        <QuoteDisplay {quote} {onRefresh} {isRefreshing} {indicative} />
     {/if}
 
     <div class="flex gap-3">

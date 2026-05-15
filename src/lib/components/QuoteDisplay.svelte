@@ -8,9 +8,10 @@
         quote: Quote;
         onRefresh?: () => void;
         isRefreshing?: boolean;
+        indicative?: boolean;
     }
 
-    let { quote, onRefresh, isRefreshing = false }: Props = $props();
+    let { quote, onRefresh, isRefreshing = false, indicative = false }: Props = $props();
 
     // Use a tick counter to force re-computation
     let tick = $state(0);
@@ -35,7 +36,9 @@
 
 <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
     <div class="flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900">Quote</h3>
+        <h3 class="text-lg font-medium text-gray-900">
+            {indicative ? 'Estimated quote' : 'Quote'}
+        </h3>
         {#if onRefresh}
             <button
                 onclick={() => onRefresh?.()}
@@ -75,15 +78,21 @@
             </div>
         </div>
 
-        <div class="flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
-            <span class="text-gray-500">Expires in</span>
-            <span class={isExpired ? 'font-medium text-red-600' : 'text-gray-700'}>
-                {expiresIn}
-            </span>
-        </div>
+        {#if indicative}
+            <div class="border-t border-gray-100 pt-3 text-xs text-gray-500">
+                Final rate locks after payment clears.
+            </div>
+        {:else}
+            <div class="flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
+                <span class="text-gray-500">Expires in</span>
+                <span class={isExpired ? 'font-medium text-red-600' : 'text-gray-700'}>
+                    {expiresIn}
+                </span>
+            </div>
+        {/if}
     </div>
 
-    {#if isExpired}
+    {#if isExpired && !indicative}
         <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
             This quote has expired. Please refresh to get a new quote.
         </div>

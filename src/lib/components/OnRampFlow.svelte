@@ -30,7 +30,7 @@ Usage:
     import { getStatusColor } from '$lib/utils/status';
     import { TX_STATUS } from '$lib/constants';
     import * as api from '$lib/api/anchor';
-    import type { Quote, OnRampTransaction, TokenInfo } from '$lib/anchors/types';
+    import type { CashInMethod, Quote, OnRampTransaction, TokenInfo } from '$lib/anchors/types';
 
     const provider = $derived(page.data.anchor.id);
     const toCurrency = $derived(page.data.primaryToken);
@@ -40,6 +40,14 @@ Usage:
     const tokenIssuer = $derived(
         page.data.supportedTokens.find((t: TokenInfo) => t.symbol === page.data.primaryToken)
             ?.issuer,
+    );
+    const cashInMethods = $derived<readonly CashInMethod[] | undefined>(page.data.cashInMethods);
+    const showCashInMethodPicker = $derived((cashInMethods?.length ?? 0) > 1);
+    // Seed once from initial page data — `page.data` is loaded before the
+    // component mounts, so the first cash-in method is a stable default.
+    // The select then mutates this via `bind:value`.
+    let selectedCashInMethod = $state<string>(
+        (page.data.cashInMethods as readonly CashInMethod[] | undefined)?.[0]?.value ?? '',
     );
 
     // Local state for this flow
@@ -123,6 +131,10 @@ Usage:
         error = null;
 
         try {
+            const baseIdentity = kycStore.current ?? undefined;
+            const identity = selectedCashInMethod
+                ? { ...(baseIdentity ?? {}), method: selectedCashInMethod }
+                : baseIdentity;
             transaction = await api.createOnRamp(fetch, provider, {
                 customerId: customer.id,
                 quoteId: quote.id,
@@ -130,7 +142,7 @@ Usage:
                 fromCurrency: quote.fromCurrency,
                 toCurrency: quote.toCurrency,
                 amount: quote.fromAmount,
-                identity: kycStore.current ?? undefined,
+                identity,
             });
             step = 'payment';
             startPolling();
@@ -251,6 +263,23 @@ Usage:
                 additionalDisabled={!walletRegistered}
                 onSubmit={getQuote}
             ></AmountInput>
+
+            {#if showCashInMethodPicker && cashInMethods}
+                <div class="mt-4">
+                    <label for="cash-in-method" class="block text-sm font-medium text-gray-700">
+                        Payment method
+                    </label>
+                    <select
+                        id="cash-in-method"
+                        bind:value={selectedCashInMethod}
+                        class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        {#each cashInMethods as method (method.value)}
+                            <option value={method.value}>{method.label}</option>
+                        {/each}
+                    </select>
+                </div>
+            {/if}
         </div>
     {:else if step === 'quote'}
         <QuoteStep
@@ -261,6 +290,7 @@ Usage:
             onRefresh={refreshQuote}
             onCancel={reset}
             onConfirm={confirmQuote}
+            indicative={capabilities?.lateFirmQuote ?? false}
         />
     {:else if step === 'payment'}
         {#if transaction}

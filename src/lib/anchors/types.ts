@@ -425,6 +425,16 @@ export interface TokenInfo {
     description: string;
 }
 
+/**
+ * A user-selectable cash-in method exposed by an anchor's `cashInMethods`.
+ * `value` is the anchor-specific API string (e.g. `"instapay_upay_cashin"`);
+ * `label` is what the UI shows the user.
+ */
+export interface CashInMethod {
+    value: string;
+    label: string;
+}
+
 // =============================================================================
 // KYC field/document requirements — anchors declare what they need
 // =============================================================================
@@ -517,6 +527,13 @@ export interface AnchorCapabilities {
     requiresAnchorPayoutSubmission?: boolean;
     /** Whether the anchor's sandbox accepts dummy KYC data (enables "Fill Test Data" helper in the inline KYC form). */
     sandboxKycData?: boolean;
+    /**
+     * Whether the pre-checkout quote is indicative only — the firm rate is
+     * re-fetched server-side at trade time (e.g. PDAX, whose quotes live ~15s
+     * and would always expire while the user completes the fiat leg).
+     * UI uses this to label the pre-checkout numbers as "estimated".
+     */
+    lateFirmQuote?: boolean;
     /** Whether the anchor exposes a fiat-received simulation endpoint (mock bank deposit during on-ramp). */
     simulateFiatReceived?: boolean;
     /**
@@ -552,6 +569,13 @@ export interface Anchor {
     readonly supportedCurrencies: readonly string[];
     /** Payment rail identifiers supported by this provider (e.g. `["spei"]`). */
     readonly supportedRails: readonly string[];
+    /**
+     * User-selectable cash-in methods, when the anchor exposes more than one
+     * underlying rail for the on-ramp first leg (e.g. PDAX's InstaPay vs.
+     * DragonPay vs. GrabPay). Undefined when there's nothing to choose —
+     * the on-ramp UI hides the picker in that case.
+     */
+    readonly cashInMethods?: readonly CashInMethod[];
 
     /**
      * Create a new customer with the anchor provider.

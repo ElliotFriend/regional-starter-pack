@@ -21,6 +21,7 @@ The on-ramp got partway through this morning before the sandbox closed. The off-
     ```
 
     Use the Fly proxy URL — its egress IP is the one PDAX has whitelisted. Don't bother trying to whitelist your laptop IP.
+
 3. `pnpm dev`. Open `http://localhost:5173/anchors/pdax`.
 4. Install Freighter (browser extension), set it to **testnet**, fund the account from the testnet faucet, add a USDC trustline (the off-ramp page surfaces a button).
 
@@ -30,13 +31,15 @@ The on-ramp got partway through this morning before the sandbox closed. The off-
 2. Fill the registration form; pick Philippines.
 3. KYC form: click **Fill Test Data (Sandbox)**, submit. Should land on the amount step (no verification loop — if it loops back to the form, the `submitKyc → kycStatus` writeback regressed).
 4. Enter `1000` PHP. Get quote.
-5. **Confirm and get payment details.** Expected: PDAX returns a `payment_checkout_url` and the UI shows pending. If you get `"sender_national_identity_number is only accept alphanum"` or any other Joi-style validation error, capture the field name — sandbox values may need updates in `src/lib/anchors/sandbox.ts`.
-6. Open the payment_checkout_url in a new tab and complete the simulated InstaPay payment (PDAX's sandbox provides a button for this).
-7. Watch the page. The poll should advance: `pending → processing → completed`. Expected wire activity:
+5. **Cash-in method**: leave the default (`gcash_cashin`). Observed 2026-05-13: GCash is currently the **only** sandbox method whose simulated checkout actually drives the fiat tx to `COMPLETED` — `instapay_upay_cashin`, `paymaya_pay`, etc. render a checkout URL but the simulation never settles. The picker in `reference.ts:FIAT_IN_METHODS_INFO` is ordered so GCash leads.
+6. **Confirm and get payment details.** Expected: PDAX returns a `payment_checkout_url` and the UI shows pending. If you get `"sender_national_identity_number is only accept alphanum"` or any other Joi-style validation error, capture the field name — sandbox values may need updates in `src/lib/anchors/sandbox.ts`.
+7. Open the payment_checkout_url in a new tab and complete the simulated GCash payment (PDAX's sandbox provides a button for this).
+8. Watch the page. The poll should advance: `pending → processing → completed`. Expected wire activity:
+    - `POST /v2/trade/quote` (firm quote, fetched at trade time — see client.ts)
     - `POST /v1/trade` (one call only — verify in proxy logs)
     - `POST /v1/crypto/withdraw`
     - `GET /v1/crypto/transactions?identifier=<our-uuid>` returning `status: completed` with a `txn_hash`
-8. End state: USDC trustline balance increases; `stellarTxHash` shown.
+9. End state: USDC trustline balance increases; `stellarTxHash` shown.
 
 **If it gets stuck**:
 
@@ -60,19 +63,19 @@ The on-ramp got partway through this morning before the sandbox closed. The off-
 
 ## Things to live-validate (changed this branch, not yet hit by a real PDAX response)
 
-| Concern | Where | What confirms it |
-| --- | --- | --- |
-| `/crypto/transactions` returns `receiver_wallet_address_tag` | `client.ts:findCryptoDepositByMemo` | Off-ramp advances past `crypto_pending` |
-| Trade idempotency dedupes on retry | `client.ts:executeTrade` (uses `transactionId`) | Force a retry (kill the dev server mid-poll, restart) — `tradeBodies` should still produce one order, not two |
-| Auth refresh falls back to login on non-401 | `auth.ts:refreshOrRelogin` | Hard to trigger naturally; only matters if a refresh token expires unusually |
-| JWT `exp` is the actual TTL | `auth.ts:readJwtExp` | If polling stops working after ~10 min and `expiry: 600` is wrong, tokens will silently 401 |
-| `country: 'PH'` flows through (no MX defaulting) | `customers/+server.ts` | Customer record should show `country: 'PH'` |
+| Concern                                                      | Where                                           | What confirms it                                                                                              |
+| ------------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `/crypto/transactions` returns `receiver_wallet_address_tag` | `client.ts:findCryptoDepositByMemo`             | Off-ramp advances past `crypto_pending`                                                                       |
+| Trade idempotency dedupes on retry                           | `client.ts:executeTrade` (uses `transactionId`) | Force a retry (kill the dev server mid-poll, restart) — `tradeBodies` should still produce one order, not two |
+| Auth refresh falls back to login on non-401                  | `auth.ts:refreshOrRelogin`                      | Hard to trigger naturally; only matters if a refresh token expires unusually                                  |
+| JWT `exp` is the actual TTL                                  | `auth.ts:readJwtExp`                            | If polling stops working after ~10 min and `expiry: 600` is wrong, tokens will silently 401                   |
+| `country: 'PH'` flows through (no MX defaulting)             | `customers/+server.ts`                          | Customer record should show `country: 'PH'`                                                                   |
 
 ## Open questions to ask PDAX team
 
 1. Does `GET /v1/crypto/transactions` accept a `tag` or `memo` query parameter, or pagination / date filters? OpenAPI documents only `identifier` and `txn_hash`; pulling the full unfiltered list won't scale.
 2. What's the actual JWT lifetime, and is the `expiry` field in the login response authoritative? We're now reading the access token's `exp` claim — confirm that's the source of truth.
-3. Is `gcash_cashin` still a supported method? OpenAPI example uses it but the docs list omits it.
+3. ~~Is `gcash_cashin` still a supported method?~~ **Resolved 2026-05-13**: yes, and it's currently the only sandbox method whose simulated checkout completes end-to-end. Other methods in `FIAT_IN_METHODS_INFO` render a checkout URL but the simulation doesn't settle. Ask PDAX: are the other sandbox simulations actually wired up, or is GCash the only one with a working mock today?
 4. Webhook signature scheme for `/config/webhook` — none documented.
 5. Quote expiry SLA — `expires_at` is returned but no typical duration documented.
 
@@ -80,10 +83,10 @@ The on-ramp got partway through this morning before the sandbox closed. The off-
 
 - **Proxy logs**: `flyctl logs -a <proxy-app-name>` from the proxy/ dir. Every request is logged with method, path, upstream status.
 - **Common errors**:
-  - `"accessToken" is required` (Joi format) → header issue. The proxy now rewrites `X-Pdax-Access-Token`/`X-Pdax-Id-Token` to `access_token`/`id_token`. If this comes back, the proxy redeploy didn't land — verify with `flyctl status`.
-  - `"<field> is only accept alphanum"` → sandbox prefill in `sandbox.ts` needs scrubbing.
-  - `OT010003` (quote expired) → user took too long; restart the flow.
-  - `OT010001` (duplicate request) → the deterministic idempotency_id worked — PDAX correctly deduped a retry.
+    - `"accessToken" is required` (Joi format) → header issue. The proxy now rewrites `X-Pdax-Access-Token`/`X-Pdax-Id-Token` to `access_token`/`id_token`. If this comes back, the proxy redeploy didn't land — verify with `flyctl status`.
+    - `"<field> is only accept alphanum"` → sandbox prefill in `sandbox.ts` needs scrubbing.
+    - `OT010003` (quote expired) → user took too long; restart the flow.
+    - `OT010001` (duplicate request) → the deterministic idempotency_id worked — PDAX correctly deduped a retry.
 - **State store loss**: if `getOnRampTransaction` returns 404 for a tx you just created, the dev server probably restarted. State is in-memory only (see `pdax/README.md`).
 
 ## Files worth opening before starting

@@ -210,6 +210,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             {
                 text: 'PDAX staging is only available 6:00am-10:00pm Philippine Standard Time (UTC+8), Monday through Friday, excluding Philippine holidays. Requests outside that window will fail; the badge next to the anchor name reflects the current open/closed status (the holiday calendar is not enforced).',
             },
+            {
+                text: 'PESONet is supported for off-ramp (cash-out) only. PDAX exposes PESONet as a batch settlement rail on /fiat/withdraw via the PAY-TO-ACCOUNT-NON-REAL-TIME method, but the cash-in side has no PESONet equivalent — on-ramp payments go through InstaPay/QRPh, DragonPay, or GrabPay.',
+            },
         ],
         devNotes: [
             {

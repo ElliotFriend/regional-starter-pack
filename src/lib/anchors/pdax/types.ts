@@ -191,9 +191,12 @@ export interface CryptoWithdrawRequest {
     address: string;
     amount: string;
     tag?: string;
-    beneficiary_first_name: string;
-    beneficiary_last_name: string;
-    beneficiary_exchange: string;
+    /** Optional under the 50,000 PHP threshold. */
+    beneficiary_first_name?: string;
+    /** Optional under the 50,000 PHP threshold. */
+    beneficiary_last_name?: string;
+    /** Optional under the 50,000 PHP threshold. */
+    beneficiary_exchange?: string;
     /** PDAX docs document this as a string (e.g. `'true'`/`'false'`). */
     send_to_self: string;
     beneficiary_wallet: string;
@@ -221,11 +224,14 @@ export interface CryptoWithdrawResponse {
 
 export interface FiatTransaction {
     request_id: string;
-    transaction_id: string;
-    amount: number;
-    fee?: number;
+    /** Spec says `string`; live sandbox sends a number. */
+    transaction_id: string | number;
+    /** Spec says `number`; live sandbox sends a stringified amount. */
+    amount: string | number;
+    /** Spec says `number`; live sandbox sends a stringified amount. */
+    fee?: string | number;
     method?: string;
-    /** `'Cash In'` or `'Cash Out'`. */
+    /** Spec says `'Cash In'`/`'Cash Out'`; live sandbox sends `'cashIn'`/`'cashOut'`. */
     mode?: string;
     reference_number?: string;
     fulfilled_at?: string | null;
@@ -237,7 +243,7 @@ export interface FiatTransaction {
     /** `'IN-PROGRESS'`, `'COMPLETED'`, `'FAILED'`. */
     status: string;
     identifier: string;
-    fee_type?: string;
+    fee_type?: string | null;
     retried_methods?: unknown[];
 }
 

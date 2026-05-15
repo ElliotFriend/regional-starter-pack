@@ -139,6 +139,7 @@ export class PdaxAuth {
 
     private async login(): Promise<CachedSession> {
         const url = `${this.baseUrl}${API_PREFIX}/login`;
+        console.log(`[PDAX] POST ${url} (login, username=${this.username})`);
         const response = await this.fetchFn(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -148,6 +149,7 @@ export class PdaxAuth {
         const data = await this.parseJson<LoginResponse>(response, url);
 
         if (data.challenge_name) {
+            console.error(`[PDAX] Login challenge: ${data.challenge_name}`);
             throw new AnchorError(
                 `PDAX login requires an MFA challenge (${data.challenge_name}). ` +
                     `MFA must be disabled on the API account for this integration.`,
@@ -156,11 +158,13 @@ export class PdaxAuth {
             );
         }
 
+        console.log(`[PDAX] Login OK (${response.status})`);
         return this.cache(data);
     }
 
     private async refresh(refreshToken: string): Promise<CachedSession> {
         const url = `${this.baseUrl}${API_PREFIX}/refresh-token`;
+        console.log(`[PDAX] PUT ${url} (refresh-token)`);
         // Note: request uses camelCase `refreshToken` even though the login response
         // returns snake_case `refresh_token`. This is per the PDAX spec, not a typo.
         const response = await this.fetchFn(url, {
@@ -170,6 +174,7 @@ export class PdaxAuth {
         });
 
         const data = await this.parseJson<LoginResponse>(response, url);
+        console.log(`[PDAX] Refresh OK (${response.status})`);
         return this.cache(data);
     }
 
@@ -209,6 +214,7 @@ export class PdaxAuth {
         }
 
         if (!response.ok) {
+            console.error(`[PDAX] Auth error ${response.status}:`, text || '(empty)');
             const err = parsed as ErrorResponse;
             throw new AnchorError(
                 err.message || `PDAX request failed: ${response.status} ${url}`,

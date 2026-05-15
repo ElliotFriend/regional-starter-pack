@@ -22,6 +22,7 @@ import {
     AnchorError,
     type Anchor,
     type AnchorCapabilities,
+    type CashInMethod,
     type Customer,
     type CreateCustomerInput,
     type CreateOffRampInput,
@@ -50,6 +51,7 @@ import {
     FEE_TYPES,
     FIAT_DEPOSIT_IDENTITY_FIELDS,
     FIAT_IN_METHODS,
+    FIAT_IN_METHODS_INFO,
     FIAT_OUT_METHODS,
     FIAT_WITHDRAW_IDENTITY_FIELDS,
     PURPOSES,
@@ -150,10 +152,15 @@ export class PdaxClient implements Anchor {
         requiresOffRampSigning: true,
         deferredOffRampSigning: false,
         fiatAccountRegistration: 'inline',
+        lateFirmQuote: true,
     };
     readonly supportedTokens: readonly TokenInfo[] = [USDC_TOKEN];
     readonly supportedCurrencies: readonly string[] = ['PHP'];
     readonly supportedRails: readonly string[] = ['instapay', 'pesonet'];
+    readonly cashInMethods: readonly CashInMethod[] = FIAT_IN_METHODS_INFO.map((m) => ({
+        value: m.method,
+        label: `${m.sourceWallet} (${m.mode})`,
+    }));
 
     private readonly auth: PdaxAuth;
     private readonly baseUrl: string;
@@ -289,6 +296,12 @@ export class PdaxClient implements Anchor {
     // PDAX-backed methods
     // -------------------------------------------------------------------
 
+    /**
+     * Get a quote. PDAX's quotes are firm for only ~15s, so the value returned
+     * here is **indicative only** — meant to populate the pre-checkout UI.
+     * The `id` will be discarded; the trade leg fetches a fresh firm quote at
+     * execution time (see {@link executeTrade}).
+     */
     async getQuote(input: GetQuoteInput): Promise<Quote> {
         const amount = input.fromAmount ?? input.toAmount;
         if (!amount) {
@@ -302,20 +315,7 @@ export class PdaxClient implements Anchor {
         const isOnRamp = input.fromCurrency === 'PHP';
         const side: TradeSide = isOnRamp ? 'buy' : 'sell';
         const quantityCurrency = isOnRamp ? 'PHP' : PDAX_USDC;
-
-        const body: TradeQuoteRequest = {
-            side,
-            quote_currency: PDAX_USDC,
-            base_currency: 'PHP',
-            currency: quantityCurrency,
-            quantity: amount,
-        };
-
-        const data = await this.request<SuccessEnvelope<TradeQuoteData>>(
-            'POST',
-            '/v2/trade/quote',
-            { body },
-        ).then((r) => r.data);
+        const data = await this.fetchFirmTradeQuote(side, amount, quantityCurrency);
 
         const fromAmount = isOnRamp ? String(data.total_amount) : String(data.base_quantity);
         const toAmount = isOnRamp ? String(data.base_quantity) : String(data.total_amount);
@@ -342,7 +342,9 @@ export class PdaxClient implements Anchor {
             );
         }
         const identity = input.identity;
-        const method = (identity.method as FiatDepositRequest['method']) ?? 'instapay_upay_cashin';
+        // Fallback to gcash_cashin: the only sandbox method whose simulated
+        // checkout currently completes end-to-end (others stall in IN-PROGRESS).
+        const method = (identity.method as FiatDepositRequest['method']) ?? 'gcash_cashin';
         const identifier = randomUUID();
 
         const body: Record<string, unknown> = {
@@ -390,14 +392,14 @@ export class PdaxClient implements Anchor {
         }
 
         if (state.stage === 'fiat_fulfilled') {
-            const order = await this.executeTrade(state.quoteId, 'buy', transactionId);
+            // Re-quote and trade in one shot; the indicative quoteId is dropped.
+            const order = await this.executeTrade('buy', state.amount, 'PHP');
             state.orderId = String(order.order_id);
             state.expectedCryptoAmount = String(order.base_quantity);
             state.stage = 'trade_executed';
             // Persist between side effects: if cryptoWithdraw or this process
             // dies before the final write, the next poll picks up at
-            // trade_executed and skips the trade leg (PDAX would still dedupe
-            // by idempotency_id, but this avoids the round-trip).
+            // trade_executed and skips the trade leg.
             state.updatedAt = new Date().toISOString();
             await this.stateStore.putOnRamp(state);
         }
@@ -409,11 +411,14 @@ export class PdaxClient implements Anchor {
                 address: state.stellarAddress,
                 amount: state.expectedCryptoAmount,
                 tag: '',
-                beneficiary_first_name: state.identity.beneficiary_first_name ?? '',
-                beneficiary_last_name: state.identity.beneficiary_last_name ?? '',
-                beneficiary_exchange: 'self',
-                send_to_self: 'true',
-                beneficiary_wallet: 'decentralized',
+                // beneficiary_first_name / _last_name / _exchange are optional
+                // under the 50,000 PHP threshold per PDAX, and sending populated
+                // values has been triggering "User not found" lookups against
+                // sandbox data (observed 2026-05-13). Omit them and let PDAX
+                // skip the verification path. `beneficiary_wallet` remains
+                // required (PAP0002 without it).
+                send_to_self: 'false',
+                beneficiary_wallet: 'true',
             });
             state.stage = 'crypto_dispatched';
             state.updatedAt = new Date().toISOString();
@@ -504,7 +509,8 @@ export class PdaxClient implements Anchor {
         }
 
         if (state.stage === 'crypto_received') {
-            const order = await this.executeTrade(state.quoteId, 'sell', transactionId);
+            // Re-quote and trade in one shot; the indicative quoteId is dropped.
+            const order = await this.executeTrade('sell', state.amount, PDAX_USDC);
             state.orderId = String(order.order_id);
             state.expectedFiatAmount = String(order.total_amount);
             state.stage = 'trade_executed';
@@ -589,9 +595,7 @@ export class PdaxClient implements Anchor {
      * client-side. (Open question for PDAX: does the endpoint support a `tag`
      * filter? If yes we can push this back to the server.)
      */
-    private async findCryptoDepositByMemo(
-        memo: string,
-    ): Promise<CryptoTransaction | undefined> {
+    private async findCryptoDepositByMemo(memo: string): Promise<CryptoTransaction | undefined> {
         const res = await this.request<SuccessEnvelope<CryptoTransaction[]>>(
             'GET',
             '/crypto/transactions',
@@ -601,18 +605,44 @@ export class PdaxClient implements Anchor {
         );
     }
 
-    private async executeTrade(
-        quoteId: string,
+    private async fetchFirmTradeQuote(
         side: TradeSide,
-        transactionId: string,
-    ): Promise<TradeOrderData> {
-        // Use the on/off-ramp transactionId (a UUID v4) as the idempotency_id
-        // so a retried poll dedupes against a prior trade rather than placing
-        // a second order on the same quote.
-        const body: TradeOrderRequest = {
-            quote_id: quoteId,
+        quantity: string,
+        quantityCurrency: 'PHP' | typeof PDAX_USDC,
+    ): Promise<TradeQuoteData> {
+        const body: TradeQuoteRequest = {
             side,
-            idempotency_id: transactionId,
+            quote_currency: PDAX_USDC,
+            base_currency: 'PHP',
+            currency: quantityCurrency,
+            quantity,
+        };
+        const res = await this.request<SuccessEnvelope<TradeQuoteData>>('POST', '/v2/trade/quote', {
+            body,
+        });
+        return res.data;
+    }
+
+    /**
+     * Fetch a fresh firm quote and place the trade against it in a single
+     * call. PDAX firm quotes live ~15s — fetching one at create time and
+     * trying to consume it after the user has completed the fiat leg will
+     * always race the expiry. So we re-quote at the moment we trade.
+     *
+     * `idempotency_id` is a fresh UUID per attempt: PDAX dedupes (reject,
+     * not replay) any reuse, including reuse after a prior failure, so any
+     * retry — quote-expired or otherwise — must come in under a new id.
+     */
+    private async executeTrade(
+        side: TradeSide,
+        quantity: string,
+        quantityCurrency: 'PHP' | typeof PDAX_USDC,
+    ): Promise<TradeOrderData> {
+        const quote = await this.fetchFirmTradeQuote(side, quantity, quantityCurrency);
+        const body: TradeOrderRequest = {
+            quote_id: quote.quote_id,
+            side,
+            idempotency_id: randomUUID(),
         };
         const res = await this.request<SuccessEnvelope<TradeOrderData>>('POST', '/trade', {
             body,
@@ -642,6 +672,11 @@ export class PdaxClient implements Anchor {
         };
         if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
 
+        console.log(
+            `[PDAX] ${method} ${url}`,
+            opts.body !== undefined ? JSON.stringify(opts.body) : '',
+        );
+
         const response = await this.fetchFn(url, {
             method,
             headers,
@@ -659,6 +694,7 @@ export class PdaxClient implements Anchor {
         }
 
         if (!response.ok) {
+            console.error(`[PDAX] Error ${response.status}:`, text || '(empty)');
             const err = parsed as { code?: string; message?: string };
             throw new AnchorError(
                 err.message || `PDAX request failed: ${response.status} ${url}`,
@@ -666,6 +702,8 @@ export class PdaxClient implements Anchor {
                 response.status,
             );
         }
+
+        console.log(`[PDAX] Response (${response.status}):`, text || '(empty)');
 
         return parsed as T;
     }

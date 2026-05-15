@@ -44,7 +44,55 @@ export const RELATIONSHIPS = [
 ] as const;
 export type RelationshipOfSenderToBeneficiary = (typeof RELATIONSHIPS)[number];
 
-export const FIAT_IN_METHODS = ['grabpay_cashin', 'dragonpay', 'instapay_upay_cashin'] as const;
+// HAND-PATCHED against the live PDAX sandbox response (observed 2026-05-12).
+// The OpenAPI spec (and the page-data the generator reads) declares only three
+// methods — `grabpay_cashin`, `dragonpay`, `instapay_upay_cashin` — but the
+// wire rejects `dragonpay` and accepts the 37 IDs below. Most of the new
+// entries look like DragonPay's individual channels (bank OTC/online + retail
+// remittance brands), so PDAX appears to have flattened the umbrella into
+// per-channel codes without updating the docs.
+// Re-running generate-openapi.py will overwrite this list — see
+// project_pdax_open_questions.md item 10 for the open ask to PDAX.
+export const FIAT_IN_METHODS = [
+    'paymaya_pay',
+    'gcash_cashin',
+    'ub_online_upay_cashin',
+    'instapay_upay_cashin',
+    'grabpay_cashin',
+    'aub_otc',
+    'cvm_cashin',
+    'robinsons_bank_otc',
+    'CEB',
+    'china_bank_otc',
+    'coins_ph_online',
+    'east_west_bank_otc',
+    'robinsons_ds_cashin',
+    'I2I_rural_banks_otc',
+    'landbank_bills_otc',
+    'ML',
+    'pnb_bills_online',
+    'palawan_cashin',
+    'perahub_cashin',
+    'ps_bank_online',
+    'pnb_bills_otc',
+    'rcbc_otc',
+    'rural_net_otc',
+    'security_bank_otc',
+    'sm_cashin',
+    'rcbc_online',
+    'ussc_cashin',
+    'villarica_cashin',
+    'posible_cashin',
+    'ucpb_otc',
+    'rd_cashin',
+    'aub_online',
+    'china_bank_online',
+    'east_west_bank_online',
+    'landbank_online',
+    'maybank_bills_online',
+    'robinsons_bank_online',
+    'ucpb_online',
+] as const;
 export type FiatInMethod = (typeof FIAT_IN_METHODS)[number];
 
 export const FIAT_OUT_METHODS = [
@@ -208,22 +256,37 @@ export const COUNTRIES = [
 ] as const;
 export type Country = (typeof COUNTRIES)[number];
 
-// Cash-in methods with their source wallet and rail mode. Mirrors
-// FIAT_IN_METHODS but carries the metadata that the string union
-// above can't express on its own.
+// Curated subset of FIAT_IN_METHODS with human-friendly labels for the
+// on-ramp method picker. Drives `PdaxClient.cashInMethods` and is intentionally
+// narrower than the full 37-method wire list — the picker stays readable, and
+// the wider FiatInMethod union still accepts any of the other IDs if needed.
+//
+// Order matters: index 0 is the default selection in `OnRampFlow.svelte`.
+// `gcash_cashin` leads because it is currently the only method whose sandbox
+// hosted checkout actually completes a simulated cash-in end-to-end (observed
+// 2026-05-13). The others render a checkout URL but the simulation either
+// 404s or never marks the fiat tx COMPLETED.
+//
+// Selection rationale (covers >90% of PH consumer-facing rails):
+//   - gcash_cashin / paymaya_pay: the two dominant PH e-wallets
+//   - instapay_upay_cashin: QRPh real-time, broad bank/e-wallet support
+//   - grabpay_cashin: confirmed standalone integration per docs
+//   - coins_ph_online: crypto-native PH e-wallet
 export interface FiatInMethodInfo {
     method: FiatInMethod;
     sourceWallet: string;
     mode: string;
 }
 export const FIAT_IN_METHODS_INFO: readonly FiatInMethodInfo[] = [
-    { method: 'grabpay_cashin', sourceWallet: 'Grab', mode: 'Debit Pull' },
-    { method: 'dragonpay', sourceWallet: 'All dragonpay supported banks', mode: 'Debit Pull' },
+    { method: 'gcash_cashin', sourceWallet: 'GCash', mode: 'E-Wallet' },
     {
         method: 'instapay_upay_cashin',
         sourceWallet: 'All banks and e-wallets with QRPh enabled',
         mode: 'Scan QRPh',
     },
+    { method: 'paymaya_pay', sourceWallet: 'Maya (PayMaya)', mode: 'E-Wallet' },
+    { method: 'grabpay_cashin', sourceWallet: 'GrabPay', mode: 'Debit Pull' },
+    { method: 'coins_ph_online', sourceWallet: 'Coins.ph', mode: 'E-Wallet' },
 ];
 
 // Crypto tokens supported by PDAX, filtered to Stellar network only.

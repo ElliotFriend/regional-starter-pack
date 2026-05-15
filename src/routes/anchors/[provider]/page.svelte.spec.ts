@@ -64,6 +64,7 @@ const mockData = {
         },
     ],
     supportedRails: ['spei'],
+    cashInMethods: undefined,
     fiatCurrency: 'MXN',
     primaryToken: 'CETES',
     activeRegion: undefined,

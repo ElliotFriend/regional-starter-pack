@@ -50,6 +50,7 @@ export const load: LayoutServerLoad = ({ params, url }) => {
         capabilities: instance.capabilities,
         supportedTokens: [...instance.supportedTokens],
         supportedRails: [...instance.supportedRails],
+        cashInMethods: instance.cashInMethods ? [...instance.cashInMethods] : undefined,
         regions: getRegionsForAnchor(anchorId),
         activeRegion,
         activeRegionId,
