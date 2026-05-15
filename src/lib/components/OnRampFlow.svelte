@@ -49,7 +49,8 @@ Usage:
     let isGettingQuote = $state(false);
     let isCreatingTransaction = $state(false);
     let error = $state<string | null>(null);
-    let refreshInterval: ReturnType<typeof setInterval> | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let pollingCancelled = false;
 
     // Polling state
     let pollCount = $state(0);
@@ -141,42 +142,47 @@ Usage:
     }
 
     function startPolling() {
-        if (refreshInterval) clearInterval(refreshInterval);
+        stopPolling();
         pollCount = 0;
+        pollingCancelled = false;
 
-        refreshInterval = setInterval(async () => {
+        const tick = async () => {
+            if (pollingCancelled) return;
             pollCount += 1;
-
             if (pollingTimedOut) {
                 stopPolling();
                 return;
             }
-
             if (transaction) {
                 const updated = await api.getOnRampTransaction(fetch, provider, transaction.id);
-
                 if (updated) {
                     transaction = updated;
-
                     if (updated.status === TX_STATUS.COMPLETED) {
                         step = 'complete';
                         stopPolling();
+                        return;
                     } else if (
                         updated.status === TX_STATUS.FAILED ||
                         updated.status === TX_STATUS.EXPIRED ||
                         updated.status === TX_STATUS.CANCELLED
                     ) {
                         stopPolling();
+                        return;
                     }
                 }
             }
-        }, 5000);
+            if (!pollingCancelled) {
+                refreshTimer = setTimeout(tick, 5000);
+            }
+        };
+        refreshTimer = setTimeout(tick, 5000);
     }
 
     function stopPolling() {
-        if (refreshInterval) {
-            clearInterval(refreshInterval);
-            refreshInterval = null;
+        pollingCancelled = true;
+        if (refreshTimer) {
+            clearTimeout(refreshTimer);
+            refreshTimer = null;
         }
     }
 

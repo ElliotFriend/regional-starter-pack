@@ -61,8 +61,10 @@ Usage:
     let error = $state<string | null>(null);
 
     // Polling state
-    let refreshInterval: ReturnType<typeof setInterval> | null = null;
-    let signableInterval: ReturnType<typeof setInterval> | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let signableTimer: ReturnType<typeof setTimeout> | null = null;
+    let pollingCancelled = false;
+    let signableCancelled = false;
     let pollCount = $state(0);
     let signablePollCount = $state(0);
     const MAX_POLL_COUNT = 60; // ~5 minutes at 5s intervals
@@ -452,9 +454,16 @@ Usage:
     function startPollingForSignable() {
         stopPollingForSignable();
         signablePollCount = 0;
+        signableCancelled = false;
 
-        signableInterval = setInterval(async () => {
-            if (!transaction) return;
+        const tick = async () => {
+            if (signableCancelled) return;
+            if (!transaction) {
+                if (!signableCancelled) {
+                    signableTimer = setTimeout(tick, 5000);
+                }
+                return;
+            }
 
             signablePollCount += 1;
 
@@ -469,57 +478,69 @@ Usage:
                     stopPollingForSignable();
                     transaction = updated;
                     await signAndSubmit(updated.signableTransaction);
+                    return;
                 }
             } catch (err) {
                 console.error('Failed to poll for signable transaction:', err);
             }
-        }, 5000);
+
+            if (!signableCancelled) {
+                signableTimer = setTimeout(tick, 5000);
+            }
+        };
+        signableTimer = setTimeout(tick, 5000);
     }
 
     function stopPollingForSignable() {
-        if (signableInterval) {
-            clearInterval(signableInterval);
-            signableInterval = null;
+        signableCancelled = true;
+        if (signableTimer) {
+            clearTimeout(signableTimer);
+            signableTimer = null;
         }
     }
 
     function startPolling() {
-        if (refreshInterval) clearInterval(refreshInterval);
+        stopPolling();
         pollCount = 0;
+        pollingCancelled = false;
 
-        refreshInterval = setInterval(async () => {
+        const tick = async () => {
+            if (pollingCancelled) return;
             pollCount += 1;
-
             if (pollingTimedOut) {
                 stopPolling();
                 return;
             }
-
             if (transaction) {
                 const updated = await api.getOffRampTransaction(fetch, provider, transaction.id);
-
                 if (updated) {
                     transaction = updated;
-
                     if (updated.status === TX_STATUS.COMPLETED) {
                         step = 'complete';
                         stopPolling();
+                        return;
                     } else if (
                         updated.status === TX_STATUS.FAILED ||
                         updated.status === TX_STATUS.EXPIRED ||
                         updated.status === TX_STATUS.CANCELLED
                     ) {
                         stopPolling();
+                        return;
                     }
                 }
             }
-        }, 5000);
+            if (!pollingCancelled) {
+                refreshTimer = setTimeout(tick, 5000);
+            }
+        };
+        refreshTimer = setTimeout(tick, 5000);
     }
 
     function stopPolling() {
-        if (refreshInterval) {
-            clearInterval(refreshInterval);
-            refreshInterval = null;
+        pollingCancelled = true;
+        if (refreshTimer) {
+            clearTimeout(refreshTimer);
+            refreshTimer = null;
         }
     }
 
