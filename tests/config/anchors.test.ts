@@ -50,10 +50,11 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns only Etherfuse', () => {
-        const anchors = getAllAnchors();
-        expect(anchors).toHaveLength(1);
-        expect(anchors[0].id).toBe('etherfuse');
+    it('returns the curated Etherfuse anchor and the test anchor', () => {
+        const ids = getAllAnchors().map((a) => a.id);
+        expect(ids).toContain('etherfuse');
+        expect(ids).toContain('testanchor');
+        expect(ids).toHaveLength(2);
     });
 });
 

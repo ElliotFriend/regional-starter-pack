@@ -6,7 +6,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+import { requireProgrammatic, bearerToken, isValidProvider } from '$lib/server/anchorFactory';
 import { AnchorError } from '$lib/anchors/types';
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
             throw error(400, { message: 'customerId is required' });
         }
 
-        const anchor = getAnchor(provider);
+        const programmatic = requireProgrammatic(provider);
         let account;
 
         if (type === 'pix') {
@@ -56,17 +56,20 @@ export const POST: RequestHandler = async ({ params, request }) => {
             };
         }
 
-        if (!anchor.registerFiatAccount) {
+        if (!programmatic.registerFiatAccount) {
             throw error(400, {
                 message: `${provider} does not support inline fiat-account registration; register accounts via the anchor's hosted onboarding UI instead`,
             });
         }
 
-        const result = await anchor.registerFiatAccount({
-            customerId,
-            publicKey: publicKey || undefined,
-            account,
-        });
+        const result = await programmatic.registerFiatAccount(
+            {
+                customerId,
+                publicKey: publicKey || undefined,
+                account,
+            },
+            bearerToken(request),
+        );
 
         return json(result, { status: 201 });
     } catch (err) {
@@ -77,7 +80,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
     }
 };
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
     const { provider } = params;
     const customerId = url.searchParams.get('customerId');
 
@@ -90,8 +93,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
     }
 
     try {
-        const anchor = getAnchor(provider);
-        const accounts = await anchor.getFiatAccounts(customerId);
+        const programmatic = requireProgrammatic(provider);
+        const accounts = await programmatic.getFiatAccounts(customerId, bearerToken(request));
         return json(accounts);
     } catch (err) {
         if (err instanceof AnchorError) {

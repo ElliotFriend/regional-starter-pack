@@ -6,8 +6,12 @@ describe('PROVIDER', () => {
         expect(PROVIDER.ETHERFUSE).toBe('etherfuse');
     });
 
-    it('has only one provider', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(1);
+    it('includes TESTANCHOR', () => {
+        expect(PROVIDER.TESTANCHOR).toBe('testanchor');
+    });
+
+    it('has the expected providers', () => {
+        expect(Object.keys(PROVIDER)).toHaveLength(2);
     });
 });
 

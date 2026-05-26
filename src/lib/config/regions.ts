@@ -47,6 +47,18 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.pix],
         anchors: ['etherfuse'],
     },
+    testnet: {
+        id: 'testnet',
+        name: 'Testnet',
+        code: 'US',
+        currency: 'USD',
+        currencySymbol: '$',
+        flag: '🧪',
+        description:
+            'A synthetic region for the Stellar test anchor (testanchor.stellar.org). It exercises the full SEP integration surface — both the SEP-6 programmatic and SEP-24 interactive ramp flows — on the Stellar testnet, without real funds.',
+        paymentRails: [PAYMENT_RAILS.bank],
+        anchors: ['testanchor'],
+    },
 };
 
 // =============================================================================

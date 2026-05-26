@@ -24,6 +24,7 @@ Usage:
     import QuoteStep from '$lib/components/ramp/QuoteStep.svelte';
     import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
     import { resolveStellarAsset } from '$lib/utils/stellar-asset';
+    import { signWithFreighter } from '$lib/wallet/freighter';
     import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
     import type { StellarNetwork } from '$lib/wallet/types';
     import { getStatusColor } from '$lib/utils/status';
@@ -32,6 +33,7 @@ Usage:
     import type { Quote, OnRampTransaction, TokenInfo } from '$lib/anchors/types';
 
     const provider = $derived(page.data.anchor.id);
+    const requiresWalletAuth = $derived(page.data.requiresWalletAuth);
     const toCurrency = $derived(page.data.primaryToken);
     const fiatCurrency = $derived(page.data.fiatCurrency);
     const capabilities = $derived(page.data.capabilities);
@@ -65,9 +67,30 @@ Usage:
     let isSimulatingFiat = $state(false);
     let fiatSimulated = $state(false);
 
+    // SEP-10 wallet-auth session token (only for anchors that require it).
+    let authToken = $state<string | undefined>(undefined);
+
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
     const stellarAsset = $derived(resolveStellarAsset(toCurrency, tokenIssuer, PUBLIC_USDC_ISSUER));
+
+    /**
+     * Ensure a wallet-auth token is available for anchors that require the
+     * SEP-10 handshake. Returns undefined for API-key anchors (e.g. Etherfuse),
+     * in which case all `api.*` calls receive `undefined` and behave unchanged.
+     */
+    async function ensureAuth(): Promise<string | undefined> {
+        if (!requiresWalletAuth) return undefined;
+        if (authToken) return authToken;
+        if (!walletStore.publicKey) return undefined;
+        const challenge = await api.getAuthChallenge(fetch, provider, walletStore.publicKey);
+        const { signedXdr } = await signWithFreighter(
+            challenge.transactionXdr,
+            walletStore.network,
+        );
+        authToken = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+        return authToken;
+    }
 
     async function getQuote() {
         if (!amount || isNaN(parseFloat(amount))) return;
@@ -76,15 +99,21 @@ Usage:
         error = null;
 
         try {
+            const auth = await ensureAuth();
             const customer = customerStore.current;
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency: fiatCurrency,
-                toCurrency,
-                amount,
-                customerId: customer?.id,
-                resourceId: customer?.blockchainWalletId,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency: fiatCurrency,
+                    toCurrency,
+                    amount,
+                    customerId: customer?.id,
+                    resourceId: customer?.blockchainWalletId,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
             step = 'quote';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to get quote';
@@ -97,15 +126,21 @@ Usage:
         if (!amount) return;
         isGettingQuote = true;
         try {
+            const auth = await ensureAuth();
             const customer = customerStore.current;
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency: fiatCurrency,
-                toCurrency,
-                amount,
-                customerId: customer?.id,
-                resourceId: customer?.blockchainWalletId,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency: fiatCurrency,
+                    toCurrency,
+                    amount,
+                    customerId: customer?.id,
+                    resourceId: customer?.blockchainWalletId,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to refresh quote';
         } finally {
@@ -121,14 +156,20 @@ Usage:
         error = null;
 
         try {
-            transaction = await api.createOnRamp(fetch, provider, {
-                customerId: customer.id,
-                quoteId: quote.id,
-                stellarAddress: walletStore.publicKey,
-                fromCurrency: quote.fromCurrency,
-                toCurrency: quote.toCurrency,
-                amount: quote.fromAmount,
-            });
+            const auth = await ensureAuth();
+            transaction = await api.createOnRamp(
+                fetch,
+                provider,
+                {
+                    customerId: customer.id,
+                    quoteId: quote.id,
+                    stellarAddress: walletStore.publicKey,
+                    fromCurrency: quote.fromCurrency,
+                    toCurrency: quote.toCurrency,
+                    amount: quote.fromAmount,
+                },
+                auth,
+            );
             step = 'payment';
             startPolling();
         } catch (err) {
@@ -151,7 +192,13 @@ Usage:
             }
 
             if (transaction) {
-                const updated = await api.getOnRampTransaction(fetch, provider, transaction.id);
+                const auth = await ensureAuth();
+                const updated = await api.getOnRampTransaction(
+                    fetch,
+                    provider,
+                    transaction.id,
+                    auth,
+                );
 
                 if (updated) {
                     transaction = updated;
@@ -321,6 +368,23 @@ Usage:
                                     <p class="font-medium">{pi.beneficiary}</p>
                                 </div>
                             {/if}
+                        {:else if pi.type === 'generic'}
+                            {#if pi.how}
+                                <p class="text-sm text-gray-600">{pi.how}</p>
+                            {/if}
+                            {#each pi.fields as field (field.key)}
+                                <div>
+                                    <span class="text-sm text-gray-500">{field.label}</span>
+                                    <p class="font-medium">
+                                        <CopyableField value={field.value} mono />
+                                    </p>
+                                    {#if field.description}
+                                        <p class="mt-0.5 text-xs text-gray-400">
+                                            {field.description}
+                                        </p>
+                                    {/if}
+                                </div>
+                            {/each}
                         {/if}
                         {#if pi.reference}
                             <div>
@@ -348,7 +412,7 @@ Usage:
                     </p>
                 </div>
 
-                {#if capabilities?.sandbox}
+                {#if capabilities?.sandboxFiatSimulation}
                     <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
                         <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
                         <p class="mt-1 text-xs text-amber-700">

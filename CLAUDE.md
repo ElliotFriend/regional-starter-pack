@@ -10,12 +10,12 @@ The project curates anchor integrations that meet five quality criteria: locally
 - `src/lib/api/anchor.ts` — Client-side API functions that call `/api/anchor/[provider]/` routes. Used by Svelte components to interact with anchors without importing server code.
 - `src/lib/server/anchorFactory.ts` — Server-only. Reads `$env/static/private`, instantiates anchor clients.
 - `src/lib/wallet/` — Freighter wallet extension API + Stellar helpers (Horizon, transactions, trustlines).
-- `src/lib/components/` — Svelte 5 UI components. Top-level: flow components (`OnRampFlow`, `OffRampFlow`, `RampPage`), KYC (`KycForm`, `KycIframe`, `KycStatusDisplay`), `QuoteDisplay`, `WalletConnect`. Subdirectories: `ramp/` (step sub-components: `AmountInput`, `QuoteStep`, `FiatAccountStep`, `CompletionStep`, `TrustlineStatus`), `ui/` (layout + utility: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`).
+- `src/lib/components/` — Svelte 5 UI components. Top-level: flow components (`OnRampFlow`, `OffRampFlow` for the programmatic archetype; `InteractiveRampFlow` for the SEP-24-style hosted archetype; `RampPage`), KYC (`KycForm`, `KycIframe`, `KycStatusDisplay`), `QuoteDisplay`, `WalletConnect`. Subdirectories: `ramp/` (step sub-components: `AmountInput`, `QuoteStep`, `FiatAccountStep`, `CompletionStep`, `TrustlineStatus`), `ui/` (layout + utility: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`).
 - `src/lib/stores/` — Svelte 5 reactive state (runes): `wallet.svelte.ts`, `customer.svelte.ts`.
 - `src/lib/config/` — Three files (no barrel): `anchors.ts` (anchor profiles, quality criteria, honorable mentions), `regions.ts` (region definitions + cross-lookups), `rails.ts` (payment rail definitions). Token data lives on `Anchor` client classes, not in config.
 - `src/lib/utils/` — `status.ts` (transaction status helpers), `currency.ts` (formatting), `quote.ts` (expiration), `stellar-asset.ts` (asset resolution).
 - `src/lib/constants.ts` — App constants (providers, statuses).
-- `src/routes/` — `anchors/` (listing + `[provider]/` with `onramp/`, `offramp/`), `regions/` (listing + `[region]/`), `testanchor/` (SEP demo), `api/anchor/[provider]/` (CORS proxy endpoints per operation), `api/testanchor/` (SEP proxy).
+- `src/routes/` — `anchors/` (listing + `[provider]/` with `onramp/`, `offramp/`), `regions/` (listing + `[region]/`), `testanchor/` (SEP demo), `api/anchor/[provider]/` (CORS proxy endpoints per operation: `customers`, `quotes`, `onramp`, `offramp`, `fiat-accounts`, `kyc`, `sandbox` for the programmatic facet; `auth` + `interactive` for the wallet-auth/interactive facets), `api/testanchor/` (SEP proxy).
 
 ## Key Concepts
 
@@ -27,44 +27,41 @@ The SvelteKit-specific anchor factory lives at `/src/lib/server/anchorFactory.ts
 
 ### The Anchor Interface (`/anchors/types.ts`)
 
-The Etherfuse client implements the shared `Anchor` interface:
+The `Anchor` interface is **faceted**: shared identity/metadata plus up to three optional capability facets. At least one of `programmatic`/`interactive` must be present. This models the two ramp archetypes — and lets a single provider expose both (the test anchor does).
 
 ```typescript
 interface Anchor {
     readonly name: string;
     readonly displayName: string;
-    readonly capabilities: AnchorCapabilities;
+    readonly capabilities: AnchorCapabilities; // includes flowStyles: ('programmatic'|'interactive')[]
     readonly supportedTokens: readonly TokenInfo[];
     readonly supportedCurrencies: readonly string[];
     readonly supportedRails: readonly string[];
-    createCustomer(input: CreateCustomerInput): Promise<Customer>;
-    getCustomer(input: GetCustomerInput): Promise<Customer | null>;
-    getQuote(input: GetQuoteInput): Promise<Quote>;
-    createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
-    getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
-    registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
-    getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
-    createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
-    getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
-    getKycUrl?(customerId, publicKey?, bankAccountId?): Promise<string>;
-    getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
-    getKycRequirements?(country?: string): Promise<KycRequirements>;
-    submitKyc?(customerId: string, data: KycSubmissionData): Promise<KycSubmissionResult>;
+    readonly auth?: WalletAuthOps; // SEP-10 wallet auth (getChallenge/submitChallenge), if used
+    readonly programmatic?: ProgrammaticOps; // SEP-6 archetype: app-orchestrated
+    readonly interactive?: InteractiveOps; // SEP-24 archetype: anchor-hosted
 }
 ```
 
-### Anchor Provider
+- **`ProgrammaticOps`** (SEP-6 style) — `createCustomer`, `getCustomer`, `getQuote`, `createOnRamp`/`createOffRamp`, `getOnRamp/OffRampTransaction`, `getFiatAccounts`, optional `registerFiatAccount`/`getKycUrl`/`getKycRequirements`/`submitKyc`, `getKycStatus`. The app collects KYC/fiat details and renders payment instructions itself.
+- **`InteractiveOps`** (SEP-24 style) — `startOnRamp`/`startOffRamp` (return `{ interactiveUrl, transactionId }`), `getOnRamp/OffRampTransaction`, optional `getQuote`. The anchor hosts the whole flow; the app opens the URL and polls.
+- **`WalletAuthOps`** — SEP-10 handshake split for client-side signing. The token is threaded into facet methods via an optional trailing `auth?: string` (API-key anchors like Etherfuse ignore it). The factory exposes `requireProgrammatic`/`requireInteractive`/`requireAuth` and `bearerToken(request)`.
 
-**Etherfuse** (`/anchors/etherfuse/`) — The sole curated provider. Latin America focus. Iframe-based KYC (`kycFlow: 'iframe'`). Uses locally denominated yield-bearing assets: CETES (Mexico/MXN) and TESOURO (Brazil/BRL, coming soon). Off-ramp has deferred signing (`deferredOffRampSigning: true`): the burn transaction XDR appears when polling `getOffRampTransaction()`.
+### Anchor Providers
+
+**Etherfuse** (`/anchors/etherfuse/`) — Curated provider. Latin America. `programmatic` facet only (API-key auth, no `auth` facet). Iframe KYC (`kycFlow: 'iframe'`), CETES (MXN) and TESOURO (BRL). Off-ramp deferred signing (`deferredOffRampSigning: true`).
+
+**Test Anchor** (`/anchors/testanchor/`) — `TestAnchorAdapter` wraps the `sep/` modules as a dual-facet `Anchor` (testnet, region `testnet`, SRT/USDC). Implements **all three** facets: `auth` (SEP-10), `programmatic` (SEP-6/12/38), `interactive` (SEP-24). Stateless — SEP-10 tokens are passed per-call, so a single server instance is safe. The original `TestAnchorClient` (namespaced SEP playground) is unchanged and still powers the `/testanchor` demo. _(Coins.ph is a future `interactive`-only member, pending confirmation it offers a PHP-denominated Stellar asset.)_
 
 ### Anchor Factory (`/server/anchorFactory.ts`)
 
 Server-side only. Maps provider names to configured client instances:
 
 ```typescript
-import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
-// type AnchorProvider = 'etherfuse'
-const anchor = getAnchor('etherfuse');
+import { getAnchor, requireInteractive, isValidProvider } from '$lib/server/anchorFactory';
+// type AnchorProvider = 'etherfuse' | 'testanchor'
+const anchor = getAnchor('testanchor');
+const interactive = requireInteractive('testanchor'); // throws if no interactive facet
 ```
 
 ### Quality Criteria and Honorable Mentions

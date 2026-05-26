@@ -1,4 +1,37 @@
-# Test Anchor Client
+# Test Anchor
+
+This directory contains **two** complementary entry points for [testanchor.stellar.org](https://testanchor.stellar.org):
+
+1. **`TestAnchorClient`** (`client.ts`) — a stateful, SEP-namespaced "playground" client (`client.sep24.deposit()`, …). Powers the `/testanchor` protocol demo and is documented below. Good for learning the raw SEP protocols.
+2. **`TestAnchorAdapter`** (`anchor.ts`) — implements the unified [`Anchor`](../types.ts) interface so the test anchor is driven through the same faceted API as every other provider (and appears under `/anchors/testanchor`). See [Anchor adapter](#anchor-adapter).
+
+## Anchor adapter
+
+`TestAnchorAdapter` composes the [SEP modules](../sep/) directly (it does **not** wrap `TestAnchorClient`) and exposes all three capability facets:
+
+- **`auth`** — SEP-10 wallet authentication, split into `getChallenge` / `submitChallenge` so the signing step can happen client-side (e.g. Freighter). The resulting JWT is passed back into facet methods via their trailing `auth?` argument.
+- **`programmatic`** — the SEP-6 archetype (SEP-6 deposit/withdraw, SEP-12 KYC, SEP-38 quotes). On-ramp deposit instructions map to generic `PaymentInstructions`; off-ramp builds the withdrawal payment XDR server-side and returns it as `signableTransaction`, reusing the shared wallet-signing flow.
+- **`interactive`** — the SEP-24 archetype (`startOnRamp`/`startOffRamp` return `{ interactiveUrl, transactionId }`; poll via `get*Transaction`).
+
+It is **stateless** across calls — SEP-10 tokens are threaded in per-call rather than stored — so a single instance is safe to share server-side across requests. This makes it a good template for any anchor that needs both archetypes or wallet-based auth.
+
+```typescript
+import { createTestAnchorAdapter } from './anchors/testanchor';
+
+const anchor = createTestAnchorAdapter();
+const { transactionXdr } = await anchor.auth.getChallenge(publicKey);
+// ...sign client-side...
+const { token } = await anchor.auth.submitChallenge(signedXdr);
+const session = await anchor.interactive.startOnRamp({
+    assetCode: 'SRT',
+    account: publicKey,
+    auth: token,
+});
+```
+
+---
+
+## Test Anchor Client (SEP playground)
 
 A unified client for [testanchor.stellar.org](https://testanchor.stellar.org) that composes all supported SEP modules from the [SEP protocol library](../sep/) into a single, ergonomic interface. This serves as a reference implementation for building SEP-compatible anchor integrations.
 

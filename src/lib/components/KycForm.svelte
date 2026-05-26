@@ -14,9 +14,10 @@
         email: string;
         capabilities: AnchorCapabilities;
         onComplete: () => void;
+        ensureAuth?: () => Promise<string | undefined>;
     }
 
-    let { provider, email, capabilities, onComplete }: Props = $props();
+    let { provider, email, capabilities, onComplete, ensureAuth }: Props = $props();
 
     // Requirements loaded from anchor
     let requirements = $state<KycRequirements | null>(null);
@@ -85,21 +86,7 @@
         }
     }
 
-    async function handlePersonalSubmit() {
-        if (!areFieldsValid()) {
-            error = 'Please fill in all required fields';
-            return;
-        }
-        error = null;
-        currentStep = 'documents';
-    }
-
-    async function handleDocumentsSubmit() {
-        if (!areDocumentsValid()) {
-            error = 'Please provide all required documents';
-            return;
-        }
-
+    async function submitVerification() {
         const customer = customerStore.current;
         if (!customer) {
             error = 'No customer loaded';
@@ -116,19 +103,49 @@
                 fieldValues.email = email;
             }
 
-            await api.submitKyc(fetch, provider, customer.id, {
-                fields: { ...fieldValues },
-                documents: { ...documentValues },
-            });
+            const auth = ensureAuth ? await ensureAuth() : undefined;
+
+            await api.submitKyc(
+                fetch,
+                provider,
+                customer.id,
+                {
+                    fields: { ...fieldValues },
+                    documents: { ...documentValues },
+                },
+                auth,
+            );
 
             currentStep = 'complete';
             onComplete();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to submit KYC';
-            currentStep = 'documents';
+            currentStep =
+                requirements && requirements.documents.length > 0 ? 'documents' : 'personal';
         } finally {
             isSubmitting = false;
         }
+    }
+
+    async function handlePersonalSubmit() {
+        if (!areFieldsValid()) {
+            error = 'Please fill in all required fields';
+            return;
+        }
+        error = null;
+        if (requirements && requirements.documents.length === 0) {
+            await submitVerification();
+        } else {
+            currentStep = 'documents';
+        }
+    }
+
+    async function handleDocumentsSubmit() {
+        if (!areDocumentsValid()) {
+            error = 'Please provide all required documents';
+            return;
+        }
+        await submitVerification();
     }
 </script>
 
@@ -202,9 +219,14 @@
             <div class="mt-6">
                 <button
                     onclick={handlePersonalSubmit}
+                    disabled={isSubmitting}
                     class="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    Continue to Documents
+                    {#if requirements && requirements.documents.length === 0}
+                        {isSubmitting ? 'Submitting...' : 'Submit Verification'}
+                    {:else}
+                        Continue to Documents
+                    {/if}
                 </button>
             </div>
         </div>

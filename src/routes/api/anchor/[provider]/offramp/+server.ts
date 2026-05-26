@@ -6,7 +6,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+import { requireProgrammatic, bearerToken, isValidProvider } from '$lib/server/anchorFactory';
 import { AnchorError } from '$lib/anchors/types';
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -45,19 +45,22 @@ export const POST: RequestHandler = async ({ params, request }) => {
             });
         }
 
-        const anchor = getAnchor(provider);
+        const programmatic = requireProgrammatic(provider);
 
-        const transaction = await anchor.createOffRamp({
-            customerId,
-            quoteId,
-            stellarAddress,
-            fromCurrency,
-            toCurrency,
-            amount,
-            fiatAccountId,
-            memo,
-            identity,
-        });
+        const transaction = await programmatic.createOffRamp(
+            {
+                customerId,
+                quoteId,
+                stellarAddress,
+                fromCurrency,
+                toCurrency,
+                amount,
+                fiatAccountId,
+                memo,
+                identity,
+            },
+            bearerToken(request),
+        );
 
         return json(transaction, { status: 201 });
     } catch (err) {
@@ -68,7 +71,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
     }
 };
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
     const { provider } = params;
     const transactionId = url.searchParams.get('transactionId');
 
@@ -81,8 +84,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
     }
 
     try {
-        const anchor = getAnchor(provider);
-        const transaction = await anchor.getOffRampTransaction(transactionId);
+        const programmatic = requireProgrammatic(provider);
+        const transaction = await programmatic.getOffRampTransaction(
+            transactionId,
+            bearerToken(request),
+        );
 
         if (!transaction) {
             throw error(404, { message: 'Transaction not found' });

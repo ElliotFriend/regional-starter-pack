@@ -12,6 +12,7 @@
         onKycComplete: () => void;
         onShowKyc: () => void;
         onRefreshStatus: () => void;
+        ensureAuth?: () => Promise<string | undefined>;
     }
 
     let {
@@ -23,6 +24,7 @@
         onKycComplete,
         onShowKyc,
         onRefreshStatus,
+        ensureAuth,
     }: Props = $props();
 </script>
 
@@ -34,7 +36,13 @@
                 Complete the verification below to start using the service.
             </p>
             <div class="mt-4">
-                <KycForm {provider} {email} {capabilities} onComplete={onKycComplete} />
+                <KycForm
+                    {provider}
+                    {email}
+                    {capabilities}
+                    onComplete={onKycComplete}
+                    {ensureAuth}
+                />
             </div>
         </div>
     {:else if customer?.kycStatus === KYC_STATUS.PENDING}

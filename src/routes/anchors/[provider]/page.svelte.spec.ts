@@ -54,7 +54,13 @@ const mockData = {
         },
     },
     displayName: 'Etherfuse',
-    capabilities: { kycFlow: 'iframe' as const, sandbox: true },
+    capabilities: {
+        kycFlow: 'iframe' as const,
+        sandbox: true,
+        flowStyles: ['programmatic' as const],
+    },
+    flowStyles: ['programmatic' as const],
+    requiresWalletAuth: false,
     supportedTokens: [
         {
             symbol: 'CETES',

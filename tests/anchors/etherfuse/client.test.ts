@@ -38,7 +38,7 @@ describe('createCustomer', () => {
             }),
         );
 
-        const customer = await client.createCustomer({
+        const customer = await client.programmatic.createCustomer({
             email: 'alice@example.com',
             publicKey: STELLAR_PUBKEY,
         });
@@ -58,12 +58,12 @@ describe('createCustomer', () => {
     it('throws AnchorError with MISSING_PUBLIC_KEY when publicKey is missing', async () => {
         const client = createClient();
 
-        await expect(client.createCustomer({ email: 'alice@example.com' })).rejects.toThrow(
-            AnchorError,
-        );
+        await expect(
+            client.programmatic.createCustomer({ email: 'alice@example.com' }),
+        ).rejects.toThrow(AnchorError);
 
         try {
-            await client.createCustomer({ email: 'alice@example.com' });
+            await client.programmatic.createCustomer({ email: 'alice@example.com' });
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
             const anchorErr = err as AnchorError;
@@ -76,7 +76,7 @@ describe('createCustomer', () => {
         const client = createClient();
 
         try {
-            await client.createCustomer({
+            await client.programmatic.createCustomer({
                 email: 'alice@example.com',
                 publicKey: 'not-a-stellar-key',
             });
@@ -131,7 +131,7 @@ describe('createCustomer', () => {
             ),
         );
 
-        const customer = await client.createCustomer({
+        const customer = await client.programmatic.createCustomer({
             email: 'alice@example.com',
             publicKey: STELLAR_PUBKEY,
         });
@@ -162,7 +162,7 @@ describe('getCustomer', () => {
             }),
         );
 
-        const customer = await client.getCustomer({ customerId: 'cust-1' });
+        const customer = await client.programmatic.getCustomer({ customerId: 'cust-1' });
 
         expect(customer).not.toBeNull();
         expect(customer!.id).toBe('cust-1');
@@ -184,7 +184,7 @@ describe('getCustomer', () => {
             }),
         );
 
-        const customer = await client.getCustomer({ customerId: 'not-found' });
+        const customer = await client.programmatic.getCustomer({ customerId: 'not-found' });
         expect(customer).toBeNull();
     });
 });
@@ -243,7 +243,7 @@ describe('getQuote', () => {
             }),
         );
 
-        const quote = await client.getQuote({
+        const quote = await client.programmatic.getQuote({
             fromCurrency: 'MXN',
             toCurrency: 'CETES',
             fromAmount: '1000',
@@ -303,7 +303,7 @@ describe('createOnRamp', () => {
             }),
         );
 
-        const tx = await client.createOnRamp({
+        const tx = await client.programmatic.createOnRamp({
             customerId: 'cust-1',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -360,7 +360,7 @@ describe('getOnRampTransaction', () => {
             }),
         );
 
-        const tx = await client.getOnRampTransaction('order-1');
+        const tx = await client.programmatic.getOnRampTransaction('order-1');
 
         expect(tx).not.toBeNull();
         expect(tx!.id).toBe('order-1');
@@ -392,7 +392,7 @@ describe('getOnRampTransaction', () => {
             }),
         );
 
-        const tx = await client.getOnRampTransaction('missing');
+        const tx = await client.programmatic.getOnRampTransaction('missing');
         expect(tx).toBeNull();
     });
 });
@@ -438,7 +438,7 @@ describe('getFiatAccounts', () => {
             }),
         );
 
-        const accounts = await client.getFiatAccounts('cust-1');
+        const accounts = await client.programmatic.getFiatAccounts('cust-1');
 
         expect(accounts).toHaveLength(2);
         expect(accounts[0].id).toBe('bank-1');
@@ -460,7 +460,7 @@ describe('getFiatAccounts', () => {
             }),
         );
 
-        const accounts = await client.getFiatAccounts('no-accounts');
+        const accounts = await client.programmatic.getFiatAccounts('no-accounts');
         expect(accounts).toEqual([]);
     });
 });
@@ -503,7 +503,7 @@ describe('createOffRamp', () => {
             }),
         );
 
-        const tx = await client.createOffRamp({
+        const tx = await client.programmatic.createOffRamp({
             customerId: 'cust-1',
             quoteId: 'quote-off-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -561,7 +561,7 @@ describe('getOffRampTransaction', () => {
             }),
         );
 
-        const tx = await client.getOffRampTransaction('order-off-1');
+        const tx = await client.programmatic.getOffRampTransaction('order-off-1');
 
         expect(tx).not.toBeNull();
         expect(tx!.id).toBe('order-off-1');
@@ -589,7 +589,7 @@ describe('getOffRampTransaction', () => {
             }),
         );
 
-        const tx = await client.getOffRampTransaction('missing-off');
+        const tx = await client.programmatic.getOffRampTransaction('missing-off');
         expect(tx).toBeNull();
     });
 });
@@ -603,7 +603,7 @@ describe('getKycUrl', () => {
         const client = createClient();
 
         try {
-            await client.getKycUrl!('cust-1');
+            await client.programmatic.getKycUrl!('cust-1');
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -624,7 +624,7 @@ describe('getKycUrl', () => {
             }),
         );
 
-        const url = await client.getKycUrl!('cust-1', STELLAR_PUBKEY, 'bank-1');
+        const url = await client.programmatic.getKycUrl!('cust-1', STELLAR_PUBKEY, 'bank-1');
         expect(url).toBe('https://onboard.test/kyc-session-xyz');
     });
 });
@@ -638,7 +638,7 @@ describe('getKycStatus', () => {
         const client = createClient();
 
         try {
-            await client.getKycStatus('cust-1');
+            await client.programmatic.getKycStatus('cust-1');
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -668,7 +668,7 @@ describe('getKycStatus', () => {
             }),
         );
 
-        const status = await client.getKycStatus('cust-1', STELLAR_PUBKEY);
+        const status = await client.programmatic.getKycStatus('cust-1', STELLAR_PUBKEY);
         expect(status).toBe(expectedStatus);
     });
 });
@@ -691,7 +691,7 @@ describe('request error handling', () => {
         );
 
         try {
-            await client.getCustomer({ customerId: 'err-json' });
+            await client.programmatic.getCustomer({ customerId: 'err-json' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -712,7 +712,7 @@ describe('request error handling', () => {
         );
 
         try {
-            await client.getCustomer({ customerId: 'err-text' });
+            await client.programmatic.getCustomer({ customerId: 'err-text' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -755,7 +755,7 @@ describe('request() edge cases', () => {
         );
 
         try {
-            await client.getCustomer({ customerId: 'err-empty-fields' });
+            await client.programmatic.getCustomer({ customerId: 'err-empty-fields' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -780,7 +780,7 @@ describe('request() edge cases', () => {
         );
 
         try {
-            await client.getCustomer({ customerId: 'err-no-code' });
+            await client.programmatic.getCustomer({ customerId: 'err-no-code' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -801,7 +801,7 @@ describe('request() edge cases', () => {
         );
 
         try {
-            await client.getCustomer({ customerId: 'err-null-error' });
+            await client.programmatic.getCustomer({ customerId: 'err-null-error' });
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -837,7 +837,7 @@ describe('createCustomer() 409 recovery edge cases', () => {
         );
 
         try {
-            await client.createCustomer({
+            await client.programmatic.createCustomer({
                 email: 'alice@example.com',
                 publicKey: STELLAR_PUBKEY,
             });
@@ -873,7 +873,7 @@ describe('createCustomer() 409 recovery edge cases', () => {
             }),
         );
 
-        const customer = await client.createCustomer({
+        const customer = await client.programmatic.createCustomer({
             email: 'alice@example.com',
             publicKey: STELLAR_PUBKEY,
         });
@@ -909,7 +909,7 @@ describe('createCustomer() 409 recovery edge cases', () => {
             }),
         );
 
-        const customer = await client.createCustomer({
+        const customer = await client.programmatic.createCustomer({
             email: 'alice@example.com',
             publicKey: STELLAR_PUBKEY,
         });
@@ -936,7 +936,7 @@ describe('createCustomer() 409 recovery edge cases', () => {
         );
 
         try {
-            await client.createCustomer({
+            await client.programmatic.createCustomer({
                 email: 'invalid',
                 publicKey: STELLAR_PUBKEY,
             });
@@ -960,7 +960,7 @@ describe('createCustomer() 409 recovery edge cases', () => {
         );
 
         await expect(
-            client.createCustomer({
+            client.programmatic.createCustomer({
                 email: 'alice@example.com',
                 publicKey: STELLAR_PUBKEY,
             }),
@@ -968,7 +968,7 @@ describe('createCustomer() 409 recovery edge cases', () => {
 
         // Verify it's NOT an AnchorError (it's a fetch TypeError)
         try {
-            await client.createCustomer({
+            await client.programmatic.createCustomer({
                 email: 'alice@example.com',
                 publicKey: STELLAR_PUBKEY,
             });
@@ -1004,7 +1004,7 @@ describe('mapOrderStatus() unknown status', () => {
             }),
         );
 
-        const tx = await client.getOnRampTransaction('order-unknown-status');
+        const tx = await client.programmatic.getOnRampTransaction('order-unknown-status');
         expect(tx).not.toBeNull();
         expect(tx!.status).toBe('pending');
     });
@@ -1029,7 +1029,7 @@ describe('mapKycStatus() unknown status', () => {
             }),
         );
 
-        const status = await client.getKycStatus('cust-1', STELLAR_PUBKEY);
+        const status = await client.programmatic.getKycStatus('cust-1', STELLAR_PUBKEY);
         expect(status).toBe('not_started');
     });
 });
@@ -1060,7 +1060,7 @@ describe('mapOnRampTransaction() edge cases', () => {
             }),
         );
 
-        const tx = await client.getOnRampTransaction('order-no-clabe');
+        const tx = await client.programmatic.getOnRampTransaction('order-no-clabe');
         expect(tx).not.toBeNull();
         expect(tx!.paymentInstructions).toBeUndefined();
     });
@@ -1085,7 +1085,7 @@ describe('mapOnRampTransaction() edge cases', () => {
             }),
         );
 
-        const tx = await client.getOnRampTransaction('order-no-amounts');
+        const tx = await client.programmatic.getOnRampTransaction('order-no-amounts');
         expect(tx).not.toBeNull();
         expect(tx!.fromAmount).toBe(''); // amountInFiat || ''
         expect(tx!.toAmount).toBe(''); // amountInTokens || ''
@@ -1120,7 +1120,7 @@ describe('mapOffRampTransaction() edge cases', () => {
             }),
         );
 
-        const tx = await client.getOffRampTransaction('order-no-bank');
+        const tx = await client.programmatic.getOffRampTransaction('order-no-bank');
         expect(tx).not.toBeNull();
         expect(tx!.fiatAccount).toBeUndefined(); // empty string is falsy
     });
@@ -1149,7 +1149,7 @@ describe('mapOffRampTransaction() edge cases', () => {
             }),
         );
 
-        const tx = await client.getOffRampTransaction('order-with-burn');
+        const tx = await client.programmatic.getOffRampTransaction('order-with-burn');
         expect(tx).not.toBeNull();
         expect(tx!.signableTransaction).toBe('AAAA...XDR_BASE64_ENVELOPE...ZZZZ');
         expect(tx!.status).toBe('processing'); // funded -> processing
@@ -1181,7 +1181,7 @@ describe('mapOffRampTransaction() edge cases', () => {
             }),
         );
 
-        const tx = await client.getOffRampTransaction('order-no-burn');
+        const tx = await client.programmatic.getOffRampTransaction('order-no-burn');
         expect(tx).not.toBeNull();
         expect(tx!.signableTransaction).toBeUndefined();
     });
@@ -1243,7 +1243,7 @@ describe('getQuote() edge cases', () => {
             }),
         );
 
-        const quote = await client.getQuote({
+        const quote = await client.programmatic.getQuote({
             fromCurrency: 'MXN',
             toCurrency: 'CETES',
             // Both fromAmount and toAmount intentionally omitted
@@ -1304,7 +1304,7 @@ describe('getQuote() edge cases', () => {
             }),
         );
 
-        const quote = await client.getQuote({
+        const quote = await client.programmatic.getQuote({
             fromCurrency: 'MXN',
             toCurrency: 'CETES',
             fromAmount: '1000',
@@ -1364,7 +1364,7 @@ describe('getQuote() edge cases', () => {
             }),
         );
 
-        const quote = await client.getQuote({
+        const quote = await client.programmatic.getQuote({
             fromCurrency: 'MXN',
             toCurrency: 'CETES',
             fromAmount: '1000',
@@ -1407,7 +1407,7 @@ describe('getQuote() edge cases', () => {
             }),
         );
 
-        const quote = await client.getQuote({
+        const quote = await client.programmatic.getQuote({
             fromCurrency: 'CETES:GCRYUGD5ISSUER',
             toCurrency: 'MXN:FIAT',
             fromAmount: '50',
@@ -1453,7 +1453,7 @@ describe('createOnRamp() edge cases', () => {
             }),
         );
 
-        const tx = await client.createOnRamp({
+        const tx = await client.programmatic.createOnRamp({
             customerId: 'cust-empty-banks',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -1493,7 +1493,7 @@ describe('createOnRamp() edge cases', () => {
             }),
         );
 
-        const tx = await client.createOnRamp({
+        const tx = await client.programmatic.createOnRamp({
             customerId: '',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -1527,7 +1527,7 @@ describe('getFiatAccounts() edge cases', () => {
             }),
         );
 
-        const accounts = await client.getFiatAccounts('cust-no-items');
+        const accounts = await client.programmatic.getFiatAccounts('cust-no-items');
         expect(accounts).toEqual([]);
         expect(accounts).toHaveLength(0);
     });
@@ -1545,7 +1545,7 @@ describe('getFiatAccounts() edge cases', () => {
         );
 
         try {
-            await client.getFiatAccounts('cust-500');
+            await client.programmatic.getFiatAccounts('cust-500');
             expect.fail('Expected AnchorError');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -1575,7 +1575,7 @@ describe('getKycUrl() edge cases', () => {
             }),
         );
 
-        const url = await client.getKycUrl!('cust-1', STELLAR_PUBKEY);
+        const url = await client.programmatic.getKycUrl!('cust-1', STELLAR_PUBKEY);
         expect(url).toBe('https://onboard.test/kyc-no-bank');
         expect(capturedBody).toBeDefined();
         // bankAccountId should be a valid UUID (auto-generated)
@@ -1833,7 +1833,10 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.createCustomer({ email: 'alice@example.com', publicKey: '' });
+                await client.programmatic.createCustomer({
+                    email: 'alice@example.com',
+                    publicKey: '',
+                });
                 expect.unreachable('should have thrown');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -1854,7 +1857,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            const customer = await client.createCustomer({
+            const customer = await client.programmatic.createCustomer({
                 email: 'alice@example.com',
                 publicKey: STELLAR_PUBKEY,
             });
@@ -1869,7 +1872,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.createCustomer({
+                await client.programmatic.createCustomer({
                     email: 'alice@example.com',
                     publicKey: 'not-a-stellar-key',
                 });
@@ -1893,7 +1896,9 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            const customer = await client.createCustomer({ publicKey: STELLAR_PUBKEY });
+            const customer = await client.programmatic.createCustomer({
+                publicKey: STELLAR_PUBKEY,
+            });
 
             expect(capturedBody).not.toBeNull();
             expect(capturedBody!.email).toBeUndefined();
@@ -1909,7 +1914,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer({ email: 'user@example.com' });
+                await client.programmatic.getCustomer({ email: 'user@example.com' });
                 expect.fail('Expected AnchorError');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -1923,7 +1928,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.getCustomer({ customerId: '' });
+                await client.programmatic.getCustomer({ customerId: '' });
                 expect.fail('Expected AnchorError');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -1988,7 +1993,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.getQuote({
+            await client.programmatic.getQuote({
                 fromCurrency: 'MXN',
                 toCurrency: 'CETES',
                 stellarAddress: STELLAR_PUBKEY,
@@ -2048,7 +2053,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.getQuote({
+            await client.programmatic.getQuote({
                 fromCurrency: 'MXN',
                 toCurrency: 'CETES',
                 fromAmount: 'abc',
@@ -2109,7 +2114,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.getQuote({
+            await client.programmatic.getQuote({
                 fromCurrency: 'MXN',
                 toCurrency: 'CETES',
                 fromAmount: '0',
@@ -2171,7 +2176,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.getQuote({
+            await client.programmatic.getQuote({
                 fromCurrency: 'MXN',
                 toCurrency: 'CETES',
                 fromAmount: '-100',
@@ -2224,7 +2229,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.createOnRamp({
+            await client.programmatic.createOnRamp({
                 customerId: 'cust-1',
                 quoteId: 'quote-1',
                 stellarAddress: '',
@@ -2274,7 +2279,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            const tx = await client.createOnRamp({
+            const tx = await client.programmatic.createOnRamp({
                 customerId: 'cust-1',
                 quoteId: 'quote-1',
                 stellarAddress: STELLAR_PUBKEY,
@@ -2324,7 +2329,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.createOnRamp({
+            await client.programmatic.createOnRamp({
                 customerId: 'cust-1',
                 quoteId: '',
                 stellarAddress: STELLAR_PUBKEY,
@@ -2375,7 +2380,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.createOffRamp({
+            await client.programmatic.createOffRamp({
                 customerId: 'cust-1',
                 quoteId: 'quote-1',
                 stellarAddress: '',
@@ -2411,7 +2416,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.createOffRamp({
+            await client.programmatic.createOffRamp({
                 customerId: 'cust-1',
                 quoteId: 'quote-1',
                 stellarAddress: STELLAR_PUBKEY,
@@ -2436,7 +2441,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.getKycUrl('cust-1', '');
+                await client.programmatic.getKycUrl!('cust-1', '');
                 expect.unreachable('should have thrown');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -2450,7 +2455,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.getKycUrl('cust-1', undefined);
+                await client.programmatic.getKycUrl!('cust-1', undefined);
                 expect.unreachable('should have thrown');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -2471,7 +2476,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.getKycUrl('', STELLAR_PUBKEY);
+            await client.programmatic.getKycUrl!('', STELLAR_PUBKEY);
             expect(capturedBody).not.toBeNull();
             expect(capturedBody!.customerId).toBe('');
         });
@@ -2485,7 +2490,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.getKycStatus('cust-1', '');
+                await client.programmatic.getKycStatus('cust-1', '');
                 expect.unreachable('should have thrown');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -2499,7 +2504,7 @@ describe('input validation behavior', () => {
             const client = createClient();
 
             try {
-                await client.getKycStatus('cust-1', undefined);
+                await client.programmatic.getKycStatus('cust-1', undefined);
                 expect.unreachable('should have thrown');
             } catch (err) {
                 expect(err).toBeInstanceOf(AnchorError);
@@ -2531,7 +2536,7 @@ describe('input validation behavior', () => {
                 }),
             );
 
-            await client.getFiatAccounts('');
+            await client.programmatic.getFiatAccounts('');
             // The client constructs /ramp/customer//bank-accounts with empty customerId
             expect(capturedUrl).toContain('/ramp/customer/');
             expect(capturedUrl).toContain('/bank-accounts');
@@ -2589,7 +2594,10 @@ describe('client static properties', () => {
             }),
         );
 
-        await client.createCustomer({ email: 'test@example.com', publicKey: STELLAR_PUBKEY });
+        await client.programmatic.createCustomer({
+            email: 'test@example.com',
+            publicKey: STELLAR_PUBKEY,
+        });
         expect(capturedBody!.blockchain).toBe('stellar');
     });
 
@@ -2608,7 +2616,10 @@ describe('client static properties', () => {
             }),
         );
 
-        await customClient.createCustomer({ email: 'test@example.com', publicKey: STELLAR_PUBKEY });
+        await customClient.programmatic.createCustomer({
+            email: 'test@example.com',
+            publicKey: STELLAR_PUBKEY,
+        });
         expect(capturedBody!.blockchain).toBe('evm');
     });
 });
@@ -2632,7 +2643,7 @@ describe('getCustomer() displayName handling', () => {
             }),
         );
 
-        const customer = await client.getCustomer({ customerId: 'cust-named' });
+        const customer = await client.programmatic.getCustomer({ customerId: 'cust-named' });
         expect(customer).not.toBeNull();
         expect(customer!.id).toBe('cust-named');
         // displayName is in the Etherfuse response but our Anchor mapping always returns ''
@@ -2653,7 +2664,7 @@ describe('getCustomer() displayName handling', () => {
         );
 
         try {
-            await client.getCustomer({ customerId: 'cust-500' });
+            await client.programmatic.getCustomer({ customerId: 'cust-500' });
             expect.unreachable('should have thrown');
         } catch (err) {
             expect(err).toBeInstanceOf(AnchorError);
@@ -3233,7 +3244,9 @@ describe('mapOrderStatus() all known statuses', () => {
                 }),
             );
 
-            const tx = await client.getOnRampTransaction(`order-map-${etherfuseStatus}`);
+            const tx = await client.programmatic.getOnRampTransaction(
+                `order-map-${etherfuseStatus}`,
+            );
             expect(tx!.status).toBe(expectedStatus);
         },
     );
@@ -3261,7 +3274,7 @@ describe('getFiatAccounts() pagination params', () => {
             }),
         );
 
-        await client.getFiatAccounts('cust-pg');
+        await client.programmatic.getFiatAccounts('cust-pg');
 
         expect(capturedBody).toBeDefined();
         expect(capturedBody!.pageSize).toBe(100);
@@ -3296,7 +3309,7 @@ describe('getFiatAccounts() pagination params', () => {
             }),
         );
 
-        const accounts = await client.getFiatAccounts('cust-extra');
+        const accounts = await client.programmatic.getFiatAccounts('cust-extra');
 
         expect(accounts).toHaveLength(1);
         expect(accounts[0].id).toBe('bank-x');
@@ -3348,7 +3361,7 @@ describe('createOnRamp() unified EtherfuseOrderRequest body', () => {
             }),
         );
 
-        await client.createOnRamp({
+        await client.programmatic.createOnRamp({
             customerId: 'cust-unified',
             quoteId: 'quote-unified',
             stellarAddress: STELLAR_PUBKEY,
@@ -3412,7 +3425,7 @@ describe('createOnRamp() unified EtherfuseOrderRequest body', () => {
             }),
         );
 
-        await client.createOnRamp({
+        await client.programmatic.createOnRamp({
             customerId: 'cust-memo',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -3462,7 +3475,7 @@ describe('createOnRamp() unified EtherfuseOrderRequest body', () => {
             }),
         );
 
-        await client.createOnRamp({
+        await client.programmatic.createOnRamp({
             customerId: 'cust-no-memo',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -3511,7 +3524,7 @@ describe('createOffRamp() unified EtherfuseOrderRequest body', () => {
             }),
         );
 
-        await client.createOffRamp({
+        await client.programmatic.createOffRamp({
             customerId: 'cust-off-unified',
             quoteId: 'quote-off-unified',
             stellarAddress: STELLAR_PUBKEY,
@@ -3559,7 +3572,7 @@ describe('createOffRamp() unified EtherfuseOrderRequest body', () => {
             }),
         );
 
-        await client.createOffRamp({
+        await client.programmatic.createOffRamp({
             customerId: 'cust-1',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -3584,7 +3597,7 @@ describe('createOffRamp() unified EtherfuseOrderRequest body', () => {
             }),
         );
 
-        await client.createOffRamp({
+        await client.programmatic.createOffRamp({
             customerId: '',
             quoteId: 'quote-1',
             stellarAddress: STELLAR_PUBKEY,
@@ -3659,7 +3672,7 @@ describe('Brazil / PIX support', () => {
                 }),
             );
 
-            await client.getQuote({
+            await client.programmatic.getQuote({
                 fromCurrency: 'BRL',
                 toCurrency: 'TESOURO',
                 fromAmount: '100',
@@ -3722,7 +3735,7 @@ describe('Brazil / PIX support', () => {
                 }),
             );
 
-            await client.getQuote({
+            await client.programmatic.getQuote({
                 fromCurrency: 'MXN',
                 toCurrency: 'CETES',
                 fromAmount: '1000',
@@ -3777,7 +3790,7 @@ describe('Brazil / PIX support', () => {
                 }),
             );
 
-            const accounts = await client.getFiatAccounts('cust-br-1');
+            const accounts = await client.programmatic.getFiatAccounts('cust-br-1');
             expect(accounts).toHaveLength(1);
             expect(accounts[0].id).toBe('bank-pix-1');
             expect(accounts[0].type).toBe('PIX');
@@ -3827,7 +3840,7 @@ describe('Brazil / PIX support', () => {
                 }),
             );
 
-            const tx = await client.createOnRamp({
+            const tx = await client.programmatic.createOnRamp({
                 customerId: 'cust-br-1',
                 quoteId: 'quote-brl-1',
                 stellarAddress: STELLAR_PUBKEY,
@@ -3877,7 +3890,7 @@ describe('Brazil / PIX support', () => {
                 }),
             );
 
-            const tx = await client.getOnRampTransaction('order-pix-1');
+            const tx = await client.programmatic.getOnRampTransaction('order-pix-1');
             expect(tx).not.toBeNull();
             expect(tx!.paymentInstructions).toBeDefined();
             expect(tx!.paymentInstructions!.type).toBe('pix');

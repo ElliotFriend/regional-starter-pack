@@ -20,6 +20,7 @@
 
 import type {
     Anchor,
+    ProgrammaticOps,
     AnchorCapabilities,
     TokenInfo,
     Customer,
@@ -72,7 +73,9 @@ export class EtherfuseClient implements Anchor {
         kycFlow: 'iframe',
         deferredOffRampSigning: true,
         sandbox: true,
+        sandboxFiatSimulation: true,
         fiatAccountRegistration: 'hosted',
+        flowStyles: ['programmatic'],
     };
     readonly supportedTokens: readonly TokenInfo[] = [
         {
@@ -92,6 +95,28 @@ export class EtherfuseClient implements Anchor {
     ];
     readonly supportedCurrencies: readonly string[] = ['MXN', 'BRL'];
     readonly supportedRails: readonly string[] = ['spei', 'pix'];
+
+    /**
+     * Programmatic (SEP-6-style) operations facet — the public Anchor surface.
+     * Delegates to the private implementation methods below. Etherfuse omits
+     * `registerFiatAccount` (it uses hosted registration, see
+     * `capabilities.fiatAccountRegistration === 'hosted'`), `getKycRequirements`,
+     * and `submitKyc`.
+     */
+    readonly programmatic: ProgrammaticOps = {
+        createCustomer: (input) => this.createCustomer(input),
+        getCustomer: (input) => this.getCustomer(input),
+        getQuote: (input) => this.getQuote(input),
+        createOnRamp: (input) => this.createOnRamp(input),
+        getOnRampTransaction: (id) => this.getOnRampTransaction(id),
+        getFiatAccounts: (customerId) => this.getFiatAccounts(customerId),
+        createOffRamp: (input) => this.createOffRamp(input),
+        getOffRampTransaction: (id) => this.getOffRampTransaction(id),
+        getKycUrl: (customerId, publicKey, bankAccountId) =>
+            this.getKycUrl(customerId, publicKey, bankAccountId),
+        getKycStatus: (customerId, publicKey) => this.getKycStatus(customerId, publicKey),
+    };
+
     private readonly config: EtherfuseConfig;
     private readonly blockchain: string;
 
@@ -343,7 +368,7 @@ export class EtherfuseClient implements Anchor {
     }
 
     // =========================================================================
-    // Anchor interface implementation
+    // Programmatic facet implementation (private; exposed via `programmatic`)
     // =========================================================================
 
     /**
@@ -357,7 +382,7 @@ export class EtherfuseClient implements Anchor {
      * @returns A {@link Customer} with `kycStatus` set to `"not_started"`.
      * @throws {AnchorError} If `publicKey` is missing or on API failure.
      */
-    async createCustomer(input: CreateCustomerInput): Promise<Customer> {
+    private async createCustomer(input: CreateCustomerInput): Promise<Customer> {
         if (!input.publicKey) {
             throw new AnchorError(
                 'publicKey is required to create an Etherfuse customer',
@@ -445,7 +470,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The {@link Customer}, or `null` if not found.
      * @throws {AnchorError} If `customerId` is not provided or on non-404 API errors.
      */
-    async getCustomer(input: GetCustomerInput): Promise<Customer | null> {
+    private async getCustomer(input: GetCustomerInput): Promise<Customer | null> {
         if (!input.customerId) {
             throw new AnchorError(
                 'customerId is required for Etherfuse customer lookup',
@@ -484,7 +509,7 @@ export class EtherfuseClient implements Anchor {
      * @returns A {@link Quote} with rate, fee, and expiration.
      * @throws {AnchorError} On API failure.
      */
-    async getQuote(input: GetQuoteInput): Promise<Quote> {
+    private async getQuote(input: GetQuoteInput): Promise<Quote> {
         const quoteId = crypto.randomUUID();
         const [sourceAsset, targetAsset] = await this.resolveAssetPair(
             input.fromCurrency,
@@ -526,7 +551,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The created {@link OnRampTransaction}.
      * @throws {AnchorError} On API failure.
      */
-    async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
+    private async createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction> {
         const orderId = crypto.randomUUID();
 
         let bankAccountId = input.bankAccountId;
@@ -572,7 +597,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The {@link OnRampTransaction}, or `null` if not found.
      * @throws {AnchorError} On non-404 API errors.
      */
-    async getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null> {
+    private async getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null> {
         try {
             const response = await this.request<EtherfuseOrderResponse>(
                 'GET',
@@ -593,7 +618,7 @@ export class EtherfuseClient implements Anchor {
      * @returns Array of {@link SavedFiatAccount} objects.
      * @throws {AnchorError} On API failure.
      */
-    async getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]> {
+    private async getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]> {
         try {
             const response = await this.request<EtherfuseBankAccountListResponse>(
                 'POST',
@@ -632,7 +657,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The created {@link OffRampTransaction} (with `signableTransaction: undefined`).
      * @throws {AnchorError} On API failure.
      */
-    async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
+    private async createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction> {
         const orderId = crypto.randomUUID();
 
         let bankAccountId = input.fiatAccountId;
@@ -682,7 +707,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The {@link OffRampTransaction}, or `null` if not found.
      * @throws {AnchorError} On non-404 API errors.
      */
-    async getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null> {
+    private async getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null> {
         try {
             const response = await this.request<EtherfuseOrderResponse>(
                 'GET',
@@ -708,7 +733,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The onboarding URL string.
      * @throws {AnchorError} If `publicKey` is missing or on API failure.
      */
-    async getKycUrl(
+    private async getKycUrl(
         customerId: string,
         publicKey?: string,
         bankAccountId?: string,
@@ -745,7 +770,7 @@ export class EtherfuseClient implements Anchor {
      * @returns The customer's {@link KycStatus}.
      * @throws {AnchorError} If `publicKey` is missing or the API fails.
      */
-    async getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus> {
+    private async getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus> {
         if (!publicKey) {
             throw new AnchorError(
                 'publicKey is required for KYC status checks',

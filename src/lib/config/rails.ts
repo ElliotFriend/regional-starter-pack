@@ -26,6 +26,13 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             "Brazil's instant payment system operated by the Central Bank, enabling 24/7 real-time transfers",
         type: 'bank_transfer',
     },
+    bank: {
+        id: 'bank',
+        name: 'Bank Transfer',
+        description:
+            'Generic bank transfer rail used by the SEP test anchor for end-to-end integration testing.',
+        type: 'bank_transfer',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {

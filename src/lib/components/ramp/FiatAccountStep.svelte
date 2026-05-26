@@ -113,7 +113,11 @@ the saved-accounts list.
     const isSubmitDisabled = $derived(
         isLoadingAccounts ||
             (isBankBeforeQuote && !hasQuote ? isGettingQuote : isCreatingTransaction) ||
-            (isHosted ? !selectedAccountId : useNewAccount ? !isInlineFormValid : !selectedAccountId),
+            (isHosted
+                ? !selectedAccountId
+                : useNewAccount
+                  ? !isInlineFormValid
+                  : !selectedAccountId),
     );
 
     const submitLabel = $derived.by(() => {
@@ -264,7 +268,8 @@ the saved-accounts list.
                             <div>
                                 <label
                                     for="pixKeyType"
-                                    class="block text-sm font-medium text-gray-700">PIX Key Type</label
+                                    class="block text-sm font-medium text-gray-700"
+                                    >PIX Key Type</label
                                 >
                                 <select
                                     id="pixKeyType"
@@ -309,8 +314,9 @@ the saved-accounts list.
                         {:else}
                             <!-- SPEI fields (Mexico) -->
                             <div>
-                                <label for="bankName" class="block text-sm font-medium text-gray-700"
-                                    >Bank Name</label
+                                <label
+                                    for="bankName"
+                                    class="block text-sm font-medium text-gray-700">Bank Name</label
                                 >
                                 <input
                                     type="text"
