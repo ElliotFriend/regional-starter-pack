@@ -1,29 +1,29 @@
 # Stellar Anchor Integration Library
 
-A portable, framework-agnostic TypeScript library for integrating fiat on/off ramps on the Stellar network. Includes three anchor provider clients and a composable SEP protocol library.
+A portable, framework-agnostic TypeScript library for integrating fiat on/off ramps on the Stellar network. Includes a curated anchor client, a reference SEP-composed client, and a composable SEP protocol library.
 
 ## What's in This Library
 
-1. A shared "Anchor Interface" can be found in `anchors/types.ts`. Any anchor clients that are implemented adhere to this predictable set of functions.
-2. Pre-written anchor clients for some common anchor providers: Etherfuse, Alfred Pay, and BlindPay (for now). These can be found in `anchors/<provider-name>` directories.
-3. A SEP library can be found in the `anchors/sep` directory. This library can be used to interact with SEP-compatible anchors (this is the preferred method, and should be used when possible).
-4. A Testanchor client that implements the SEP library to interact with the [testnet anchor](https://testanchor.stellar.org).
+1. A shared, **faceted** "Anchor Interface" in `anchors/types.ts`. Every anchor client adheres to this predictable shape.
+2. A pre-written client for the curated provider, **Etherfuse**, in `anchors/etherfuse/`.
+3. A **SEP library** in `anchors/sep/` for interacting with any SEP-compatible anchor (the preferred method when an anchor speaks SEP).
+4. A **Test Anchor** client in `anchors/testanchor/` that composes the SEP library into a dual-archetype `Anchor` for the [testnet anchor](https://testanchor.stellar.org).
 
 ## Two Ways to Integrate Anchors
 
-### 1. Custom Anchor APIs (Use the `Anchor` Interface)
+### 1. Custom Anchor APIs (use the `Anchor` interface)
 
-For anchors with their own APIs (Etherfuse, AlfredPay, BlindPay), each client implements the shared `Anchor` interface. This gives you a consistent API across all providers.
+For anchors with their own APIs (Etherfuse), the client implements the shared `Anchor` interface. This gives you a consistent surface regardless of the underlying API.
 
-### 2. SEP-Compliant Anchors (Use `/sep/`)
+### 2. SEP-Compliant Anchors (use `/sep/`)
 
-For anchors that follow Stellar SEP protocols (SEP-1, 6, 10, 12, 24, 31, 38), use the SEP modules directly. The `testanchor/` client composes these modules as a reference.
+For anchors that follow Stellar SEP protocols (SEP-1, 6, 10, 12, 24, 31, 38), use the SEP modules directly. The `testanchor/` client composes these modules into the `Anchor` interface as a reference.
 
 ---
 
 ## The Anchor Interface
 
-All three provider clients implement this interface from `types.ts`:
+The `Anchor` interface (from `types.ts`) is **faceted**: shared identity/metadata plus up to three optional capability facets. At least one of `programmatic`/`interactive` must be present, and a single provider may expose both (the test anchor does).
 
 ```typescript
 interface Anchor {
@@ -34,30 +34,74 @@ interface Anchor {
     readonly supportedCurrencies: readonly string[];
     readonly supportedRails: readonly string[];
 
-    // Customer management
-    createCustomer(input: CreateCustomerInput): Promise<Customer>;
-    getCustomer(input: GetCustomerInput): Promise<Customer | null>;
-
-    // Quotes
-    getQuote(input: GetQuoteInput): Promise<Quote>;
-
-    // On-ramp (fiat -> crypto)
-    createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
-    getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
-
-    // Off-ramp (crypto -> fiat)
-    registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
-    getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
-    createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
-    getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
-
-    // KYC
-    getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
-    getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
+    // Wallet-signature auth (SEP-10), if the anchor authenticates the end user via their wallet
+    readonly auth?: WalletAuthOps;
+    // SEP-6 archetype: app-orchestrated
+    readonly programmatic?: ProgrammaticOps;
+    // SEP-24 archetype: anchor-hosted
+    readonly interactive?: InteractiveOps;
 }
 ```
 
-Each client declares its own `displayName`, `supportedTokens` (with Stellar issuers), `supportedCurrencies` (ISO codes), and `supportedRails` (rail identifiers). This means the portable library is fully self-contained — no external token or config registry required.
+Consumers narrow on facet presence, e.g. `if (anchor.interactive) { ... }`.
+
+### `WalletAuthOps` (SEP-10)
+
+```typescript
+interface WalletAuthOps {
+    getChallenge(account: string): Promise<AuthChallenge>; // returns XDR to sign
+    submitChallenge(signedTransactionXdr: string): Promise<AuthSession>; // returns { token }
+}
+```
+
+The handshake is split so signing can happen client-side (e.g. Freighter). The resulting token is threaded into facet methods via their optional trailing `auth?` argument. Anchors that authenticate server-side (e.g. Etherfuse's API key) omit this facet and ignore the `auth?` argument.
+
+### `ProgrammaticOps` (SEP-6 archetype)
+
+The partner app collects customer/KYC/fiat details and renders payment instructions in its own UI.
+
+```typescript
+interface ProgrammaticOps {
+    createCustomer(input: CreateCustomerInput, auth?: string): Promise<Customer>;
+    getCustomer(input: GetCustomerInput, auth?: string): Promise<Customer | null>;
+    getQuote(input: GetQuoteInput, auth?: string): Promise<Quote>;
+    createOnRamp(input: CreateOnRampInput, auth?: string): Promise<OnRampTransaction>;
+    getOnRampTransaction(id: string, auth?: string): Promise<OnRampTransaction | null>;
+    getFiatAccounts(customerId: string, auth?: string): Promise<SavedFiatAccount[]>;
+    createOffRamp(input: CreateOffRampInput, auth?: string): Promise<OffRampTransaction>;
+    getOffRampTransaction(id: string, auth?: string): Promise<OffRampTransaction | null>;
+    getKycStatus(customerId: string, publicKey?: string, auth?: string): Promise<KycStatus>;
+
+    // Optional, depending on the anchor:
+    registerFiatAccount?(
+        input: RegisterFiatAccountInput,
+        auth?: string,
+    ): Promise<RegisteredFiatAccount>;
+    getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
+    getKycRequirements?(query?: KycRequirementsQuery): Promise<KycRequirements>;
+    submitKyc?(
+        customerId: string,
+        data: KycSubmissionData,
+        auth?: string,
+    ): Promise<KycSubmissionResult>;
+}
+```
+
+### `InteractiveOps` (SEP-24 archetype)
+
+The anchor hosts the whole customer-facing flow. The app starts a session, opens the hosted URL, and polls.
+
+```typescript
+interface InteractiveOps {
+    startOnRamp(input: StartInteractiveInput): Promise<InteractiveSession>; // { interactiveUrl, transactionId }
+    startOffRamp(input: StartInteractiveInput): Promise<InteractiveSession>;
+    getOnRampTransaction(id: string, auth?: string): Promise<OnRampTransaction | null>;
+    getOffRampTransaction(id: string, auth?: string): Promise<OffRampTransaction | null>;
+    getQuote?(input: GetQuoteInput, auth?: string): Promise<Quote>; // optional pre-flight quote
+}
+```
+
+Each client also declares its own `displayName`, `supportedTokens` (with Stellar issuers), `supportedCurrencies` (ISO codes), and `supportedRails` (rail identifiers) — so the portable library is fully self-contained, with no external token or config registry required.
 
 ---
 
@@ -65,9 +109,9 @@ Each client declares its own `displayName`, `supportedTokens` (with Stellar issu
 
 ### Etherfuse
 
-Mexico focus. Iframe-based KYC. On-ramp and off-ramp via SPEI. Uses CETES token.
+Latin America. **`programmatic` facet only** — authenticates server-side with an API key (no `auth` facet) and orchestrates the flow from the app (no `interactive` facet). Iframe-based KYC. Mexico (MXN ↔ CETES via SPEI) and Brazil (BRL ↔ TESOURO via PIX). Off-ramp uses deferred signing.
 
-**Capabilities:** `kycFlow: 'iframe'`, `kycUrl`, `requiresOffRampSigning`, `deferredOffRampSigning`, `sandbox`
+**Capabilities:** `kycFlow: 'iframe'`, `kycUrl`, `requiresOffRampSigning`, `deferredOffRampSigning`, `fiatAccountRegistration: 'hosted'`, `sandbox`, `sandboxFiatSimulation`, `flowStyles: ['programmatic']`
 
 ```typescript
 import { EtherfuseClient } from 'path/to/anchors/etherfuse';
@@ -77,18 +121,16 @@ const anchor = new EtherfuseClient({
     baseUrl: 'https://api.sand.etherfuse.com',
 });
 
-// Create customer
-const customer = await anchor.createCustomer({
+// Operations live on the programmatic facet:
+const customer = await anchor.programmatic.createCustomer({
     email: 'user@example.com',
     publicKey: 'GXYZ...',
     country: 'MX',
 });
 
-// KYC via iframe
-const kycUrl = await anchor.getKycUrl!(customer.id, 'GXYZ...', customer.bankAccountId);
+const kycUrl = await anchor.programmatic.getKycUrl!(customer.id, 'GXYZ...');
 
-// Get quote (MXN -> CETES)
-const quote = await anchor.getQuote({
+const quote = await anchor.programmatic.getQuote({
     fromCurrency: 'MXN',
     toCurrency: 'CETES',
     fromAmount: '1000',
@@ -96,82 +138,43 @@ const quote = await anchor.getQuote({
     stellarAddress: 'GXYZ...',
 });
 
-// Create on-ramp order
-const onramp = await anchor.createOnRamp({
+const onramp = await anchor.programmatic.createOnRamp({
     customerId: customer.id,
     quoteId: quote.id,
     stellarAddress: 'GXYZ...',
     fromCurrency: 'MXN',
     toCurrency: 'CETES',
     amount: '1000',
-    bankAccountId: customer.bankAccountId!,
 });
 ```
 
-**Off-ramp note:** Etherfuse off-ramp uses deferred signing (`deferredOffRampSigning: true`). The `createOffRamp()` response does **not** include the burn transaction XDR. You must poll `getOffRampTransaction()` until `signableTransaction` appears, then sign it with the user's wallet and submit to Stellar.
+**Off-ramp note:** Etherfuse off-ramp uses deferred signing (`deferredOffRampSigning: true`). The `createOffRamp()` response does **not** include the burn transaction XDR. Poll `getOffRampTransaction()` until `signableTransaction` appears, then sign it with the user's wallet and submit to Stellar.
 
 See [`etherfuse/README.md`](etherfuse/README.md) for complete documentation.
 
-### AlfredPay
+### Test Anchor
 
-Latin America focus. Form-based KYC. On-ramp and off-ramp via SPEI. Uses USDC. Supports email-based customer lookup.
-
-**Capabilities:** `kycFlow: 'form'`, `emailLookup`, `kycUrl`, `sandbox`
+Testnet reference client for [testanchor.stellar.org](https://testanchor.stellar.org). Implements **all three facets** — `auth` (SEP-10), `programmatic` (SEP-6/12/38), and `interactive` (SEP-24) — by composing the `/sep/` modules. Stateless across calls (SEP-10 tokens are passed per-call), so a single instance is safe to share server-side.
 
 ```typescript
-import { AlfredPayClient } from 'path/to/anchors/alfredpay';
+import { createTestAnchorAdapter } from 'path/to/anchors/testanchor';
 
-const anchor = new AlfredPayClient({
-    apiKey: process.env.ALFREDPAY_API_KEY!,
-    apiSecret: process.env.ALFREDPAY_API_SECRET!,
-    baseUrl: 'https://penny-api-restricted-dev.alfredpay.io/api/v1/third-party-service/penny',
-});
+const anchor = createTestAnchorAdapter();
 
-// Create customer
-const customer = await anchor.createCustomer({
-    email: 'user@example.com',
-    country: 'MX',
-});
+const { transactionXdr } = await anchor.auth!.getChallenge(publicKey);
+// ...sign client-side...
+const { token } = await anchor.auth!.submitChallenge(signedXdr);
 
-// Get quote (MXN -> USDC)
-const quote = await anchor.getQuote({
-    fromCurrency: 'MXN',
-    toCurrency: 'USDC',
-    fromAmount: '1000',
-});
-
-// Create on-ramp
-const onramp = await anchor.createOnRamp({
-    customerId: customer.id,
-    quoteId: quote.id,
-    stellarAddress: 'GXYZ...',
-    fromCurrency: 'MXN',
-    toCurrency: 'USDC',
-    amount: '1000',
-});
-
-// User pays via SPEI
-console.log('Pay to CLABE:', onramp.paymentInstructions?.clabe);
-console.log('Reference:', onramp.paymentInstructions?.reference);
-```
-
-See [`alfredpay/README.md`](alfredpay/README.md) for complete documentation including programmatic KYC submission.
-
-### BlindPay
-
-Global coverage. Redirect-based KYC. Uses USDB token. Requires separate blockchain wallet registration. Off-ramp uses a payout submission step rather than direct Stellar transaction signing.
-
-**Capabilities:** `kycFlow: 'redirect'`, `kycUrl`, `requiresTos`, `requiresOffRampSigning`, `requiresBankBeforeQuote`, `requiresBlockchainWalletRegistration`, `requiresAnchorPayoutSubmission`, `sandbox`
-
-```typescript
-import { BlindPayClient } from 'path/to/anchors/blindpay';
-
-const anchor = new BlindPayClient({
-    apiKey: process.env.BLINDPAY_API_KEY!,
-    instanceId: process.env.BLINDPAY_INSTANCE_ID!,
-    baseUrl: 'https://api.blindpay.com',
+const session = await anchor.interactive!.startOnRamp({
+    assetCode: 'SRT',
+    account: publicKey,
+    auth: token,
 });
 ```
+
+See [`testanchor/README.md`](testanchor/README.md) for both the faceted adapter and the standalone SEP "playground" client.
+
+> Anchors that exist in a region but don't meet the project's five quality criteria are tracked as **honorable mentions** in `src/lib/config/anchors.ts` (no client code).
 
 ---
 
@@ -185,8 +188,8 @@ import {
     getSep10Endpoint,
     getSep24Endpoint,
     authenticate,
+    sep24,
 } from 'path/to/anchors/sep';
-import { sep24 } from 'path/to/anchors/sep';
 
 // 1. Discover anchor endpoints
 const toml = await fetchStellarToml('testanchor.stellar.org');
@@ -220,15 +223,15 @@ const tx = await sep24.pollTransaction(getSep24Endpoint(toml)!, token, response.
 
 ## Implementing a New Anchor
 
-Create a new directory and implement the `Anchor` interface:
+Create a new directory and implement the faceted `Anchor` interface. Provide at least one of `programmatic`/`interactive` (plus `auth` if the anchor uses wallet-based auth):
 
 ```typescript
 import type {
     Anchor,
     AnchorCapabilities,
+    ProgrammaticOps,
     TokenInfo,
     Customer,
-    Quote,
     CreateCustomerInput /* ... */,
 } from 'path/to/anchors/types';
 import { AnchorError } from 'path/to/anchors/types';
@@ -239,11 +242,9 @@ export class MyAnchorClient implements Anchor {
     readonly capabilities: AnchorCapabilities = {
         kycUrl: true,
         kycFlow: 'iframe', // 'form' | 'iframe' | 'redirect'
-        sandbox: true, // enable sandbox simulation UI
-        // deferredOffRampSigning: false,
-        // requiresBankBeforeQuote: false,
-        // requiresBlockchainWalletRegistration: false,
-        // requiresAnchorPayoutSubmission: false,
+        sandbox: true,
+        flowStyles: ['programmatic'], // which archetype(s) this anchor presents
+        // deferredOffRampSigning, requiresBankBeforeQuote, fiatAccountRegistration, ...
     };
     readonly supportedTokens: readonly TokenInfo[] = [
         {
@@ -258,27 +259,34 @@ export class MyAnchorClient implements Anchor {
 
     constructor(private config: { apiKey: string; baseUrl: string }) {}
 
-    async createCustomer(input: CreateCustomerInput): Promise<Customer> {
-        const response = await fetch(`${this.config.baseUrl}/customers`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${this.config.apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email: input.email }),
-        });
+    // Group the facet's operations behind the facet key:
+    readonly programmatic: ProgrammaticOps = {
+        createCustomer: async (input: CreateCustomerInput): Promise<Customer> => {
+            const response = await fetch(`${this.config.baseUrl}/customers`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${this.config.apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email: input.email }),
+            });
 
-        if (!response.ok) {
-            throw new AnchorError('Failed to create customer', 'CREATE_FAILED', response.status);
-        }
+            if (!response.ok) {
+                throw new AnchorError(
+                    'Failed to create customer',
+                    'CREATE_FAILED',
+                    response.status,
+                );
+            }
 
-        const data = await response.json();
-        return this.mapToCustomer(data);
-    }
-
-    // ... implement all Anchor methods
+            return this.mapToCustomer(await response.json());
+        },
+        // ... implement the rest of ProgrammaticOps
+    };
 }
 ```
+
+Use arrow functions inside the facet object so `this` binds to the client instance. See `etherfuse/client.ts` (programmatic only) and `testanchor/anchor.ts` (all three facets) for complete patterns.
 
 ---
 
@@ -323,6 +331,7 @@ import { sep6 } from 'path/to/anchors/sep';
 const deposit = await sep6.deposit(server, token, {
     asset_code: 'USDC',
     account: publicKey,
+    funding_method: 'bank_account', // current SEP-6 param (replaces the deprecated `type`)
     amount: '100',
 });
 console.log('Instructions:', deposit.instructions);
@@ -426,7 +435,8 @@ interface OffRampTransaction {
     id: string;
     status: TransactionStatus;
     // ... standard fields ...
-    signableTransaction?: string; // Pre-built XDR for signing (Etherfuse)
+    signableTransaction?: string; // Pre-built XDR for signing (Etherfuse deferred signing)
+    interactiveUrl?: string; // Anchor-hosted interactive flow (SEP-24)
     statusPage?: string; // Anchor-hosted status page URL (Etherfuse)
     feeBps?: number; // Fee in basis points
     feeAmount?: string; // Fee as a string amount
@@ -439,10 +449,10 @@ interface OffRampTransaction {
 import { AnchorError } from 'path/to/anchors/types';
 
 try {
-    await anchor.createOnRamp({ ... });
+    await anchor.programmatic!.createOnRamp({ ... });
 } catch (error) {
     if (error instanceof AnchorError) {
-        console.error('Code:', error.code);       // e.g. 'CREATE_FAILED'
+        console.error('Code:', error.code); // e.g. 'CREATE_FAILED'
         console.error('Status:', error.statusCode); // e.g. 400
         console.error('Message:', error.message);
     }
@@ -454,7 +464,8 @@ try {
 ## Installation / Copying
 
 1. Copy the directories you need:
-    - `/etherfuse/`, `/alfredpay/`, or `/blindpay/` for specific providers
+    - `/etherfuse/` for the Etherfuse provider
+    - `/testanchor/` for the SEP-composed reference client
     - `/sep/` for SEP-compliant anchors
     - `/types.ts` for the shared Anchor interface (required by all provider clients)
 
