@@ -17,6 +17,7 @@ Usage:
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { authStore } from '$lib/stores/auth';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -113,25 +114,29 @@ Usage:
         resolveStellarAsset(fromCurrency, tokenIssuer, PUBLIC_USDC_ISSUER),
     );
 
-    // SEP-10 wallet-auth session token (only for anchors that require it).
-    let authToken = $state<string | undefined>(undefined);
-
     /**
      * Ensure a wallet-auth token is available for anchors that require the
-     * SEP-10 handshake. Returns undefined for API-key anchors (e.g. Etherfuse),
-     * in which case all `api.*` calls receive `undefined` and behave unchanged.
+     * SEP-10 handshake. Reuses a cached (localStorage-backed) token when one is
+     * still valid, so the Freighter signing popup only appears when needed.
+     * Returns undefined for API-key anchors (e.g. Etherfuse), in which case all
+     * `api.*` calls receive `undefined` and behave unchanged.
+     *
+     * MUST only be called from user-initiated handlers (it may trigger a
+     * Freighter popup) — never from an $effect.
      */
     async function ensureAuth(): Promise<string | undefined> {
         if (!requiresWalletAuth) return undefined;
-        if (authToken) return authToken;
         if (!walletStore.publicKey) return undefined;
+        const cached = authStore.get(provider, walletStore.publicKey);
+        if (cached) return cached;
         const challenge = await api.getAuthChallenge(fetch, provider, walletStore.publicKey);
         const { signedXdr } = await signWithFreighter(
             challenge.transactionXdr,
             walletStore.network,
         );
-        authToken = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
-        return authToken;
+        const token = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+        authStore.set(provider, walletStore.publicKey, token);
+        return token;
     }
 
     async function getQuote_() {

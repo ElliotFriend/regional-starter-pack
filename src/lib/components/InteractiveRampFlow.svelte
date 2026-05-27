@@ -16,6 +16,7 @@ Usage:
     import { browser } from '$app/environment';
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
+    import { authStore } from '$lib/stores/auth';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
@@ -78,16 +79,20 @@ Usage:
         try {
             let auth: string | undefined;
             if (requiresWalletAuth) {
-                const challenge = await api.getAuthChallenge(
-                    fetch,
-                    provider,
-                    walletStore.publicKey,
-                );
-                const { signedXdr } = await signWithFreighter(
-                    challenge.transactionXdr,
-                    walletStore.network,
-                );
-                auth = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+                auth = authStore.get(provider, walletStore.publicKey);
+                if (!auth) {
+                    const challenge = await api.getAuthChallenge(
+                        fetch,
+                        provider,
+                        walletStore.publicKey,
+                    );
+                    const { signedXdr } = await signWithFreighter(
+                        challenge.transactionXdr,
+                        walletStore.network,
+                    );
+                    auth = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+                    authStore.set(provider, walletStore.publicKey, auth);
+                }
             }
             authToken = auth;
 

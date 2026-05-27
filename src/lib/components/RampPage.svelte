@@ -5,6 +5,7 @@
     import { resolve } from '$app/paths';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { authStore } from '$lib/stores/auth';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
@@ -26,28 +27,34 @@
     const anchorRegions: Region[] = $derived(page.data.regions ?? []);
     const requiresWalletAuth = $derived(page.data.requiresWalletAuth);
 
-    // SEP-10 wallet-auth session token (only for anchors that require it).
-    let authToken = $state<string | undefined>(undefined);
-
     /**
      * Ensure a wallet-auth token is available for anchors that require the
-     * SEP-10 handshake. Returns undefined for API-key anchors (e.g. Etherfuse),
-     * in which case all `api.*` calls receive `undefined` and behave unchanged.
+     * SEP-10 handshake. Reuses a cached (localStorage-backed) token when one is
+     * still valid, so the Freighter signing popup only appears when needed.
+     * Returns undefined for API-key anchors (e.g. Etherfuse), in which case all
+     * `api.*` calls receive `undefined` and behave unchanged.
      *
-     * MUST only be called from user-initiated handlers (button clicks) — it
-     * triggers a Freighter signing popup. Never call from an $effect.
+     * MUST only be called from user-initiated handlers (button clicks) — it may
+     * trigger a Freighter signing popup. Never call from an $effect.
      */
     async function ensureAuth(): Promise<string | undefined> {
         if (!requiresWalletAuth) return undefined;
-        if (authToken) return authToken;
         if (!walletStore.publicKey) return undefined;
+        const cached = authStore.get(provider, walletStore.publicKey);
+        if (cached) return cached;
         const challenge = await api.getAuthChallenge(fetch, provider, walletStore.publicKey);
         const { signedXdr } = await signWithFreighter(
             challenge.transactionXdr,
             walletStore.network,
         );
-        authToken = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
-        return authToken;
+        const token = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+        authStore.set(provider, walletStore.publicKey, token);
+        return token;
+    }
+
+    /** Cached SEP-10 token for non-interactive reads (no popup), if one exists. */
+    function cachedAuth(): string | undefined {
+        return walletStore.publicKey ? authStore.get(provider, walletStore.publicKey) : undefined;
     }
 
     // Country options shown in the registration dropdown — narrowed to the
@@ -132,6 +139,7 @@
             customerStore.load(pk, provider);
         } else {
             customerStore.clear();
+            authStore.clear();
         }
     });
 
@@ -234,7 +242,7 @@
                 provider,
                 customer.id,
                 walletStore.publicKey ?? undefined,
-                authToken,
+                cachedAuth(),
             );
             const mapped = status as KycStatus;
             customerStore.updateKycStatus(mapped);
@@ -268,7 +276,7 @@
                 provider,
                 customerId,
                 walletStore.publicKey ?? undefined,
-                authToken,
+                cachedAuth(),
             );
             const mapped = status as KycStatus;
             customerStore.updateKycStatus(mapped);
