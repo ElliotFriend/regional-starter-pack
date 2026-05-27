@@ -164,6 +164,8 @@ export interface Sep12CustomerRequest {
     memo_type?: 'text' | 'id' | 'hash';
     type?: string;
     lang?: string;
+    /** Transaction id, when requesting the fields a specific in-flight transaction still needs. */
+    transaction_id?: string;
 }
 
 export interface Sep12CustomerResponse {
@@ -428,6 +430,10 @@ export interface Sep6Transaction {
     withdraw_anchor_account?: string;
     withdraw_memo?: string;
     withdraw_memo_type?: 'text' | 'id' | 'hash';
+    /** Human-readable description of the info the anchor needs (with `pending_customer_info_update`). */
+    required_info_message?: string;
+    /** SEP-9 fields the anchor needs before it can proceed (with `pending_customer_info_update`). */
+    required_info_updates?: Record<string, Sep12Field>;
 }
 
 export interface Sep24Transaction extends Sep6Transaction {

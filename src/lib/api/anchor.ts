@@ -366,18 +366,24 @@ export async function registerFiatAccount(
 // =============================================================================
 
 /**
- * Get KYC field and document requirements in the shared format
+ * Get KYC field and document requirements in the shared format.
+ *
+ * Pass `auth` so anchors that discover requirements per authenticated customer
+ * (e.g. the test anchor, via SEP-12) can return exactly the fields still needed;
+ * pass `transactionId` to scope discovery to an in-flight transaction that needs
+ * additional info (SEP-6 `pending_customer_info_update`).
  */
 export async function getKycFieldRequirements(
     fetch: Fetch,
     provider: string,
-    country?: string,
+    options?: { country?: string; auth?: string; transactionId?: string },
 ): Promise<KycRequirements> {
-    const params = country ? `&country=${encodeURIComponent(country)}` : '';
-    return apiRequest<KycRequirements>(
-        fetch,
-        `/api/anchor/${provider}/kyc?type=requirements${params}`,
-    );
+    const search = new URLSearchParams({ type: 'requirements' });
+    if (options?.country) search.set('country', options.country);
+    if (options?.transactionId) search.set('transactionId', options.transactionId);
+    return apiRequest<KycRequirements>(fetch, `/api/anchor/${provider}/kyc?${search.toString()}`, {
+        headers: authHeader(options?.auth),
+    });
 }
 
 /**

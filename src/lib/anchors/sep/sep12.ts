@@ -40,6 +40,7 @@ export async function getCustomer(
     if (request.memo_type) url.searchParams.set('memo_type', request.memo_type);
     if (request.type) url.searchParams.set('type', request.type);
     if (request.lang) url.searchParams.set('lang', request.lang);
+    if (request.transaction_id) url.searchParams.set('transaction_id', request.transaction_id);
 
     const response = await fetchFn(url.toString(), {
         headers: createAuthHeaders(token),

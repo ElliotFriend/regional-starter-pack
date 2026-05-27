@@ -27,6 +27,7 @@ import type {
     Sep6Transaction,
     TransactionStatus as SepTransactionStatus,
     Sep12Status,
+    Sep12Field,
     Sep12PutCustomerRequest,
 } from '../sep/types';
 
@@ -55,6 +56,9 @@ import type {
     GenericPaymentInstructions,
     KycStatus,
     KycRequirements,
+    KycRequirementsQuery,
+    KycFieldRequirement,
+    KycDocumentRequirement,
     KycSubmissionData,
     KycSubmissionResult,
     TransactionStatus,
@@ -90,8 +94,10 @@ function withRequestLogging(baseFetch: typeof fetch): typeof fetch {
         console.log(`[TestAnchor] ${method} ${url}`);
         try {
             const response = await baseFetch(input, init);
-            const response2 = response.clone()
-            console.log(`[TestAnchor] Response (${response.status}) ${method} ${url} ${JSON.stringify(await response2.json())}`);
+            const response2 = response.clone();
+            console.log(
+                `[TestAnchor] Response (${response.status}) ${method} ${url} ${JSON.stringify(await response2.json())}`,
+            );
             return response;
         } catch (err) {
             console.error(`[TestAnchor] Request failed ${method} ${url}:`, err);
@@ -211,6 +217,97 @@ export class TestAnchorAdapter implements Anchor {
         }
     }
 
+    /**
+     * Convert a SEP-12 field map — from `getCustomer().fields` or a transaction's
+     * `required_info_updates` — into the shared {@link KycRequirements} shape.
+     * Binary fields become document uploads; everything else becomes a form field.
+     */
+    private requirementsFromSepFields(
+        fields: Record<string, Sep12Field> = {},
+        message?: string,
+    ): KycRequirements {
+        const formFields: KycFieldRequirement[] = [];
+        const documents: KycDocumentRequirement[] = [];
+
+        for (const [key, field] of Object.entries(fields)) {
+            if (field.type === 'binary') {
+                documents.push({
+                    key,
+                    label: field.description || key,
+                    mode: 'file_upload',
+                    accept: 'image/jpeg,image/png',
+                    required: !field.optional,
+                });
+                continue;
+            }
+            const required = !field.optional;
+            if (field.choices && field.choices.length > 0) {
+                formFields.push({
+                    key,
+                    label: field.description || key,
+                    type: 'select',
+                    required,
+                    options: field.choices.map((c) => ({ value: c, label: c })),
+                });
+            } else {
+                formFields.push({
+                    key,
+                    label: field.description || key,
+                    type: field.type === 'date' ? 'date' : 'text',
+                    required,
+                });
+            }
+        }
+
+        return { fields: formFields, documents, message };
+    }
+
+    /**
+     * When a SEP-6 transaction is parked on `pending_customer_info_update`,
+     * resolve the fields the anchor still needs — preferring the transaction's
+     * inline `required_info_updates`, otherwise querying SEP-12 for the
+     * customer's outstanding fields (scoped to this transaction). Best-effort:
+     * returns `undefined` (never throws) so polling is never broken by it.
+     */
+    private async resolveRequiredInfo(
+        tx: Sep6Transaction,
+        auth?: string,
+    ): Promise<KycRequirements | undefined> {
+        if (tx.status !== 'pending_customer_info_update') return undefined;
+
+        if (tx.required_info_updates && Object.keys(tx.required_info_updates).length > 0) {
+            return this.requirementsFromSepFields(
+                tx.required_info_updates,
+                tx.required_info_message ?? tx.message,
+            );
+        }
+
+        if (!auth) return undefined;
+        try {
+            const kycServer = await this.endpoint(sep1.getSep12Endpoint, 'SEP-12');
+            const account = sep10.decodeToken(auth).sub;
+            const customer = await sep12.getCustomer(
+                kycServer,
+                auth,
+                { account, transaction_id: tx.id },
+                this.fetchFn,
+            );
+            // Only prompt while SEP-12 actually still needs required info. Its
+            // `fields` map lists every *not-yet-provided* field — including all
+            // the OPTIONAL ones — even once the customer is ACCEPTED, so we must
+            // gate on `status`, not on `fields` being non-empty. Otherwise the
+            // form re-appears forever after a successful submission.
+            if (customer.status !== 'NEEDS_INFO') return undefined;
+            return this.requirementsFromSepFields(
+                customer.fields,
+                customer.message ?? tx.required_info_message ?? tx.message,
+            );
+        } catch {
+            // Best-effort enrichment — leave requiredInfo unset on failure.
+        }
+        return undefined;
+    }
+
     /** Look up a supported crypto token by symbol (case-insensitive). */
     private findToken(symbol: string): TokenInfo | undefined {
         const code = symbol.includes(':') ? symbol.split(':')[0] : symbol;
@@ -241,6 +338,8 @@ export class TestAnchorAdapter implements Anchor {
             feeAmount: tx.amount_fee,
             stellarTxHash: tx.stellar_transaction_id,
             interactiveUrl: tx.more_info_url,
+            message: tx.message,
+            awaitingCustomerInfo: tx.status === 'pending_customer_info_update',
             createdAt: tx.started_at ?? new Date().toISOString(),
             updatedAt: tx.completed_at ?? tx.started_at ?? new Date().toISOString(),
         };
@@ -263,6 +362,8 @@ export class TestAnchorAdapter implements Anchor {
             stellarTxHash: tx.stellar_transaction_id,
             statusPage: tx.more_info_url,
             interactiveUrl: tx.more_info_url,
+            message: tx.message,
+            awaitingCustomerInfo: tx.status === 'pending_customer_info_update',
             createdAt: tx.started_at ?? new Date().toISOString(),
             updatedAt: tx.completed_at ?? tx.started_at ?? new Date().toISOString(),
         };
@@ -444,7 +545,9 @@ export class TestAnchorAdapter implements Anchor {
                     transactionId,
                     this.fetchFn,
                 );
-                return this.mapOnRamp(tx, { auth });
+                const mapped = this.mapOnRamp(tx, { auth });
+                mapped.requiredInfo = await this.resolveRequiredInfo(tx, token);
+                return mapped;
             } catch (err) {
                 return this.nullIfNotFound(err);
             }
@@ -517,7 +620,9 @@ export class TestAnchorAdapter implements Anchor {
                     transactionId,
                     this.fetchFn,
                 );
-                return this.mapOffRamp(tx, { auth });
+                const mapped = this.mapOffRamp(tx, { auth });
+                mapped.requiredInfo = await this.resolveRequiredInfo(tx, token);
+                return mapped;
             } catch (err) {
                 return this.nullIfNotFound(err);
             }
@@ -535,23 +640,42 @@ export class TestAnchorAdapter implements Anchor {
             return this.mapKycStatus(customer.status);
         },
 
-        // The test anchor's SEP-12 KYC needs only basic SEP-9 natural-person
-        // fields. We expose a static set rather than discovering them per-customer
-        // via `getCustomer` (which would require an authenticated call here).
-        getKycRequirements: async (): Promise<KycRequirements> => ({
-            fields: [
-                { key: 'first_name', label: 'First Name', type: 'text', required: true },
-                { key: 'last_name', label: 'Last Name', type: 'text', required: true },
-                {
-                    key: 'email_address',
-                    label: 'Email Address',
-                    type: 'email',
-                    required: true,
-                    placeholder: 'you@example.com',
-                },
-            ],
-            documents: [],
-        }),
+        // Given a session token, discover exactly which fields SEP-12 reports the
+        // customer (or in-flight transaction) still needs, so the form asks for
+        // precisely what the anchor wants. Without a token we can't query the
+        // customer, so fall back to the basic SEP-9 natural-person set.
+        getKycRequirements: async (query?: KycRequirementsQuery): Promise<KycRequirements> => {
+            if (query?.auth) {
+                try {
+                    const kycServer = await this.endpoint(sep1.getSep12Endpoint, 'SEP-12');
+                    const account = sep10.decodeToken(query.auth).sub;
+                    const customer = await sep12.getCustomer(
+                        kycServer,
+                        query.auth,
+                        { account, transaction_id: query.transactionId },
+                        this.fetchFn,
+                    );
+                    const reqs = this.requirementsFromSepFields(customer.fields, customer.message);
+                    if (reqs.fields.length > 0 || reqs.documents.length > 0) return reqs;
+                } catch {
+                    // Fall through to the static set on any discovery failure.
+                }
+            }
+            return {
+                fields: [
+                    { key: 'first_name', label: 'First Name', type: 'text', required: true },
+                    { key: 'last_name', label: 'Last Name', type: 'text', required: true },
+                    {
+                        key: 'email_address',
+                        label: 'Email Address',
+                        type: 'email',
+                        required: true,
+                        placeholder: 'you@example.com',
+                    },
+                ],
+                documents: [],
+            };
+        },
 
         submitKyc: async (
             customerId: string,
@@ -567,6 +691,13 @@ export class TestAnchorAdapter implements Anchor {
             const request: Sep12PutCustomerRequest = { account, ...data.fields };
             for (const [key, value] of Object.entries(data.documents)) {
                 if (value instanceof Blob) request[key] = value;
+            }
+
+            // Scope the update to a specific transaction when responding to a
+            // `pending_customer_info_update` (SEP-6/SEP-12), so the anchor links
+            // the new info to that transaction and advances it.
+            if (data.metadata?.transaction_id) {
+                request.transaction_id = data.metadata.transaction_id;
             }
 
             const { id } = await sep12.putCustomer(kycServer, token, request, this.fetchFn);

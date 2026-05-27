@@ -27,7 +27,12 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
             if (!programmatic.getKycRequirements) {
                 throw error(400, { message: 'Provider does not support KYC requirements' });
             }
-            const requirements = await programmatic.getKycRequirements(country);
+            const requirements = await programmatic.getKycRequirements({
+                country,
+                auth: bearerToken(request),
+                customerId: customerId ?? undefined,
+                transactionId: url.searchParams.get('transactionId') ?? undefined,
+            });
             return json(requirements);
         }
 

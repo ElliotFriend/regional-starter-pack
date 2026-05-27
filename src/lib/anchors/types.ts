@@ -261,6 +261,22 @@ export interface OnRampTransaction {
     stellarTxHash?: string;
     /** URL for anchor-hosted interactive flow (e.g. SEP-24). */
     interactiveUrl?: string;
+    /** Human-readable status message from the anchor, if provided (e.g. SEP-6 `message`). */
+    message?: string;
+    /**
+     * Customer info the anchor needs before it can proceed (e.g. SEP-6
+     * `pending_customer_info_update`). When present, the app should collect these
+     * fields and submit them via {@link ProgrammaticOps.submitKyc} (passing the
+     * transaction id), then resume polling. Absent in the normal happy path.
+     */
+    requiredInfo?: KycRequirements;
+    /**
+     * Whether the transaction is parked awaiting a customer-info update (SEP-6
+     * `pending_customer_info_update`). When `true` but {@link requiredInfo} is
+     * absent, the required info has already been submitted and the anchor has not
+     * yet advanced the transaction — the app may offer the user a retry.
+     */
+    awaitingCustomerInfo?: boolean;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
@@ -303,6 +319,22 @@ export interface OffRampTransaction {
     statusPage?: string;
     /** URL for anchor-hosted interactive flow (e.g. SEP-24). */
     interactiveUrl?: string;
+    /** Human-readable status message from the anchor, if provided (e.g. SEP-6 `message`). */
+    message?: string;
+    /**
+     * Customer info the anchor needs before it can proceed (e.g. SEP-6
+     * `pending_customer_info_update`). When present, the app should collect these
+     * fields and submit them via {@link ProgrammaticOps.submitKyc} (passing the
+     * transaction id), then resume polling. Absent in the normal happy path.
+     */
+    requiredInfo?: KycRequirements;
+    /**
+     * Whether the transaction is parked awaiting a customer-info update (SEP-6
+     * `pending_customer_info_update`). When `true` but {@link requiredInfo} is
+     * absent, the required info has already been submitted and the anchor has not
+     * yet advanced the transaction — the app may offer the user a retry.
+     */
+    awaitingCustomerInfo?: boolean;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
@@ -465,6 +497,8 @@ export interface KycDocumentRequirement {
     accept?: string;
     /** How the document is provided: direct file upload or a URL reference. */
     mode: 'file_upload' | 'url_reference';
+    /** Whether this document must be provided. Treated as required when omitted. */
+    required?: boolean;
 }
 
 /** The full set of fields and documents required for KYC by an anchor. */
@@ -473,6 +507,24 @@ export interface KycRequirements {
     fields: KycFieldRequirement[];
     /** Documents the user must provide. */
     documents: KycDocumentRequirement[];
+    /** Optional human-readable message from the anchor about what it needs. */
+    message?: string;
+}
+
+/**
+ * Context for {@link ProgrammaticOps.getKycRequirements}. Some anchors return a
+ * static field set; others discover the fields a specific (authenticated)
+ * customer or in-flight transaction still needs via SEP-12.
+ */
+export interface KycRequirementsQuery {
+    /** ISO 3166-1 alpha-2 country code, for anchors with country-specific requirements. */
+    country?: string;
+    /** SEP-10 session token, for anchors that discover requirements per authenticated customer. */
+    auth?: string;
+    /** Customer/account identifier, when requirements depend on the specific customer. */
+    customerId?: string;
+    /** Transaction id, when an in-flight transaction needs additional info (SEP-6 `pending_customer_info_update`). */
+    transactionId?: string;
 }
 
 /** User-submitted KYC data (fields + documents) for {@link Anchor.submitKyc}. */
@@ -667,8 +719,13 @@ export interface ProgrammaticOps {
     /** Get the current KYC verification status for a customer. */
     getKycStatus(customerId: string, publicKey?: string, auth?: string): Promise<KycStatus>;
 
-    /** Get the KYC field and document requirements for a country. */
-    getKycRequirements?(country?: string): Promise<KycRequirements>;
+    /**
+     * Get the KYC field and document requirements. Anchors may return a static
+     * set, or — given a session token in {@link KycRequirementsQuery.auth} —
+     * discover the fields the specific customer (or in-flight transaction) still
+     * needs via SEP-12.
+     */
+    getKycRequirements?(query?: KycRequirementsQuery): Promise<KycRequirements>;
 
     /** Submit KYC data and documents for a customer. */
     submitKyc?(

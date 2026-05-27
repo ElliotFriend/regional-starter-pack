@@ -320,10 +320,64 @@ describe('programmatic', () => {
         expect(accounts).toEqual([]);
     });
 
-    it('getKycRequirements returns the SEP-9 natural-person fields', async () => {
+    it('getKycRequirements falls back to a static SEP-9 set without a session token', async () => {
         const req = await createAdapter().programmatic.getKycRequirements!();
         expect(req.fields.map((f) => f.key)).toEqual(['first_name', 'last_name', 'email_address']);
         expect(req.documents).toEqual([]);
+    });
+
+    it('getKycRequirements discovers the fields SEP-12 reports as needed', async () => {
+        mockToml();
+        let queriedAccount: string | null = null;
+        server.use(
+            http.get(`${KYC}/customer`, ({ request }) => {
+                queriedAccount = new URL(request.url).searchParams.get('account');
+                return HttpResponse.json({
+                    id: 'cust-1',
+                    status: 'NEEDS_INFO',
+                    fields: {
+                        mobile_number: { type: 'string', description: 'Mobile phone number' },
+                        email_address: {
+                            type: 'string',
+                            description: 'Email address',
+                            optional: true,
+                        },
+                        id_type: {
+                            type: 'string',
+                            description: 'ID type',
+                            choices: ['passport', 'drivers_license'],
+                        },
+                        photo_id_front: { type: 'binary', description: 'Front of your ID' },
+                        photo_id_back: {
+                            type: 'binary',
+                            description: 'Back of your ID',
+                            optional: true,
+                        },
+                    },
+                });
+            }),
+        );
+
+        const req = await createAdapter().programmatic.getKycRequirements!({
+            auth: fakeJwt(ACCOUNT),
+        });
+
+        // Discovery is keyed by the authenticated account.
+        expect(queriedAccount).toBe(ACCOUNT);
+
+        const byKey = Object.fromEntries(req.fields.map((f) => [f.key, f]));
+        expect(byKey.mobile_number).toMatchObject({ label: 'Mobile phone number', required: true });
+        // optional in SEP-12 -> not required in our form
+        expect(byKey.email_address.required).toBe(false);
+        // choices -> a select with options
+        expect(byKey.id_type).toMatchObject({ type: 'select' });
+        expect(byKey.id_type.options?.map((o) => o.value)).toEqual(['passport', 'drivers_license']);
+        // binary fields surface as documents, not text inputs
+        expect(req.fields.map((f) => f.key)).not.toContain('photo_id_front');
+        const docsByKey = Object.fromEntries(req.documents.map((d) => [d.key, d]));
+        expect(docsByKey.photo_id_front.required).toBe(true);
+        // optional binary -> optional document
+        expect(docsByKey.photo_id_back.required).toBe(false);
     });
 
     it('submitKyc PUTs SEP-9 fields and returns the mapped status', async () => {
@@ -353,10 +407,180 @@ describe('programmatic', () => {
         expect(putBody).toMatchObject({ account: ACCOUNT, first_name: 'Ada' });
     });
 
+    it('submitKyc forwards a transaction_id from metadata into the SEP-12 PUT', async () => {
+        mockToml();
+        let putBody: Record<string, unknown> | undefined;
+        server.use(
+            http.put(`${KYC}/customer`, async ({ request }) => {
+                putBody = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({ id: 'cust-kyc-1' });
+            }),
+            http.get(`${KYC}/customer`, () => {
+                return HttpResponse.json({ id: 'cust-kyc-1', status: 'PROCESSING' });
+            }),
+        );
+
+        await createAdapter().programmatic.submitKyc!(
+            'cust-kyc-1',
+            {
+                fields: { mobile_number: '+15551234567' },
+                documents: {},
+                metadata: { transaction_id: 'tx-onramp-1' },
+            },
+            fakeJwt(ACCOUNT),
+        );
+
+        expect(putBody).toMatchObject({
+            account: ACCOUNT,
+            mobile_number: '+15551234567',
+            transaction_id: 'tx-onramp-1',
+        });
+    });
+
     it('submitKyc requires a session token', async () => {
         mockToml();
         await expect(
             createAdapter().programmatic.submitKyc!('c', { fields: {}, documents: {} }),
         ).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+    });
+
+    // -----------------------------------------------------------------------
+    // pending_customer_info_update enrichment
+    // -----------------------------------------------------------------------
+
+    it('getOnRampTransaction surfaces inline required_info_updates as requiredInfo', async () => {
+        mockToml();
+        server.use(
+            http.get(`${SEP6}/transaction`, () => {
+                return HttpResponse.json({
+                    transaction: {
+                        id: 'tx-onramp-1',
+                        kind: 'deposit',
+                        status: 'pending_customer_info_update',
+                        message: 'Please update your info',
+                        required_info_message: 'We need your phone number',
+                        required_info_updates: {
+                            mobile_number: { type: 'string', description: 'Mobile phone number' },
+                        },
+                    },
+                });
+            }),
+        );
+
+        const tx = await createAdapter().programmatic.getOnRampTransaction(
+            'tx-onramp-1',
+            fakeJwt(ACCOUNT),
+        );
+        expect(tx!.message).toBe('Please update your info');
+        expect(tx!.requiredInfo).toBeDefined();
+        expect(tx!.requiredInfo!.message).toBe('We need your phone number');
+        expect(tx!.requiredInfo!.fields.map((f) => f.key)).toEqual(['mobile_number']);
+    });
+
+    it('getOnRampTransaction falls back to SEP-12 fields when the tx omits required_info_updates', async () => {
+        mockToml();
+        let customerTxId: string | null = null;
+        server.use(
+            http.get(`${SEP6}/transaction`, () => {
+                return HttpResponse.json({
+                    transaction: {
+                        id: 'tx-onramp-1',
+                        kind: 'deposit',
+                        status: 'pending_customer_info_update',
+                        message: 'Please update your info',
+                    },
+                });
+            }),
+            http.get(`${KYC}/customer`, ({ request }) => {
+                customerTxId = new URL(request.url).searchParams.get('transaction_id');
+                return HttpResponse.json({
+                    id: 'cust-1',
+                    status: 'NEEDS_INFO',
+                    fields: {
+                        mobile_number: { type: 'string', description: 'Mobile phone number' },
+                    },
+                });
+            }),
+        );
+
+        const tx = await createAdapter().programmatic.getOnRampTransaction(
+            'tx-onramp-1',
+            fakeJwt(ACCOUNT),
+        );
+        // The SEP-12 lookup is scoped to the transaction.
+        expect(customerTxId).toBe('tx-onramp-1');
+        expect(tx!.requiredInfo!.fields.map((f) => f.key)).toEqual(['mobile_number']);
+    });
+
+    it('getOnRampTransaction stops surfacing requiredInfo once SEP-12 is ACCEPTED', async () => {
+        // Regression: the SEP-12 `fields` map keeps listing not-yet-provided
+        // OPTIONAL fields even after the customer is ACCEPTED. We must not treat
+        // that as "needs info" — otherwise the info-update form loops forever.
+        mockToml();
+        server.use(
+            http.get(`${SEP6}/transaction`, () => {
+                return HttpResponse.json({
+                    transaction: {
+                        id: 'tx-onramp-1',
+                        kind: 'deposit',
+                        status: 'pending_customer_info_update',
+                        message: 'Please update your info',
+                    },
+                });
+            }),
+            http.get(`${KYC}/customer`, () => {
+                return HttpResponse.json({
+                    id: 'cust-1',
+                    status: 'ACCEPTED',
+                    // Optional fields the anchor would still accept but doesn't require.
+                    fields: {
+                        additional_name: {
+                            type: 'string',
+                            description: 'Additional name',
+                            optional: true,
+                        },
+                        city: { type: 'string', description: 'City', optional: true },
+                    },
+                    provided_fields: {
+                        first_name: {
+                            type: 'string',
+                            description: 'First name',
+                            optional: false,
+                            status: 'ACCEPTED',
+                        },
+                    },
+                });
+            }),
+        );
+
+        const tx = await createAdapter().programmatic.getOnRampTransaction(
+            'tx-onramp-1',
+            fakeJwt(ACCOUNT),
+        );
+        expect(tx!.requiredInfo).toBeUndefined();
+        // Still parked on pending_customer_info_update -> flag set so the UI can
+        // offer a retry rather than spin forever.
+        expect(tx!.awaitingCustomerInfo).toBe(true);
+    });
+
+    it('getOnRampTransaction leaves requiredInfo unset for normal statuses', async () => {
+        mockToml();
+        server.use(
+            http.get(`${SEP6}/transaction`, () => {
+                return HttpResponse.json({
+                    transaction: {
+                        id: 'tx-onramp-1',
+                        kind: 'deposit',
+                        status: 'pending_user_transfer_start',
+                    },
+                });
+            }),
+        );
+        const tx = await createAdapter().programmatic.getOnRampTransaction(
+            'tx-onramp-1',
+            fakeJwt(ACCOUNT),
+        );
+        expect(tx!.requiredInfo).toBeUndefined();
+        expect(tx!.awaitingCustomerInfo).toBe(false);
     });
 });
