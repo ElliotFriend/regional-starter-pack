@@ -85,9 +85,12 @@ export interface Sep6AssetInfo {
 export interface Sep6DepositRequest {
     asset_code: string;
     account: string;
+    /** A deposit method supported by the anchor (e.g. `"bank_account"`). Per SEP-6 this is required. */
+    funding_method?: string;
     memo_type?: 'text' | 'id' | 'hash';
     memo?: string;
     email_address?: string;
+    /** @deprecated SEP-6 deprecated `type` in favor of {@link funding_method}. */
     type?: string;
     wallet_name?: string;
     wallet_url?: string;
@@ -120,7 +123,10 @@ export interface Sep6DepositResponse {
 
 export interface Sep6WithdrawRequest {
     asset_code: string;
-    type: string;
+    /** A withdrawal method supported by the anchor (e.g. `"bank_account"`). Per SEP-6 this is required. */
+    funding_method?: string;
+    /** @deprecated SEP-6 deprecated `type` in favor of {@link funding_method}. */
+    type?: string;
     dest?: string;
     dest_extra?: string;
     account?: string;

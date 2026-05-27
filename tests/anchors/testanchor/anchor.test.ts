@@ -245,9 +245,12 @@ describe('programmatic', () => {
         mockToml();
         server.use(
             http.get(`${SEP6}/deposit`, ({ request }) => {
-                // SEP-6 deposit requires the deposit `type`; the test anchor only
-                // accepts `bank_account`.
-                expect(new URL(request.url).searchParams.get('type')).toBe('bank_account');
+                // SEP-6 requires the deposit method via `funding_method`. The
+                // deprecated `type` param is no longer sent. The test anchor
+                // only accepts `bank_account`.
+                const params = new URL(request.url).searchParams;
+                expect(params.get('funding_method')).toBe('bank_account');
+                expect(params.get('type')).toBeNull();
                 return HttpResponse.json({
                     id: 'sep6-onramp-1',
                     how: 'Send a bank transfer to the account below.',

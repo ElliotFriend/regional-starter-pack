@@ -506,9 +506,10 @@ export class TestAnchorAdapter implements Anchor {
                 token,
                 {
                     asset_code: token0?.symbol ?? input.toCurrency,
-                    // SEP-6 deposit method; the test anchor only supports 'bank_account'
-                    // (mirrors the off-ramp withdrawal type).
-                    type: 'bank_account',
+                    // SEP-6 deposit method; the test anchor only supports 'bank_account'.
+                    // `funding_method` is the current SEP-6 param (the deprecated `type`
+                    // is no longer sent).
+                    funding_method: 'bank_account',
                     account: input.stellarAddress,
                     amount: input.amount,
                     memo: input.memo,
@@ -569,7 +570,9 @@ export class TestAnchorAdapter implements Anchor {
                 token,
                 {
                     asset_code: token0?.symbol ?? input.fromCurrency,
-                    type: 'bank_account',
+                    // `funding_method` is the current SEP-6 param (the deprecated
+                    // `type` is no longer sent).
+                    funding_method: 'bank_account',
                     account: input.stellarAddress,
                     amount: input.amount,
                 },
