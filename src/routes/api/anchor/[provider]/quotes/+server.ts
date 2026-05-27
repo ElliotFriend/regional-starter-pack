@@ -5,7 +5,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+import { requireProgrammatic, bearerToken, isValidProvider } from '$lib/server/anchorFactory';
 import { AnchorError } from '$lib/anchors/types';
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -35,16 +35,19 @@ export const POST: RequestHandler = async ({ params, request }) => {
             throw error(400, { message: 'Either fromAmount or toAmount is required' });
         }
 
-        const anchor = getAnchor(provider);
-        const quote = await anchor.getQuote({
-            fromCurrency,
-            toCurrency,
-            fromAmount,
-            toAmount,
-            customerId,
-            stellarAddress,
-            resourceId,
-        });
+        const programmatic = requireProgrammatic(provider);
+        const quote = await programmatic.getQuote(
+            {
+                fromCurrency,
+                toCurrency,
+                fromAmount,
+                toAmount,
+                customerId,
+                stellarAddress,
+                resourceId,
+            },
+            bearerToken(request),
+        );
 
         return json(quote);
     } catch (err) {

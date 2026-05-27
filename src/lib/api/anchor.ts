@@ -20,6 +20,9 @@ import type {
     KycSubmissionData,
     KycSubmissionResult,
     RampIdentity,
+    AuthChallenge,
+    AuthSession,
+    InteractiveSession,
 } from '$lib/anchors/types';
 
 type Fetch = typeof fetch;
@@ -38,6 +41,14 @@ export class ApiError extends Error {
 }
 
 /**
+ * Build an `Authorization: Bearer` header for wallet-authenticated anchors.
+ * Returns an empty object when no token is supplied (e.g. API-key anchors).
+ */
+function authHeader(auth?: string): Record<string, string> {
+    return auth ? { Authorization: `Bearer ${auth}` } : {};
+}
+
+/**
  * Helper to make API requests with consistent error handling
  */
 async function apiRequest<T>(fetch: Fetch, url: string, options: RequestInit = {}): Promise<T> {
@@ -52,12 +63,13 @@ async function apiRequest<T>(fetch: Fetch, url: string, options: RequestInit = {
 }
 
 /**
- * Helper for POST requests with JSON body
+ * Helper for POST requests with JSON body. Pass `auth` to attach a SEP-10
+ * session token for wallet-authenticated anchors.
  */
-async function postJson<T>(fetch: Fetch, url: string, body: unknown): Promise<T> {
+async function postJson<T>(fetch: Fetch, url: string, body: unknown, auth?: string): Promise<T> {
     return apiRequest<T>(fetch, url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader(auth) },
         body: JSON.stringify(body),
     });
 }
@@ -75,11 +87,13 @@ export async function getCustomerByEmail(
     provider: string,
     email: string,
     country: string = 'MX',
+    auth?: string,
 ): Promise<Customer | null> {
     try {
         return await apiRequest<Customer>(
             fetch,
             `/api/anchor/${provider}/customers?email=${encodeURIComponent(email)}&country=${encodeURIComponent(country)}`,
+            { headers: authHeader(auth) },
         );
     } catch (err) {
         if (err instanceof ApiError && err.statusCode === 404) {
@@ -98,12 +112,18 @@ export async function createCustomer(
     email: string | undefined,
     country: string = 'MX',
     publicKey?: string,
+    auth?: string,
 ): Promise<Customer> {
-    return postJson<Customer>(fetch, `/api/anchor/${provider}/customers`, {
-        email,
-        country,
-        publicKey,
-    });
+    return postJson<Customer>(
+        fetch,
+        `/api/anchor/${provider}/customers`,
+        {
+            email,
+            country,
+            publicKey,
+        },
+        auth,
+    );
 }
 
 /**
@@ -115,17 +135,17 @@ export async function getOrCreateCustomer(
     provider: string,
     email: string | undefined,
     country: string = 'MX',
-    options?: { supportsEmailLookup?: boolean; publicKey?: string },
+    options?: { supportsEmailLookup?: boolean; publicKey?: string; auth?: string },
 ): Promise<Customer> {
     const supportsEmailLookup = options?.supportsEmailLookup ?? false;
 
     if (supportsEmailLookup && email) {
-        const existing = await getCustomerByEmail(fetch, provider, email, country);
+        const existing = await getCustomerByEmail(fetch, provider, email, country, options?.auth);
         if (existing) {
             return existing;
         }
     }
-    return createCustomer(fetch, provider, email, country, options?.publicKey);
+    return createCustomer(fetch, provider, email, country, options?.publicKey, options?.auth);
 }
 
 // =============================================================================
@@ -149,6 +169,7 @@ export async function getQuote(
     fetch: Fetch,
     provider: string,
     options: GetQuoteOptions,
+    auth?: string,
 ): Promise<Quote> {
     const {
         fromCurrency,
@@ -176,7 +197,7 @@ export async function getQuote(
         body.resourceId = resourceId;
     }
 
-    return postJson<Quote>(fetch, `/api/anchor/${provider}/quotes`, body);
+    return postJson<Quote>(fetch, `/api/anchor/${provider}/quotes`, body, auth);
 }
 
 // =============================================================================
@@ -204,8 +225,9 @@ export async function createOnRamp(
     fetch: Fetch,
     provider: string,
     options: CreateOnRampOptions,
+    auth?: string,
 ): Promise<OnRampTransaction> {
-    return postJson<OnRampTransaction>(fetch, `/api/anchor/${provider}/onramp`, options);
+    return postJson<OnRampTransaction>(fetch, `/api/anchor/${provider}/onramp`, options, auth);
 }
 
 /**
@@ -215,11 +237,13 @@ export async function getOnRampTransaction(
     fetch: Fetch,
     provider: string,
     transactionId: string,
+    auth?: string,
 ): Promise<OnRampTransaction | null> {
     try {
         return await apiRequest<OnRampTransaction>(
             fetch,
             `/api/anchor/${provider}/onramp?transactionId=${transactionId}`,
+            { headers: authHeader(auth) },
         );
     } catch (err) {
         if (err instanceof ApiError && err.statusCode === 404) {
@@ -254,8 +278,9 @@ export async function createOffRamp(
     fetch: Fetch,
     provider: string,
     options: CreateOffRampOptions,
+    auth?: string,
 ): Promise<OffRampTransaction> {
-    return postJson<OffRampTransaction>(fetch, `/api/anchor/${provider}/offramp`, options);
+    return postJson<OffRampTransaction>(fetch, `/api/anchor/${provider}/offramp`, options, auth);
 }
 
 /**
@@ -265,11 +290,13 @@ export async function getOffRampTransaction(
     fetch: Fetch,
     provider: string,
     transactionId: string,
+    auth?: string,
 ): Promise<OffRampTransaction | null> {
     try {
         return await apiRequest<OffRampTransaction>(
             fetch,
             `/api/anchor/${provider}/offramp?transactionId=${transactionId}`,
+            { headers: authHeader(auth) },
         );
     } catch (err) {
         if (err instanceof ApiError && err.statusCode === 404) {
@@ -290,11 +317,13 @@ export async function getFiatAccounts(
     fetch: Fetch,
     provider: string,
     customerId: string,
+    auth?: string,
 ): Promise<SavedFiatAccount[]> {
     try {
         return await apiRequest<SavedFiatAccount[]>(
             fetch,
             `/api/anchor/${provider}/fiat-accounts?customerId=${customerId}`,
+            { headers: authHeader(auth) },
         );
     } catch {
         return [];
@@ -318,12 +347,18 @@ export async function registerFiatAccount(
               accountHolderName: string;
           },
     publicKey?: string,
+    auth?: string,
 ): Promise<RegisteredFiatAccount> {
-    return postJson<RegisteredFiatAccount>(fetch, `/api/anchor/${provider}/fiat-accounts`, {
-        customerId,
-        publicKey,
-        ...account,
-    });
+    return postJson<RegisteredFiatAccount>(
+        fetch,
+        `/api/anchor/${provider}/fiat-accounts`,
+        {
+            customerId,
+            publicKey,
+            ...account,
+        },
+        auth,
+    );
 }
 
 // =============================================================================
@@ -331,18 +366,24 @@ export async function registerFiatAccount(
 // =============================================================================
 
 /**
- * Get KYC field and document requirements in the shared format
+ * Get KYC field and document requirements in the shared format.
+ *
+ * Pass `auth` so anchors that discover requirements per authenticated customer
+ * (e.g. the test anchor, via SEP-12) can return exactly the fields still needed;
+ * pass `transactionId` to scope discovery to an in-flight transaction that needs
+ * additional info (SEP-6 `pending_customer_info_update`).
  */
 export async function getKycFieldRequirements(
     fetch: Fetch,
     provider: string,
-    country?: string,
+    options?: { country?: string; auth?: string; transactionId?: string },
 ): Promise<KycRequirements> {
-    const params = country ? `&country=${encodeURIComponent(country)}` : '';
-    return apiRequest<KycRequirements>(
-        fetch,
-        `/api/anchor/${provider}/kyc?type=requirements${params}`,
-    );
+    const search = new URLSearchParams({ type: 'requirements' });
+    if (options?.country) search.set('country', options.country);
+    if (options?.transactionId) search.set('transactionId', options.transactionId);
+    return apiRequest<KycRequirements>(fetch, `/api/anchor/${provider}/kyc?${search.toString()}`, {
+        headers: authHeader(options?.auth),
+    });
 }
 
 /**
@@ -353,6 +394,7 @@ export async function submitKyc(
     provider: string,
     customerId: string,
     data: KycSubmissionData,
+    auth?: string,
 ): Promise<KycSubmissionResult> {
     const hasFiles = Object.values(data.documents).some((d) => d instanceof File);
 
@@ -371,6 +413,7 @@ export async function submitKyc(
 
         const response = await fetch(`/api/anchor/${provider}/kyc?type=submit-kyc`, {
             method: 'POST',
+            headers: authHeader(auth),
             body: formData,
         });
 
@@ -381,10 +424,15 @@ export async function submitKyc(
 
         return response.json();
     } else {
-        return postJson<KycSubmissionResult>(fetch, `/api/anchor/${provider}/kyc?type=submit-kyc`, {
-            customerId,
-            data,
-        });
+        return postJson<KycSubmissionResult>(
+            fetch,
+            `/api/anchor/${provider}/kyc?type=submit-kyc`,
+            {
+                customerId,
+                data,
+            },
+            auth,
+        );
     }
 }
 
@@ -396,10 +444,11 @@ export async function getKycStatus(
     provider: string,
     customerId: string,
     publicKey?: string,
+    auth?: string,
 ): Promise<string> {
     let url = `/api/anchor/${provider}/kyc?customerId=${customerId}&type=status`;
     if (publicKey) url += `&publicKey=${encodeURIComponent(publicKey)}`;
-    const data = await apiRequest<{ status: string }>(fetch, url);
+    const data = await apiRequest<{ status: string }>(fetch, url, { headers: authHeader(auth) });
     return data.status;
 }
 
@@ -439,4 +488,86 @@ export async function simulateFiatReceived(
         { action: 'simulateFiatReceived', orderId },
     );
     return result.statusCode;
+}
+
+// =============================================================================
+// Wallet Authentication API (SEP-10 handshake)
+// =============================================================================
+
+/**
+ * Request a wallet-auth challenge to sign (SEP-10 leg 1). The returned XDR is
+ * signed client-side (e.g. with Freighter) and submitted via {@link submitAuthChallenge}.
+ */
+export async function getAuthChallenge(
+    fetch: Fetch,
+    provider: string,
+    account: string,
+): Promise<AuthChallenge> {
+    return postJson<AuthChallenge>(fetch, `/api/anchor/${provider}/auth?action=challenge`, {
+        account,
+    });
+}
+
+/**
+ * Exchange a wallet-signed challenge for a session token (SEP-10 leg 2).
+ */
+export async function submitAuthChallenge(
+    fetch: Fetch,
+    provider: string,
+    signedTransactionXdr: string,
+): Promise<AuthSession> {
+    return postJson<AuthSession>(fetch, `/api/anchor/${provider}/auth?action=token`, {
+        signedTransactionXdr,
+    });
+}
+
+// =============================================================================
+// Interactive Ramp API (SEP-24-style hosted flow)
+// =============================================================================
+
+export interface StartInteractiveOptions {
+    direction: 'onramp' | 'offramp';
+    assetCode: string;
+    assetIssuer?: string;
+    account: string;
+    amount?: string;
+    /** SEP-10 session token, for anchors that require wallet auth. */
+    auth?: string;
+}
+
+/**
+ * Start an interactive (hosted-UI) ramp session. Returns the hosted URL to open
+ * and a transaction id to poll via {@link getInteractiveTransaction}.
+ */
+export async function startInteractive(
+    fetch: Fetch,
+    provider: string,
+    options: StartInteractiveOptions,
+): Promise<InteractiveSession> {
+    const { auth, ...body } = options;
+    return postJson<InteractiveSession>(fetch, `/api/anchor/${provider}/interactive`, body, auth);
+}
+
+/**
+ * Poll an interactive ramp transaction's status. Returns `null` if not found.
+ */
+export async function getInteractiveTransaction(
+    fetch: Fetch,
+    provider: string,
+    direction: 'onramp' | 'offramp',
+    transactionId: string,
+    auth?: string,
+): Promise<OnRampTransaction | OffRampTransaction | null> {
+    try {
+        return await apiRequest<OnRampTransaction | OffRampTransaction>(
+            fetch,
+            `/api/anchor/${provider}/interactive?direction=${direction}&transactionId=${encodeURIComponent(transactionId)}`,
+            { headers: authHeader(auth) },
+        );
+    } catch (err) {
+        if (err instanceof ApiError && err.statusCode === 404) {
+            return null;
+        }
+        throw err;
+    }
 }

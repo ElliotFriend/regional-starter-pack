@@ -24,6 +24,7 @@ export const DEFAULT_COUNTRY = 'MX';
 // Provider names
 export const PROVIDER = {
     ETHERFUSE: 'etherfuse',
+    TESTANCHOR: 'testanchor',
 } as const;
 
 // KYC statuses (internal)

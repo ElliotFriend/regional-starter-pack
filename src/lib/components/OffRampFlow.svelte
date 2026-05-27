@@ -17,6 +17,7 @@ Usage:
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { authStore } from '$lib/stores/auth';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -42,6 +43,7 @@ Usage:
     import * as api from '$lib/api/anchor';
 
     const provider = $derived(page.data.anchor.id);
+    const requiresWalletAuth = $derived(page.data.requiresWalletAuth);
     const fromCurrency = $derived(page.data.primaryToken);
     const fiatCurrency = $derived(page.data.fiatCurrency);
     const capabilities = $derived(page.data.capabilities);
@@ -112,6 +114,31 @@ Usage:
         resolveStellarAsset(fromCurrency, tokenIssuer, PUBLIC_USDC_ISSUER),
     );
 
+    /**
+     * Ensure a wallet-auth token is available for anchors that require the
+     * SEP-10 handshake. Reuses a cached (localStorage-backed) token when one is
+     * still valid, so the Freighter signing popup only appears when needed.
+     * Returns undefined for API-key anchors (e.g. Etherfuse), in which case all
+     * `api.*` calls receive `undefined` and behave unchanged.
+     *
+     * MUST only be called from user-initiated handlers (it may trigger a
+     * Freighter popup) — never from an $effect.
+     */
+    async function ensureAuth(): Promise<string | undefined> {
+        if (!requiresWalletAuth) return undefined;
+        if (!walletStore.publicKey) return undefined;
+        const cached = authStore.get(provider, walletStore.publicKey);
+        if (cached) return cached;
+        const challenge = await api.getAuthChallenge(fetch, provider, walletStore.publicKey);
+        const { signedXdr } = await signWithFreighter(
+            challenge.transactionXdr,
+            walletStore.network,
+        );
+        const token = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+        authStore.set(provider, walletStore.publicKey, token);
+        return token;
+    }
+
     async function getQuote_() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
@@ -126,14 +153,20 @@ Usage:
         error = null;
 
         try {
+            const auth = await ensureAuth();
             const customer = customerStore.current;
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency,
-                toCurrency: fiatCurrency,
-                amount,
-                customerId: customer?.id,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency,
+                    toCurrency: fiatCurrency,
+                    amount,
+                    customerId: customer?.id,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
             step = 'quote';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to get quote';
@@ -146,15 +179,21 @@ Usage:
         if (!amount) return;
         isGettingQuote = true;
         try {
+            const auth = await ensureAuth();
             const customer = customerStore.current;
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency,
-                toCurrency: fiatCurrency,
-                amount,
-                customerId: customer?.id,
-                resourceId: selectedAccountId ?? undefined,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency,
+                    toCurrency: fiatCurrency,
+                    amount,
+                    customerId: customer?.id,
+                    resourceId: selectedAccountId ?? undefined,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to refresh quote';
         } finally {
@@ -179,6 +218,7 @@ Usage:
         isGettingQuote = true;
 
         try {
+            const auth = await ensureAuth();
             if (useNewAccount) {
                 const accountDetails =
                     paymentRail === 'pix'
@@ -189,19 +229,26 @@ Usage:
                     provider,
                     customer.id,
                     accountDetails,
+                    undefined,
+                    auth,
                 );
                 selectedAccountId = result.id;
                 useNewAccount = false;
             }
 
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency,
-                toCurrency: fiatCurrency,
-                amount,
-                customerId: customer.id,
-                resourceId: selectedAccountId!,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency,
+                    toCurrency: fiatCurrency,
+                    amount,
+                    customerId: customer.id,
+                    resourceId: selectedAccountId!,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
 
             step = 'quote';
         } catch (err) {
@@ -218,7 +265,8 @@ Usage:
 
         isLoadingAccounts = true;
         try {
-            savedAccounts = await api.getFiatAccounts(fetch, provider, customer.id);
+            const auth = await ensureAuth();
+            savedAccounts = await api.getFiatAccounts(fetch, provider, customer.id, auth);
             // If there are saved accounts, select the first one by default
             if (savedAccounts.length > 0) {
                 selectedAccountId = savedAccounts[0].id;
@@ -254,8 +302,7 @@ Usage:
             window.open(url, 'anchor_register', 'width=600,height=800,popup');
             hasOpenedRegistration = true;
         } catch (err) {
-            error =
-                err instanceof Error ? err.message : 'Failed to open bank-account registration';
+            error = err instanceof Error ? err.message : 'Failed to open bank-account registration';
         } finally {
             isOpeningRegistration = false;
         }
@@ -285,6 +332,7 @@ Usage:
         error = null;
 
         try {
+            const auth = await ensureAuth();
             // Inline anchors: register the new account first, then create the offramp.
             // Hosted anchors: registration already happened in the hosted UI; selectedAccountId is set.
             let fiatAccountId = selectedAccountId;
@@ -299,6 +347,7 @@ Usage:
                     customer.id,
                     accountDetails,
                     walletStore.publicKey,
+                    auth,
                 );
                 fiatAccountId = registered.id;
                 selectedAccountId = registered.id;
@@ -307,15 +356,20 @@ Usage:
 
             if (!fiatAccountId) return;
 
-            const tx = await api.createOffRamp(fetch, provider, {
-                customerId: customer.id,
-                quoteId: quote.id,
-                stellarAddress: walletStore.publicKey,
-                fromCurrency: quote.fromCurrency,
-                toCurrency: quote.toCurrency,
-                amount: quote.fromAmount,
-                fiatAccountId,
-            });
+            const tx = await api.createOffRamp(
+                fetch,
+                provider,
+                {
+                    customerId: customer.id,
+                    quoteId: quote.id,
+                    stellarAddress: walletStore.publicKey,
+                    fromCurrency: quote.fromCurrency,
+                    toCurrency: quote.toCurrency,
+                    amount: quote.fromAmount,
+                    fiatAccountId,
+                },
+                auth,
+            );
 
             transaction = tx;
 
@@ -395,7 +449,13 @@ Usage:
             }
 
             try {
-                const updated = await api.getOffRampTransaction(fetch, provider, transaction.id);
+                const auth = await ensureAuth();
+                const updated = await api.getOffRampTransaction(
+                    fetch,
+                    provider,
+                    transaction.id,
+                    auth,
+                );
                 if (updated?.signableTransaction) {
                     stopPollingForSignable();
                     transaction = updated;
@@ -427,7 +487,13 @@ Usage:
             }
 
             if (transaction) {
-                const updated = await api.getOffRampTransaction(fetch, provider, transaction.id);
+                const auth = await ensureAuth();
+                const updated = await api.getOffRampTransaction(
+                    fetch,
+                    provider,
+                    transaction.id,
+                    auth,
+                );
 
                 if (updated) {
                     transaction = updated;

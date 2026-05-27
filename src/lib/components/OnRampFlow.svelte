@@ -16,6 +16,7 @@ Usage:
     import { page } from '$app/state';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { authStore } from '$lib/stores/auth';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -23,7 +24,9 @@ Usage:
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
     import QuoteStep from '$lib/components/ramp/QuoteStep.svelte';
     import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
+    import KycForm from '$lib/components/KycForm.svelte';
     import { resolveStellarAsset } from '$lib/utils/stellar-asset';
+    import { signWithFreighter } from '$lib/wallet/freighter';
     import { PUBLIC_USDC_ISSUER, PUBLIC_STELLAR_NETWORK } from '$env/static/public';
     import type { StellarNetwork } from '$lib/wallet/types';
     import { getStatusColor } from '$lib/utils/status';
@@ -32,6 +35,7 @@ Usage:
     import type { Quote, OnRampTransaction, TokenInfo } from '$lib/anchors/types';
 
     const provider = $derived(page.data.anchor.id);
+    const requiresWalletAuth = $derived(page.data.requiresWalletAuth);
     const toCurrency = $derived(page.data.primaryToken);
     const fiatCurrency = $derived(page.data.fiatCurrency);
     const capabilities = $derived(page.data.capabilities);
@@ -69,6 +73,39 @@ Usage:
 
     const stellarAsset = $derived(resolveStellarAsset(toCurrency, tokenIssuer, PUBLIC_USDC_ISSUER));
 
+    /**
+     * Ensure a wallet-auth token is available for anchors that require the
+     * SEP-10 handshake. Reuses a cached (localStorage-backed) token when one is
+     * still valid, so the Freighter signing popup only appears when needed.
+     * Returns undefined for API-key anchors (e.g. Etherfuse), in which case all
+     * `api.*` calls receive `undefined` and behave unchanged.
+     *
+     * MUST only be called from user-initiated handlers (it may trigger a
+     * Freighter popup) — never from an $effect.
+     */
+    async function ensureAuth(): Promise<string | undefined> {
+        if (!requiresWalletAuth) return undefined;
+        if (!walletStore.publicKey) return undefined;
+        const cached = authStore.get(provider, walletStore.publicKey);
+        if (cached) return cached;
+        const challenge = await api.getAuthChallenge(fetch, provider, walletStore.publicKey);
+        const { signedXdr } = await signWithFreighter(
+            challenge.transactionXdr,
+            walletStore.network,
+        );
+        const token = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+        authStore.set(provider, walletStore.publicKey, token);
+        return token;
+    }
+
+    /**
+     * Cached SEP-10 token for non-interactive reads (polling) — never triggers a
+     * wallet popup, so it's safe to call from the polling interval.
+     */
+    function cachedAuth(): string | undefined {
+        return walletStore.publicKey ? authStore.get(provider, walletStore.publicKey) : undefined;
+    }
+
     async function getQuote() {
         if (!amount || isNaN(parseFloat(amount))) return;
 
@@ -76,15 +113,21 @@ Usage:
         error = null;
 
         try {
+            const auth = await ensureAuth();
             const customer = customerStore.current;
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency: fiatCurrency,
-                toCurrency,
-                amount,
-                customerId: customer?.id,
-                resourceId: customer?.blockchainWalletId,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency: fiatCurrency,
+                    toCurrency,
+                    amount,
+                    customerId: customer?.id,
+                    resourceId: customer?.blockchainWalletId,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
             step = 'quote';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to get quote';
@@ -97,15 +140,21 @@ Usage:
         if (!amount) return;
         isGettingQuote = true;
         try {
+            const auth = await ensureAuth();
             const customer = customerStore.current;
-            quote = await api.getQuote(fetch, provider, {
-                fromCurrency: fiatCurrency,
-                toCurrency,
-                amount,
-                customerId: customer?.id,
-                resourceId: customer?.blockchainWalletId,
-                stellarAddress: walletStore.publicKey ?? undefined,
-            });
+            quote = await api.getQuote(
+                fetch,
+                provider,
+                {
+                    fromCurrency: fiatCurrency,
+                    toCurrency,
+                    amount,
+                    customerId: customer?.id,
+                    resourceId: customer?.blockchainWalletId,
+                    stellarAddress: walletStore.publicKey ?? undefined,
+                },
+                auth,
+            );
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to refresh quote';
         } finally {
@@ -121,14 +170,20 @@ Usage:
         error = null;
 
         try {
-            transaction = await api.createOnRamp(fetch, provider, {
-                customerId: customer.id,
-                quoteId: quote.id,
-                stellarAddress: walletStore.publicKey,
-                fromCurrency: quote.fromCurrency,
-                toCurrency: quote.toCurrency,
-                amount: quote.fromAmount,
-            });
+            const auth = await ensureAuth();
+            transaction = await api.createOnRamp(
+                fetch,
+                provider,
+                {
+                    customerId: customer.id,
+                    quoteId: quote.id,
+                    stellarAddress: walletStore.publicKey,
+                    fromCurrency: quote.fromCurrency,
+                    toCurrency: quote.toCurrency,
+                    amount: quote.fromAmount,
+                },
+                auth,
+            );
             step = 'payment';
             startPolling();
         } catch (err) {
@@ -151,10 +206,23 @@ Usage:
             }
 
             if (transaction) {
-                const updated = await api.getOnRampTransaction(fetch, provider, transaction.id);
+                const updated = await api.getOnRampTransaction(
+                    fetch,
+                    provider,
+                    transaction.id,
+                    cachedAuth(),
+                );
 
                 if (updated) {
                     transaction = updated;
+
+                    // Anchor needs more customer info before it can proceed
+                    // (SEP-6 pending_customer_info_update). Pause polling and let
+                    // the user submit the requested fields; polling resumes after.
+                    if (updated.requiredInfo) {
+                        stopPolling();
+                        return;
+                    }
 
                     if (updated.status === TX_STATUS.COMPLETED) {
                         step = 'complete';
@@ -176,6 +244,26 @@ Usage:
             clearInterval(refreshInterval);
             refreshInterval = null;
         }
+    }
+
+    /**
+     * After the user submits the customer info the anchor requested, optimistically
+     * clear the requirement and resume polling — the next poll reflects whether the
+     * anchor advanced the transaction or still needs more.
+     */
+    function handleInfoComplete() {
+        if (transaction) transaction = { ...transaction, requiredInfo: undefined };
+        startPolling();
+    }
+
+    /**
+     * Re-create the deposit from the same quote. Offered when the anchor leaves a
+     * deposit parked on `pending_customer_info_update` even after the required
+     * info was accepted (observed with the test anchor) — a fresh deposit picks
+     * up the now-complete KYC. User-initiated so we never re-issue silently.
+     */
+    async function retryDeposit() {
+        await confirmQuote();
     }
 
     function reset() {
@@ -256,142 +344,209 @@ Usage:
         />
     {:else if step === 'payment'}
         {#if transaction}
-            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-semibold text-gray-900">Payment Instructions</h2>
-                    <span
-                        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getStatusColor(
-                            transaction.status,
-                        )}"
-                    >
-                        {transaction.status}
-                    </span>
+            {#if transaction.requiredInfo}
+                <div class="rounded-lg border border-orange-200 bg-white p-6 shadow-sm">
+                    <h2 class="text-xl font-semibold text-gray-900">
+                        Additional Information Required
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        {transaction.message ??
+                            transaction.requiredInfo.message ??
+                            'The anchor needs a bit more information before it can release your payment instructions.'}
+                    </p>
+                    <div class="mt-4">
+                        <KycForm
+                            {provider}
+                            email={customerStore.current?.email ?? ''}
+                            {capabilities}
+                            requirements={transaction.requiredInfo}
+                            transactionId={transaction.id}
+                            {ensureAuth}
+                            onComplete={handleInfoComplete}
+                        />
+                    </div>
                 </div>
+            {:else if transaction.awaitingCustomerInfo}
+                <div class="rounded-lg border border-amber-300 bg-white p-6 shadow-sm">
+                    <h2 class="text-xl font-semibold text-gray-900">Almost there</h2>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Your information has been submitted, but the anchor hasn't moved this
+                        deposit forward yet. You can keep waiting, or start a fresh deposit with the
+                        same details.
+                    </p>
+                    <button
+                        onclick={retryDeposit}
+                        disabled={isCreatingTransaction}
+                        class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isCreatingTransaction ? 'Retrying…' : 'Retry deposit'}
+                    </button>
+                    <div class="mt-4">
+                        <span class="text-xs text-gray-400">Transaction ID</span>
+                        <p class="mt-0.5"><CopyableField value={transaction.id} mono /></p>
+                    </div>
+                </div>
+            {:else}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-xl font-semibold text-gray-900">Payment Instructions</h2>
+                        <span
+                            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getStatusColor(
+                                transaction.status,
+                            )}"
+                        >
+                            {transaction.status}
+                        </span>
+                    </div>
 
-                <p class="mt-2 text-sm text-gray-500">
-                    Transfer the following amount via bank transfer to complete your purchase.
-                </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Transfer the following amount via bank transfer to complete your purchase.
+                    </p>
 
-                {#if transaction.paymentInstructions}
-                    {@const pi = transaction.paymentInstructions}
-                    <div class="mt-6 space-y-4 rounded-md bg-gray-50 p-4">
-                        {#if pi.type === 'spei'}
-                            <div>
-                                <span class="text-sm text-gray-500">Bank</span>
-                                <p class="font-medium">{pi.bankName || 'N/A'}</p>
-                            </div>
-                            <div>
-                                <span class="text-sm text-gray-500">CLABE</span>
-                                <p class="font-medium">
-                                    <CopyableField value={pi.clabe || 'N/A'} mono />
-                                </p>
-                            </div>
-                            <div>
-                                <span class="text-sm text-gray-500">Beneficiary</span>
-                                <p class="font-medium">{pi.beneficiary || 'N/A'}</p>
-                            </div>
-                        {:else if pi.type === 'pix'}
-                            {#if pi.pixCode}
+                    {#if transaction.paymentInstructions}
+                        {@const pi = transaction.paymentInstructions}
+                        <div class="mt-6 space-y-4 rounded-md bg-gray-50 p-4">
+                            {#if pi.type === 'spei'}
                                 <div>
-                                    <span class="text-sm text-gray-500"
-                                        >PIX Code (BR-Code / Copy-Paste)</span
-                                    >
-                                    <p class="font-medium break-all">
-                                        <CopyableField value={pi.pixCode} mono />
-                                    </p>
+                                    <span class="text-sm text-gray-500">Bank</span>
+                                    <p class="font-medium">{pi.bankName || 'N/A'}</p>
                                 </div>
-                            {/if}
-                            {#if pi.pixKey}
                                 <div>
-                                    <span class="text-sm text-gray-500">PIX Key</span>
+                                    <span class="text-sm text-gray-500">CLABE</span>
                                     <p class="font-medium">
-                                        <CopyableField value={pi.pixKey} mono />
+                                        <CopyableField value={pi.clabe || 'N/A'} mono />
                                     </p>
                                 </div>
-                            {/if}
-                            {#if pi.pixKeyType}
-                                <div>
-                                    <span class="text-sm text-gray-500">PIX Key Type</span>
-                                    <p class="font-medium uppercase">{pi.pixKeyType}</p>
-                                </div>
-                            {/if}
-                            {#if pi.beneficiary}
                                 <div>
                                     <span class="text-sm text-gray-500">Beneficiary</span>
-                                    <p class="font-medium">{pi.beneficiary}</p>
+                                    <p class="font-medium">{pi.beneficiary || 'N/A'}</p>
+                                </div>
+                            {:else if pi.type === 'pix'}
+                                {#if pi.pixCode}
+                                    <div>
+                                        <span class="text-sm text-gray-500"
+                                            >PIX Code (BR-Code / Copy-Paste)</span
+                                        >
+                                        <p class="font-medium break-all">
+                                            <CopyableField value={pi.pixCode} mono />
+                                        </p>
+                                    </div>
+                                {/if}
+                                {#if pi.pixKey}
+                                    <div>
+                                        <span class="text-sm text-gray-500">PIX Key</span>
+                                        <p class="font-medium">
+                                            <CopyableField value={pi.pixKey} mono />
+                                        </p>
+                                    </div>
+                                {/if}
+                                {#if pi.pixKeyType}
+                                    <div>
+                                        <span class="text-sm text-gray-500">PIX Key Type</span>
+                                        <p class="font-medium uppercase">{pi.pixKeyType}</p>
+                                    </div>
+                                {/if}
+                                {#if pi.beneficiary}
+                                    <div>
+                                        <span class="text-sm text-gray-500">Beneficiary</span>
+                                        <p class="font-medium">{pi.beneficiary}</p>
+                                    </div>
+                                {/if}
+                            {:else if pi.type === 'generic'}
+                                {#if pi.how}
+                                    <p class="text-sm text-gray-600">{pi.how}</p>
+                                {/if}
+                                {#each pi.fields as field (field.key)}
+                                    <div>
+                                        <span class="text-sm text-gray-500">{field.label}</span>
+                                        <p class="font-medium">
+                                            <CopyableField value={field.value} mono />
+                                        </p>
+                                        {#if field.description}
+                                            <p class="mt-0.5 text-xs text-gray-400">
+                                                {field.description}
+                                            </p>
+                                        {/if}
+                                    </div>
+                                {/each}
+                            {/if}
+                            {#if pi.reference}
+                                <div>
+                                    <span class="text-sm text-gray-500">Reference</span>
+                                    <p class="font-medium">
+                                        <CopyableField value={pi.reference} mono />
+                                    </p>
                                 </div>
                             {/if}
-                        {/if}
-                        {#if pi.reference}
-                            <div>
-                                <span class="text-sm text-gray-500">Reference</span>
-                                <p class="font-medium">
-                                    <CopyableField value={pi.reference} mono />
+                            <div class="border-t border-gray-200 pt-4">
+                                <span class="text-sm text-gray-500">Amount</span>
+                                <p class="text-2xl font-bold text-indigo-600">
+                                    <CopyableField
+                                        value="{parseFloat(
+                                            pi.amount,
+                                        ).toLocaleString()} {pi.currency}"
+                                    />
                                 </p>
                             </div>
-                        {/if}
-                        <div class="border-t border-gray-200 pt-4">
-                            <span class="text-sm text-gray-500">Amount</span>
-                            <p class="text-2xl font-bold text-indigo-600">
-                                <CopyableField
-                                    value="{parseFloat(pi.amount).toLocaleString()} {pi.currency}"
-                                />
-                            </p>
                         </div>
-                    </div>
-                {/if}
-
-                <div class="mt-6 rounded-md bg-blue-50 p-4 text-sm text-blue-700">
-                    <p>
-                        <strong>Important:</strong> Use the exact reference number when making your transfer.
-                        Your digital assets will be sent to your wallet once the payment is confirmed.
-                    </p>
-                </div>
-
-                {#if capabilities?.sandbox}
-                    <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
-                        <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
-                        <p class="mt-1 text-xs text-amber-700">
-                            Simulate a bank transfer being received by the anchor.
-                        </p>
-                        {#if fiatSimulated}
-                            <p class="mt-3 text-sm font-medium text-green-700">
-                                Fiat received simulated successfully.
-                            </p>
-                        {:else}
-                            <button
-                                onclick={simulateFiatReceived}
-                                disabled={isSimulatingFiat}
-                                class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                            >
-                                {isSimulatingFiat
-                                    ? 'Simulating...'
-                                    : 'Simulate Fiat Received (Sandbox)'}
-                            </button>
-                        {/if}
-                    </div>
-                {/if}
-
-                <div class="mt-6">
-                    {#if pollingTimedOut}
-                        <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
-                            <p class="font-medium">We haven't received confirmation yet</p>
-                            <p class="mt-1">
-                                Your transaction is still processing. You can close this page and
-                                check back later.
-                            </p>
-                            <div class="mt-3">
-                                <span class="text-xs text-amber-600">Transaction ID</span>
-                                <p class="mt-0.5"><CopyableField value={transaction.id} mono /></p>
-                            </div>
-                        </div>
-                    {:else}
-                        <p class="text-center text-sm text-gray-500">
-                            Waiting for payment confirmation... This page will update automatically.
-                        </p>
                     {/if}
+
+                    <div class="mt-6 rounded-md bg-blue-50 p-4 text-sm text-blue-700">
+                        <p>
+                            <strong>Important:</strong> Use the exact reference number when making your
+                            transfer. Your digital assets will be sent to your wallet once the payment
+                            is confirmed.
+                        </p>
+                    </div>
+
+                    {#if capabilities?.sandboxFiatSimulation}
+                        <div class="mt-6 rounded-lg border border-amber-300 bg-amber-100 p-4">
+                            <p class="text-sm font-medium text-amber-800">Sandbox Mode</p>
+                            <p class="mt-1 text-xs text-amber-700">
+                                Simulate a bank transfer being received by the anchor.
+                            </p>
+                            {#if fiatSimulated}
+                                <p class="mt-3 text-sm font-medium text-green-700">
+                                    Fiat received simulated successfully.
+                                </p>
+                            {:else}
+                                <button
+                                    onclick={simulateFiatReceived}
+                                    disabled={isSimulatingFiat}
+                                    class="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                                >
+                                    {isSimulatingFiat
+                                        ? 'Simulating...'
+                                        : 'Simulate Fiat Received (Sandbox)'}
+                                </button>
+                            {/if}
+                        </div>
+                    {/if}
+
+                    <div class="mt-6">
+                        {#if pollingTimedOut}
+                            <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+                                <p class="font-medium">We haven't received confirmation yet</p>
+                                <p class="mt-1">
+                                    Your transaction is still processing. You can close this page
+                                    and check back later.
+                                </p>
+                                <div class="mt-3">
+                                    <span class="text-xs text-amber-600">Transaction ID</span>
+                                    <p class="mt-0.5">
+                                        <CopyableField value={transaction.id} mono />
+                                    </p>
+                                </div>
+                            </div>
+                        {:else}
+                            <p class="text-center text-sm text-gray-500">
+                                Waiting for payment confirmation... This page will update
+                                automatically.
+                            </p>
+                        {/if}
+                    </div>
                 </div>
-            </div>
+            {/if}
         {/if}
     {:else if step === 'complete'}
         <CompletionStep

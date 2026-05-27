@@ -6,7 +6,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+import { requireProgrammatic, bearerToken, isValidProvider } from '$lib/server/anchorFactory';
 import { AnchorError } from '$lib/anchors/types';
 
 export const POST: RequestHandler = async ({ params, request }) => {
@@ -20,15 +20,18 @@ export const POST: RequestHandler = async ({ params, request }) => {
         const body = await request.json();
         const { email, country = 'MX', publicKey, name, taxId, taxIdCountry } = body;
 
-        const anchor = getAnchor(provider);
-        const customer = await anchor.createCustomer({
-            email,
-            country,
-            publicKey,
-            name,
-            taxId,
-            taxIdCountry,
-        });
+        const programmatic = requireProgrammatic(provider);
+        const customer = await programmatic.createCustomer(
+            {
+                email,
+                country,
+                publicKey,
+                name,
+                taxId,
+                taxIdCountry,
+            },
+            bearerToken(request),
+        );
 
         return json(customer, { status: 201 });
     } catch (err) {
@@ -39,7 +42,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
     }
 };
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
     const { provider } = params;
     const email = url.searchParams.get('email');
     const country = url.searchParams.get('country') || 'MX';
@@ -53,8 +56,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
     }
 
     try {
-        const anchor = getAnchor(provider);
-        const customer = await anchor.getCustomer({ email, country });
+        const programmatic = requireProgrammatic(provider);
+        const customer = await programmatic.getCustomer({ email, country }, bearerToken(request));
 
         if (!customer) {
             throw error(404, { message: 'Customer not found' });

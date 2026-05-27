@@ -6,10 +6,10 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAnchor, isValidProvider } from '$lib/server/anchorFactory';
+import { requireProgrammatic, bearerToken, isValidProvider } from '$lib/server/anchorFactory';
 import { AnchorError } from '$lib/anchors/types';
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
     const { provider } = params;
     const customerId = url.searchParams.get('customerId');
     const type = url.searchParams.get('type') || 'status';
@@ -21,22 +21,27 @@ export const GET: RequestHandler = async ({ params, url }) => {
     }
 
     try {
-        const anchor = getAnchor(provider);
+        const programmatic = requireProgrammatic(provider);
 
         if (type === 'requirements') {
-            if (!anchor.getKycRequirements) {
+            if (!programmatic.getKycRequirements) {
                 throw error(400, { message: 'Provider does not support KYC requirements' });
             }
-            const requirements = await anchor.getKycRequirements(country);
+            const requirements = await programmatic.getKycRequirements({
+                country,
+                auth: bearerToken(request),
+                customerId: customerId ?? undefined,
+                transactionId: url.searchParams.get('transactionId') ?? undefined,
+            });
             return json(requirements);
         }
 
         if (type === 'iframe') {
-            if (!anchor.getKycUrl) {
+            if (!programmatic.getKycUrl) {
                 throw error(501, { message: 'Provider does not support KYC URL generation' });
             }
             const bankAccountId = url.searchParams.get('bankAccountId') || undefined;
-            const kycUrl = await anchor.getKycUrl(customerId!, publicKey, bankAccountId);
+            const kycUrl = await programmatic.getKycUrl(customerId!, publicKey, bankAccountId);
             return json({ url: kycUrl });
         }
 
@@ -44,7 +49,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
         if (!customerId) {
             throw error(400, { message: 'customerId query parameter is required' });
         }
-        const status = await anchor.getKycStatus(customerId, publicKey);
+        const status = await programmatic.getKycStatus(customerId, publicKey, bearerToken(request));
         return json({ status });
     } catch (err) {
         if (err instanceof AnchorError) {
@@ -63,11 +68,11 @@ export const POST: RequestHandler = async ({ params, url, request }) => {
     }
 
     try {
-        const anchor = getAnchor(provider);
+        const programmatic = requireProgrammatic(provider);
 
         // Unified KYC submission via shared Anchor interface
         if (type === 'submit-kyc') {
-            if (!anchor.submitKyc) {
+            if (!programmatic.submitKyc) {
                 throw error(400, { message: 'Provider does not support KYC submission' });
             }
 
@@ -90,17 +95,21 @@ export const POST: RequestHandler = async ({ params, url, request }) => {
                     }
                 }
 
-                const result = await anchor.submitKyc(customerId, {
-                    fields,
-                    documents,
-                    metadata,
-                });
+                const result = await programmatic.submitKyc(
+                    customerId,
+                    {
+                        fields,
+                        documents,
+                        metadata,
+                    },
+                    bearerToken(request),
+                );
                 return json(result);
             } else {
                 // JSON body
                 const body = await request.json();
                 const { customerId, data } = body;
-                const result = await anchor.submitKyc(customerId, data);
+                const result = await programmatic.submitKyc(customerId, data, bearerToken(request));
                 return json(result);
             }
         }

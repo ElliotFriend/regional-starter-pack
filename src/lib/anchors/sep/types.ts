@@ -85,9 +85,12 @@ export interface Sep6AssetInfo {
 export interface Sep6DepositRequest {
     asset_code: string;
     account: string;
+    /** A deposit method supported by the anchor (e.g. `"bank_account"`). Per SEP-6 this is required. */
+    funding_method?: string;
     memo_type?: 'text' | 'id' | 'hash';
     memo?: string;
     email_address?: string;
+    /** @deprecated SEP-6 deprecated `type` in favor of {@link funding_method}. */
     type?: string;
     wallet_name?: string;
     wallet_url?: string;
@@ -120,7 +123,10 @@ export interface Sep6DepositResponse {
 
 export interface Sep6WithdrawRequest {
     asset_code: string;
-    type: string;
+    /** A withdrawal method supported by the anchor (e.g. `"bank_account"`). Per SEP-6 this is required. */
+    funding_method?: string;
+    /** @deprecated SEP-6 deprecated `type` in favor of {@link funding_method}. */
+    type?: string;
     dest?: string;
     dest_extra?: string;
     account?: string;
@@ -164,6 +170,8 @@ export interface Sep12CustomerRequest {
     memo_type?: 'text' | 'id' | 'hash';
     type?: string;
     lang?: string;
+    /** Transaction id, when requesting the fields a specific in-flight transaction still needs. */
+    transaction_id?: string;
 }
 
 export interface Sep12CustomerResponse {
@@ -428,6 +436,10 @@ export interface Sep6Transaction {
     withdraw_anchor_account?: string;
     withdraw_memo?: string;
     withdraw_memo_type?: 'text' | 'id' | 'hash';
+    /** Human-readable description of the info the anchor needs (with `pending_customer_info_update`). */
+    required_info_message?: string;
+    /** SEP-9 fields the anchor needs before it can proceed (with `pending_customer_info_update`). */
+    required_info_updates?: Record<string, Sep12Field>;
 }
 
 export interface Sep24Transaction extends Sep6Transaction {

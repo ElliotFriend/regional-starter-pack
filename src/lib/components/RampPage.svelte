@@ -5,6 +5,8 @@
     import { resolve } from '$app/paths';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { customerStore } from '$lib/stores/customer.svelte';
+    import { authStore } from '$lib/stores/auth';
+    import { signWithFreighter } from '$lib/wallet/freighter';
     import KycStatusDisplay from '$lib/components/KycStatusDisplay.svelte';
     import { KYC_STATUS, SUPPORTED_COUNTRIES, DEFAULT_COUNTRY } from '$lib/constants';
     import type { AnchorCapabilities, KycStatus } from '$lib/anchors/types';
@@ -13,14 +15,47 @@
 
     interface Props {
         children: Snippet;
+        controls?: Snippet;
+        gated?: boolean;
     }
 
-    let { children }: Props = $props();
+    let { children, controls, gated = true }: Props = $props();
 
     const direction = $derived<'onramp' | 'offramp'>(page.data.direction);
     const provider: string = $derived(page.data.anchor.id);
     const capabilities: AnchorCapabilities = $derived(page.data.capabilities);
     const anchorRegions: Region[] = $derived(page.data.regions ?? []);
+    const requiresWalletAuth = $derived(page.data.requiresWalletAuth);
+
+    /**
+     * Ensure a wallet-auth token is available for anchors that require the
+     * SEP-10 handshake. Reuses a cached (localStorage-backed) token when one is
+     * still valid, so the Freighter signing popup only appears when needed.
+     * Returns undefined for API-key anchors (e.g. Etherfuse), in which case all
+     * `api.*` calls receive `undefined` and behave unchanged.
+     *
+     * MUST only be called from user-initiated handlers (button clicks) — it may
+     * trigger a Freighter signing popup. Never call from an $effect.
+     */
+    async function ensureAuth(): Promise<string | undefined> {
+        if (!requiresWalletAuth) return undefined;
+        if (!walletStore.publicKey) return undefined;
+        const cached = authStore.get(provider, walletStore.publicKey);
+        if (cached) return cached;
+        const challenge = await api.getAuthChallenge(fetch, provider, walletStore.publicKey);
+        const { signedXdr } = await signWithFreighter(
+            challenge.transactionXdr,
+            walletStore.network,
+        );
+        const token = (await api.submitAuthChallenge(fetch, provider, signedXdr)).token;
+        authStore.set(provider, walletStore.publicKey, token);
+        return token;
+    }
+
+    /** Cached SEP-10 token for non-interactive reads (no popup), if one exists. */
+    function cachedAuth(): string | undefined {
+        return walletStore.publicKey ? authStore.get(provider, walletStore.publicKey) : undefined;
+    }
 
     // Country options shown in the registration dropdown — narrowed to the
     // regions this anchor actually supports.
@@ -104,6 +139,7 @@
             customerStore.load(pk, provider);
         } else {
             customerStore.clear();
+            authStore.clear();
         }
     });
 
@@ -162,6 +198,7 @@
         registrationError = null;
 
         try {
+            const auth = await ensureAuth();
             // Get or create customer — skip email lookup for providers that don't support it
             const customer = await api.getOrCreateCustomer(
                 fetch,
@@ -171,6 +208,7 @@
                 {
                     supportsEmailLookup: capabilities.emailLookup,
                     publicKey: walletStore.publicKey,
+                    auth,
                 },
             );
             customerStore.set(customer);
@@ -204,6 +242,7 @@
                 provider,
                 customer.id,
                 walletStore.publicKey ?? undefined,
+                cachedAuth(),
             );
             const mapped = status as KycStatus;
             customerStore.updateKycStatus(mapped);
@@ -237,6 +276,7 @@
                 provider,
                 customerId,
                 walletStore.publicKey ?? undefined,
+                cachedAuth(),
             );
             const mapped = status as KycStatus;
             customerStore.updateKycStatus(mapped);
@@ -252,6 +292,7 @@
 
         isRefreshingKycStatus = true;
         try {
+            await ensureAuth();
             const status = await checkIframeKycStatus(customer.id);
             if (status === KYC_STATUS.APPROVED) {
                 showKyc = false;
@@ -270,6 +311,11 @@
     }
 
     async function handleRefreshKycStatus() {
+        try {
+            await ensureAuth();
+        } catch (err) {
+            console.error('Wallet auth failed:', err);
+        }
         await checkAndUpdateKycStatus();
     }
 </script>
@@ -291,8 +337,12 @@
     {/if}
 </p>
 
+{@render controls?.()}
+
 <div class="mt-8">
-    {#if currentStep === 'connect'}
+    {#if !gated}
+        {@render children()}
+    {:else if currentStep === 'connect'}
         <div
             class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
         >
@@ -441,6 +491,40 @@
                     {isRefreshingKycStatus ? 'Checking...' : 'Refresh KYC Status'}
                 </button>
             </div>
+        {:else if capabilities.kycFlow === 'redirect'}
+            <div
+                class="mx-auto max-w-lg rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm"
+            >
+                <div
+                    class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100"
+                >
+                    <svg
+                        class="h-6 w-6 text-indigo-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                    </svg>
+                </div>
+                <h2 class="mt-4 text-lg font-semibold text-gray-900">Complete Verification</h2>
+                <p class="mt-2 text-sm text-gray-500">
+                    Complete the verification process with the anchor, then come back here and
+                    refresh your status.
+                </p>
+
+                <button
+                    onclick={handleRefreshKycStatus}
+                    class="mt-6 w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    Refresh KYC Status
+                </button>
+            </div>
         {:else}
             <!-- Form-based KYC -->
             <KycStatusDisplay
@@ -452,6 +536,7 @@
                 onKycComplete={handleKycComplete}
                 onShowKyc={() => (showKyc = true)}
                 onRefreshStatus={handleRefreshKycStatus}
+                {ensureAuth}
             />
         {/if}
     {:else}

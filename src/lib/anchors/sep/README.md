@@ -156,6 +156,7 @@ const info = await sep6.getInfo(sep6Server);
 const deposit = await sep6.deposit(sep6Server, token, {
     asset_code: 'USDC',
     account: userPublicKey,
+    funding_method: 'bank_account', // SEP-6 param (replaces the deprecated `type`)
     amount: '100',
 });
 // deposit.how, deposit.instructions, deposit.eta, etc.
@@ -163,7 +164,7 @@ const deposit = await sep6.deposit(sep6Server, token, {
 // Initiate a withdrawal — returns the Stellar account to send funds to
 const withdrawal = await sep6.withdraw(sep6Server, token, {
     asset_code: 'USDC',
-    type: 'bank_account',
+    funding_method: 'bank_account', // SEP-6 param (replaces the deprecated `type`)
     dest: '123456789',
 });
 // withdrawal.account_id, withdrawal.memo, withdrawal.memo_type

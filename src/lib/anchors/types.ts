@@ -102,12 +102,41 @@ export interface PixPaymentInstructions extends PaymentInstructionsBase {
     beneficiary?: string;
 }
 
+/** A single labelled instruction field (e.g. a SEP-6 deposit instruction). */
+export interface PaymentInstructionField {
+    /** Machine-readable field key (e.g. `"bank_number"`). */
+    key: string;
+    /** Human-readable label. */
+    label: string;
+    /** The value the user should use. */
+    value: string;
+    /** Optional extra description. */
+    description?: string;
+}
+
+/**
+ * Generic, rail-agnostic payment instructions — an ordered list of labelled
+ * fields. Used by anchors whose deposit instructions don't map to a specific
+ * named rail (e.g. SEP-6 `instructions`).
+ */
+export interface GenericPaymentInstructions extends PaymentInstructionsBase {
+    /** Discriminant for generic instructions. */
+    type: 'generic';
+    /** Optional human-readable summary of how to pay (e.g. SEP-6 `how`). */
+    how?: string;
+    /** Ordered instruction fields to display. */
+    fields: PaymentInstructionField[];
+}
+
 // Ready to add when needed:
 // interface AchPaymentInstructions extends PaymentInstructionsBase { type: 'ach'; routingNumber: string; accountNumber: string; }
 // interface SwiftPaymentInstructions extends PaymentInstructionsBase { type: 'swift'; swiftCode: string; iban: string; }
 
 /** Discriminated union of payment instructions for all supported rails. */
-export type PaymentInstructions = SpeiPaymentInstructions | PixPaymentInstructions;
+export type PaymentInstructions =
+    | SpeiPaymentInstructions
+    | PixPaymentInstructions
+    | GenericPaymentInstructions;
 
 // =============================================================================
 // Fiat Account types — discriminated union by rail type
@@ -232,6 +261,22 @@ export interface OnRampTransaction {
     stellarTxHash?: string;
     /** URL for anchor-hosted interactive flow (e.g. SEP-24). */
     interactiveUrl?: string;
+    /** Human-readable status message from the anchor, if provided (e.g. SEP-6 `message`). */
+    message?: string;
+    /**
+     * Customer info the anchor needs before it can proceed (e.g. SEP-6
+     * `pending_customer_info_update`). When present, the app should collect these
+     * fields and submit them via {@link ProgrammaticOps.submitKyc} (passing the
+     * transaction id), then resume polling. Absent in the normal happy path.
+     */
+    requiredInfo?: KycRequirements;
+    /**
+     * Whether the transaction is parked awaiting a customer-info update (SEP-6
+     * `pending_customer_info_update`). When `true` but {@link requiredInfo} is
+     * absent, the required info has already been submitted and the anchor has not
+     * yet advanced the transaction — the app may offer the user a retry.
+     */
+    awaitingCustomerInfo?: boolean;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
@@ -274,6 +319,22 @@ export interface OffRampTransaction {
     statusPage?: string;
     /** URL for anchor-hosted interactive flow (e.g. SEP-24). */
     interactiveUrl?: string;
+    /** Human-readable status message from the anchor, if provided (e.g. SEP-6 `message`). */
+    message?: string;
+    /**
+     * Customer info the anchor needs before it can proceed (e.g. SEP-6
+     * `pending_customer_info_update`). When present, the app should collect these
+     * fields and submit them via {@link ProgrammaticOps.submitKyc} (passing the
+     * transaction id), then resume polling. Absent in the normal happy path.
+     */
+    requiredInfo?: KycRequirements;
+    /**
+     * Whether the transaction is parked awaiting a customer-info update (SEP-6
+     * `pending_customer_info_update`). When `true` but {@link requiredInfo} is
+     * absent, the required info has already been submitted and the anchor has not
+     * yet advanced the transaction — the app may offer the user a retry.
+     */
+    awaitingCustomerInfo?: boolean;
     /** ISO 8601 creation timestamp. */
     createdAt: string;
     /** ISO 8601 last-update timestamp. */
@@ -436,6 +497,8 @@ export interface KycDocumentRequirement {
     accept?: string;
     /** How the document is provided: direct file upload or a URL reference. */
     mode: 'file_upload' | 'url_reference';
+    /** Whether this document must be provided. Treated as required when omitted. */
+    required?: boolean;
 }
 
 /** The full set of fields and documents required for KYC by an anchor. */
@@ -444,6 +507,24 @@ export interface KycRequirements {
     fields: KycFieldRequirement[];
     /** Documents the user must provide. */
     documents: KycDocumentRequirement[];
+    /** Optional human-readable message from the anchor about what it needs. */
+    message?: string;
+}
+
+/**
+ * Context for {@link ProgrammaticOps.getKycRequirements}. Some anchors return a
+ * static field set; others discover the fields a specific (authenticated)
+ * customer or in-flight transaction still needs via SEP-12.
+ */
+export interface KycRequirementsQuery {
+    /** ISO 3166-1 alpha-2 country code, for anchors with country-specific requirements. */
+    country?: string;
+    /** SEP-10 session token, for anchors that discover requirements per authenticated customer. */
+    auth?: string;
+    /** Customer/account identifier, when requirements depend on the specific customer. */
+    customerId?: string;
+    /** Transaction id, when an in-flight transaction needs additional info (SEP-6 `pending_customer_info_update`). */
+    transactionId?: string;
 }
 
 /** User-submitted KYC data (fields + documents) for {@link Anchor.submitKyc}. */
@@ -497,11 +578,186 @@ export interface AnchorCapabilities {
     /** Whether the anchor has sandbox simulation support. */
     sandbox?: boolean;
     /**
+     * Whether the anchor exposes a sandbox "fiat received" simulation for the
+     * programmatic on-ramp (the `simulateFiatReceived` action on the
+     * `/api/anchor/[provider]/sandbox` route). Distinct from {@link sandbox}:
+     * an anchor can be sandbox-backed (e.g. for KYC test data) without offering
+     * this particular deposit-confirmation simulation.
+     */
+    sandboxFiatSimulation?: boolean;
+    /**
      * How new fiat/bank accounts are registered.
-     * - `'inline'` (default) — partner code submits account details via {@link Anchor.registerFiatAccount}.
-     * - `'hosted'` — registration happens in the anchor's hosted onboarding UI; partner code only requests a presigned URL via {@link Anchor.getKycUrl} and the user fills in account details there.
+     * - `'inline'` (default) — partner code submits account details via {@link ProgrammaticOps.registerFiatAccount}.
+     * - `'hosted'` — registration happens in the anchor's hosted onboarding UI; partner code only requests a presigned URL via {@link ProgrammaticOps.getKycUrl} and the user fills in account details there.
      */
     fiatAccountRegistration?: 'inline' | 'hosted';
+    /**
+     * Which ramp flow archetypes this anchor supports, mirroring the facets it
+     * implements: `'programmatic'` (the {@link ProgrammaticOps} / SEP-6 archetype)
+     * and/or `'interactive'` (the {@link InteractiveOps} / SEP-24 archetype).
+     * Used by the UI to decide which flow to present (and which to default to
+     * when both are available).
+     */
+    flowStyles?: readonly ('programmatic' | 'interactive')[];
+}
+
+// =============================================================================
+// Wallet auth & interactive (hosted-flow) types
+// =============================================================================
+
+/** A wallet-signature authentication challenge (SEP-10). */
+export interface AuthChallenge {
+    /** Base64 XDR of the challenge transaction the wallet must sign. */
+    transactionXdr: string;
+    /** Network passphrase the challenge must be signed against. */
+    networkPassphrase: string;
+}
+
+/** An authenticated session token (e.g. a SEP-10 JWT). */
+export interface AuthSession {
+    /** Bearer token used to authorize subsequent facet calls (programmatic or interactive). */
+    token: string;
+}
+
+/** Input for starting an interactive on/off-ramp session. */
+export interface StartInteractiveInput {
+    /** Crypto asset code (e.g. `"USDC"`, `"SRT"`). */
+    assetCode: string;
+    /** Stellar asset issuer; absent for native XLM. */
+    assetIssuer?: string;
+    /** Stellar account that will receive (on-ramp) or send (off-ramp) the asset. */
+    account: string;
+    /** Optional amount to pre-fill in the hosted UI. */
+    amount?: string;
+    /** Session token from {@link WalletAuthOps.submitChallenge}, when the provider requires it. */
+    auth?: string;
+}
+
+/** A started interactive session: a hosted URL plus a transaction id to poll. */
+export interface InteractiveSession {
+    /** URL of the anchor-hosted interactive flow (open in popup/iframe/redirect). */
+    interactiveUrl: string;
+    /** Transaction id to poll via the facet's `get*Transaction` methods. */
+    transactionId: string;
+}
+
+// =============================================================================
+// Capability facets
+// =============================================================================
+
+/**
+ * Wallet-based authentication operations (SEP-10).
+ *
+ * Present when the anchor authenticates the end user via their Stellar wallet
+ * signature rather than server-side credentials. The handshake is split so the
+ * signing step can happen client-side (e.g. Freighter): request a challenge,
+ * sign it in the wallet, then exchange the signed challenge for a session token
+ * that is threaded into subsequent facet calls via their `auth` parameter.
+ *
+ * Omitted by anchors that authenticate server-side (e.g. Etherfuse's API key,
+ * or an HMAC merchant secret).
+ */
+export interface WalletAuthOps {
+    /** Request a challenge transaction for the given account to sign. */
+    getChallenge(account: string): Promise<AuthChallenge>;
+    /** Exchange a wallet-signed challenge for a session token (SEP-10 JWT). */
+    submitChallenge(signedTransactionXdr: string): Promise<AuthSession>;
+}
+
+/**
+ * Programmatic (API-orchestrated) ramp operations — the SEP-6 archetype.
+ *
+ * The partner app collects customer, KYC, and fiat-account details itself and
+ * drives the flow via these methods, rendering payment instructions in its own
+ * UI. Implemented by providers like Etherfuse.
+ */
+export interface ProgrammaticOps {
+    /**
+     * Create a new customer with the anchor provider.
+     * @param auth - Session token for wallet-authenticated anchors (see {@link Anchor.auth}); ignored by API-key anchors.
+     * @throws {AnchorError} On validation failure or API error.
+     */
+    createCustomer(input: CreateCustomerInput, auth?: string): Promise<Customer>;
+
+    /**
+     * Look up an existing customer by ID or email.
+     * @returns The customer, or `null` if not found.
+     */
+    getCustomer(input: GetCustomerInput, auth?: string): Promise<Customer | null>;
+
+    /** Request a currency conversion quote with rate, fees, and expiration. */
+    getQuote(input: GetQuoteInput, auth?: string): Promise<Quote>;
+
+    /** Create an on-ramp (fiat → crypto) transaction, typically with payment instructions. */
+    createOnRamp(input: CreateOnRampInput, auth?: string): Promise<OnRampTransaction>;
+
+    /** Fetch the current state of an on-ramp transaction, or `null` if not found. */
+    getOnRampTransaction(transactionId: string, auth?: string): Promise<OnRampTransaction | null>;
+
+    /**
+     * Register a fiat bank account for a customer. Optional — anchors with
+     * `capabilities.fiatAccountRegistration === 'hosted'` register accounts via
+     * their hosted onboarding UI instead and may omit this method.
+     */
+    registerFiatAccount?(
+        input: RegisterFiatAccountInput,
+        auth?: string,
+    ): Promise<RegisteredFiatAccount>;
+
+    /** List all registered fiat accounts for a customer (empty if none). */
+    getFiatAccounts(customerId: string, auth?: string): Promise<SavedFiatAccount[]>;
+
+    /** Create an off-ramp (crypto → fiat) transaction. */
+    createOffRamp(input: CreateOffRampInput, auth?: string): Promise<OffRampTransaction>;
+
+    /** Fetch the current state of an off-ramp transaction, or `null` if not found. */
+    getOffRampTransaction(transactionId: string, auth?: string): Promise<OffRampTransaction | null>;
+
+    /** Get a URL for an interactive KYC/onboarding flow (iframe, redirect, or ToS page). */
+    getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
+
+    /** Get the current KYC verification status for a customer. */
+    getKycStatus(customerId: string, publicKey?: string, auth?: string): Promise<KycStatus>;
+
+    /**
+     * Get the KYC field and document requirements. Anchors may return a static
+     * set, or — given a session token in {@link KycRequirementsQuery.auth} —
+     * discover the fields the specific customer (or in-flight transaction) still
+     * needs via SEP-12.
+     */
+    getKycRequirements?(query?: KycRequirementsQuery): Promise<KycRequirements>;
+
+    /** Submit KYC data and documents for a customer. */
+    submitKyc?(
+        customerId: string,
+        data: KycSubmissionData,
+        auth?: string,
+    ): Promise<KycSubmissionResult>;
+}
+
+/**
+ * Interactive (hosted-UI) ramp operations — the SEP-24 archetype.
+ *
+ * The anchor hosts the full customer-facing flow (KYC, amount entry, payment
+ * method). The partner app authenticates, starts a session, hands the user the
+ * hosted URL, and polls for status. Implemented by SEP-24 anchors (test anchor)
+ * and hosted-widget providers (e.g. Coins.ph).
+ */
+export interface InteractiveOps {
+    /** Optional pre-flight price quote (e.g. SEP-38). */
+    getQuote?(input: GetQuoteInput, auth?: string): Promise<Quote>;
+
+    /** Start an interactive on-ramp (fiat → crypto) session. */
+    startOnRamp(input: StartInteractiveInput): Promise<InteractiveSession>;
+
+    /** Fetch the current state of an on-ramp transaction, or `null` if not found. */
+    getOnRampTransaction(transactionId: string, auth?: string): Promise<OnRampTransaction | null>;
+
+    /** Start an interactive off-ramp (crypto → fiat) session. */
+    startOffRamp(input: StartInteractiveInput): Promise<InteractiveSession>;
+
+    /** Fetch the current state of an off-ramp transaction, or `null` if not found. */
+    getOffRampTransaction(transactionId: string, auth?: string): Promise<OffRampTransaction | null>;
 }
 
 // =============================================================================
@@ -511,15 +767,20 @@ export interface AnchorCapabilities {
 /**
  * Unified interface for fiat on/off ramp anchor providers.
  *
- * Each anchor implementation wraps a provider-specific REST API and maps
- * responses to the shared types defined in this module. The interface covers
- * the full lifecycle: customer creation, KYC, quoting, on-ramp, off-ramp,
- * and fiat account management.
+ * An anchor exposes shared identity/metadata plus one or both capability facets:
+ *   - {@link ProgrammaticOps} (`programmatic`) — SEP-6-style, app-orchestrated.
+ *   - {@link InteractiveOps} (`interactive`) — SEP-24-style, anchor-hosted.
+ *
+ * At least one of `programmatic`/`interactive` must be present. Consumers narrow
+ * on facet presence, e.g. `if (anchor.interactive) { ... }`. A single provider
+ * may implement both (the test anchor exposes SEP-6 and SEP-24). The optional
+ * `auth` facet is orthogonal: present for wallet-authenticated anchors and used
+ * by either flow.
  */
 export interface Anchor {
-    /** Machine-readable provider identifier (e.g. `"etherfuse"`, `"alfredpay"`). */
+    /** Machine-readable provider identifier (e.g. `"etherfuse"`, `"testanchor"`). */
     readonly name: string;
-    /** Human-readable provider name for display (e.g. `"Etherfuse"`, `"Alfred Pay"`). */
+    /** Human-readable provider name for display (e.g. `"Etherfuse"`). */
     readonly displayName: string;
     /** Runtime capability flags describing this provider's features and requirements. */
     readonly capabilities: AnchorCapabilities;
@@ -530,115 +791,12 @@ export interface Anchor {
     /** Payment rail identifiers supported by this provider (e.g. `["spei"]`). */
     readonly supportedRails: readonly string[];
 
-    /**
-     * Create a new customer with the anchor provider.
-     * @param input - Customer details (email, country, public key).
-     * @returns The created customer.
-     * @throws {AnchorError} On validation failure or API error.
-     */
-    createCustomer(input: CreateCustomerInput): Promise<Customer>;
-
-    /**
-     * Look up an existing customer by ID or email.
-     * @param input - Lookup criteria (customer ID, email, or both).
-     * @returns The customer, or `null` if not found.
-     * @throws {AnchorError} On validation failure or API error.
-     */
-    getCustomer(input: GetCustomerInput): Promise<Customer | null>;
-
-    /**
-     * Request a currency conversion quote.
-     * @param input - Currency pair, amount, and optional context (customer, wallet).
-     * @returns A quote with rate, fees, and expiration.
-     * @throws {AnchorError} On API error.
-     */
-    getQuote(input: GetQuoteInput): Promise<Quote>;
-
-    /**
-     * Create an on-ramp (fiat → crypto) transaction.
-     * @param input - Customer, quote, amount, and destination Stellar address.
-     * @returns The created transaction, typically with payment instructions.
-     * @throws {AnchorError} On API error.
-     */
-    createOnRamp(input: CreateOnRampInput): Promise<OnRampTransaction>;
-
-    /**
-     * Fetch the current state of an on-ramp transaction.
-     * @param transactionId - The transaction's unique identifier.
-     * @returns The transaction, or `null` if not found.
-     * @throws {AnchorError} On API error.
-     */
-    getOnRampTransaction(transactionId: string): Promise<OnRampTransaction | null>;
-
-    /**
-     * Register a fiat bank account for a customer. Optional — anchors with
-     * `capabilities.fiatAccountRegistration === 'hosted'` register accounts via
-     * their hosted onboarding UI instead and may omit this method.
-     * @param input - Customer ID and bank account details.
-     * @returns The newly registered account.
-     * @throws {AnchorError} On API error.
-     */
-    registerFiatAccount?(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount>;
-
-    /**
-     * List all registered fiat accounts for a customer.
-     * @param customerId - The customer's unique identifier.
-     * @returns Array of saved fiat accounts (empty if none found).
-     * @throws {AnchorError} On API error.
-     */
-    getFiatAccounts(customerId: string): Promise<SavedFiatAccount[]>;
-
-    /**
-     * Create an off-ramp (crypto → fiat) transaction.
-     * @param input - Customer, quote, amount, fiat account, and source Stellar address.
-     * @returns The created transaction.
-     * @throws {AnchorError} On API error.
-     */
-    createOffRamp(input: CreateOffRampInput): Promise<OffRampTransaction>;
-
-    /**
-     * Fetch the current state of an off-ramp transaction.
-     * @param transactionId - The transaction's unique identifier.
-     * @returns The transaction, or `null` if not found.
-     * @throws {AnchorError} On API error.
-     */
-    getOffRampTransaction(transactionId: string): Promise<OffRampTransaction | null>;
-
-    /**
-     * Get a URL for an interactive KYC/onboarding flow (iframe, redirect, or ToS page).
-     * @param customerId - The customer's unique identifier.
-     * @param publicKey - Stellar public key (required by some providers).
-     * @param bankAccountId - Bank account to associate (required by some providers).
-     * @returns The KYC URL string.
-     * @throws {AnchorError} On API error.
-     */
-    getKycUrl?(customerId: string, publicKey?: string, bankAccountId?: string): Promise<string>;
-
-    /**
-     * Get the current KYC verification status for a customer.
-     * @param customerId - The customer's unique identifier.
-     * @param publicKey - Stellar public key (required by some providers).
-     * @returns The customer's KYC status.
-     * @throws {AnchorError} On API error.
-     */
-    getKycStatus(customerId: string, publicKey?: string): Promise<KycStatus>;
-
-    /**
-     * Get the KYC field and document requirements for a country.
-     * @param country - ISO 3166-1 alpha-2 country code. Defaults vary by provider.
-     * @returns The required fields and documents.
-     * @throws {AnchorError} On API error.
-     */
-    getKycRequirements?(country?: string): Promise<KycRequirements>;
-
-    /**
-     * Submit KYC data and documents for a customer.
-     * @param customerId - The customer's unique identifier.
-     * @param data - Form fields, documents, and optional metadata.
-     * @returns The submission result with updated KYC status.
-     * @throws {AnchorError} On validation failure or API error.
-     */
-    submitKyc?(customerId: string, data: KycSubmissionData): Promise<KycSubmissionResult>;
+    /** Wallet-based (SEP-10) authentication, if the anchor authenticates the end user via their wallet. */
+    readonly auth?: WalletAuthOps;
+    /** Programmatic (SEP-6-style) operations, if supported. */
+    readonly programmatic?: ProgrammaticOps;
+    /** Interactive (SEP-24-style) operations, if supported. */
+    readonly interactive?: InteractiveOps;
 }
 
 /**

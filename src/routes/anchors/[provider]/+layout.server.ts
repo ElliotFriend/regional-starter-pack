@@ -43,10 +43,19 @@ export const load: LayoutServerLoad = ({ params, url }) => {
         activeCapability?.tokens[0] ?? instance.supportedTokens[0]?.symbol ?? 'USDC';
     const paymentRail = activeCapability?.paymentRails[0] ?? 'spei';
 
+    // Which ramp archetypes this anchor exposes (mirrors its facets), plus
+    // whether it uses wallet-based (SEP-10) auth. Drives flow selection in the UI.
+    const flowStyles = instance.capabilities.flowStyles ?? [
+        ...(instance.programmatic ? (['programmatic'] as const) : []),
+        ...(instance.interactive ? (['interactive'] as const) : []),
+    ];
+
     return {
         anchor: profile,
         displayName: instance.displayName,
         capabilities: instance.capabilities,
+        flowStyles: [...flowStyles],
+        requiresWalletAuth: !!instance.auth,
         supportedTokens: [...instance.supportedTokens],
         supportedRails: [...instance.supportedRails],
         regions: getRegionsForAnchor(anchorId),
