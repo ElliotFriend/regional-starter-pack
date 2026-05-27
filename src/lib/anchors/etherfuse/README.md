@@ -69,30 +69,38 @@ Optional config fields:
 
 ```typescript
 readonly capabilities: AnchorCapabilities = {
-    kycUrl: true,                   // Supports URL-based KYC (iframe/redirect)
-    requiresOffRampSigning: true,   // Off-ramp requires wallet-side XDR signing
-    kycFlow: 'iframe',              // KYC is presented in an iframe
-    deferredOffRampSigning: true,   // Signable XDR arrives via polling, not at creation time
-    sandbox: true,                  // Sandbox simulation endpoints available
-    displayName: 'Etherfuse',       // Human-readable name for UI labels
+    kycUrl: true,                       // Supports URL-based KYC (iframe/redirect)
+    requiresOffRampSigning: true,       // Off-ramp requires wallet-side XDR signing
+    kycFlow: 'iframe',                  // KYC is presented in an iframe
+    deferredOffRampSigning: true,       // Signable XDR arrives via polling, not at creation time
+    sandbox: true,                      // Sandbox simulation endpoints available
+    sandboxFiatSimulation: true,        // Exposes the "fiat received" on-ramp simulation
+    fiatAccountRegistration: 'hosted',  // Bank accounts are registered in the hosted onboarding UI
+    flowStyles: ['programmatic'],       // Implements the programmatic (SEP-6-style) facet only
 };
 ```
 
-| Flag                     | Effect                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------- |
-| `kycFlow: 'iframe'`      | The UI renders an iframe with the KYC URL from `getKycUrl()`                                      |
-| `deferredOffRampSigning` | Off-ramp enters a polling state after order creation, waiting for `signableTransaction` to appear |
-| `sandbox`                | Sandbox controls (e.g. "Simulate Fiat Received") are shown in the UI                              |
-| `displayName`            | Used in UI labels like "View on Etherfuse"                                                        |
+| Flag                                | Effect                                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `kycFlow: 'iframe'`                 | The UI renders an iframe with the KYC URL from `getKycUrl()`                                      |
+| `deferredOffRampSigning`            | Off-ramp enters a polling state after order creation, waiting for `signableTransaction` to appear |
+| `sandbox`                           | Sandbox controls (e.g. "Simulate Fiat Received") are shown in the UI                              |
+| `sandboxFiatSimulation`             | Enables the `simulateFiatReceived` action on the sandbox route                                    |
+| `fiatAccountRegistration: 'hosted'` | Bank accounts are registered in the hosted onboarding UI, not via `registerFiatAccount`           |
+| `flowStyles: ['programmatic']`      | App-orchestrated flow; the UI presents the programmatic ramp, not an anchor-hosted one            |
+
+`displayName` (`"Etherfuse"`) is a top-level `Anchor` field, not a capability — it drives UI labels like "View on Etherfuse".
 
 ## Core Flows
+
+The portable `Anchor` surface lives on the **`programmatic` facet** — call these via `etherfuse.programmatic.*` (e.g. `etherfuse.programmatic.createCustomer(...)`). The server factory exposes `requireProgrammatic(provider)` to get this facet directly. Etherfuse-specific extras that aren't part of the `Anchor` interface (`submitKycIdentity`, `submitKycDocuments`, `acceptAgreements`, `getAssets`, `simulateFiatReceived`) are public methods called directly on the client.
 
 ### 1. Create a Customer
 
 Customer creation doubles as onboarding - it registers the user with Etherfuse and generates a presigned onboarding URL behind the scenes. A `publicKey` (the user's Stellar wallet address) is required because Etherfuse ties each customer to a unique key.
 
 ```typescript
-const customer = await etherfuse.createCustomer({
+const customer = await etherfuse.programmatic.createCustomer({
     email: 'user@example.com',
     publicKey: 'G...', // user's Stellar public key
 });
@@ -105,7 +113,7 @@ If the public key is already registered (HTTP 409), the client automatically rec
 Lookup an existing customer:
 
 ```typescript
-const customer = await etherfuse.getCustomer({ customerId }); // returns null if not found
+const customer = await etherfuse.programmatic.getCustomer({ customerId }); // returns null if not found
 ```
 
 > **Note:** Etherfuse only supports ID-based lookup. Calling `getCustomer({ email })` without a `customerId` will throw an `AnchorError`.
@@ -117,33 +125,45 @@ Etherfuse supports two KYC approaches:
 **Redirect-based (recommended):** Generate a presigned URL and redirect the user. They complete identity verification and link a bank account within the Etherfuse UI.
 
 ```typescript
-const url = await etherfuse.getKycUrl(customerId, publicKey, bankAccountId);
+const url = await etherfuse.programmatic.getKycUrl(customerId, publicKey, bankAccountId);
 // Redirect or embed the URL for the user to complete KYC and accept agreements
 ```
 
-**Programmatic:** Collect identity data in your own UI and submit it via API. This pre-populates the KYC process on the user's behalf.
+**Programmatic:** Collect identity data in your own UI and submit it via API. This pre-populates the KYC process on the user's behalf. Both methods take `(customerId, body)`, where the body carries the wallet `pubkey`.
 
 ```typescript
 // Submit personal information
-await etherfuse.submitKycIdentity(customerId, publicKey, {
-    firstName: 'Jane',
-    lastName: 'Doe',
-    dateOfBirth: '1990-01-15',
-    country: 'MX',
-    city: 'Mexico City',
-    state: 'CDMX',
-    address: '123 Main St',
-    zipCode: '06600',
-    phoneNumber: '+525512345678',
-    nationalId: 'CURP_NUMBER',
+await etherfuse.submitKycIdentity(customerId, {
+    pubkey: 'G...',
+    identity: {
+        id: 'G...', // typically the pubkey
+        name: { givenName: 'Jane', familyName: 'Doe' },
+        dateOfBirth: '1990-01-15',
+        address: {
+            street: '123 Main St',
+            city: 'Mexico City',
+            region: 'CDMX',
+            postalCode: '06600',
+            country: 'MX',
+        },
+        idNumbers: [{ value: 'CURP_NUMBER', type: 'CURP' }],
+    },
 });
 
-// Upload identity documents
-await etherfuse.submitKycDocuments(customerId, publicKey, [
-    { documentType: 'national_id_front', documentData: base64Front, contentType: 'image/jpeg' },
-    { documentType: 'national_id_back', documentData: base64Back, contentType: 'image/jpeg' },
-    { documentType: 'selfie', documentData: base64Selfie, contentType: 'image/jpeg' },
-]);
+// Upload identity documents — call once for ID images, once for the selfie
+await etherfuse.submitKycDocuments(customerId, {
+    pubkey: 'G...',
+    documentType: 'document',
+    images: [
+        { label: 'id_front', image: 'data:image/jpeg;base64,...' },
+        { label: 'id_back', image: 'data:image/jpeg;base64,...' },
+    ],
+});
+await etherfuse.submitKycDocuments(customerId, {
+    pubkey: 'G...',
+    documentType: 'selfie',
+    images: [{ label: 'selfie', image: 'data:image/jpeg;base64,...' }],
+});
 ```
 
 Accept legal agreements via the presigned onboarding URL:
@@ -155,7 +175,7 @@ await etherfuse.acceptAgreements(presignedUrl);
 Check KYC status at any time:
 
 ```typescript
-const status = await etherfuse.getKycStatus(customerId, publicKey);
+const status = await etherfuse.programmatic.getKycStatus(customerId, publicKey);
 // 'not_started' | 'pending' | 'approved' | 'rejected'
 ```
 
@@ -164,7 +184,7 @@ const status = await etherfuse.getKycStatus(customerId, publicKey);
 Quotes expire after **2 minutes**. Request a new one if the user takes longer to confirm.
 
 ```typescript
-const quote = await etherfuse.getQuote({
+const quote = await etherfuse.programmatic.getQuote({
     fromCurrency: 'MXN',
     toCurrency: 'CETES', // resolved to CODE:ISSUER automatically
     fromAmount: '1000',
@@ -182,7 +202,7 @@ User pays fiat via SPEI (Mexico) or PIX (Brazil) and receives stablebond tokens 
 
 ```typescript
 // Mexico: MXN → CETES via SPEI
-const tx = await etherfuse.createOnRamp({
+const tx = await etherfuse.programmatic.createOnRamp({
     customerId: customer.id,
     quoteId: quote.id,
     fromCurrency: 'MXN',
@@ -192,7 +212,7 @@ const tx = await etherfuse.createOnRamp({
 });
 
 // Brazil: BRL → TESOURO via PIX
-const tx = await etherfuse.createOnRamp({
+const tx = await etherfuse.programmatic.createOnRamp({
     customerId: customer.id,
     quoteId: quote.id,
     fromCurrency: 'BRL',
@@ -207,7 +227,7 @@ const tx = await etherfuse.createOnRamp({
 The user completes the fiat transfer using the rail-appropriate details. Once Etherfuse confirms receipt, the order moves to `funded` and the crypto asset is minted/transferred to the user's Stellar wallet. Poll for status updates:
 
 ```typescript
-const updated = await etherfuse.getOnRampTransaction(tx.id);
+const updated = await etherfuse.programmatic.getOnRampTransaction(tx.id);
 // updated.status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'refunded'
 ```
 
@@ -215,35 +235,16 @@ const updated = await etherfuse.getOnRampTransaction(tx.id);
 
 User burns crypto tokens on Stellar and receives fiat to their bank account via SPEI (Mexico) or PIX (Brazil). The off-ramp flow has a **deferred signing** step — the burn transaction XDR is not included in the creation response and must be polled for.
 
-```typescript
-// Register a Mexican (SPEI) bank account
-const account = await etherfuse.registerFiatAccount({
-    customerId: customer.id,
-    publicKey: 'G...',
-    account: {
-        type: 'spei',
-        bankName: 'BBVA',
-        clabe: '012345678901234567',
-        beneficiary: 'Jane Doe',
-    },
-});
+Bank-account registration is **hosted** (`fiatAccountRegistration: 'hosted'`) — Etherfuse does not implement `registerFiatAccount`. The user links their bank account inside the same hosted onboarding UI used for KYC. Request a presigned URL with `getKycUrl()` (see [KYC Verification](#2-kyc-verification)) and let the user add their SPEI or PIX account there, then list the saved account to get its ID:
 
-// ... or a Brazilian (PIX) bank account. The shared accountHolderName is split
-// into firstName/lastName for the Etherfuse PIX request body.
-const account = await etherfuse.registerFiatAccount({
-    customerId: customer.id,
-    publicKey: 'G...',
-    account: {
-        type: 'pix',
-        pixKey: '4465393f-f1b6-4838-9b6b-0be33b228390',
-        pixKeyType: 'evp', // 'evp' (random UUID) | 'cpf' | 'cnpj' | 'email' | 'phone'
-        taxId: '37155878661', // 11-digit CPF
-        accountHolderName: 'Jane Doe',
-    },
-});
+```typescript
+// The user links a bank account in the hosted onboarding UI (getKycUrl above).
+// Afterwards, read it back:
+const accounts = await etherfuse.programmatic.getFiatAccounts(customer.id);
+const account = accounts[0];
 
 // Create the off-ramp order
-const tx = await etherfuse.createOffRamp({
+const tx = await etherfuse.programmatic.createOffRamp({
     customerId: customer.id,
     quoteId: quote.id,
     fiatAccountId: account.id,
@@ -255,10 +256,10 @@ const tx = await etherfuse.createOffRamp({
 // tx.signableTransaction is undefined at this point
 
 // Poll until the burn transaction is ready
-let order = await etherfuse.getOffRampTransaction(tx.id);
+let order = await etherfuse.programmatic.getOffRampTransaction(tx.id);
 while (!order?.signableTransaction) {
     await new Promise((r) => setTimeout(r, 5000));
-    order = await etherfuse.getOffRampTransaction(tx.id);
+    order = await etherfuse.programmatic.getOffRampTransaction(tx.id);
 }
 
 // order.signableTransaction - base64-encoded Stellar XDR envelope
@@ -273,7 +274,7 @@ while (!order?.signableTransaction) {
 List a customer's saved bank accounts:
 
 ```typescript
-const accounts = await etherfuse.getFiatAccounts(customerId);
+const accounts = await etherfuse.programmatic.getFiatAccounts(customerId);
 ```
 
 ### 6. List Rampable Assets
@@ -295,7 +296,7 @@ All methods throw `AnchorError` on failure:
 import { AnchorError } from 'path/to/anchors/types';
 
 try {
-    await etherfuse.createOnRamp(input);
+    await etherfuse.programmatic.createOnRamp(input);
 } catch (err) {
     if (err instanceof AnchorError) {
         console.error(err.message); // human-readable message
@@ -322,6 +323,8 @@ This is useful for testing the on-ramp flow end-to-end without sending real SPEI
 ## Anchor Interface
 
 `EtherfuseClient` implements the `Anchor` interface defined in `../types.ts`. This means it can be swapped with any other anchor implementation (SEP-compliant or custom) without changing application code. Its `AnchorCapabilities` flags drive the UI behavior — see the [Capabilities](#capabilities) section above. See the parent `anchors/` directory for the full interface definition.
+
+The `Anchor` interface is **faceted**: shared identity/metadata plus optional `auth` (SEP-10 wallet auth), `programmatic` (SEP-6-style, app-orchestrated), and `interactive` (SEP-24-style, anchor-hosted) facets. Etherfuse exposes the **`programmatic` facet only** — it authenticates server-side with an API key (no `auth` facet) and orchestrates the flow from the app rather than handing off to an anchor-hosted UI (no `interactive` facet). All the core flows above are reached through `anchor.programmatic.*`; the methods documented here are the private implementations the facet delegates to.
 
 ## MCP Server
 
