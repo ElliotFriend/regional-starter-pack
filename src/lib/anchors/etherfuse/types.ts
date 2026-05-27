@@ -82,6 +82,12 @@ export interface EtherfuseSpeiAccountBody {
 
 /** PIX-shaped account body for Brazilian bank-account registration. */
 export interface EtherfusePixAccountBody {
+    /**
+     * Partner-generated UUID for this registration. Required by the sandbox even
+     * though it is absent from the public (Mexican-only) docs — omitting it makes
+     * `POST /ramp/bank-account` reject the body.
+     */
+    transactionId: string;
     /** PIX key (CPF, CNPJ, email, phone, or random/EVP UUID). */
     pixKey: string;
     /** PIX key type: `'evp'` (random UUID), `'cpf'`, `'cnpj'`, `'email'`, or `'phone'`. */
@@ -110,6 +116,16 @@ export interface EtherfuseKycIdentityRequest {
     identity: {
         /** Identity identifier (typically the pubkey). */
         id: string;
+        /**
+         * Contact email. Required in practice: the downstream customer-agreement
+         * step rejects with `"Phone number not provided"` when this and the two
+         * fields below are absent, even though the public docs omit them.
+         */
+        email?: string;
+        /** E.164 phone number (e.g. `"+5511987654321"`). See {@link email}. */
+        phoneNumber?: string;
+        /** Free-text occupation (e.g. `"Software Engineer"`). See {@link email}. */
+        occupation?: string;
         /** Customer name. */
         name: {
             /** First name. */
@@ -342,30 +358,27 @@ export interface EtherfuseKycStatusResponse {
     approvedAt?: string | null;
 }
 
-/** Response from `POST /ramp/bank-account`. Carries either SPEI or PIX fields depending on the rail. */
+/**
+ * Response from `POST /ramp/bank-account`.
+ *
+ * The endpoint *fills in* the bank-account stub generated at customer creation
+ * rather than creating a new record, so `accountId` equals the `bankAccountId`
+ * embedded in the presigned URL used to authenticate the call. The shape differs
+ * from the customer-scoped list/lookup responses: it returns `accountId` /
+ * `organizationId` / `label` / `status`. `bankAccountId` is kept optional so a
+ * differently-shaped response can still be resolved defensively.
+ */
 export interface EtherfuseBankAccountResponse {
-    /** Bank account ID. */
-    bankAccountId: string;
-    /** Customer ID. */
-    customerId: string;
-    /** ISO 8601 creation timestamp. */
-    createdAt: string;
-    /** ISO 8601 last-update timestamp. */
-    updatedAt: string;
-    /** Abbreviated CLABE (Mexico). */
-    abbrClabe?: string;
-    /** Etherfuse deposit CLABE (Mexico). */
-    etherfuseDepositClabe?: string;
-    /** PIX key (Brazil). */
-    pixKey?: string;
-    /** PIX key type (Brazil). */
-    pixKeyType?: string;
-    /** Account holder full name (Brazil). */
-    accountHolderName?: string;
-    /** Whether the account is compliant. */
-    compliant?: boolean;
-    /** Account status. */
+    /** Registered account ID — equal to the bank-account stub it filled in. */
+    accountId: string;
+    /** Human-readable label (often empty). */
+    label: string;
+    /** Account status (e.g. `"active"`). */
     status: string;
+    /** Owning organization ID. */
+    organizationId: string;
+    /** Bank account ID — present on some response variants; fall back to {@link accountId}. */
+    bankAccountId?: string;
 }
 
 /** Etherfuse agreement type. */

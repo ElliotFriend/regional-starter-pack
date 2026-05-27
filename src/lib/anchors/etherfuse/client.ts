@@ -31,6 +31,8 @@ import type {
     GetQuoteInput,
     CreateOnRampInput,
     CreateOffRampInput,
+    RegisterFiatAccountInput,
+    RegisteredFiatAccount,
     SavedFiatAccount,
     KycStatus,
     PaymentInstructions,
@@ -54,6 +56,9 @@ import type {
     EtherfuseOrderStatus,
     EtherfuseKycIdentityRequest,
     EtherfuseKycDocumentRequest,
+    EtherfusePixAccountBody,
+    EtherfuseSpeiAccountBody,
+    EtherfuseBankAccountResponse,
 } from './types';
 
 /**
@@ -585,6 +590,70 @@ export class EtherfuseClient implements Anchor {
             }
             throw error;
         }
+    }
+
+    /**
+     * Register a fiat bank account for a customer (SPEI or PIX).
+     *
+     * `POST /ramp/bank-account` authenticates with a presigned onboarding URL
+     * rather than the raw API key, and the URL embeds the bank-account stub it
+     * fills in. We therefore mint a fresh stub UUID, request a presigned URL for
+     * it via {@link getKycUrl}, then submit the rail-specific account body. The
+     * response's `accountId` equals that stub — use the returned
+     * {@link RegisteredFiatAccount.id | id} as the `fiatAccountId` for off-ramps.
+     *
+     * For PIX, the shared `accountHolderName` is split into the `firstName` /
+     * `lastName` the Etherfuse body expects, and a `transactionId` UUID is
+     * generated (both required by the sandbox but absent from the public docs).
+     *
+     * @param input - Customer ID, rail-specific account details, and `publicKey`.
+     * @returns The newly registered {@link RegisteredFiatAccount}.
+     * @throws {AnchorError} If `publicKey` is missing or on API failure.
+     */
+    async registerFiatAccount(input: RegisterFiatAccountInput): Promise<RegisteredFiatAccount> {
+        if (!input.publicKey) {
+            throw new AnchorError(
+                'publicKey is required to register an Etherfuse fiat account',
+                'MISSING_PUBLIC_KEY',
+                400,
+            );
+        }
+
+        const bankAccountId = crypto.randomUUID();
+        const presignedUrl = await this.getKycUrl(input.customerId, input.publicKey, bankAccountId);
+
+        let account: EtherfusePixAccountBody | EtherfuseSpeiAccountBody;
+        if (input.account.type === 'pix') {
+            const [firstName, ...rest] = input.account.accountHolderName.trim().split(/\s+/);
+            account = {
+                transactionId: crypto.randomUUID(),
+                firstName: firstName ?? '',
+                lastName: rest.join(' '),
+                pixKey: input.account.pixKey,
+                pixKeyType: input.account.pixKeyType ?? 'cpf',
+                cpf: input.account.taxId,
+            };
+        } else {
+            account = {
+                clabe: input.account.clabe,
+                beneficiary: input.account.beneficiary,
+                bankName: input.account.bankName,
+            };
+        }
+
+        const response = await this.request<EtherfuseBankAccountResponse>(
+            'POST',
+            '/ramp/bank-account',
+            { presignedUrl, account },
+        );
+
+        return {
+            id: response.accountId ?? response.bankAccountId ?? bankAccountId,
+            customerId: input.customerId,
+            type: input.account.type === 'pix' ? 'PIX' : 'SPEI',
+            status: response.status,
+            createdAt: new Date().toISOString(),
+        };
     }
 
     /**
