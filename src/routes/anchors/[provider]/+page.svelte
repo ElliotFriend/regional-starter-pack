@@ -77,12 +77,14 @@
                     >
                         Try On-Ramp
                     </a>
-                    <a
-                        href={resolve(`/anchors/${anchor.id}/offramp?region=${region.id}`)}
-                        class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
-                    >
-                        Try Off-Ramp
-                    </a>
+                    {#if anchor.regions[region.id]?.offRamp}
+                        <a
+                            href={resolve(`/anchors/${anchor.id}/offramp?region=${region.id}`)}
+                            class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
+                        >
+                            Try Off-Ramp
+                        </a>
+                    {/if}
                 </div>
             {/each}
         </div>
@@ -105,12 +107,14 @@
             >
                 Try On-Ramp
             </a>
-            <a
-                href={resolve(`/anchors/${anchor.id}/offramp${regionParam}`)}
-                class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
-            >
-                Try Off-Ramp
-            </a>
+            {#if anchor.regions[regionId]?.offRamp}
+                <a
+                    href={resolve(`/anchors/${anchor.id}/offramp${regionParam}`)}
+                    class="rounded-md bg-white px-4 py-2 text-sm font-medium text-indigo-600 ring-1 ring-indigo-600 hover:bg-indigo-50"
+                >
+                    Try Off-Ramp
+                </a>
+            {/if}
             <a
                 href={`https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/anchors/${anchor.id}`}
                 target="_blank"

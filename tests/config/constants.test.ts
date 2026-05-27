@@ -10,8 +10,12 @@ describe('PROVIDER', () => {
         expect(PROVIDER.TESTANCHOR).toBe('testanchor');
     });
 
+    it('includes COINS', () => {
+        expect(PROVIDER.COINS).toBe('coins');
+    });
+
     it('has the expected providers', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(2);
+        expect(Object.keys(PROVIDER)).toHaveLength(3);
     });
 });
 
@@ -30,5 +34,13 @@ describe('SUPPORTED_COUNTRIES', () => {
         expect(brazil!.name).toBe('Brazil');
         expect(brazil!.currency).toBe('BRL');
         expect(brazil!.paymentMethod).toBe('PIX');
+    });
+
+    it('includes the Philippines with PHP and InstaPay', () => {
+        const ph = SUPPORTED_COUNTRIES.find((c) => c.code === 'PH');
+        expect(ph).toBeDefined();
+        expect(ph!.name).toBe('Philippines');
+        expect(ph!.currency).toBe('PHP');
+        expect(ph!.paymentMethod).toBe('InstaPay');
     });
 });

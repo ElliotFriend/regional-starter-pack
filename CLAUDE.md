@@ -51,7 +51,9 @@ interface Anchor {
 
 **Etherfuse** (`/anchors/etherfuse/`) — Curated provider. Latin America. `programmatic` facet only (API-key auth, no `auth` facet). Iframe KYC (`kycFlow: 'iframe'`), CETES (MXN) and TESOURO (BRL). Off-ramp deferred signing (`deferredOffRampSigning: true`).
 
-**Test Anchor** (`/anchors/testanchor/`) — `TestAnchorAdapter` wraps the `sep/` modules as a dual-facet `Anchor` (testnet, region `testnet`, SRT/USDC). Implements **all three** facets: `auth` (SEP-10), `programmatic` (SEP-6/12/38), `interactive` (SEP-24). Stateless — SEP-10 tokens are passed per-call, so a single server instance is safe. The original `TestAnchorClient` (namespaced SEP playground) is unchanged and still powers the `/testanchor` demo. _(Coins.ph is a future `interactive`-only member, pending confirmation it offers a PHP-denominated Stellar asset.)_
+**Test Anchor** (`/anchors/testanchor/`) — `TestAnchorAdapter` wraps the `sep/` modules as a dual-facet `Anchor` (testnet, region `testnet`, SRT/USDC). Implements **all three** facets: `auth` (SEP-10), `programmatic` (SEP-6/12/38), `interactive` (SEP-24). Stateless — SEP-10 tokens are passed per-call, so a single server instance is safe. The original `TestAnchorClient` (namespaced SEP playground) is unchanged and still powers the `/testanchor` demo.
+
+**Coins.ph** (`/anchors/coins/`) — `CoinsRampClient` implements the `interactive` facet only (Philippines, region `philippines`, PHP → USDC). The hosted widget is reached via an HMAC-signed URL built server-side (`signing.ts`, Web Crypto). No `auth` facet (Coins authenticates the end user itself). On-ramp only and launch-only for now: the widget returns no order id at launch, so `transactionId` is empty and `getOnRampTransaction` returns `null` (server-side polling via the order-detail/callback API is a follow-up); off-ramp throws `NOT_IMPLEMENTED`. Provisionally curated despite offering USDC (not a PHP-denominated asset) — see the client README.
 
 ### Anchor Factory (`/server/anchorFactory.ts`)
 
@@ -59,7 +61,7 @@ Server-side only. Maps provider names to configured client instances:
 
 ```typescript
 import { getAnchor, requireInteractive, isValidProvider } from '$lib/server/anchorFactory';
-// type AnchorProvider = 'etherfuse' | 'testanchor'
+// type AnchorProvider = 'etherfuse' | 'testanchor' | 'coins'
 const anchor = getAnchor('testanchor');
 const interactive = requireInteractive('testanchor'); // throws if no interactive facet
 ```
@@ -153,6 +155,14 @@ Add to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` with criteria assessm
 # Etherfuse
 ETHERFUSE_API_KEY=""
 ETHERFUSE_BASE_URL="https://api.sand.etherfuse.com"
+
+# Coins.ph (read via $env/dynamic/private; may be unset until provisioned)
+COINS_API_KEY=""
+COINS_SECRET_KEY=""
+COINS_MERCHANT_ID=""
+COINS_WIDGET_BASE_URL="https://9001.pl-qa.coinsxyz.me"  # sandbox; prod is https://coins.ph
+COINS_API_BASE_URL=""
+COINS_COUNTRY="PH"
 
 # Stellar (public, accessible client-side)
 PUBLIC_STELLAR_NETWORK="testnet"

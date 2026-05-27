@@ -47,6 +47,23 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.pix],
         anchors: ['etherfuse'],
     },
+    philippines: {
+        id: 'philippines',
+        name: 'Philippines',
+        code: 'PH',
+        currency: 'PHP',
+        currencySymbol: '₱',
+        flag: '🇵🇭',
+        description:
+            'The Philippines has high crypto adoption and rich local payment rails (InstaPay, PESONet, GCash, Maya). Coins.ph offers a hosted on-ramp from PHP to USDC on Stellar.',
+        paymentRails: [
+            PAYMENT_RAILS.instapay,
+            PAYMENT_RAILS.pesonet,
+            PAYMENT_RAILS.gcash,
+            PAYMENT_RAILS.maya,
+        ],
+        anchors: ['coins'],
+    },
     testnet: {
         id: 'testnet',
         name: 'Testnet',

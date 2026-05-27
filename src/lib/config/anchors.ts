@@ -179,6 +179,79 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    coins: {
+        id: 'coins',
+        name: 'Coins.ph',
+        description:
+            'Coins.ph is the leading crypto on/off-ramp in the Philippines. It hosts the entire buy/sell flow in a widget (login, KYC/MFA, payment), reached via a signed URL — wired here as an interactive (SEP-24-style) anchor for PHP → USDC on Stellar.',
+        links: {
+            website: 'https://coins.ph',
+            documentation: 'https://docs.coins.ph/rest-api',
+            'ramp SDK': 'https://www.npmjs.com/package/@coinsph/ramp-sdk',
+        },
+        knownIssues: [
+            {
+                text: 'Stellar is not listed among the networks in the Coins.ph ramp docs we have (which show EVM chains and Solana); USDC-on-Stellar support is assumed pending confirmation against their sandbox.',
+            },
+            {
+                text: 'Coins.ph currently offers USDC/USDT (USD-pegged) rather than a PHP-denominated Stellar asset, so it does not yet meet the "locally denominated asset" quality criterion. Listed as curated provisionally; revisit if a PHP-denominated asset becomes available.',
+            },
+            {
+                text: 'Launch-only for now: the hosted widget creates the order after the user logs in, so no order id is returned at launch. Server-side status polling (via the order-detail/callback API) is a follow-up; completion is confirmed out-of-band (Coins.ph email).',
+            },
+            {
+                text: 'Off-ramp (USDC → PHP) is not yet implemented — the consumer withdrawal model needs confirmation against the sandbox.',
+            },
+        ],
+        regions: {
+            philippines: {
+                onRamp: true,
+                offRamp: false,
+                paymentRails: ['instapay', 'pesonet', 'gcash', 'maya'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Request merchant credentials (API key, secret key, merchant ID) and sandbox access from Coins.ph.',
+                link: 'https://docs.coins.ph/rest-api',
+            },
+            {
+                text: 'Set COINS_API_KEY, COINS_SECRET_KEY, COINS_MERCHANT_ID, and COINS_WIDGET_BASE_URL in your environment.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Connect Wallet',
+                    description: 'Connect Freighter; the wallet address is the USDC destination.',
+                },
+                {
+                    title: 'Start Hosted Session',
+                    description:
+                        'The server builds a signed Coins.ph widget URL for the buy (on-ramp) flow.',
+                },
+                {
+                    title: 'Complete in Hosted Widget',
+                    description:
+                        'The user logs in, completes KYC/MFA, pays via a local rail, and confirms — all inside the Coins.ph widget.',
+                },
+                {
+                    title: 'Receive USDC',
+                    description:
+                        "Coins.ph settles and delivers USDC to the user's Stellar wallet. Completion is confirmed out-of-band for now.",
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Not yet available',
+                    description:
+                        'Off-ramp (USDC → PHP) is planned; the consumer withdrawal model needs confirmation against the Coins.ph sandbox.',
+                },
+            ],
+        },
+    },
     testanchor: {
         id: 'testanchor',
         name: 'Test Anchor',

@@ -13,9 +13,14 @@ import type { Anchor, WalletAuthOps, ProgrammaticOps, InteractiveOps } from '$li
 import { AnchorError } from '$lib/anchors/types';
 import { EtherfuseClient } from '$lib/anchors/etherfuse';
 import { TestAnchorAdapter } from '$lib/anchors/testanchor';
+import { CoinsRampClient } from '$lib/anchors/coins';
 import { ETHERFUSE_API_KEY, ETHERFUSE_BASE_URL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
+import { env as publicEnv } from '$env/dynamic/public';
 
-export type AnchorProvider = 'etherfuse' | 'testanchor';
+export type AnchorProvider = 'etherfuse' | 'testanchor' | 'coins';
+
+const DEFAULT_USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 
 const anchorInstances = new Map<AnchorProvider, Anchor>();
 
@@ -41,6 +46,27 @@ export function getAnchor(provider: AnchorProvider): Anchor {
             case 'testanchor':
                 anchor = new TestAnchorAdapter();
                 break;
+            case 'coins':
+                // NOTE: Coins.ph deliberately uses `$env/dynamic/private` instead
+                // of the `$env/static/private` imports used for Etherfuse above.
+                // This is intentional while Coins.ph is not yet provisioned: a
+                // static import of an undeclared var is a *build-time* error, and
+                // these `COINS_*` keys aren't in `.env` yet — dynamic reads them at
+                // runtime and tolerates their absence (returning `undefined`), so
+                // dev/build/check stay green. The signed widget URL just won't
+                // validate against Coins.ph until real credentials are set.
+                // Once credentials exist, this can be switched to static imports to
+                // match Etherfuse.
+                anchor = new CoinsRampClient({
+                    apiKey: env.COINS_API_KEY ?? '',
+                    secretKey: env.COINS_SECRET_KEY ?? '',
+                    merchantId: env.COINS_MERCHANT_ID ?? '',
+                    widgetBaseUrl: env.COINS_WIDGET_BASE_URL ?? 'https://9001.pl-qa.coinsxyz.me',
+                    apiBaseUrl: env.COINS_API_BASE_URL,
+                    country: env.COINS_COUNTRY ?? 'PH',
+                    usdcIssuer: publicEnv.PUBLIC_USDC_ISSUER ?? DEFAULT_USDC_ISSUER,
+                });
+                break;
             default:
                 throw new Error(`Unknown anchor provider: ${provider}`);
         }
@@ -57,7 +83,7 @@ export function getAnchor(provider: AnchorProvider): Anchor {
  * @returns `true` if the string is a known {@link AnchorProvider}.
  */
 export function isValidProvider(provider: string): provider is AnchorProvider {
-    return ['etherfuse', 'testanchor'].includes(provider);
+    return ['etherfuse', 'testanchor', 'coins'].includes(provider);
 }
 
 /**
