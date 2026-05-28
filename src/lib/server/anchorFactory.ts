@@ -11,11 +11,9 @@
 
 import type { Anchor, WalletAuthOps, ProgrammaticOps, InteractiveOps } from '$lib/anchors/types';
 import { AnchorError } from '$lib/anchors/types';
-import { EtherfuseClient } from '$lib/anchors/etherfuse';
 import { TestAnchorAdapter } from '$lib/anchors/testanchor';
-import { ETHERFUSE_API_KEY, ETHERFUSE_BASE_URL } from '$env/static/private';
 
-export type AnchorProvider = 'etherfuse' | 'testanchor';
+export type AnchorProvider = 'testanchor';
 
 const anchorInstances = new Map<AnchorProvider, Anchor>();
 
@@ -32,12 +30,6 @@ export function getAnchor(provider: AnchorProvider): Anchor {
 
     if (!anchor) {
         switch (provider) {
-            case 'etherfuse':
-                anchor = new EtherfuseClient({
-                    apiKey: ETHERFUSE_API_KEY,
-                    baseUrl: ETHERFUSE_BASE_URL,
-                });
-                break;
             case 'testanchor':
                 anchor = new TestAnchorAdapter();
                 break;
@@ -57,7 +49,7 @@ export function getAnchor(provider: AnchorProvider): Anchor {
  * @returns `true` if the string is a known {@link AnchorProvider}.
  */
 export function isValidProvider(provider: string): provider is AnchorProvider {
-    return ['etherfuse', 'testanchor'].includes(provider);
+    return ['testanchor'].includes(provider);
 }
 
 /**
