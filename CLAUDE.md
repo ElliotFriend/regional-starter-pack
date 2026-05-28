@@ -11,7 +11,7 @@ The project curates anchor integrations that meet five quality criteria: locally
 - `src/lib/server/anchorFactory.ts` — Server-only. Reads `$env/static/private`, instantiates anchor clients.
 - `src/lib/wallet/` — Freighter wallet extension API + Stellar helpers (Horizon, transactions, trustlines).
 - `src/lib/components/` — Svelte 5 UI components. Top-level: flow components (`OnRampFlow`, `OffRampFlow` for the programmatic archetype; `InteractiveRampFlow` for the SEP-24-style hosted archetype; `RampPage`), KYC (`KycForm`, `KycIframe`, `KycStatusDisplay`), `QuoteDisplay`, `WalletConnect`. Subdirectories: `ramp/` (step sub-components: `AmountInput`, `QuoteStep`, `FiatAccountStep`, `CompletionStep`, `TrustlineStatus`), `ui/` (layout + utility: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`).
-- `src/lib/stores/` — Svelte 5 reactive state (runes): `wallet.svelte.ts`, `customer.svelte.ts`.
+- `src/lib/stores/` — Svelte 5 reactive state and small singletons: `wallet.svelte.ts` (Freighter connection state, rune), `customer.svelte.ts` (current customer, rune), `auth.ts` (SEP-10 JWT cache, localStorage-backed, keyed by provider + public key), `index.ts` barrel.
 - `src/lib/config/` — Three files (no barrel): `anchors.ts` (anchor profiles, quality criteria, honorable mentions), `regions.ts` (region definitions + cross-lookups), `rails.ts` (payment rail definitions). Token data lives on `Anchor` client classes, not in config.
 - `src/lib/utils/` — `status.ts` (transaction status helpers), `currency.ts` (formatting), `quote.ts` (expiration), `stellar-asset.ts` (asset resolution).
 - `src/lib/constants.ts` — App constants (providers, statuses).
@@ -83,7 +83,7 @@ Config is split across three files with no barrel `index.ts`. Token data (issuer
 - **`anchors.ts`** — `AnchorProfile` type, `ANCHORS` data, `QUALITY_CRITERIA`, `HONORABLE_MENTIONS`, helper functions
 - **`regions.ts`** — `Region` type, `REGIONS` data, `getRegion()`, `getAllRegions()`, `getAnchorsForRegion()`, `getRegionsForAnchor()`
 
-The `AnchorCapability` type has an optional `comingSoon` field used for Etherfuse's Brazil region (API not yet available).
+The `AnchorCapability` type has an optional `comingSoon` field for marking a region as not-yet-available. Not currently set anywhere — both Etherfuse Mexico and Etherfuse Brazil are active.
 
 ### SEP Library (`/anchors/sep/`)
 

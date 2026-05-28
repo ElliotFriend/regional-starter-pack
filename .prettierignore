@@ -7,3 +7,6 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# DX testing artifacts (untracked agent reviews, not authored by hand)
+dx-testing/
