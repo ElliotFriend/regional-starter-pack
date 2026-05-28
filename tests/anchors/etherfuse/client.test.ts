@@ -434,6 +434,66 @@ describe('getQuote', () => {
         expect(quote.feeBps).toBeUndefined();
         expect(quote.destinationAmount).toBe('500');
     });
+
+    it('serializes sourceAmount as a string even when a number is passed', async () => {
+        // Regression: Etherfuse's API rejects numeric `sourceAmount` with a
+        // 400 ("invalid type: integer, expected a string"). Svelte's
+        // `<input type="number">` bindings leak numbers despite the type
+        // signature, so the client coerces defensively.
+        const client = createClient();
+        let bodyText = '';
+        server.use(
+            http.get(`${BASE_URL}/ramp/assets`, () =>
+                HttpResponse.json({
+                    assets: [
+                        {
+                            symbol: 'CETES',
+                            identifier: 'CETES:GCRYUGD5',
+                            name: 'CETES',
+                            currency: 'MXN',
+                            balance: null,
+                            image: null,
+                        },
+                    ],
+                }),
+            ),
+            http.post(`${BASE_URL}/ramp/quote`, async ({ request }) => {
+                bodyText = await request.text();
+                return HttpResponse.json({
+                    quoteId: 'q-num',
+                    customerId: '',
+                    blockchain: 'stellar',
+                    quoteAssets: {
+                        type: 'onramp',
+                        sourceAsset: 'MXN',
+                        targetAsset: 'CETES:GCRYUGD5',
+                    },
+                    sourceAmount: '500',
+                    destinationAmount: '475',
+                    exchangeRate: '0.95',
+                    feeBps: null,
+                    feeAmount: null,
+                    destinationAmountAfterFee: null,
+                    createdAt: '2026-01-01T00:00:00Z',
+                    updatedAt: '2026-01-01T00:00:00Z',
+                    expiresAt: '2026-01-01T00:02:00Z',
+                });
+            }),
+        );
+
+        await client.getQuote({
+            fromAsset: 'MXN',
+            toAsset: 'CETES',
+            // Cast through unknown to bypass the string-only type guard — this
+            // mirrors what happens at runtime when `<input type="number">`
+            // assigns a number to a `string`-typed binding.
+            sourceAmount: 500 as unknown as string,
+            stellarAddress: STELLAR_PUBKEY,
+        });
+
+        expect(bodyText).toContain('"sourceAmount":"500"');
+        expect(bodyText).not.toContain('"sourceAmount":500');
+    });
 });
 
 // ---------------------------------------------------------------------------

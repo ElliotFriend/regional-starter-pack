@@ -367,7 +367,10 @@ export class EtherfuseClient {
             customerId: args.customerId || '',
             blockchain: this.blockchain,
             quoteAssets: { type, sourceAsset, targetAsset },
-            sourceAmount: args.sourceAmount,
+            // Etherfuse expects sourceAmount as a JSON string ("500"), not a
+            // number (500) — `<input type="number">` bindings can leak numbers
+            // even though the type signature says string, so coerce here.
+            sourceAmount: String(args.sourceAmount),
         });
 
         return {
