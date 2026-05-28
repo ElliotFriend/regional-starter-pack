@@ -85,6 +85,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         name: 'Etherfuse',
         description:
             'Etherfuse bridges traditional finance and decentralized finance, making financial systems more inclusive, transparent, and efficient for everyone.',
+        logo: '/anchor-logos/etherfuse.png',
         links: {
             website: 'https://www.etherfuse.com',
             documentation: 'https://docs.etherfuse.com',
@@ -257,6 +258,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         name: 'Test Anchor',
         description:
             'The Stellar Development Foundation reference anchor (testanchor.stellar.org). It implements the full SEP stack on testnet and is wired here as a dual-facet anchor: SEP-24 interactive (the default flow) and SEP-6 programmatic, both authenticated with SEP-10 wallet signatures.',
+        logo: '/anchor-logos/testanchor.png',
         links: {
             website: 'https://testanchor.stellar.org',
             documentation:
