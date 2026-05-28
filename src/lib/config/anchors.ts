@@ -185,6 +185,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         name: 'Coins.ph',
         description:
             'Coins.ph is the leading crypto on/off-ramp in the Philippines. It hosts the entire buy/sell flow in a widget (login, KYC/MFA, payment), reached via a signed URL — wired here as an interactive (SEP-24-style) anchor for PHP → USDC on Stellar.',
+        logo: '/anchor-logos/coins.png',
         links: {
             website: 'https://coins.ph',
             documentation: 'https://docs.coins.ph/rest-api',
