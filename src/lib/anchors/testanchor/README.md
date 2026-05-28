@@ -1,64 +1,194 @@
 # Test Anchor
 
-This directory contains **two** complementary entry points for [testanchor.stellar.org](https://testanchor.stellar.org):
+This directory contains **two** standalone clients for [testanchor.stellar.org](https://testanchor.stellar.org), serving different purposes:
 
-1. **`TestAnchorClient`** (`client.ts`) — a stateful, SEP-namespaced "playground" client (`client.sep24.deposit()`, …). Powers the `/testanchor` protocol demo and is documented below. Good for learning the raw SEP protocols.
-2. **`TestAnchorAdapter`** (`anchor.ts`) — implements the unified [`Anchor`](../types.ts) interface so the test anchor is driven through the same faceted API as every other provider (and appears under `/anchors/testanchor`). See [Anchor adapter](#anchor-adapter).
+| File | Class | Used by | Purpose |
+| --- | --- | --- | --- |
+| `ramp.ts` | `TestAnchorRampClient` | `/anchors/testanchor/{interactive,programmatic}/{onramp,offramp}` | Curated ramp client. Returns SEP types directly. |
+| `client.ts` | `TestAnchorClient` | `/testanchor` | Stateful SEP-namespaced playground used by the protocol demo page. |
 
-## Anchor adapter
+Both are framework-agnostic and copy-pasteable. They compose the [SEP modules](../sep/) under different ergonomics.
 
-`TestAnchorAdapter` composes the [SEP modules](../sep/) directly (it does **not** wrap `TestAnchorClient`) and exposes all three capability facets:
+---
 
-- **`auth`** — SEP-10 wallet authentication, split into `getChallenge` / `submitChallenge` so the signing step can happen client-side (e.g. Freighter). The resulting JWT is passed back into facet methods via their trailing `auth?` argument.
-- **`programmatic`** — the SEP-6 archetype (SEP-6 deposit/withdraw, SEP-12 KYC, SEP-38 quotes). On-ramp deposit instructions map to generic `PaymentInstructions`; off-ramp builds the withdrawal payment XDR server-side and returns it as `signableTransaction`, reusing the shared wallet-signing flow.
-- **`interactive`** — the SEP-24 archetype (`startOnRamp`/`startOffRamp` return `{ interactiveUrl, transactionId }`; poll via `get*Transaction`).
+## `TestAnchorRampClient` (curated ramp client)
 
-It is **stateless** across calls — SEP-10 tokens are threaded in per-call rather than stored — so a single instance is safe to share server-side across requests. This makes it a good template for any anchor that needs both archetypes or wallet-based auth.
+A focused wrapper around the SEP modules for talking to the test anchor. Returns SEP-shaped responses directly — there's no adaptation layer because testanchor IS SEP. SEP-10 tokens are passed explicitly to each method that needs them, so a single instance is safe to share across requests.
+
+### Usage
 
 ```typescript
-import { createTestAnchorAdapter } from './anchors/testanchor';
+import { TestAnchorRampClient } from 'path/to/anchors/testanchor';
 
-const anchor = createTestAnchorAdapter();
-const { transactionXdr } = await anchor.auth.getChallenge(publicKey);
-// ...sign client-side...
-const { token } = await anchor.auth.submitChallenge(signedXdr);
-const session = await anchor.interactive.startOnRamp({
-    assetCode: 'SRT',
-    account: publicKey,
-    auth: token,
+const anchor = new TestAnchorRampClient();
+// Optional config: { domain, networkPassphrase, horizonUrl, fetchFn }
+```
+
+### SEP-1 discovery
+
+The client caches the anchor's `stellar.toml` on first use:
+
+```typescript
+const toml = await anchor.toml();
+```
+
+### SEP-10 wallet auth
+
+```typescript
+const challenge = await anchor.getChallenge(publicKey);
+// challenge.transaction is a base64 XDR — sign it with the user's wallet
+const signedXdr = await signWithWallet(challenge.transaction);
+const { token } = await anchor.submitChallenge(signedXdr);
+```
+
+The token is a SEP-10 JWT; thread it into the subsequent methods that require auth. Decode it without verification via `anchor.decodeToken(token)` if you need the payload.
+
+### SEP-12 KYC
+
+```typescript
+const customer = await anchor.getCustomer(token);
+// customer.status is 'ACCEPTED' | 'PROCESSING' | 'NEEDS_INFO' | 'REJECTED'
+
+if (customer.status === 'NEEDS_INFO') {
+    await anchor.putCustomer(token, {
+        first_name: 'Jane',
+        last_name: 'Doe',
+        email_address: 'jane@example.com',
+    });
+}
+```
+
+`getCustomer` accepts an optional `Sep12CustomerRequest` for narrowing by `id`, `transaction_id`, `type`, etc.
+
+### SEP-38 quotes
+
+```typescript
+const price = await anchor.getPrice({
+    sell_asset: 'iso4217:USD',
+    buy_asset: anchor.toSep38Asset('SRT'),
+    sell_amount: '100',
+    context: 'sep6',
 });
+```
+
+`anchor.toSep38Asset(symbol)` resolves a symbol to a `stellar:CODE:ISSUER` (for supported tokens) or `iso4217:CODE` (for fiat).
+
+### SEP-6 programmatic
+
+```typescript
+// Deposit — returns the anchor's generic deposit instructions
+const deposit = await anchor.sep6Deposit(token, {
+    asset_code: 'SRT',
+    funding_method: 'bank_account',
+    account: publicKey,
+    amount: '100',
+});
+// deposit.instructions is a Record<string, { value, description }>
+
+// Withdraw — returns the anchor's account/memo PLUS a pre-built signable XDR
+const withdrawal = await anchor.sep6Withdraw(
+    token,
+    { asset_code: 'SRT', funding_method: 'bank_account', amount: '50' },
+    sourceAccount,
+);
+// withdrawal.signableXdr — sign with Freighter and submit to Stellar
+
+// Poll a transaction
+const tx = await anchor.getSep6Transaction(token, withdrawal.id);
+// tx is Sep6Transaction or null on 404
+```
+
+### SEP-24 interactive
+
+```typescript
+// Deposit
+const deposit = await anchor.sep24Deposit(token, {
+    asset_code: 'SRT',
+    asset_issuer: 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B',
+    account: publicKey,
+});
+window.open(deposit.url, '_blank');
+// deposit.id is the transaction ID to poll
+
+// Withdraw — same shape
+const withdrawal = await anchor.sep24Withdraw(token, { /* ... */ });
+
+// Poll
+const tx = await anchor.getSep24Transaction(token, deposit.id);
+```
+
+### Errors
+
+The client throws `TestAnchorSepUnsupportedError` if the anchor's `stellar.toml` doesn't advertise a required SEP. Other errors propagate from the underlying SEP modules.
+
+```typescript
+import { TestAnchorSepUnsupportedError } from 'path/to/anchors/testanchor';
+
+try {
+    await anchor.sep6Deposit(token, request);
+} catch (err) {
+    if (err instanceof TestAnchorSepUnsupportedError) {
+        console.error('Anchor does not support SEP-6');
+    }
+    throw err;
+}
+```
+
+404 responses on single-resource lookups (`getSep6Transaction`, `getSep24Transaction`) return `null` instead of throwing.
+
+### Full flow example
+
+```typescript
+import { TestAnchorRampClient } from 'path/to/anchors/testanchor';
+
+const anchor = new TestAnchorRampClient();
+
+// 1. Authenticate
+const challenge = await anchor.getChallenge(publicKey);
+const signedXdr = await signWithWallet(challenge.transaction);
+const { token } = await anchor.submitChallenge(signedXdr);
+
+// 2. KYC if needed
+const customer = await anchor.getCustomer(token);
+if (customer.status === 'NEEDS_INFO') {
+    await anchor.putCustomer(token, { first_name: 'Jane', last_name: 'Doe', email_address: '...' });
+}
+
+// 3. Start interactive deposit
+const session = await anchor.sep24Deposit(token, {
+    asset_code: 'SRT',
+    asset_issuer: 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B',
+    account: publicKey,
+});
+window.open(session.url, '_blank');
+
+// 4. Poll until complete
+let tx = await anchor.getSep24Transaction(token, session.id);
+while (tx && tx.status !== 'completed' && tx.status !== 'error') {
+    await new Promise((r) => setTimeout(r, 5000));
+    tx = await anchor.getSep24Transaction(token, session.id);
+}
 ```
 
 ---
 
-## Test Anchor Client (SEP playground)
+## `TestAnchorClient` (SEP playground)
 
-A unified client for [testanchor.stellar.org](https://testanchor.stellar.org) that composes all supported SEP modules from the [SEP protocol library](../sep/) into a single, ergonomic interface. This serves as a reference implementation for building SEP-compatible anchor integrations.
+A stateful, SEP-namespaced "playground" client. Methods are grouped under `client.sep6`, `client.sep24`, `client.sep10`, `client.sep12`, `client.sep31`, `client.sep38`. The JWT is stored on the client after authentication and injected into subsequent requests. Good for learning the raw SEP protocols and powering the `/testanchor` demo page.
 
-## How It Relates to the SEP Library
-
-The [SEP library](../sep/) provides standalone, stateless functions for each protocol (`sep1.fetchStellarToml()`, `sep10.authenticate()`, `sep24.deposit()`, etc.). Each function requires you to pass in endpoints, tokens, and fetch functions explicitly.
-
-This client wraps those modules into a stateful object that handles:
-
-- **Endpoint resolution** — fetches the `stellar.toml` once, then resolves the correct endpoint for each SEP call automatically
-- **Token management** — stores the JWT after authentication and injects it into subsequent requests
-- **Namespaced access** — SEP operations are grouped under `client.sep6`, `client.sep24`, `client.sep31`, `client.sep38`, and `client.sep12`, while initialization and auth stay at the top level
-
-If you need to build a client for a different anchor, this file is a good starting point. The pattern is the same: compose the [SEP modules](../sep/) with your anchor's specific configuration and any provider-specific logic.
-
-## Quick Start
+### Quick start
 
 ```typescript
-import { createTestAnchorClient } from './anchors/testanchor';
+import { createTestAnchorClient } from 'path/to/anchors/testanchor';
 
 const client = createTestAnchorClient();
+// Or: createTestAnchorClient({ domain: 'anchor.example.com', ... }, fetch);
 
 // 1. Initialize (fetches stellar.toml, discovers endpoints)
 const toml = await client.initialize();
 
 // 2. Authenticate (SEP-10 challenge-response)
-const token = await client.authenticate(userPublicKey, async (xdr, passphrase) => {
+const token = await client.authenticate(publicKey, async (xdr, passphrase) => {
     return await freighter.signTransaction(xdr, { networkPassphrase: passphrase });
 });
 
@@ -67,229 +197,104 @@ const info = await client.sep24.getInfo();
 const deposit = await client.sep24.deposit({ asset_code: 'USDC', amount: '100' });
 ```
 
-## Configuration
+### API
+
+#### Discovery
 
 ```typescript
-import { createTestAnchorClient } from './anchors/testanchor';
-
-// Defaults: testanchor.stellar.org on Testnet
-const client = createTestAnchorClient();
-
-// (Optional) Custom configuration
-const client = createTestAnchorClient({
-    domain: 'anchor.example.com',
-    networkPassphrase: 'Public Global Stellar Network ; September 2015',
-});
-
-// (Optional) Pass a custom fetch (e.g., SvelteKit's fetch for SSR)
-const client = createTestAnchorClient(undefined, fetch);
+await client.initialize();           // fetch + cache toml
+await client.getToml();              // cached if present
+await client.supportsSep(24);        // true/false
 ```
 
-## API
-
-### Initialization and Discovery
+#### Authentication (SEP-10)
 
 ```typescript
-// Fetch and cache the stellar.toml
-const toml = await client.initialize();
-
-// Get the cached toml (fetches if not already initialized)
-const toml = await client.getToml();
-
-// Check if a specific SEP is supported
-await client.supportsSep(24); // true
-await client.supportsSep(31); // true
-```
-
-### Authentication (SEP-10)
-
-```typescript
-// Full authentication flow
 const token = await client.authenticate(publicKey, signerFn);
-
-// Check auth state
-client.isAuthenticated(); // true
-client.getToken(); // 'eyJ...'
-client.getAccount(); // 'GABCD...'
-client.getTokenPayload(); // { iss, sub, iat, exp, jti }
-
-// Clear auth state
+client.isAuthenticated();
+client.getToken();
+client.getAccount();
+client.getTokenPayload();
 client.logout();
 ```
 
-### SEP-6: Programmatic Deposit/Withdrawal
+#### SEP-6
 
 ```typescript
-// Check supported assets and limits
 const info = await client.sep6.getInfo();
 
-// Deposit (fiat -> crypto) — returns payment instructions
 const deposit = await client.sep6.deposit({
     asset_code: 'USDC',
+    funding_method: 'bank_account',
     account: publicKey,
     amount: '100',
 });
 
-// Withdraw (crypto -> fiat) — returns the Stellar account to send to
 const withdrawal = await client.sep6.withdraw({
     asset_code: 'USDC',
-    type: 'bank_account',
+    funding_method: 'bank_account',
     dest: '123456789',
 });
 
-// Track a transaction
 const tx = await client.sep6.getTransaction(deposit.id!);
-
-// List recent transactions
 const history = await client.sep6.getTransactions('USDC', 10);
 ```
 
-### SEP-12: KYC / Customer Management
+#### SEP-12
 
 ```typescript
-// Get current KYC status and required fields
 const customer = await client.sep12.getCustomer('sep6-deposit');
 
-// Submit KYC information
 const result = await client.sep12.putCustomer({
     first_name: 'Jane',
     last_name: 'Doe',
     email_address: 'jane@example.com',
 });
 
-// Delete customer data
 await client.sep12.deleteCustomer();
 ```
 
-### SEP-24: Interactive Deposit/Withdrawal
+#### SEP-24
 
 ```typescript
-// Check supported assets and limits
 const info = await client.sep24.getInfo();
-
-// Deposit — returns a URL to the anchor's hosted UI
-const deposit = await client.sep24.deposit({
-    asset_code: 'USDC',
-    amount: '100',
-});
+const deposit = await client.sep24.deposit({ asset_code: 'USDC', amount: '100' });
 window.open(deposit.url, '_blank');
-
-// Withdraw
-const withdrawal = await client.sep24.withdraw({
-    asset_code: 'USDC',
-    amount: '50',
-});
-
-// Track a transaction
 const tx = await client.sep24.getTransaction(deposit.id);
 
-// Poll until complete (with status change callbacks)
 const completed = await client.sep24.poll(deposit.id, (tx) => {
-    console.log('Status changed:', tx.status);
+    console.log('Status:', tx.status);
 });
 ```
 
-### SEP-31: Cross-Border Payments
+#### SEP-31
 
 ```typescript
-// Check supported receiving assets
 const info = await client.sep31.getInfo();
-
-// Create a payment
 const tx = await client.sep31.createTransaction({
     amount: '500',
     asset_code: 'USDC',
     sender_id: senderId,
     receiver_id: receiverId,
 });
-// tx.stellar_account_id — send the Stellar payment here
-// tx.stellar_memo — include this memo
-
-// Update a transaction if more info is needed
-await client.sep31.updateTransaction(tx.id, {
-    receiver_routing_number: '654321',
-});
-
-// Track or poll
-const status = await client.sep31.getTransaction(tx.id);
-const completed = await client.sep31.poll(tx.id, (tx) => {
-    console.log('Status:', tx.status);
-});
+const completed = await client.sep31.poll(tx.id, (tx) => console.log(tx.status));
 ```
 
-### SEP-38: Quotes / RFQ
+#### SEP-38
 
 ```typescript
-// List supported assets and delivery methods
 const info = await client.sep38.getInfo();
-
-// Get an indicative price (no auth required)
 const price = await client.sep38.getPrice({
     sell_asset: 'iso4217:USD',
     buy_asset: 'stellar:USDC:GA5ZS...',
     sell_amount: '100',
     context: 'sep6',
 });
-
-// Request a firm quote (auth required, guaranteed rate)
-const quote = await client.sep38.createQuote({
-    sell_asset: 'iso4217:USD',
-    buy_asset: 'stellar:USDC:GA5ZS...',
-    sell_amount: '100',
-    context: 'sep6',
-});
-// quote.id, quote.expires_at
-
-// Retrieve an existing quote
+const quote = await client.sep38.createQuote({ /* ... */ });
 const existing = await client.sep38.getQuote(quote.id);
 ```
 
-## Full Flow Example
-
-Putting it together — an interactive deposit from start to finish:
-
-```typescript
-import { createTestAnchorClient } from './anchors/testanchor';
-
-const client = createTestAnchorClient();
-
-// 1. Initialize
-await client.initialize();
-
-// 2. Authenticate
-await client.authenticate(publicKey, signerFn);
-
-// 3. Check what's available
-const info = await client.sep24.getInfo();
-const usdcDeposit = info.deposit['USDC'];
-console.log(`USDC deposits: min ${usdcDeposit.min_amount}, max ${usdcDeposit.max_amount}`);
-
-// 4. (Optional) Get a quote
-const quote = await client.sep38.createQuote({
-    sell_asset: 'iso4217:USD',
-    buy_asset: 'stellar:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-    sell_amount: '100',
-    context: 'sep6',
-});
-
-// 5. Start interactive deposit
-const deposit = await client.sep24.deposit({
-    asset_code: 'USDC',
-    amount: '100',
-});
-
-// 6. Open the anchor's UI
-window.open(deposit.url, '_blank');
-
-// 7. Poll until the user completes the flow
-const completed = await client.sep24.poll(deposit.id, (tx) => {
-    console.log(`Status: ${tx.status}`);
-});
-
-console.log('Deposit complete:', completed.stellar_transaction_id);
-```
-
-## Using in SvelteKit
+### Using in SvelteKit
 
 Pass SvelteKit's `fetch` to the client for proper SSR request context:
 
@@ -302,11 +307,10 @@ export async function load({ fetch }) {
     const client = createTestAnchorClient(undefined, fetch);
 
     try {
-        const toml = await client.initialize();
-
+        await client.initialize();
         return {
             client,
-            sep24Info: client.sep24.getInfo(), // streamed as a promise
+            sep24Info: client.sep24.getInfo(),
             sep6Info: client.sep6.getInfo(),
         };
     } catch (e) {
@@ -315,47 +319,15 @@ export async function load({ fetch }) {
 }
 ```
 
-## Building Your Own Client
+---
 
-To build a client for a different anchor using the same pattern:
+## Choosing between the two
 
-1. Import the SEP modules you need from the [SEP library](../sep/)
-2. Create a class that caches the `stellar.toml` and JWT token
-3. Expose SEP operations as namespaced `readonly` properties
-4. Use arrow functions in the property objects so `this` binds correctly
+- **`TestAnchorRampClient`** — use this if you're building production ramp UI. Methods return SEP types directly; explicit token passing makes it safe to share across requests.
+- **`TestAnchorClient`** — use this if you're learning the SEP protocols or building a playground UI. The namespaced API (`client.sep24.deposit()`) reads like the SEP spec; the cached token is convenient for an interactive shell.
 
-```typescript
-import { sep1, sep10, sep24 } from '../sep';
+Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorClient`.
 
-export class MyAnchorClient {
-    private toml: sep1.StellarTomlRecord | null = null;
-    private token: string | null = null;
+## Implementing a similar client for another SEP-compliant anchor
 
-    constructor(
-        private domain: string,
-        private fetchFn: typeof fetch = fetch,
-    ) {}
-
-    async initialize() {
-        this.toml = await sep1.fetchStellarToml(this.domain);
-        return this.toml;
-    }
-
-    // ... authenticate(), getToml(), etc.
-
-    readonly sep24 = {
-        getInfo: async () => {
-            const toml = await this.getToml();
-            const ep = sep1.getSep24Endpoint(toml)!;
-            return sep24.getInfo(ep, this.fetchFn);
-        },
-        deposit: async (request) => {
-            const toml = await this.getToml();
-            const ep = sep1.getSep24Endpoint(toml)!;
-            return sep24.deposit(ep, this.token!, request, this.fetchFn);
-        },
-    };
-}
-```
-
-See the full implementation in [client.ts](./client.ts) for the complete pattern with error handling, token validation, and all supported SEPs.
+`TestAnchorRampClient` is a small (~350 LOC) reference for how to wrap the SEP modules into a per-anchor client. Copy it, rename the class, change the default domain, and adjust `supportedTokens` to match the anchor's issuers. The discovery caching + endpoint resolution helpers (`toml()`, `endpoint()`) are the reusable bits — drop them in as-is.

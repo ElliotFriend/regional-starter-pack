@@ -1,151 +1,117 @@
-# Stellar Regional Starter Pack - LLM Guide
+# Stellar Regional Starter Pack — LLM Guide
 
-This is a SvelteKit application demonstrating fiat on/off ramps on the Stellar network using locally denominated assets. It includes a portable anchor integration library with one curated anchor provider (Etherfuse) and a composable SEP protocol library for building against any SEP-compliant anchor.
+This is a SvelteKit application demonstrating fiat on/off ramps on the Stellar network using locally denominated assets. It ships a portable anchor integration library (one curated provider — Etherfuse — plus a reference client for the Stellar test anchor, plus a composable SEP protocol library) and a demo app that exercises every anchor.
 
-The project curates anchor integrations that meet five quality criteria: locally denominated assets on Stellar, local payment rail support, competitive rates (<25 bps), well-documented developer access, and deep liquidity. Anchors that don't meet the bar appear as "honorable mentions" on region pages.
+The project curates anchor integrations that meet five quality criteria: locally denominated assets on Stellar, local payment-rail support, competitive rates (<25 bps), well-documented developer access, and deep liquidity. Anchors that don't meet the bar appear as "honorable mentions" on region pages.
 
 ## Project Structure
 
-- `src/lib/anchors/` — **Portable**, framework-agnostic anchor integrations. No SvelteKit imports. Currently contains `etherfuse/` (implements `Anchor`), `sep/` (SEP protocol modules), and `testanchor/` (reference client).
-- `src/lib/api/anchor.ts` — Client-side API functions that call `/api/anchor/[provider]/` routes. Used by Svelte components to interact with anchors without importing server code.
-- `src/lib/server/anchorFactory.ts` — Server-only. Reads `$env/static/private`, instantiates anchor clients.
-- `src/lib/wallet/` — Freighter wallet extension API + Stellar helpers (Horizon, transactions, trustlines).
-- `src/lib/components/` — Svelte 5 UI components. Top-level: flow components (`OnRampFlow`, `OffRampFlow` for the programmatic archetype; `InteractiveRampFlow` for the SEP-24-style hosted archetype; `RampPage`), KYC (`KycForm`, `KycIframe`, `KycStatusDisplay`), `QuoteDisplay`, `WalletConnect`. Subdirectories: `ramp/` (step sub-components: `AmountInput`, `QuoteStep`, `FiatAccountStep`, `CompletionStep`, `TrustlineStatus`), `ui/` (layout + utility: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`).
-- `src/lib/stores/` — Svelte 5 reactive state (runes): `wallet.svelte.ts`, `customer.svelte.ts`.
-- `src/lib/config/` — Three files (no barrel): `anchors.ts` (anchor profiles, quality criteria, honorable mentions), `regions.ts` (region definitions + cross-lookups), `rails.ts` (payment rail definitions). Token data lives on `Anchor` client classes, not in config.
-- `src/lib/utils/` — `status.ts` (transaction status helpers), `currency.ts` (formatting), `quote.ts` (expiration), `stellar-asset.ts` (asset resolution).
-- `src/lib/constants.ts` — App constants (providers, statuses).
-- `src/routes/` — `anchors/` (listing + `[provider]/` with `onramp/`, `offramp/`), `regions/` (listing + `[region]/`), `testanchor/` (SEP demo), `api/anchor/[provider]/` (CORS proxy endpoints per operation: `customers`, `quotes`, `onramp`, `offramp`, `fiat-accounts`, `kyc`, `sandbox` for the programmatic facet; `auth` + `interactive` for the wallet-auth/interactive facets), `api/testanchor/` (SEP proxy).
+Each curated anchor owns its own client, its own server-side instance singleton, its own client-side API wrapper, its own API routes, and its own bespoke flow pages.
+
+- `src/lib/anchors/` — **Portable**, framework-agnostic anchor code (no SvelteKit imports). Each subdirectory is self-contained and copy-pasteable:
+    - `etherfuse/` — `EtherfuseClient`, types, README. Programmatic flow, iframe KYC, SPEI + PIX deposit instructions.
+    - `testanchor/` — Two clients side-by-side: `TestAnchorRampClient` (SEP-shaped wrapper used by the curated `/anchors/testanchor` flows) and `TestAnchorClient` (a stateful SEP playground used by the `/testanchor` demo page).
+    - `sep/` — Composable SEP modules (`sep1`, `sep6`, `sep10`, `sep12`, `sep24`, `sep31`, `sep38`).
+- `src/lib/server/` — Server-only singletons that read `$env/static/private`:
+    - `etherfuseInstance.ts` — lazily-instantiated `EtherfuseClient`.
+    - `testanchorInstance.ts` — lazily-instantiated `TestAnchorRampClient` + a `requireBearer(request)` helper for the `Authorization: Bearer <SEP-10 token>` pattern.
+- `src/lib/api/` — Client-side fetch wrappers per provider:
+    - `etherfuse.ts` — typed wrappers around `/api/anchor/etherfuse/*`.
+    - `testanchor.ts` — typed wrappers around `/api/anchor/testanchor/*`.
+- `src/lib/wallet/` — Freighter wallet API + Stellar helpers (Horizon, transactions, trustlines).
+- `src/lib/components/` — Shared UI primitives. None of them encode anchor-specific logic; each bespoke flow page composes them.
+    - Top-level: `WalletConnect`, `QuoteDisplay`, `KycIframe`.
+    - `ramp/`: `AmountInput`, `TrustlineStatus`.
+    - `ui/`: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`.
+- `src/lib/stores/` — `wallet.svelte.ts` (Freighter connection state) and `auth.ts` (SEP-10 JWT cache, keyed by provider + public key).
+- `src/lib/config/` — Three files (no barrel): `anchors.ts` (`AnchorProfile`, `ANCHORS`, `QUALITY_CRITERIA`, `HONORABLE_MENTIONS`), `regions.ts`, `rails.ts`.
+- `src/lib/utils/` — `status.ts`, `currency.ts`, `quote.ts`, `stellar-asset.ts`.
+- `src/lib/constants.ts` — `PROVIDER`, `TX_STATUS`.
+- `src/routes/` —
+    - `anchors/` listing + `anchors/etherfuse/{,onramp,offramp}/` + `anchors/testanchor/{,interactive/{onramp,offramp},programmatic/{onramp,offramp}}/`. Each flow page is a self-contained state machine.
+    - `regions/` + `regions/[region]/`. Region pages are config-driven.
+    - `testanchor/` — the standalone SEP playground demo.
+    - `api/anchor/etherfuse/{customers,quotes,onramp,offramp,bank-accounts,kyc,sandbox,assets}/+server.ts` — CORS proxy routes per Etherfuse operation.
+    - `api/anchor/testanchor/{auth,customer,price,sep6,sep24}/+server.ts` — CORS proxy routes per SEP for the test anchor.
+    - `api/testanchor/` — separate proxy for the `/testanchor` playground demo.
 
 ## Key Concepts
 
-### Portability
+### Per-provider isolation
 
-The `/src/lib/anchors/` directory is **framework-agnostic**. It has no SvelteKit imports, no `$env` references, and depends only on `@stellar/stellar-sdk`. You can copy it into any TypeScript project.
+Each anchor's client is standalone. It does not implement a shared interface. Its types are defined within its own directory. Its error class is its own (`EtherfuseError`, `TestAnchorSepUnsupportedError`). The only cross-anchor dependency is `@stellar/stellar-sdk` and (for SEP-compliant anchors) `src/lib/anchors/sep/`.
 
-The SvelteKit-specific anchor factory lives at `/src/lib/server/anchorFactory.ts`. It reads `$env/static/private` for API keys and instantiates anchor clients. Only `+server.ts` route handlers import from this module.
+The boundary that matters at runtime is the server-side instance singleton: `getEtherfuse()` returns a configured `EtherfuseClient`, `getTestAnchor()` returns a configured `TestAnchorRampClient`.
 
-### The Anchor Interface (`/anchors/types.ts`)
+### Routes
 
-The `Anchor` interface is **faceted**: shared identity/metadata plus up to three optional capability facets. At least one of `programmatic`/`interactive` must be present. This models the two ramp archetypes — and lets a single provider expose both (the test anchor does).
+Routes mirror the per-provider isolation. There is no dynamic `[provider]` segment. Static routes per provider take precedence in SvelteKit's router and each provider's routes can diverge freely.
 
-```typescript
-interface Anchor {
-    readonly name: string;
-    readonly displayName: string;
-    readonly capabilities: AnchorCapabilities; // includes flowStyles: ('programmatic'|'interactive')[]
-    readonly supportedTokens: readonly TokenInfo[];
-    readonly supportedCurrencies: readonly string[];
-    readonly supportedRails: readonly string[];
-    readonly auth?: WalletAuthOps; // SEP-10 wallet auth (getChallenge/submitChallenge), if used
-    readonly programmatic?: ProgrammaticOps; // SEP-6 archetype: app-orchestrated
-    readonly interactive?: InteractiveOps; // SEP-24 archetype: anchor-hosted
-}
-```
+### Flow pages
 
-- **`ProgrammaticOps`** (SEP-6 style) — `createCustomer`, `getCustomer`, `getQuote`, `createOnRamp`/`createOffRamp`, `getOnRamp/OffRampTransaction`, `getFiatAccounts`, optional `registerFiatAccount`/`getKycUrl`/`getKycRequirements`/`submitKyc`, `getKycStatus`. The app collects KYC/fiat details and renders payment instructions itself.
-- **`InteractiveOps`** (SEP-24 style) — `startOnRamp`/`startOffRamp` (return `{ interactiveUrl, transactionId }`), `getOnRamp/OffRampTransaction`, optional `getQuote`. The anchor hosts the whole flow; the app opens the URL and polls.
-- **`WalletAuthOps`** — SEP-10 handshake split for client-side signing. The token is threaded into facet methods via an optional trailing `auth?: string` (API-key anchors like Etherfuse ignore it). The factory exposes `requireProgrammatic`/`requireInteractive`/`requireAuth` and `bearerToken(request)`.
+Each on-ramp and off-ramp lives in its own `+page.svelte`:
 
-### Anchor Providers
+- `routes/anchors/etherfuse/onramp/+page.svelte` (~711 LOC) — Connect wallet → email + customer create → KYC iframe → bank account confirm → amount + quote → deposit instructions + polling → complete. Sandbox-only "Simulate fiat received" affordance.
+- `routes/anchors/etherfuse/offramp/+page.svelte` (~759 LOC) — Same onboarding flow → quote → create off-ramp → poll for burn XDR → sign with Freighter → submit to Stellar → poll for fiat payout → complete.
+- `routes/anchors/testanchor/interactive/{onramp,offramp}/+page.svelte` (~330 LOC each) — SEP-10 challenge → SEP-24 start → open hosted URL → poll until status terminal.
+- `routes/anchors/testanchor/programmatic/{onramp,offramp}/+page.svelte` (~440-460 LOC each) — SEP-10 challenge → SEP-12 KYC discovery + submit → SEP-6 deposit/withdraw → (off-ramp only: sign + submit XDR) → poll.
 
-**Etherfuse** (`/anchors/etherfuse/`) — Curated provider. Latin America. `programmatic` facet only (API-key auth, no `auth` facet). Iframe KYC (`kycFlow: 'iframe'`), CETES (MXN) and TESOURO (BRL). Off-ramp deferred signing (`deferredOffRampSigning: true`).
+Each page is one mental model deep. Polling, SEP-10 auth, and KYC handling are inline; the bespoke approach trades duplication for readability.
 
-**Test Anchor** (`/anchors/testanchor/`) — `TestAnchorAdapter` wraps the `sep/` modules as a dual-facet `Anchor` (testnet, region `testnet`, SRT/USDC). Implements **all three** facets: `auth` (SEP-10), `programmatic` (SEP-6/12/38), `interactive` (SEP-24). Stateless — SEP-10 tokens are passed per-call, so a single server instance is safe. The original `TestAnchorClient` (namespaced SEP playground) is unchanged and still powers the `/testanchor` demo. _(Coins.ph is a future `interactive`-only member, pending confirmation it offers a PHP-denominated Stellar asset.)_
+### SEP library (`anchors/sep/`)
 
-### Anchor Factory (`/server/anchorFactory.ts`)
+Framework-agnostic implementations of SEP-1, SEP-6, SEP-10, SEP-12, SEP-24, SEP-31, SEP-38. Optional `fetchFn` for SSR. The `TestAnchorRampClient` wraps these with discovery caching; pages can also use the SEP modules directly if they prefer.
 
-Server-side only. Maps provider names to configured client instances:
+### CORS proxy pattern
 
-```typescript
-import { getAnchor, requireInteractive, isValidProvider } from '$lib/server/anchorFactory';
-// type AnchorProvider = 'etherfuse' | 'testanchor'
-const anchor = getAnchor('testanchor');
-const interactive = requireInteractive('testanchor'); // throws if no interactive facet
-```
+Browser → SvelteKit route → anchor API:
 
-### Quality Criteria and Honorable Mentions
+1. Browser calls `/api/anchor/etherfuse/quotes` (or `/api/anchor/testanchor/sep24?action=deposit`, etc.).
+2. The route handler imports `getEtherfuse()` / `getTestAnchor()` and calls the client method.
+3. Server proxies the response back to the browser.
 
-`src/lib/config/anchors.ts` exports:
-
-- `QUALITY_CRITERIA` — the five criteria used to evaluate anchors (reused on index and region pages)
-- `HONORABLE_MENTIONS` — anchors that exist in a region but don't meet all criteria (AlfredPay, BlindPay, Abroad Finance, Transfero)
-- `getHonorableMentionsForRegion(regionId)` — filter by region
-- `getAllHonorableMentions()` — all mentions
-
-Each honorable mention includes a `criteria` array showing which of the five criteria it meets/misses, with explanatory notes.
-
-### Configuration (`/config/`)
-
-Config is split across three files with no barrel `index.ts`. Token data (issuers, names) lives on the `Anchor` client classes, not in config.
-
-- **`rails.ts`** — `PaymentRail` type, `PAYMENT_RAILS` data, `getPaymentRail()` helper
-- **`anchors.ts`** — `AnchorProfile` type, `ANCHORS` data, `QUALITY_CRITERIA`, `HONORABLE_MENTIONS`, helper functions
-- **`regions.ts`** — `Region` type, `REGIONS` data, `getRegion()`, `getAllRegions()`, `getAnchorsForRegion()`, `getRegionsForAnchor()`
-
-The `AnchorCapability` type has an optional `comingSoon` field used for Etherfuse's Brazil region (API not yet available).
-
-### SEP Library (`/anchors/sep/`)
-
-SEP protocol implementations for building against any SEP-compliant anchor. Framework-agnostic.
-
-- Optional `fetchFn` parameter for SSR
-- Can be copied into any TypeScript project
-- Depends only on `@stellar/stellar-sdk`
-
-### CORS Proxy Pattern
-
-Browser requests to anchor APIs fail due to CORS. All anchor operations go through SvelteKit API routes:
-
-1. Frontend calls `/api/anchor/[provider]/[operation]`
-2. Server-side route handler calls `getAnchor(provider)` from `anchorFactory.ts`
-3. Server proxies the request to the anchor API
-4. Server returns the response to the frontend
-
-### SEP Flow Sequence
-
-For SEP-compliant anchors (test anchor demo):
-
-1. **SEP-1**: Discover anchor endpoints from stellar.toml
-2. **SEP-10**: Authenticate user, get JWT token
-3. **SEP-12**: Check/submit KYC (if required)
-4. **SEP-38**: Get quote (optional)
-5. **SEP-6/24**: Initiate deposit or withdrawal
-6. Poll transaction status until complete
+API-key anchors (Etherfuse) never expose their key. SEP-10 tokens travel via the browser's `Authorization: Bearer ...` header; the test anchor route handlers use `requireBearer(request)`.
 
 ## Common Tasks
 
-### Adding a New Curated Anchor Integration
+### Adding a new curated anchor
 
-New anchors must meet the five quality criteria defined in `QUALITY_CRITERIA`. If they don't, add them to `HONORABLE_MENTIONS` instead.
+1. Create `src/lib/anchors/<name>/{client,types,index}.ts` shaped however the anchor's API works. No interface to satisfy. Define your own error class.
+2. Create `src/lib/server/<name>Instance.ts` — singleton getter that reads env vars.
+3. Create `src/lib/api/<name>.ts` — client-side fetch wrappers per route. Mirror the per-provider shape from `etherfuse.ts` / `testanchor.ts`.
+4. Create `src/routes/api/anchor/<name>/<operation>/+server.ts` per operation.
+5. Create `src/routes/anchors/<name>/+page.svelte` (landing) and `<name>/<flow>/+page.svelte` per flow. Compose primitives from `src/lib/components/`. Don't try to share flow logic with another anchor in this PR — let it duplicate.
+6. Add the provider to `src/lib/constants.ts` (`PROVIDER`).
+7. Add to `src/lib/config/anchors.ts` (`ANCHORS`).
+8. Add to `src/lib/config/regions.ts` if the anchor serves a region.
+9. Add tests under `tests/anchors/<name>/`.
+10. Document in `src/lib/anchors/<name>/README.md`.
 
-1. Create directory: `/src/lib/anchors/[anchor-name]/`
-2. Create `client.ts` implementing the `Anchor` interface from `../types.ts`
-3. Create `types.ts` for anchor-specific API types
-4. Create `index.ts` exporting the client class and types
-5. Add the provider to `src/lib/server/anchorFactory.ts`
-6. Add to `src/lib/constants.ts` (`PROVIDER` object)
-7. Add to `src/lib/config/anchors.ts` (`ANCHORS` record)
-8. Add to `src/lib/config/regions.ts` (region `anchors` arrays)
-9. Add CORS proxy API routes in `/routes/api/` if needed
-10. Document in `/src/lib/anchors/[anchor-name]/README.md`
+If the anchor's API doesn't meet the five quality criteria, add it to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` instead — no client code needed.
 
-### Adding an Honorable Mention
+### Sharing UI primitives
 
-Add to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` with criteria assessment. No client code needed.
+Anything in `src/lib/components/` should be **provider-agnostic** and **dumb** — it takes structural props, not anchor-shaped types. Examples in the current codebase:
 
-### Adding SEP Support
+- `QuoteDisplay.svelte` takes a structural `{ fromCurrency, toCurrency, fromAmount, toAmount, exchangeRate, fee, expiresAt }` shape — not any anchor's native quote type. Bespoke pages adapt their native data via a `$derived` shape inline.
+- `KycIframe.svelte` takes only a URL and an `onComplete` callback.
+- `WalletConnect.svelte` reads `walletStore` and exposes connect/disconnect.
 
-1. Create `/src/lib/anchors/sep/sep[N].ts`
-2. Add types to `sep/types.ts`
-3. Export from `sep/index.ts`
+If you find yourself wanting to put `anchorName === 'etherfuse'` inside a primitive, the primitive is the wrong shape. Either narrow its props or render the variant inline in the page.
+
+### Adding SEP support
+
+1. Create `src/lib/anchors/sep/sep<N>.ts` modeled on the existing modules (pure functions, optional `fetchFn`).
+2. Add types to `sep/types.ts`.
+3. Export from `sep/index.ts`.
+4. Cover with tests under `tests/anchors/sep/`.
 
 ## Linting Conventions
 
-- Internal `<a href>` links must use `resolve()` from `$app/paths`: `<a href={resolve('/path')}>`
-- `{#each}` blocks must have a key: `{#each items as item (item.id)}`
-- Unused interface implementation params use `_` prefix (ESLint config has `argsIgnorePattern: '^_'`)
-- Run `pnpm lint` (prettier + eslint) to check
+- `{#each}` blocks must have a key: `{#each items as item (item.id)}`.
+- Unused function params use `_` prefix (ESLint config has `argsIgnorePattern: '^_'`).
+- `svelte/no-navigation-without-resolve` is disabled project-wide; bespoke pages use dynamic hrefs (e.g. `/anchors/${id}`) and external URLs that the rule's typed-routes model doesn't fit.
+- Run `pnpm format` (not `npx prettier`) and `pnpm lint`.
 
 ## Environment Variables
 
@@ -161,11 +127,11 @@ PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 
 ## Tech Stack
 
-- **SvelteKit** with Svelte 5 (uses runes: `$state`, `$derived`, `$effect`)
-- **TypeScript** throughout
-- **Tailwind CSS** for styling
-- **@stellar/stellar-sdk** for Stellar blockchain
-- **@stellar/freighter-api** for wallet connection
+- **SvelteKit** with Svelte 5 (runes: `$state`, `$derived`, `$effect`).
+- **TypeScript** throughout.
+- **Tailwind CSS** for styling.
+- **@stellar/stellar-sdk** for Stellar blockchain.
+- **@stellar/freighter-api** for wallet connection.
 
 ---
 
@@ -199,10 +165,10 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 This project follows a test-driven development approach. When adding new features or integrations:
 
-1. **RED**: Write comprehensive failing tests first — cover config, client methods, status mappings, error paths, and edge cases
-2. **GREEN**: Implement the code to make all tests pass
-3. **VERIFY**: Run `pnpm test:run` to confirm all tests pass before any other verification step
+1. **RED**: Write comprehensive failing tests first — cover config, client methods, status mappings, error paths, and edge cases.
+2. **GREEN**: Implement the code to make all tests pass.
+3. **VERIFY**: Run `pnpm test:run` to confirm all tests pass before any other verification step.
 
-Tests use **Vitest** + **MSW** (Mock Service Worker) and live in `tests/`. Follow existing patterns in `tests/anchors/` for anchor client tests and `tests/config/` for config tests.
+Tests use **Vitest** + **MSW** (Mock Service Worker) and live in `tests/`. Follow existing patterns in `tests/anchors/etherfuse/` for anchor client tests and `tests/config/` for config tests.
 
 Use `pnpm format` for code formatting (not `npx prettier`).

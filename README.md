@@ -10,23 +10,41 @@ This demo is a fully functional application you can test out and interact with �
 
 **The [`/src/lib/anchors/`](./src/lib/anchors/) and [`/src/lib/wallet/`](./src/lib/wallet/) directories are portable, framework-agnostic TypeScript libraries that should work out-of-the-box!** Copy them (or just the parts you need) into any TypeScript project, and your project can interact with the anchors and the Stellar network. Super easy. Barely an inconvenience!
 
+Each anchor is **self-contained**: a single directory holds the client class, its types, an index file, and a README. Copying `anchors/etherfuse/` (or `anchors/testanchor/`, or `anchors/sep/`) into another project pulls in nothing else from this repo — only the `@stellar/stellar-sdk` peer dependency.
+
 ## What's Inside
 
 ```text
-src/lib/anchors/          <- PORTABLE: Copy into any TypeScript project
-  types.ts                <- Shared (faceted) Anchor interface + common types
-  sandbox.ts              <- Shared sandbox helpers
-  etherfuse/              <- Etherfuse integration (Latin America) — programmatic facet
-  sep/                    <- SEP protocol implementations (SEP-1/6/10/12/24/31/38)
-  testanchor/             <- Reference client for testanchor.stellar.org (all three facets)
+src/lib/anchors/          <- PORTABLE: Copy what you need into any TypeScript project
+  etherfuse/              <- Etherfuse integration (Latin America)
+    client.ts             <- EtherfuseClient class
+    types.ts              <- Etherfuse-native types + EtherfuseError
+    index.ts
+    README.md             <- Paste-target documentation
+  testanchor/             <- Reference clients for testanchor.stellar.org
+    ramp.ts               <- TestAnchorRampClient (curated SEP wrapper)
+    client.ts             <- TestAnchorClient (SEP playground, used by /testanchor)
+    types.ts
+    index.ts
+    README.md
+  sep/                    <- SEP protocol modules (SEP-1/6/10/12/24/31/38)
+    sep1.ts, sep10.ts, ... <- One file per SEP, each independently usable
+    types.ts
+    index.ts
+    README.md
 
 src/lib/wallet/           <- PORTABLE: Freighter wallet + Stellar helpers
 
-src/lib/server/           <- SvelteKit-specific server code
-  anchorFactory.ts        <- Anchor factory (reads $env, instantiates clients)
+src/lib/server/           <- SvelteKit-specific (reads $env)
+  etherfuseInstance.ts    <- Lazily-instantiated EtherfuseClient singleton
+  testanchorInstance.ts   <- Lazily-instantiated TestAnchorRampClient singleton + requireBearer helper
 
-src/lib/stores/           <- Svelte 5 reactive state (runes)
-src/lib/components/       <- On/off ramp UI components
+src/lib/api/              <- Browser-side fetch wrappers per provider
+  etherfuse.ts            <- Wraps /api/anchor/etherfuse/*
+  testanchor.ts           <- Wraps /api/anchor/testanchor/*
+
+src/lib/components/       <- Shared UI primitives (provider-agnostic)
+src/lib/stores/           <- wallet.svelte.ts (Freighter), auth.ts (SEP-10 token cache)
 src/lib/config/           <- Anchors, regions, and payment-rail configuration
 src/routes/               <- SvelteKit pages and API routes
 ```
@@ -45,119 +63,105 @@ pnpm build                # Build for production
 
 ## Using the Anchor Library
 
-The `/src/lib/anchors/` directory is **framework-agnostic** and designed to be copied into any TypeScript project. Each anchor client implements a shared `Anchor` interface, so swapping providers requires no changes to your application logic.
-
-### The Anchor Interface
-
-The `Anchor` interface (from `types.ts`) is **faceted**: shared identity/metadata plus up to three optional capability facets. At least one of `programmatic`/`interactive` must be present, and a single provider may expose both.
-
-```typescript
-interface Anchor {
-    readonly name: string;
-    readonly displayName: string;
-    readonly capabilities: AnchorCapabilities; // includes flowStyles: ('programmatic'|'interactive')[]
-    readonly supportedTokens: readonly TokenInfo[];
-    readonly supportedCurrencies: readonly string[];
-    readonly supportedRails: readonly string[];
-
-    readonly auth?: WalletAuthOps; // SEP-10 wallet auth (getChallenge/submitChallenge), if used
-    readonly programmatic?: ProgrammaticOps; // SEP-6 archetype: app-orchestrated
-    readonly interactive?: InteractiveOps; // SEP-24 archetype: anchor-hosted
-}
-```
-
-- **`programmatic`** (SEP-6 style) — the app collects customer/KYC/fiat details and renders payment instructions itself: `createCustomer`, `getCustomer`, `getQuote`, `createOnRamp`/`createOffRamp`, `get*Transaction`, `getFiatAccounts`, plus optional `registerFiatAccount`/`getKycUrl`/`getKycRequirements`/`submitKyc`/`getKycStatus`.
-- **`interactive`** (SEP-24 style) — the anchor hosts the whole flow: `startOnRamp`/`startOffRamp` return `{ interactiveUrl, transactionId }`; the app opens the URL and polls `get*Transaction`. Optional `getQuote`.
-- **`auth`** (SEP-10) — wallet-signature handshake split into `getChallenge`/`submitChallenge` for client-side signing. The resulting token is threaded into facet methods via an optional trailing `auth?` argument (API-key anchors like Etherfuse ignore it).
-
-Each client declares `displayName`, `supportedTokens` (with Stellar issuers), `supportedCurrencies`, and `supportedRails` — making the portable library fully self-contained.
+The `/src/lib/anchors/` directory is **framework-agnostic** and designed to be copied — directory-by-directory — into any TypeScript project. Each anchor is its own self-contained module.
 
 ### Anchor Providers
 
-| Provider        | Region         | Fiat     | Token          | Rail      | Facets                                |
-| --------------- | -------------- | -------- | -------------- | --------- | ------------------------------------- |
-| **Etherfuse**   | Mexico, Brazil | MXN, BRL | CETES, TESOURO | SPEI, PIX | `programmatic`                        |
-| **Test Anchor** | Testnet        | (test)   | SRT, USDC      | —         | `auth`, `programmatic`, `interactive` |
+| Provider        | Region         | Fiat     | Token          | Rail      | Authentication |
+| --------------- | -------------- | -------- | -------------- | --------- | -------------- |
+| **Etherfuse**   | Mexico, Brazil | MXN, BRL | CETES, TESOURO | SPEI, PIX | API key        |
+| **Test Anchor** | Testnet        | (test)   | SRT, USDC      | bank      | SEP-10         |
 
-Etherfuse is the curated provider. The test anchor is a reference client against [testanchor.stellar.org](https://testanchor.stellar.org) and the only member that implements all three facets. Each provider has its own directory under `/src/lib/anchors/` with a `README.md` containing detailed setup, usage examples, and flow documentation.
+Etherfuse is the curated provider for production-shaped fiat ramps. The test anchor (`testanchor.stellar.org`) is a reference for SEP-compliant integrations.
 
 > **Honorable mentions** — anchors that exist in a region but don't meet all five quality criteria (e.g. AlfredPay, BlindPay, Abroad Finance, Transfero) are surfaced on the region pages with a per-criterion assessment. They have no client code; they live in `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts`.
 
-### Example: Etherfuse (programmatic facet)
+### Example: Etherfuse
 
 ```typescript
 import { EtherfuseClient } from './anchors/etherfuse';
 
 const anchor = new EtherfuseClient({
-    apiKey: 'your-api-key',
-    baseUrl: 'https://api.sand.etherfuse.com', // sandbox
+    apiKey: process.env.ETHERFUSE_API_KEY!,
+    baseUrl: 'https://api.sand.etherfuse.com',
 });
 
-// Etherfuse exposes the `programmatic` facet only. Call operations via anchor.programmatic.*
-
 // 1. Create customer (registers the user and generates a KYC onboarding URL)
-const customer = await anchor.programmatic.createCustomer({
-    email: 'user@example.com',
+const customer = await anchor.createCustomer({
     publicKey: 'GXYZ...',
+    email: 'user@example.com',
     country: 'MX',
 });
 
-// 2. Get quote (MXN -> CETES)
-const quote = await anchor.programmatic.getQuote({
-    fromCurrency: 'MXN',
-    toCurrency: 'CETES',
-    fromAmount: '1000',
+// 2. Get a hosted KYC URL and embed it in an iframe
+const kycUrl = await anchor.getKycUrl({
+    customerId: customer.id,
+    publicKey: 'GXYZ...',
+});
+
+// 3. Get quote (MXN -> CETES)
+const quote = await anchor.getQuote({
+    fromAsset: 'MXN',
+    toAsset: 'CETES',
+    sourceAmount: '1000',
     customerId: customer.id,
     stellarAddress: 'GXYZ...',
 });
 
-// 3. Create on-ramp order
-const onramp = await anchor.programmatic.createOnRamp({
+// 4. Create on-ramp order
+const order = await anchor.createOnRampOrder({
     customerId: customer.id,
     quoteId: quote.id,
-    stellarAddress: 'GXYZ...',
-    fromCurrency: 'MXN',
-    toCurrency: 'CETES',
-    amount: '1000',
+    publicKey: 'GXYZ...',
 });
+// order.deposit — SPEI or PIX deposit instructions (discriminated by `rail`)
+
+// 5. Poll until completed
+let polled = await anchor.getOnRampOrder(order.id);
+while (polled && polled.status !== 'completed' && polled.status !== 'failed') {
+    await new Promise((r) => setTimeout(r, 5000));
+    polled = await anchor.getOnRampOrder(order.id);
+}
 ```
 
-### Example: Test Anchor (all three facets)
+See [`src/lib/anchors/etherfuse/README.md`](./src/lib/anchors/etherfuse/README.md) for the complete reference.
 
-The test anchor composes the `/sep/` modules into a dual-archetype `Anchor` with wallet auth. Authenticate once, then drive either facet:
+### Example: Test Anchor (SEP-compliant)
+
+The test anchor exposes both archetypes through `TestAnchorRampClient`:
 
 ```typescript
-import { createTestAnchorAdapter } from './anchors/testanchor';
+import { TestAnchorRampClient } from './anchors/testanchor';
 
-const anchor = createTestAnchorAdapter();
+const anchor = new TestAnchorRampClient();
 
 // 1. SEP-10 wallet auth (sign client-side, e.g. Freighter)
-const { transactionXdr } = await anchor.auth!.getChallenge(publicKey);
-const signedXdr = await signWithWallet(transactionXdr);
-const { token } = await anchor.auth!.submitChallenge(signedXdr);
+const challenge = await anchor.getChallenge(publicKey);
+const signedXdr = await signWithWallet(challenge.transaction);
+const { token } = await anchor.submitChallenge(signedXdr);
 
 // 2a. Interactive (SEP-24): anchor hosts the flow
-const session = await anchor.interactive!.startOnRamp({
-    assetCode: 'SRT',
+const session = await anchor.sep24Deposit(token, {
+    asset_code: 'SRT',
+    asset_issuer: 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B',
     account: publicKey,
-    auth: token,
 });
-window.open(session.interactiveUrl, '_blank');
-const tx = await anchor.interactive!.getOnRampTransaction(session.transactionId, token);
+window.open(session.url, '_blank');
+const tx = await anchor.getSep24Transaction(token, session.id);
 
 // 2b. Programmatic (SEP-6): app orchestrates the flow
-const onramp = await anchor.programmatic!.createOnRamp(
-    {
-        customerId: '',
-        quoteId: '',
-        stellarAddress: publicKey,
-        fromCurrency: 'USD',
-        toCurrency: 'SRT',
-        amount: '100',
-    },
-    token,
-);
+const deposit = await anchor.sep6Deposit(token, {
+    asset_code: 'SRT',
+    funding_method: 'bank_account',
+    account: publicKey,
+    amount: '100',
+});
+// deposit.instructions — generic SEP-6 key/value deposit fields
 ```
+
+The returned types are **directly the SEP-defined shapes** (`Sep10ChallengeResponse`, `Sep24InteractiveResponse`, `Sep6DepositResponse`, `Sep12CustomerResponse`, etc.) — no adaptation layer.
+
+See [`src/lib/anchors/testanchor/README.md`](./src/lib/anchors/testanchor/README.md) for the complete reference, including the separate `TestAnchorClient` SEP playground.
 
 ### Example: Any SEP-Compliant Anchor
 
@@ -166,22 +170,20 @@ For anchors that implement Stellar SEP protocols, use the `/sep/` modules direct
 ```typescript
 import { sep1, sep10, sep24 } from './anchors/sep';
 
-// 1. Discover anchor endpoints
 const toml = await sep1.fetchStellarToml('testanchor.stellar.org');
 
-// 2. Authenticate
-const token = await sep10.authenticate(
+const { token } = await sep10.authenticate(
     {
-        authEndpoint: toml.WEB_AUTH_ENDPOINT!,
-        serverSigningKey: toml.SIGNING_KEY!,
+        authEndpoint: sep1.getSep10Endpoint(toml)!,
+        serverSigningKey: sep1.getSigningKey(toml)!,
         networkPassphrase: 'Test SDF Network ; September 2015',
+        homeDomain: 'testanchor.stellar.org',
     },
     userPublicKey,
     signerFunction,
 );
 
-// 3. Start interactive deposit
-const response = await sep24.deposit(toml.TRANSFER_SERVER_SEP0024!, token, {
+const response = await sep24.deposit(sep1.getSep24Endpoint(toml)!, token, {
     asset_code: 'USDC',
     amount: '100',
 });
@@ -191,7 +193,7 @@ window.open(response.url, '_blank');
 
 ### Usage Outside SvelteKit
 
-The `anchors/` and `wallet/` directories have no framework dependencies — they rely only on `@stellar/stellar-sdk` (and `@stellar/freighter-api` for the wallet). Copy the provider directories you need and instantiate clients directly with `process.env` or your framework's env mechanism:
+The `anchors/` and `wallet/` directories have no framework dependencies — they rely only on `@stellar/stellar-sdk` (and `@stellar/freighter-api` for the wallet). Copy only what you need:
 
 ```typescript
 // Express / Node.js example
@@ -207,56 +209,57 @@ const app = express();
 app.use(express.json());
 
 app.post('/api/quotes', async (req, res) => {
-    const quote = await anchor.programmatic!.getQuote(req.body);
+    const quote = await anchor.getQuote(req.body);
     res.json(quote);
 });
 ```
 
-You only need to copy the provider(s) you use plus `types.ts`. For example, to use just Etherfuse, copy `anchors/types.ts` and `anchors/etherfuse/`. The providers don't reference each other.
+You only need to copy the provider(s) you use. The providers don't reference each other — `anchors/etherfuse/` and `anchors/testanchor/` are independent.
 
-If your app runs in the browser, anchor API calls will hit CORS restrictions. Proxy them through your backend the same way this SvelteKit app does with its `/api/anchor/[provider]/` routes.
+If your app runs in the browser, anchor API calls will hit CORS restrictions. Proxy them through your backend the same way this SvelteKit app does with its `/api/anchor/etherfuse/*` and `/api/anchor/testanchor/*` routes.
 
 ---
 
 ## Architecture
 
-### Server-Side Anchor Factory
+### Server-Side Instances
 
-Anchor clients are instantiated server-side by the factory at `src/lib/server/anchorFactory.ts`, which reads environment variables and returns configured client instances. It also exposes facet accessors that throw if a provider doesn't support the requested facet:
+Each anchor has a server-side instance singleton that reads its env vars and lazily instantiates the client:
 
 ```typescript
 // In a +server.ts route handler:
-import {
-    getAnchor,
-    isValidProvider,
-    requireProgrammatic,
-    requireInteractive,
-    requireAuth,
-    bearerToken,
-} from '$lib/server/anchorFactory';
+import { getEtherfuse } from '$lib/server/etherfuseInstance';
+import { getTestAnchor, requireBearer } from '$lib/server/testanchorInstance';
 
-const anchor = getAnchor('etherfuse'); // Returns configured EtherfuseClient
-const programmatic = requireProgrammatic('etherfuse'); // throws if no programmatic facet
-const interactive = requireInteractive('testanchor'); // throws if no interactive facet
-const token = bearerToken(request); // pull the SEP-10 token off an incoming request
+const etherfuse = getEtherfuse();
+const customer = await etherfuse.createCustomer({ publicKey, email });
+
+const testanchor = getTestAnchor();
+const token = requireBearer(request); // throws 401 if no Bearer header
+const sep24 = await testanchor.sep24Deposit(token, request);
 ```
 
 This separation keeps the anchor library (`src/lib/anchors/`) portable and free of SvelteKit imports.
 
 ### API Routes
 
-All anchor operations are proxied through SvelteKit API routes at `/api/anchor/[provider]/`:
+All anchor operations are proxied through SvelteKit API routes. There is no dynamic `[provider]` segment — each anchor's routes live at a static path:
 
 ```text
-/api/anchor/[provider]/customers      - Customer creation and lookup       (programmatic)
-/api/anchor/[provider]/kyc            - KYC status, requirements, URLs      (programmatic)
-/api/anchor/[provider]/quotes         - Quote generation                   (programmatic)
-/api/anchor/[provider]/onramp         - On-ramp order creation and status  (programmatic)
-/api/anchor/[provider]/offramp        - Off-ramp order creation and status (programmatic)
-/api/anchor/[provider]/fiat-accounts  - Bank account registration/listing  (programmatic)
-/api/anchor/[provider]/sandbox        - Sandbox-only operations (KYC completion, fiat simulation)
-/api/anchor/[provider]/auth           - SEP-10 challenge/response           (auth facet)
-/api/anchor/[provider]/interactive    - Start + poll hosted sessions        (interactive)
+/api/anchor/etherfuse/customers      - POST create, GET by ?customerId=
+/api/anchor/etherfuse/quotes         - POST get quote
+/api/anchor/etherfuse/onramp         - POST create, GET by ?orderId=
+/api/anchor/etherfuse/offramp        - POST create, GET by ?orderId=
+/api/anchor/etherfuse/bank-accounts  - GET by ?customerId=
+/api/anchor/etherfuse/kyc            - POST presigned URL, GET status
+/api/anchor/etherfuse/sandbox        - POST { action: 'simulateFiatReceived', orderId }
+/api/anchor/etherfuse/assets         - GET by ?currency=&wallet=
+
+/api/anchor/testanchor/auth          - POST ?action=challenge|token
+/api/anchor/testanchor/customer      - GET / PUT (SEP-12, Bearer required)
+/api/anchor/testanchor/price         - POST (SEP-38)
+/api/anchor/testanchor/sep6          - POST ?action=deposit|withdraw, GET by ?transactionId=
+/api/anchor/testanchor/sep24         - POST ?action=deposit|withdraw, GET by ?transactionId=
 ```
 
 For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoints handle CORS:
@@ -268,27 +271,31 @@ For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoint
 
 ### UI Components
 
-The ramp flows are implemented as Svelte 5 components:
+`src/lib/components/` contains **provider-agnostic primitives**. The flow pages compose them; there are no shared flow components per-archetype.
 
-- `OnRampFlow.svelte` / `OffRampFlow.svelte` — the **programmatic** archetype (customer → quote → instructions/signing → status polling)
-- `InteractiveRampFlow.svelte` — the **interactive** archetype (auth → start hosted session → open URL → poll)
-- `RampPage.svelte` — picks the flow based on the anchor's `flowStyles`
-- `KycForm.svelte` / `KycIframe.svelte` / `KycStatusDisplay.svelte` — KYC collection (form- or iframe-based) and status
-- `QuoteDisplay.svelte` — quote summary with countdown timer
-- `WalletConnect.svelte` — Freighter wallet connection
-- `HonorableMentionAnchors.svelte` — region-page listing of non-curated anchors
+- `WalletConnect.svelte` — Freighter connect/disconnect.
+- `QuoteDisplay.svelte` — takes a structural quote shape, renders an exchange-rate summary with countdown.
+- `KycIframe.svelte` — embeds a hosted KYC URL, listens for completion messages.
+- `ramp/AmountInput.svelte` — amount entry with trustline + wallet-connected guards.
+- `ramp/TrustlineStatus.svelte` — self-contained trustline check + "Add trustline" CTA.
+- `ui/`: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`.
 
 ### Pages
 
 ```text
-/                       - Home page
-/anchors                - Anchor provider listing (curated)
-/anchors/[provider]     - Provider detail page
-/anchors/[provider]/onramp   - On-ramp page
-/anchors/[provider]/offramp  - Off-ramp page
-/regions                - Region listing
-/regions/[region]       - Region detail with curated anchors + honorable mentions
-/testanchor             - SEP protocol demo against testanchor.stellar.org
+/                                                       - Home page
+/anchors                                                - Anchor provider listing (curated)
+/anchors/etherfuse                                      - Etherfuse landing page
+/anchors/etherfuse/onramp                               - Etherfuse on-ramp
+/anchors/etherfuse/offramp                              - Etherfuse off-ramp
+/anchors/testanchor                                     - Test anchor landing page (links to both archetypes)
+/anchors/testanchor/interactive/onramp                  - SEP-24 deposit
+/anchors/testanchor/interactive/offramp                 - SEP-24 withdraw
+/anchors/testanchor/programmatic/onramp                 - SEP-6 deposit
+/anchors/testanchor/programmatic/offramp                - SEP-6 withdraw
+/regions                                                - Region listing
+/regions/[region]                                       - Region detail with curated anchors + honorable mentions
+/testanchor                                             - Standalone SEP protocol demo (uses TestAnchorClient playground)
 ```
 
 ---
@@ -336,13 +343,15 @@ PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 
 New anchors must meet the five quality criteria in `QUALITY_CRITERIA` (`src/lib/config/anchors.ts`). If they don't, add them to `HONORABLE_MENTIONS` instead (no client code needed).
 
-1. Create `/src/lib/anchors/[anchor-name]/` with `client.ts`, `types.ts`, and `index.ts`
-2. Implement the faceted `Anchor` interface from `../types.ts` — provide at least one of `programmatic`/`interactive` (plus `auth` if the anchor authenticates via wallet), and set the relevant `AnchorCapabilities` flags (including `flowStyles`)
-3. Add the provider to `src/lib/server/anchorFactory.ts` (env vars, factory switch case)
-4. Add the provider to `src/lib/constants.ts` (`PROVIDER` object)
-5. Add the provider to `src/lib/config/anchors.ts` (`ANCHORS` record) and `src/lib/config/regions.ts` (region `anchors` arrays)
-6. Add API route proxies if needed for CORS
-7. Document in `/src/lib/anchors/[anchor-name]/README.md`
+1. Create `/src/lib/anchors/[anchor-name]/{client.ts,types.ts,index.ts}` shaped however the anchor's API works.
+2. Create `/src/lib/server/[anchor-name]Instance.ts` — singleton getter.
+3. Create `/src/lib/api/[anchor-name].ts` — client-side fetch wrappers.
+4. Create `/src/routes/api/anchor/[anchor-name]/<operation>/+server.ts` per operation.
+5. Create `/src/routes/anchors/[anchor-name]/+page.svelte` (landing) and `<flow>/+page.svelte` per flow. Compose primitives from `src/lib/components/`.
+6. Add the provider to `src/lib/constants.ts` (`PROVIDER`).
+7. Add to `src/lib/config/anchors.ts` (`ANCHORS`) and `src/lib/config/regions.ts` if regional.
+8. Add tests under `tests/anchors/[anchor-name]/`.
+9. Document in `/src/lib/anchors/[anchor-name]/README.md`.
 
 ## Claude Code
 

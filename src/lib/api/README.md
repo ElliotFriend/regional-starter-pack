@@ -1,137 +1,172 @@
 # API Client Functions
 
-Client-side wrappers around the `/api/anchor/[provider]/` route handlers. These functions are called by Svelte components to interact with anchor services without importing server-side code directly.
+Per-provider client-side wrappers around the SvelteKit API routes. These functions are called by Svelte components to interact with anchor services without importing server-side code directly.
+
+```text
+src/lib/api/
+├── etherfuse.ts     <- wraps /api/anchor/etherfuse/*
+└── testanchor.ts    <- wraps /api/anchor/testanchor/*
+```
 
 ## Why This Exists
 
-The anchor client libraries (`$lib/anchors/`) require credentials (an API key, or a per-request SEP-10 token) and run server-side only. The SvelteKit route handlers at `/api/anchor/[provider]/` expose them to the browser. This file provides typed functions that call those routes, so components don't need to manually construct `fetch` calls with the right URLs, methods, and error handling.
+The anchor client libraries (`$lib/anchors/`) require credentials (an API key, or a per-request SEP-10 token) and run server-side only. The SvelteKit route handlers at `/api/anchor/<provider>/` expose them to the browser. The files in this directory provide typed functions that call those routes, so components don't need to manually construct `fetch` calls with the right URLs, methods, and error handling.
 
 ```text
 Component (.svelte)
     │
-    │  calls functions from $lib/api/anchor
+    │  calls functions from $lib/api/etherfuse or $lib/api/testanchor
     ▼
-API client (this file)
+API client (this directory)
     │
-    │  fetch('/api/anchor/[provider]/...')
+    │  fetch('/api/anchor/<provider>/...')
     ▼
-Route handler ('/api/anchor/[provider]/.../+server.ts')
+Route handler ('/api/anchor/<provider>/.../+server.ts')
     │
-    │  calls getAnchor(provider) / requireProgrammatic / requireInteractive / requireAuth
+    │  calls getEtherfuse() / getTestAnchor() / requireBearer(request)
     ▼
-Anchor client ($lib/anchors/*)
+Anchor client ($lib/anchors/<provider>/)
     │
     │  fetch to external anchor API
     ▼
-Anchor API (Etherfuse, Test Anchor)
+Anchor API (Etherfuse, testanchor.stellar.org)
 ```
+
+Each provider gets its own wrapper module, mirroring the per-provider isolation in `$lib/anchors/`.
 
 ## Usage
 
-Every function takes SvelteKit's `fetch` as its first argument and a provider name as its second. This ensures proper cookie forwarding and SSR support. Facet methods that need a SEP-10 session token accept a trailing `auth` argument, which is forwarded as a bearer token (API-key anchors like Etherfuse ignore it).
+Every function takes SvelteKit's `fetch` as its first argument. This ensures proper cookie forwarding and SSR support. Functions that need a SEP-10 session token (testanchor) accept the token as an explicit argument, which is forwarded as `Authorization: Bearer ...`.
+
+### Etherfuse
 
 ```svelte
 <script lang="ts">
-    import { getOrCreateCustomer, getQuote, createOnRamp } from '$lib/api/anchor';
+    import * as ef from '$lib/api/etherfuse';
 
-    // SvelteKit provides fetch in load functions; in components, use the global fetch
-    const customer = await getOrCreateCustomer(fetch, 'etherfuse', email, 'MX', {
-        supportsEmailLookup: false,
+    const customer = await ef.createCustomer(fetch, {
+        publicKey: walletAddress,
+        email,
+        country: 'MX',
+    });
+
+    const kycUrl = await ef.getKycUrl(fetch, {
+        customerId: customer.id,
         publicKey: walletAddress,
     });
 
-    const quote = await getQuote(fetch, 'etherfuse', {
-        fromCurrency: 'MXN',
-        toCurrency: 'CETES',
-        fromAmount: '1000',
+    const quote = await ef.getQuote(fetch, {
+        fromAsset: 'MXN',
+        toAsset: 'CETES',
+        sourceAmount: '1000',
         customerId: customer.id,
         stellarAddress: walletAddress,
     });
 
-    const tx = await createOnRamp(fetch, 'etherfuse', {
+    const order = await ef.createOnRampOrder(fetch, {
         customerId: customer.id,
         quoteId: quote.id,
-        stellarAddress: walletAddress,
-        fromCurrency: 'MXN',
-        toCurrency: 'CETES',
-        amount: '1000',
+        publicKey: walletAddress,
     });
+
+    // Poll
+    const updated = await ef.getOnRampOrder(fetch, order.id);
 </script>
 ```
 
-For wallet-authenticated anchors (e.g. the test anchor), run the SEP-10 handshake first and thread the token into subsequent calls:
+| Function              | Route                                  | Description                          |
+| --------------------- | -------------------------------------- | ------------------------------------ |
+| `createCustomer`      | `POST /customers`                      | Create a new customer + onboarding   |
+| `getCustomer`         | `GET /customers?customerId=`           | Fetch by ID                          |
+| `getQuote`            | `POST /quotes`                         | Get a price quote                    |
+| `createOnRampOrder`   | `POST /onramp`                         | Start a fiat-to-token order          |
+| `getOnRampOrder`      | `GET /onramp?orderId=`                 | Poll on-ramp order                   |
+| `createOffRampOrder`  | `POST /offramp`                        | Start a token-to-fiat order          |
+| `getOffRampOrder`     | `GET /offramp?orderId=`                | Poll off-ramp order (for burn XDR)   |
+| `listBankAccounts`    | `GET /bank-accounts?customerId=`       | List a customer's bank accounts      |
+| `getKycUrl`           | `POST /kyc`                            | Get presigned KYC iframe URL         |
+| `getKycStatus`        | `GET /kyc?customerId=&publicKey=`      | Poll KYC status                      |
+| `getAssets`           | `GET /assets?currency=&wallet=`        | List rampable assets                 |
+| `simulateFiatReceived` | `POST /sandbox`                       | Sandbox simulation                   |
 
-```ts
-import { getAuthChallenge, submitAuthChallenge, startInteractive } from '$lib/api/anchor';
+All routes are under `/api/anchor/etherfuse/`. Errors throw `EtherfuseApiError`. Single-resource lookups return `null` on 404.
 
-const { transactionXdr } = await getAuthChallenge(fetch, 'testanchor', walletAddress);
-const signedXdr = await signWithWallet(transactionXdr);
-const { token } = await submitAuthChallenge(fetch, 'testanchor', signedXdr);
+### Testanchor
 
-const session = await startInteractive(fetch, 'testanchor', {
-    direction: 'onramp',
-    assetCode: 'SRT',
-    account: walletAddress,
-    auth: token,
-});
-window.open(session.interactiveUrl, '_blank');
+The testanchor wrapper expects an explicit SEP-10 token argument on methods that require auth (`getCustomer`, `putCustomer`, `sep6Deposit`, `sep6Withdraw`, `getSep6Transaction`, `sep24Deposit`, `sep24Withdraw`, `getSep24Transaction`). Use `getChallenge` + `submitChallenge` to obtain one; the demo app caches it in `authStore` (`$lib/stores/auth`).
+
+```svelte
+<script lang="ts">
+    import * as ta from '$lib/api/testanchor';
+    import { authStore } from '$lib/stores/auth';
+    import { signWithFreighter } from '$lib/wallet/freighter';
+    import { walletStore } from '$lib/stores/wallet.svelte';
+
+    async function ensureToken(): Promise<string> {
+        const cached = authStore.get('testanchor', walletStore.publicKey!);
+        if (cached) return cached;
+        const challenge = await ta.getChallenge(fetch, walletStore.publicKey!);
+        const { signedXdr } = await signWithFreighter(challenge.transaction, walletStore.network);
+        const { token } = await ta.submitChallenge(fetch, signedXdr);
+        authStore.set('testanchor', walletStore.publicKey!, token);
+        return token;
+    }
+
+    const token = await ensureToken();
+
+    const customer = await ta.getCustomer(fetch, token);
+    if (customer.status === 'NEEDS_INFO') {
+        await ta.putCustomer(fetch, token, {
+            first_name: 'Test',
+            last_name: 'User',
+            email_address: 'test@example.com',
+        });
+    }
+
+    const session = await ta.sep24Deposit(fetch, token, {
+        asset_code: 'SRT',
+        asset_issuer: 'GCDNJUBQSX...',
+        account: walletStore.publicKey!,
+    });
+    window.open(session.url, '_blank');
+
+    const tx = await ta.getSep24Transaction(fetch, token, session.id);
+</script>
 ```
 
-## Functions
+| Function              | Route                                       | Description                          |
+| --------------------- | ------------------------------------------- | ------------------------------------ |
+| `getChallenge`        | `POST /auth?action=challenge`               | Request SEP-10 challenge XDR         |
+| `submitChallenge`     | `POST /auth?action=token`                   | Exchange signed XDR for JWT          |
+| `getCustomer`         | `GET /customer` (Bearer)                    | SEP-12 customer fields + status      |
+| `putCustomer`         | `PUT /customer` (Bearer)                    | Submit SEP-12 fields                 |
+| `getPrice`            | `POST /price`                               | SEP-38 indicative price              |
+| `sep6Deposit`         | `POST /sep6?action=deposit` (Bearer)        | SEP-6 deposit                        |
+| `sep6Withdraw`        | `POST /sep6?action=withdraw` (Bearer)       | SEP-6 withdraw + signable XDR        |
+| `getSep6Transaction`  | `GET /sep6?transactionId=` (Bearer)         | Poll SEP-6 transaction               |
+| `sep24Deposit`        | `POST /sep24?action=deposit` (Bearer)       | SEP-24 deposit (hosted URL)          |
+| `sep24Withdraw`       | `POST /sep24?action=withdraw` (Bearer)      | SEP-24 withdraw (hosted URL)         |
+| `getSep24Transaction` | `GET /sep24?transactionId=` (Bearer)        | Poll SEP-24 transaction              |
 
-### Programmatic facet (SEP-6 archetype)
-
-| Function                  | Route                        | Description                                                                        |
-| ------------------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
-| `getCustomerByEmail`      | `GET /customers`             | Look up customer by email                                                          |
-| `createCustomer`          | `POST /customers`            | Create a new customer                                                              |
-| `getOrCreateCustomer`     | GET then POST `/customers`   | Find or create, respects `supportsEmailLookup`                                     |
-| `getQuote`                | `POST /quotes`               | Get a price quote                                                                  |
-| `createOnRamp`            | `POST /onramp`               | Start a fiat-to-crypto transaction                                                 |
-| `getOnRampTransaction`    | `GET /onramp`                | Poll on-ramp status                                                                |
-| `createOffRamp`           | `POST /offramp`              | Start a crypto-to-fiat transaction                                                 |
-| `getOffRampTransaction`   | `GET /offramp`               | Poll off-ramp status                                                               |
-| `getFiatAccounts`         | `GET /fiat-accounts`         | List saved bank accounts                                                           |
-| `registerFiatAccount`     | `POST /fiat-accounts`        | Register a bank account                                                            |
-| `getKycFieldRequirements` | `GET /kyc?type=requirements` | Get required KYC fields (discovers per-customer when `auth`/`transactionId` given) |
-| `submitKyc`               | `POST /kyc?type=submit-kyc`  | Submit KYC fields + documents                                                      |
-| `getKycStatus`            | `GET /kyc?type=status`       | Check KYC status                                                                   |
-| `getKycUrl`               | `GET /kyc?type=iframe`       | Get KYC/onboarding URL                                                             |
-
-### Auth facet (SEP-10 handshake)
-
-| Function              | Route                         | Description                                     |
-| --------------------- | ----------------------------- | ----------------------------------------------- |
-| `getAuthChallenge`    | `POST /auth?action=challenge` | Request a challenge XDR to sign (leg 1)         |
-| `submitAuthChallenge` | `POST /auth?action=token`     | Exchange a signed challenge for a token (leg 2) |
-
-### Interactive facet (SEP-24 archetype)
-
-| Function                    | Route               | Description                                      |
-| --------------------------- | ------------------- | ------------------------------------------------ |
-| `startInteractive`          | `POST /interactive` | Start a hosted on/off-ramp session (`direction`) |
-| `getInteractiveTransaction` | `GET /interactive`  | Poll a hosted session's transaction status       |
-
-### Sandbox (testing only)
-
-| Function               | Route           | Description                            |
-| ---------------------- | --------------- | -------------------------------------- |
-| `simulateFiatReceived` | `POST /sandbox` | Simulate a fiat payment received event |
-
-All routes are prefixed with `/api/anchor/[provider]`.
+All routes are under `/api/anchor/testanchor/`. Errors throw `TestAnchorApiError`. Single-resource lookups return `null` on 404.
 
 ## Error Handling
 
-All functions throw `ApiError` on non-2xx responses. Functions that look up a single resource (`getCustomerByEmail`, `getOnRampTransaction`, `getOffRampTransaction`, `getInteractiveTransaction`) return `null` on 404 instead of throwing.
+Each wrapper has its own error class (`EtherfuseApiError`, `TestAnchorApiError`) with a numeric `statusCode` and a string message. Catch the specific class per provider:
 
 ```typescript
-import { ApiError } from '$lib/api/anchor';
+import { EtherfuseApiError } from '$lib/api/etherfuse';
 
 try {
-    await createOnRamp(fetch, provider, options);
+    await ef.createOnRampOrder(fetch, args);
 } catch (err) {
-    if (err instanceof ApiError) {
+    if (err instanceof EtherfuseApiError) {
         console.error(err.statusCode, err.message);
     }
+    throw err;
 }
 ```
+
+## Adding a wrapper for a new anchor
+
+When you add a new curated anchor (`src/lib/anchors/<name>/`), add a matching `src/lib/api/<name>.ts` here that mirrors the same per-route function pattern. Keep it focused on `fetch` + JSON marshaling — the error mapping, validation, and business logic all live server-side in the route handlers and the underlying client.
