@@ -54,12 +54,7 @@ async function apiRequest<T>(fetch: Fetch, url: string, init?: RequestInit): Pro
     return response.json();
 }
 
-async function postJson<T>(
-    fetch: Fetch,
-    url: string,
-    body: unknown,
-    token?: string,
-): Promise<T> {
+async function postJson<T>(fetch: Fetch, url: string, body: unknown, token?: string): Promise<T> {
     return apiRequest<T>(fetch, url, {
         method: 'POST',
         headers: {
@@ -74,15 +69,10 @@ async function postJson<T>(
 // SEP-10 auth
 // ---------------------------------------------------------------------------
 
-export async function getChallenge(
-    fetch: Fetch,
-    account: string,
-): Promise<Sep10ChallengeResponse> {
-    return postJson<Sep10ChallengeResponse>(
-        fetch,
-        '/api/anchor/testanchor/auth?action=challenge',
-        { account },
-    );
+export async function getChallenge(fetch: Fetch, account: string): Promise<Sep10ChallengeResponse> {
+    return postJson<Sep10ChallengeResponse>(fetch, '/api/anchor/testanchor/auth?action=challenge', {
+        account,
+    });
 }
 
 export async function submitChallenge(

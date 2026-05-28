@@ -22,16 +22,16 @@
     <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">
         <h2 class="text-lg font-semibold text-gray-900">Two ramp archetypes, one provider</h2>
         <p class="mt-2 text-sm text-gray-600">
-            testanchor.stellar.org implements both SEP-6 (programmatic, partner-orchestrated)
-            and SEP-24 (interactive, anchor-hosted) — pick the flow you want to demo.
+            testanchor.stellar.org implements both SEP-6 (programmatic, partner-orchestrated) and
+            SEP-24 (interactive, anchor-hosted) — pick the flow you want to demo.
         </p>
 
         <div class="mt-6 grid gap-4 md:grid-cols-2">
             <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-5">
                 <h3 class="text-base font-semibold text-indigo-900">SEP-24 Interactive</h3>
                 <p class="mt-1 text-sm text-indigo-800">
-                    Anchor-hosted UI for KYC, amount, and payment. Your app just opens the URL
-                    and polls.
+                    Anchor-hosted UI for KYC, amount, and payment. Your app just opens the URL and
+                    polls.
                 </p>
                 <div class="mt-4 flex gap-2">
                     <a

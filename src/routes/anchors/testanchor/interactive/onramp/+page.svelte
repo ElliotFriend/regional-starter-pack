@@ -243,8 +243,8 @@
                 <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                     <p class="font-medium">Still processing</p>
                     <p class="mt-1">
-                        The deposit hasn't completed yet. You can check back later — your transaction
-                        id is above.
+                        The deposit hasn't completed yet. You can check back later — your
+                        transaction id is above.
                     </p>
                 </div>
             {/if}
@@ -253,7 +253,9 @@
 
     {#if step === 'complete' && transaction}
         <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <div
+                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
+            >
                 <svg
                     class="h-6 w-6 text-green-600"
                     fill="none"

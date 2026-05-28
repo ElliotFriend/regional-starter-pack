@@ -212,9 +212,10 @@
 
     const fieldEntries = $derived(
         customer?.fields
-            ? (Object.entries(customer.fields).filter(
-                  ([, f]) => f.type !== 'binary',
-              ) as [string, Sep12Field][])
+            ? (Object.entries(customer.fields).filter(([, f]) => f.type !== 'binary') as [
+                  string,
+                  Sep12Field,
+              ][])
             : [],
     );
 </script>
@@ -387,7 +388,9 @@
 
     {#if step === 'complete' && transaction}
         <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <div
+                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
+            >
                 <svg
                     class="h-6 w-6 text-green-600"
                     fill="none"

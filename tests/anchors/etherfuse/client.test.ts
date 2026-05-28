@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { EtherfuseClient } from '$lib/anchors/etherfuse/client';
-import { EtherfuseError } from '$lib/anchors/etherfuse/types';
 import type {
     EtherfuseSpeiDeposit,
     EtherfusePixDeposit,

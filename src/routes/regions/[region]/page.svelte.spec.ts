@@ -106,15 +106,6 @@ describe('/regions/[region]/+page.svelte', () => {
         await expect.element(page.getByRole('heading', { name: 'SPEI' })).toBeInTheDocument();
     });
 
-    it('renders the Available Digital Assets section', async () => {
-        render(Page, props);
-
-        await expect
-            .element(page.getByRole('heading', { name: 'Available Digital Assets' }))
-            .toBeInTheDocument();
-        await expect.element(page.getByRole('heading', { name: 'CETES' })).toBeInTheDocument();
-    });
-
     it('renders the About the Local Asset section', async () => {
         render(Page, props);
 

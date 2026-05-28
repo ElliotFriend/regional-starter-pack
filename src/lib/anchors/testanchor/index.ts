@@ -1,12 +1,14 @@
 /**
  * Test Anchor Integration
  *
- * Client for testanchor.stellar.org - the Stellar test anchor that supports
- * all standard SEPs for testing anchor integrations.
+ * Standalone SEP-compliant clients for testanchor.stellar.org.
+ *
+ * - `TestAnchorClient` — the SEP playground used by the `/testanchor` demo
+ * - `TestAnchorRampClient` — the bespoke ramp client used by the curated
+ *   `/anchors/testanchor` flows
  */
 
 export { TestAnchorClient, createTestAnchorClient, type TestAnchorConfig } from './client';
-export { TestAnchorAdapter, createTestAnchorAdapter, type TestAnchorAdapterConfig } from './anchor';
 export {
     TestAnchorRampClient,
     createTestAnchorRampClient,

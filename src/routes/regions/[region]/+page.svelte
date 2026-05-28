@@ -5,7 +5,7 @@
     import type { PageProps } from './$types';
 
     const { data }: PageProps = $props();
-    const { region, tokens, anchors, honorableMentions } = $derived(data);
+    const { region, anchors, honorableMentions } = $derived(data);
 </script>
 
 {#if region}
@@ -37,20 +37,6 @@
                         >
                             {rail.type.replace('_', ' ')}
                         </span>
-                    </div>
-                {/each}
-            </div>
-        </section>
-
-        <!-- Available Tokens -->
-        <section class="mb-8">
-            <h2 class="mb-4 text-xl font-semibold text-gray-900">Available Digital Assets</h2>
-            <div class="grid gap-4 sm:grid-cols-3">
-                {#each tokens as token (token.symbol)}
-                    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                        <h3 class="font-semibold text-gray-900">{token.symbol}</h3>
-                        <p class="text-sm text-gray-500">{token.name}</p>
-                        <p class="mt-2 text-xs text-gray-400">{token.description}</p>
                     </div>
                 {/each}
             </div>
@@ -103,7 +89,7 @@
                                     </span>
                                 {:else}
                                     <a
-                                        href={resolve(`/anchors/${anchor.id}?region=${region.id}`)}
+                                        href={`/anchors/${anchor.id}?region=${region.id}`}
                                         class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                                     >
                                         View Details
