@@ -7,3 +7,10 @@
 
 export { TestAnchorClient, createTestAnchorClient, type TestAnchorConfig } from './client';
 export { TestAnchorAdapter, createTestAnchorAdapter, type TestAnchorAdapterConfig } from './anchor';
+export {
+    TestAnchorRampClient,
+    createTestAnchorRampClient,
+    TestAnchorSepUnsupportedError,
+    type TestAnchorRampClientConfig,
+    type TestAnchorTokenInfo,
+} from './ramp';
