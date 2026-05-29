@@ -126,9 +126,9 @@ describe('SEP-1 discovery', () => {
     it('throws TestAnchorSepUnsupportedError when the toml omits the required SEP endpoint', async () => {
         mockToml({ sep6: false });
         const client = createClient();
-        await expect(client.sep6Deposit(TOKEN, { asset_code: 'SRT' })).rejects.toThrow(
-            TestAnchorSepUnsupportedError,
-        );
+        await expect(
+            client.sep6Deposit(TOKEN, { asset_code: 'SRT', account: USER_PUBKEY }),
+        ).rejects.toThrow(TestAnchorSepUnsupportedError);
     });
 });
 
@@ -285,7 +285,10 @@ describe('SEP-6 programmatic ramps', () => {
         );
 
         const client = createClient();
-        const deposit = await client.sep6Deposit(TOKEN, { asset_code: 'SRT' });
+        const deposit = await client.sep6Deposit(TOKEN, {
+            asset_code: 'SRT',
+            account: USER_PUBKEY,
+        });
         expect(deposit.id).toBe('dep-1');
         expect(deposit.how).toBe('Send funds to the bank account');
     });

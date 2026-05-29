@@ -7,6 +7,7 @@
     import { createPoller } from '$lib/utils/poll.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
+    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -227,64 +228,39 @@
     {/if}
 
     {#if step === 'complete' && transaction}
-        <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
-            >
-                <svg
-                    class="h-6 w-6 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-            </div>
-            <h2 class="mt-4 text-xl font-semibold text-gray-900">Withdrawal complete</h2>
-            <div class="mt-4 space-y-1 text-sm text-gray-600">
-                {#if transaction.amount_in}
-                    <p>Sent: {transaction.amount_in} SRT</p>
-                {/if}
-                {#if transaction.amount_out}
-                    <p>Received: {transaction.amount_out} {transaction.amount_out_asset ?? ''}</p>
-                {/if}
-                {#if transaction.stellar_transaction_id}
-                    <p>
-                        <a
-                            href={`https://stellar.expert/explorer/${network}/tx/${transaction.stellar_transaction_id}`}
-                            target="_blank"
-                            rel="noopener"
-                            class="text-indigo-600 hover:underline"
-                        >
-                            View on Stellar Expert ↗
-                        </a>
-                    </p>
-                {/if}
-                {#if transaction.more_info_url}
-                    <p>
-                        <a
-                            href={transaction.more_info_url}
-                            target="_blank"
-                            rel="noopener"
-                            class="text-indigo-600 hover:underline"
-                        >
-                            Anchor's transaction page ↗
-                        </a>
-                    </p>
-                {/if}
-            </div>
-            <button
-                onclick={reset}
-                class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-                Start new withdrawal
-            </button>
-        </div>
+        {@const completionDetails = [
+            ...(transaction.amount_in
+                ? [{ label: 'Sent', value: `${transaction.amount_in} SRT` }]
+                : []),
+            ...(transaction.amount_out
+                ? [
+                      {
+                          label: 'Received',
+                          value: `${transaction.amount_out} ${transaction.amount_out_asset ?? ''}`,
+                      },
+                  ]
+                : []),
+        ]}
+        {@const completionLinks = [
+            ...(transaction.stellar_transaction_id
+                ? [
+                      {
+                          label: 'View on Stellar Expert ↗',
+                          href: `https://stellar.expert/explorer/${network}/tx/${transaction.stellar_transaction_id}`,
+                      },
+                  ]
+                : []),
+            ...(transaction.more_info_url
+                ? [{ label: "Anchor's transaction page ↗", href: transaction.more_info_url }]
+                : []),
+        ]}
+        <CompletionStep
+            title="Withdrawal complete"
+            details={completionDetails}
+            links={completionLinks}
+            onReset={reset}
+            resetLabel="Start new withdrawal"
+        />
     {/if}
 
     {#if error}

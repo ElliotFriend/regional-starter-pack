@@ -9,6 +9,7 @@
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
     import KycIframe from '$lib/components/KycIframe.svelte';
     import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
+    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -593,73 +594,37 @@
 
     <!-- =================== COMPLETE ============================== -->
     {#if step === 'complete' && order}
-        <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
-            >
-                <svg
-                    class="h-6 w-6 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-            </div>
-            <h2 class="mt-4 text-xl font-semibold text-gray-900">{tokenSymbol} delivered</h2>
-            <p class="mt-2 text-sm text-gray-500">
-                Etherfuse sent {tokenSymbol} to your Stellar wallet.
-            </p>
-            <div class="mt-4 space-y-1 text-sm text-gray-600">
-                {#if order.amountInTokens}
-                    <p>Amount: {order.amountInTokens} {tokenSymbol}</p>
-                {/if}
-                {#if order.feeAmountInFiat}
-                    <p>
-                        Fee: {order.feeAmountInFiat}
-                        {fiatCurrency}
-                        {#if order.feeBps}
-                            <span class="text-gray-400">({order.feeBps / 100}%)</span>
-                        {/if}
-                    </p>
-                {/if}
-                {#if order.confirmedTxSignature}
-                    <p class="mt-1">
-                        <a
-                            href="https://stellar.expert/explorer/{network}/tx/{order.confirmedTxSignature}"
-                            target="_blank"
-                            rel="noopener"
-                            class="text-indigo-600 hover:underline"
-                        >
-                            View on Stellar Expert ↗
-                        </a>
-                    </p>
-                {/if}
-                {#if order.statusPage}
-                    <p>
-                        <a
-                            href={order.statusPage}
-                            target="_blank"
-                            rel="noopener"
-                            class="text-indigo-600 hover:underline"
-                        >
-                            View on Etherfuse ↗
-                        </a>
-                    </p>
-                {/if}
-            </div>
-            <button
-                onclick={reset}
-                class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-                Start new transaction
-            </button>
-        </div>
+        {@const completionDetails = [
+            ...(order.amountInTokens
+                ? [{ label: 'Amount', value: `${order.amountInTokens} ${tokenSymbol}` }]
+                : []),
+            ...(order.feeAmountInFiat
+                ? [
+                      {
+                          label: 'Fee',
+                          value: `${order.feeAmountInFiat} ${fiatCurrency}${order.feeBps ? ` (${order.feeBps / 100}%)` : ''}`,
+                      },
+                  ]
+                : []),
+        ]}
+        {@const completionLinks = [
+            ...(order.confirmedTxSignature
+                ? [
+                      {
+                          label: 'View on Stellar Expert ↗',
+                          href: `https://stellar.expert/explorer/${network}/tx/${order.confirmedTxSignature}`,
+                      },
+                  ]
+                : []),
+            ...(order.statusPage ? [{ label: 'View on Etherfuse ↗', href: order.statusPage }] : []),
+        ]}
+        <CompletionStep
+            title="{tokenSymbol} delivered"
+            message="Etherfuse sent {tokenSymbol} to your Stellar wallet."
+            details={completionDetails}
+            links={completionLinks}
+            onReset={reset}
+        />
     {/if}
 
     {#if error}

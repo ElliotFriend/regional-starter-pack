@@ -9,6 +9,7 @@
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
+    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
@@ -358,52 +359,29 @@
     {/if}
 
     {#if step === 'complete' && transaction}
-        <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
-            >
-                <svg
-                    class="h-6 w-6 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
-            </div>
-            <h2 class="mt-4 text-xl font-semibold text-gray-900">Withdrawal complete</h2>
-            <div class="mt-4 space-y-1 text-sm text-gray-600">
-                {#if transaction.amount_in}
-                    <p>Sent: {transaction.amount_in} SRT</p>
-                {/if}
-                {#if transaction.amount_out}
-                    <p>Received: {transaction.amount_out}</p>
-                {/if}
-                {#if stellarTxHash}
-                    <p>
-                        <a
-                            href={`https://stellar.expert/explorer/${network}/tx/${stellarTxHash}`}
-                            target="_blank"
-                            rel="noopener"
-                            class="text-indigo-600 hover:underline"
-                        >
-                            View on Stellar Expert ↗
-                        </a>
-                    </p>
-                {/if}
-            </div>
-            <button
-                onclick={reset}
-                class="mt-6 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-                Start new withdrawal
-            </button>
-        </div>
+        {@const completionDetails = [
+            ...(transaction.amount_in
+                ? [{ label: 'Sent', value: `${transaction.amount_in} SRT` }]
+                : []),
+            ...(transaction.amount_out
+                ? [{ label: 'Received', value: `${transaction.amount_out}` }]
+                : []),
+        ]}
+        {@const completionLinks = stellarTxHash
+            ? [
+                  {
+                      label: 'View on Stellar Expert ↗',
+                      href: `https://stellar.expert/explorer/${network}/tx/${stellarTxHash}`,
+                  },
+              ]
+            : []}
+        <CompletionStep
+            title="Withdrawal complete"
+            details={completionDetails}
+            links={completionLinks}
+            onReset={reset}
+            resetLabel="Start new withdrawal"
+        />
     {/if}
 
     {#if error}
