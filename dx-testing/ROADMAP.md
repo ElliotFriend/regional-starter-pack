@@ -52,6 +52,14 @@ Cited rounds 1, 2, 3, 4, 5, 6.
 
 Cited rounds 2, 3, 4, 5, 6. Estimated impact: −400–700 LOC across flow pages.
 
+**Status:** Partially landed.
+
+- ✅ **CompletionStep** shipped — adopted in all 6 flow pages (etherfuse on/offramp, testanchor programmatic/interactive on/offramp). Net **−99 LOC** project-wide (+72 primitive, −168 across flow pages).
+- ❌ **QuoteStep** deferred — only 2 adopters (etherfuse on/offramp) and they overlap so much with the existing structural `QuoteDisplay.svelte` that a new wrapper just adds an indirection. A spike adoption was tried and produced **+374 LOC net** (primitive + duplicated `QuoteDisplay`-like markup minus removed inline UI). If etherfuse on/offramp ever diverge enough that `QuoteDisplay` doesn't fit, revisit.
+- ❌ **FiatAccountStep** deferred — only 1 adopter (etherfuse offramp). One-page abstractions can't deliver a duplication win by definition. Reopen when a second SPEI/PIX-style provider (Koywe? curated Coins.ph fiat onramp?) lands.
+
+The reviewers' "−400–700 LOC" estimate assumed all three components would land. With only CompletionStep landing the −99 LOC is real but smaller. The estimate was load-bearing on multi-adopter assumptions that don't hold today.
+
 ### P0.4 — Restore testanchor test coverage
 
 **Problem:** The 589-LOC `tests/anchors/testanchor/anchor.test.ts` (testing main's `TestAnchorAdapter`) was deleted on the experiment branch without replacement. `TestAnchorRampClient` has no dedicated tests today.
