@@ -2,10 +2,10 @@
 
 This directory contains **two** standalone clients for [testanchor.stellar.org](https://testanchor.stellar.org), serving different purposes:
 
-| File | Class | Used by | Purpose |
-| --- | --- | --- | --- |
-| `ramp.ts` | `TestAnchorRampClient` | `/anchors/testanchor/{interactive,programmatic}/{onramp,offramp}` | Curated ramp client. Returns SEP types directly. |
-| `client.ts` | `TestAnchorClient` | `/testanchor` | Stateful SEP-namespaced playground used by the protocol demo page. |
+| File        | Class                  | Used by                                                           | Purpose                                                            |
+| ----------- | ---------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ramp.ts`   | `TestAnchorRampClient` | `/anchors/testanchor/{interactive,programmatic}/{onramp,offramp}` | Curated ramp client. Returns SEP types directly.                   |
+| `client.ts` | `TestAnchorClient`     | `/testanchor`                                                     | Stateful SEP-namespaced playground used by the protocol demo page. |
 
 Both are framework-agnostic and copy-pasteable. They compose the [SEP modules](../sep/) under different ergonomics.
 
@@ -111,7 +111,9 @@ window.open(deposit.url, '_blank');
 // deposit.id is the transaction ID to poll
 
 // Withdraw — same shape
-const withdrawal = await anchor.sep24Withdraw(token, { /* ... */ });
+const withdrawal = await anchor.sep24Withdraw(token, {
+    /* ... */
+});
 
 // Poll
 const tx = await anchor.getSep24Transaction(token, deposit.id);
@@ -202,9 +204,9 @@ const deposit = await client.sep24.deposit({ asset_code: 'USDC', amount: '100' }
 #### Discovery
 
 ```typescript
-await client.initialize();           // fetch + cache toml
-await client.getToml();              // cached if present
-await client.supportsSep(24);        // true/false
+await client.initialize(); // fetch + cache toml
+await client.getToml(); // cached if present
+await client.supportsSep(24); // true/false
 ```
 
 #### Authentication (SEP-10)
@@ -290,7 +292,9 @@ const price = await client.sep38.getPrice({
     sell_amount: '100',
     context: 'sep6',
 });
-const quote = await client.sep38.createQuote({ /* ... */ });
+const quote = await client.sep38.createQuote({
+    /* ... */
+});
 const existing = await client.sep38.getQuote(quote.id);
 ```
 

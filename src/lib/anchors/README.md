@@ -17,10 +17,10 @@ Every subdirectory is **self-contained**: copying it into another project pulls 
 
 ## Provider Index
 
-| Provider        | Directory      | Region         | Auth     | Token shapes   |
-| --------------- | -------------- | -------------- | -------- | -------------- |
-| **Etherfuse**   | `etherfuse/`   | Mexico, Brazil | API key  | CETES, TESOURO |
-| **Test Anchor** | `testanchor/`  | Testnet (SEP)  | SEP-10   | SRT, USDC      |
+| Provider        | Directory     | Region         | Auth    | Token shapes   |
+| --------------- | ------------- | -------------- | ------- | -------------- |
+| **Etherfuse**   | `etherfuse/`  | Mexico, Brazil | API key | CETES, TESOURO |
+| **Test Anchor** | `testanchor/` | Testnet (SEP)  | SEP-10  | SRT, USDC      |
 
 Each provider directory ships:
 
@@ -221,7 +221,9 @@ import { MyAnchorError, type MyAnchorConfig /*, ... */ } from './types';
 export class MyAnchorClient {
     readonly name = 'myanchor';
     readonly displayName = 'My Anchor';
-    readonly supportedTokens = [/* ... */] as const;
+    readonly supportedTokens = [
+        /* ... */
+    ] as const;
     readonly supportedCurrencies = ['USD'] as const;
     readonly supportedRails = ['bank'] as const;
 

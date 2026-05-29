@@ -74,20 +74,20 @@ Every function takes SvelteKit's `fetch` as its first argument. This ensures pro
 </script>
 ```
 
-| Function              | Route                                  | Description                          |
-| --------------------- | -------------------------------------- | ------------------------------------ |
-| `createCustomer`      | `POST /customers`                      | Create a new customer + onboarding   |
-| `getCustomer`         | `GET /customers?customerId=`           | Fetch by ID                          |
-| `getQuote`            | `POST /quotes`                         | Get a price quote                    |
-| `createOnRampOrder`   | `POST /onramp`                         | Start a fiat-to-token order          |
-| `getOnRampOrder`      | `GET /onramp?orderId=`                 | Poll on-ramp order                   |
-| `createOffRampOrder`  | `POST /offramp`                        | Start a token-to-fiat order          |
-| `getOffRampOrder`     | `GET /offramp?orderId=`                | Poll off-ramp order (for burn XDR)   |
-| `listBankAccounts`    | `GET /bank-accounts?customerId=`       | List a customer's bank accounts      |
-| `getKycUrl`           | `POST /kyc`                            | Get presigned KYC iframe URL         |
-| `getKycStatus`        | `GET /kyc?customerId=&publicKey=`      | Poll KYC status                      |
-| `getAssets`           | `GET /assets?currency=&wallet=`        | List rampable assets                 |
-| `simulateFiatReceived` | `POST /sandbox`                       | Sandbox simulation                   |
+| Function               | Route                             | Description                        |
+| ---------------------- | --------------------------------- | ---------------------------------- |
+| `createCustomer`       | `POST /customers`                 | Create a new customer + onboarding |
+| `getCustomer`          | `GET /customers?customerId=`      | Fetch by ID                        |
+| `getQuote`             | `POST /quotes`                    | Get a price quote                  |
+| `createOnRampOrder`    | `POST /onramp`                    | Start a fiat-to-token order        |
+| `getOnRampOrder`       | `GET /onramp?orderId=`            | Poll on-ramp order                 |
+| `createOffRampOrder`   | `POST /offramp`                   | Start a token-to-fiat order        |
+| `getOffRampOrder`      | `GET /offramp?orderId=`           | Poll off-ramp order (for burn XDR) |
+| `listBankAccounts`     | `GET /bank-accounts?customerId=`  | List a customer's bank accounts    |
+| `getKycUrl`            | `POST /kyc`                       | Get presigned KYC iframe URL       |
+| `getKycStatus`         | `GET /kyc?customerId=&publicKey=` | Poll KYC status                    |
+| `getAssets`            | `GET /assets?currency=&wallet=`   | List rampable assets               |
+| `simulateFiatReceived` | `POST /sandbox`                   | Sandbox simulation                 |
 
 All routes are under `/api/anchor/etherfuse/`. Errors throw `EtherfuseApiError`. Single-resource lookups return `null` on 404.
 
@@ -134,19 +134,19 @@ The testanchor wrapper expects an explicit SEP-10 token argument on methods that
 </script>
 ```
 
-| Function              | Route                                       | Description                          |
-| --------------------- | ------------------------------------------- | ------------------------------------ |
-| `getChallenge`        | `POST /auth?action=challenge`               | Request SEP-10 challenge XDR         |
-| `submitChallenge`     | `POST /auth?action=token`                   | Exchange signed XDR for JWT          |
-| `getCustomer`         | `GET /customer` (Bearer)                    | SEP-12 customer fields + status      |
-| `putCustomer`         | `PUT /customer` (Bearer)                    | Submit SEP-12 fields                 |
-| `getPrice`            | `POST /price`                               | SEP-38 indicative price              |
-| `sep6Deposit`         | `POST /sep6?action=deposit` (Bearer)        | SEP-6 deposit                        |
-| `sep6Withdraw`        | `POST /sep6?action=withdraw` (Bearer)       | SEP-6 withdraw + signable XDR        |
-| `getSep6Transaction`  | `GET /sep6?transactionId=` (Bearer)         | Poll SEP-6 transaction               |
-| `sep24Deposit`        | `POST /sep24?action=deposit` (Bearer)       | SEP-24 deposit (hosted URL)          |
-| `sep24Withdraw`       | `POST /sep24?action=withdraw` (Bearer)      | SEP-24 withdraw (hosted URL)         |
-| `getSep24Transaction` | `GET /sep24?transactionId=` (Bearer)        | Poll SEP-24 transaction              |
+| Function              | Route                                  | Description                     |
+| --------------------- | -------------------------------------- | ------------------------------- |
+| `getChallenge`        | `POST /auth?action=challenge`          | Request SEP-10 challenge XDR    |
+| `submitChallenge`     | `POST /auth?action=token`              | Exchange signed XDR for JWT     |
+| `getCustomer`         | `GET /customer` (Bearer)               | SEP-12 customer fields + status |
+| `putCustomer`         | `PUT /customer` (Bearer)               | Submit SEP-12 fields            |
+| `getPrice`            | `POST /price`                          | SEP-38 indicative price         |
+| `sep6Deposit`         | `POST /sep6?action=deposit` (Bearer)   | SEP-6 deposit                   |
+| `sep6Withdraw`        | `POST /sep6?action=withdraw` (Bearer)  | SEP-6 withdraw + signable XDR   |
+| `getSep6Transaction`  | `GET /sep6?transactionId=` (Bearer)    | Poll SEP-6 transaction          |
+| `sep24Deposit`        | `POST /sep24?action=deposit` (Bearer)  | SEP-24 deposit (hosted URL)     |
+| `sep24Withdraw`       | `POST /sep24?action=withdraw` (Bearer) | SEP-24 withdraw (hosted URL)    |
+| `getSep24Transaction` | `GET /sep24?transactionId=` (Bearer)   | Poll SEP-24 transaction         |
 
 All routes are under `/api/anchor/testanchor/`. Errors throw `TestAnchorApiError`. Single-resource lookups return `null` on 404.
 
