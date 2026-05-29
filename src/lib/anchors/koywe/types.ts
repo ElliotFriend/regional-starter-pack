@@ -1,0 +1,379 @@
+/**
+ * Koywe client types
+ *
+ * This module is self-contained: it defines both the client surface (the shapes
+ * returned by {@link KoyweClient}) and the raw HTTP API shapes (the
+ * request/response bodies of the Koywe crypto REST API) that the client maps
+ * between. Copy this file alongside `client.ts` and `index.ts` into any
+ * TypeScript project — the only cross-anchor dependency is `@stellar/stellar-sdk`.
+ *
+ * Shapes were captured against the Koywe sandbox (`https://api-sandbox.koywe.com`,
+ * docs at https://docs-crypto.koywe.com). Fields/paths still awaiting live
+ * confirmation are called out with `TODO` in `client.ts`.
+ */
+
+// ---------------------------------------------------------------------------
+// Client config
+// ---------------------------------------------------------------------------
+
+/** Configuration required to instantiate a {@link KoyweClient}. */
+export interface KoyweConfig {
+    /** Integration Client Id (the `clientId` for `POST /rest/auth`; doubles as `metaAccount`). */
+    clientId: string;
+    /** Integration secret for `POST /rest/auth`. */
+    secret: string;
+    /** Base URL of the Koywe crypto API (e.g. `https://api-sandbox.koywe.com`). */
+    baseUrl: string;
+    /**
+     * End-user email scoping the auth token. The sandbox uses a fixed per-region
+     * test user (Argentina = `stellar-ar@koywe-test.com`); in production this is
+     * the authenticated user's email.
+     */
+    email: string;
+    /**
+     * Stellar issuer for the USDC that Koywe delivers, for this network. Koywe's
+     * API does not return a Stellar issuer, and it differs by network (Circle's
+     * testnet vs mainnet issuer), so the host app supplies the
+     * network-appropriate value (`PUBLIC_USDC_ISSUER`).
+     */
+    usdcIssuer: string;
+}
+
+/**
+ * Error thrown by {@link KoyweClient} operations.
+ *
+ * Wraps Koywe API errors with a machine-readable `code` and HTTP `statusCode`.
+ */
+export class KoyweError extends Error {
+    code: string;
+    statusCode: number;
+
+    constructor(message: string, code: string, statusCode: number = 500) {
+        super(message);
+        this.name = 'KoyweError';
+        this.code = code;
+        this.statusCode = statusCode;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Token & rail metadata
+// ---------------------------------------------------------------------------
+
+/** Payment rail identifiers shared with `$lib/config/rails.ts`. */
+export type KoyweRail = 'wirear' | 'qri';
+
+/** A token Koywe can deliver on Stellar. */
+export interface KoyweTokenInfo {
+    /** Display ticker symbol (e.g. `"USDC"`). */
+    symbol: string;
+    /** Human-readable token name. */
+    name: string;
+    /** Stellar asset issuer public key (injected from host config). */
+    issuer: string;
+    /** The symbol Koywe expects in quote/order requests (e.g. `"USDC Stellar"`). */
+    koyweSymbol: string;
+    /** Token decimals. */
+    decimals: number;
+}
+
+// ---------------------------------------------------------------------------
+// Client surface — output types
+// ---------------------------------------------------------------------------
+
+/** Internal KYC status values derived from the Koywe account profile. */
+export type KoyweKycStatus = 'not_started' | 'approved';
+
+/** Koywe order lifecycle states (passed through verbatim from the API). */
+export type KoyweOrderStatus =
+    | 'WAITING'
+    | 'PENDING'
+    | 'EXECUTING'
+    | 'IN_PROGRESS'
+    | 'DELIVERED'
+    | 'REJECTED'
+    | 'INVALID_WITHDRAWALS_DETAILS';
+
+/** A selectable payment method (rail) for a given fiat currency. */
+export interface KoywePaymentMethod {
+    /** Koywe provider `_id`, passed back as `paymentMethodId` on executable quotes. */
+    id: string;
+    /** Raw Koywe provider name (e.g. `"WIREAR"`, `"QRI-AR"`, `"KHIPU"`). */
+    name: string;
+    /** Friendly label for the UI. */
+    label: string;
+    /** Shared local-rail id (from `$lib/config/rails.ts`), if this provider maps to one. */
+    rail?: KoyweRail;
+    /** Provider fee figure (provider-defined units). */
+    fee: number;
+}
+
+/** A currency conversion quote from Koywe. */
+export interface KoyweQuote {
+    /** Executable quote id (used to create an order). */
+    id: string;
+    /** Ramp direction. */
+    ramp: 'onramp' | 'offramp';
+    /** Source asset display code — fiat for on-ramp, `"USDC"` for off-ramp. */
+    sourceAsset: string;
+    /** Target asset display code — `"USDC"` for on-ramp, fiat for off-ramp. */
+    targetAsset: string;
+    /** Amount in the source asset. */
+    sourceAmount: string;
+    /** Amount in the destination asset. */
+    destinationAmount: string;
+    /** Exchange rate (units of fiat per unit of USDC), as a decimal string. */
+    exchangeRate: string;
+    /** Total fee (Koywe service fee + network fee), denominated in the fiat leg. */
+    fee: string;
+    /** ISO 8601 expiration timestamp. */
+    expiresAt: string;
+    /** Chosen payment method id (on-ramp). */
+    paymentMethodId?: string;
+}
+
+/** Parsed WIREAR (CVU bank transfer) deposit instructions for an on-ramp order. */
+export interface KoyweDepositInstructions {
+    /** CVU (uniform virtual key) to transfer ARS to. */
+    cvu?: string;
+    /** Alias for the CVU. */
+    alias?: string;
+    /** Receiving bank name. */
+    bankName?: string;
+    /** Beneficiary contact email, if present. */
+    email?: string;
+    /** Raw multi-line `providedAddress` string, preserved for display fallback. */
+    raw: string;
+}
+
+/** An on-ramp (fiat → USDC on Stellar) order. */
+export interface KoyweOnRampOrder {
+    /** Order id. */
+    id: string;
+    /** Quote id that priced this order. */
+    quoteId: string;
+    /** Current Koywe order status. */
+    status: KoyweOrderStatus;
+    /** Fiat amount being sent. */
+    sourceAmount: string;
+    /** USDC amount to be received. */
+    destinationAmount: string;
+    /** Source fiat code. */
+    sourceAsset: string;
+    /** Target display asset code (`"USDC"`). */
+    targetAsset: string;
+    /** Stellar address that will receive the USDC. */
+    stellarAddress: string;
+    /** Parsed inline WIREAR deposit instructions, if returned. */
+    deposit?: KoyweDepositInstructions;
+    /** Koywe-hosted redirect URL (QRI / Khipu / tracking). */
+    interactiveUrl?: string;
+}
+
+/** An off-ramp (USDC on Stellar → fiat) order. */
+export interface KoyweOffRampOrder {
+    /** Order id. */
+    id: string;
+    /** Quote id that priced this order. */
+    quoteId: string;
+    /** Current Koywe order status. */
+    status: KoyweOrderStatus;
+    /** USDC amount being sent. */
+    sourceAmount: string;
+    /** Fiat amount to be received. */
+    destinationAmount: string;
+    /** Source display asset code (`"USDC"`). */
+    sourceAsset: string;
+    /** Target fiat code. */
+    targetAsset: string;
+    /** Bank account id receiving the payout. */
+    bankAccountId: string;
+    /** Koywe Stellar deposit address the user must send USDC to. */
+    depositAddress?: string;
+    /** Koywe-hosted tracking URL. */
+    interactiveUrl?: string;
+}
+
+/** Unified order shape returned by {@link KoyweClient.getOrder}. */
+export interface KoyweOrder {
+    id: string;
+    status: KoyweOrderStatus;
+    sourceAmount: string;
+    destinationAmount: string;
+    /** Source asset display code. */
+    sourceAsset: string;
+    /** Target asset display code. */
+    targetAsset: string;
+    /** Inline WIREAR deposit instructions (on-ramp), if present. */
+    deposit?: KoyweDepositInstructions;
+    /** Koywe deposit address (off-ramp), if present. */
+    depositAddress?: string;
+    /** Koywe-hosted redirect / tracking URL. */
+    interactiveUrl?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Client surface — input args
+// ---------------------------------------------------------------------------
+
+/** Args for {@link KoyweClient.getQuote}. */
+export interface GetQuoteArgs {
+    /** Ramp direction. */
+    ramp: 'onramp' | 'offramp';
+    /** Fiat currency code (the local leg, e.g. `"ARS"`). */
+    fiatCurrency: string;
+    /** Amount of the input asset (fiat for on-ramp, USDC for off-ramp). */
+    amount: string;
+    /** Required for executable on-ramp quotes: the chosen payment-provider id. */
+    paymentMethodId?: string;
+}
+
+/** Args for {@link KoyweClient.createOnRampOrder}. */
+export interface CreateOnRampOrderArgs {
+    /** Executable quote id from {@link KoyweClient.getQuote}. */
+    quoteId: string;
+    /** Stellar address that will receive the USDC. */
+    stellarAddress: string;
+    /** End-user national document number (some flows require it). */
+    documentNumber?: string;
+}
+
+/** Args for {@link KoyweClient.createOffRampOrder}. */
+export interface CreateOffRampOrderArgs {
+    /** Executable quote id from {@link KoyweClient.getQuote}. */
+    quoteId: string;
+    /** Registered bank-account id receiving the fiat payout. */
+    bankAccountId: string;
+    /** End-user national document number (some flows require it). */
+    documentNumber?: string;
+}
+
+// ===========================================================================
+// Raw API request/response types
+// ===========================================================================
+
+/** Request body for `POST /rest/auth`. */
+export interface KoyweAuthRequest {
+    clientId: string;
+    secret: string;
+    email: string;
+}
+
+/** Response from `POST /rest/auth`. */
+export interface KoyweAuthResponse {
+    /** JWT bearer token (24h). */
+    token: string;
+}
+
+/** A fiat currency entry inside `GET /rest/token-currencies`. */
+export interface KoyweFiatCurrency {
+    _id: string;
+    symbol: string;
+    name: string;
+    decimals: number;
+    locale?: string;
+    countryCode?: string;
+    minimum?: number;
+    maximum?: number;
+}
+
+/** A crypto token entry from `GET /rest/token-currencies`. */
+export interface KoyweTokenCurrency {
+    _id: string;
+    name: string;
+    /** Asset+network symbol used in quotes (e.g. `"USDC Stellar"`). */
+    symbol: string;
+    decimals: number;
+    currencies: KoyweFiatCurrency[];
+}
+
+/** An entry from `GET /rest/payment-providers?symbol={fiat}`. */
+export interface KoywePaymentProvider {
+    _id: string;
+    /** Provider/rail code (e.g. `"WIREAR"`, `"QRI-AR"`, `"KHIPU"`). */
+    name: string;
+    fee: number;
+    description?: string;
+}
+
+/** Request body for `POST /rest/quotes`. */
+export interface KoyweQuoteRequest {
+    amountIn: number;
+    symbolIn: string;
+    symbolOut: string;
+    executable: boolean;
+    paymentMethodId?: string;
+}
+
+/** Response from `POST /rest/quotes`. `quoteId`/`validUntil` only when executable. */
+export interface KoyweQuoteResponse {
+    quoteId?: string;
+    amountIn: number;
+    amountOut: number;
+    symbolIn: string;
+    symbolOut: string;
+    exchangeRate: number;
+    koyweFee: number;
+    networkFee: number;
+    paymentMethodId?: string;
+    validFor?: number;
+    validUntil?: number;
+}
+
+/** Request body for `POST /rest/orders`. */
+export interface KoyweOrderRequest {
+    quoteId: string;
+    /**
+     * On-ramp: the end-user's destination Stellar address.
+     * Off-ramp: the registered bank-account id receiving the payout.
+     */
+    destinationAddress: string;
+    email?: string;
+    documentNumber?: string;
+}
+
+/** Response from `POST /rest/orders` (creation) and `GET /rest/orders/{orderId}`. */
+export interface KoyweOrderResponse {
+    orderId: string;
+    quoteId?: string;
+    status: KoyweOrderStatus;
+    symbolIn: string;
+    symbolOut: string;
+    amountIn: number;
+    amountOut: number;
+    /**
+     * On-ramp: inline payment target (for WIREAR a multi-line CVU/alias/bank
+     * string). Off-ramp: the Koywe crypto deposit address.
+     */
+    providedAddress?: string;
+    /** Koywe-hosted redirect / tracking URL. */
+    providedAction?: string;
+    email?: string;
+    documentNumber?: string;
+}
+
+/** Request body for `POST /rest/orders/{orderId}/txHash`. */
+export interface KoyweTxHashRequest {
+    txHash: string;
+}
+
+/** Response from `GET /rest/accounts/{email}`. */
+export interface KoyweAccountResponse {
+    email?: string;
+    document?: {
+        documentNumber?: string;
+        documentType?: string;
+        country?: string;
+    };
+    address?: Record<string, unknown>;
+    personalInfo?: Record<string, unknown>;
+}
+
+/** Standard error response shape returned by the Koywe API. */
+export interface KoyweErrorResponse {
+    statusCode: number;
+    /** Human-readable message, or an array of validation messages. */
+    message: string | string[];
+    error?: string;
+    path?: string;
+}

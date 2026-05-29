@@ -37,6 +37,19 @@ describe('getAnchor', () => {
         expect(anchor!.regions.brazil.comingSoon).toBeFalsy();
     });
 
+    it('returns Koywe profile with Argentina region (ARS/USDC via WIREAR + QRI)', () => {
+        const anchor = getAnchor('koywe');
+        expect(anchor).toBeDefined();
+        expect(anchor!.id).toBe('koywe');
+        expect(anchor!.name).toBe('Koywe');
+        expect(anchor!.regions.argentina).toBeDefined();
+        expect(anchor!.regions.argentina.onRamp).toBe(true);
+        expect(anchor!.regions.argentina.offRamp).toBe(true);
+        expect(anchor!.regions.argentina.paymentRails).toContain('wirear');
+        expect(anchor!.regions.argentina.paymentRails).toContain('qri');
+        expect(anchor!.regions.argentina.tokens).toContain('USDC');
+    });
+
     it('does not return removed anchors', () => {
         expect(getAnchor('alfredpay')).toBeUndefined();
         expect(getAnchor('blindpay')).toBeUndefined();
@@ -50,11 +63,12 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns the curated Etherfuse anchor and the test anchor', () => {
+    it('returns the curated Etherfuse + Koywe anchors and the test anchor', () => {
         const ids = getAllAnchors().map((a) => a.id);
         expect(ids).toContain('etherfuse');
+        expect(ids).toContain('koywe');
         expect(ids).toContain('testanchor');
-        expect(ids).toHaveLength(2);
+        expect(ids).toHaveLength(3);
     });
 });
 

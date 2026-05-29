@@ -1,0 +1,470 @@
+<script lang="ts">
+    import { onMount } from 'svelte';
+    import { resolve } from '$app/paths';
+    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
+    import { walletStore } from '$lib/stores/wallet.svelte';
+    import WalletConnect from '$lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
+    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
+    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '$lib/components/ui/CopyableField.svelte';
+    import DevBox from '$lib/components/ui/DevBox.svelte';
+    import { getUsdcAsset, buildPaymentTransaction, submitTransaction } from '$lib/wallet/stellar';
+    import { signWithFreighter } from '$lib/wallet/freighter';
+    import { createPoller } from '$lib/utils/poll.svelte';
+    import * as koywe from '$lib/api/koywe';
+    import type { StellarNetwork } from '$lib/wallet/types';
+    import type { KoyweQuote, KoyweOffRampOrder, KoyweKycStatus } from '$lib/anchors/koywe';
+
+    // ------------------------------------------------------------------
+    // Region & token derivation (Koywe Argentina — USDC on Stellar → ARS)
+    // ------------------------------------------------------------------
+
+    const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
+    const fiatCurrency = 'ARS';
+    const tokenSymbol = 'USDC';
+    const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
+
+    // ------------------------------------------------------------------
+    // State machine
+    // ------------------------------------------------------------------
+
+    type Step =
+        | 'connect'
+        | 'account'
+        | 'amount'
+        | 'quote'
+        | 'signing'
+        | 'awaiting-payout'
+        | 'complete';
+    let step = $state<Step>('connect');
+
+    // KYC + payout account
+    let kycStatus = $state<KoyweKycStatus>('not_started');
+    let kycChecked = $state(false);
+    let kycUrlError = $state<string | null>(null);
+    // TODO(koywe): bank-account registration shape is not yet wired in this app.
+    // For now the user supplies an already-registered Koywe bank-account id.
+    let bankAccountId = $state('');
+
+    // Ramp state
+    let amount = $state('');
+    let quote = $state<KoyweQuote | null>(null);
+    let order = $state<KoyweOffRampOrder | null>(null);
+    let stellarTxHash = $state<string | null>(null);
+    let hasTrustline = $state(false);
+
+    // UI flags
+    let isWorking = $state(false);
+    let error = $state<string | null>(null);
+
+    const payoutPoller = createPoller({ intervalMs: 5000, maxAttempts: 60, onTick: pollPayout });
+
+    const displayQuote = $derived(
+        quote
+            ? {
+                  id: quote.id,
+                  fromCurrency: quote.sourceAsset,
+                  toCurrency: quote.targetAsset,
+                  fromAmount: quote.sourceAmount,
+                  toAmount: quote.destinationAmount,
+                  exchangeRate: quote.exchangeRate,
+                  fee: quote.fee,
+                  expiresAt: quote.expiresAt,
+              }
+            : null,
+    );
+
+    // ------------------------------------------------------------------
+    // KYC discovery
+    // ------------------------------------------------------------------
+
+    async function startOnboarding() {
+        if (!walletStore.publicKey) return;
+        isWorking = true;
+        error = null;
+        try {
+            kycStatus = await koywe.getKycStatus(fetch);
+            kycChecked = true;
+            step = 'account';
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to check Koywe KYC status';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    async function openKyc() {
+        kycUrlError = null;
+        try {
+            const url = await koywe.getKycUrl(fetch);
+            window.open(url, '_blank', 'noopener');
+        } catch (err) {
+            kycUrlError =
+                err instanceof Error
+                    ? err.message
+                    : 'Koywe hosted KYC is not available yet. Complete KYC in the Koywe dashboard.';
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Quote
+    // ------------------------------------------------------------------
+
+    async function getQuote() {
+        if (!amount) return;
+        isWorking = true;
+        error = null;
+        try {
+            quote = await koywe.getQuote(fetch, { ramp: 'offramp', fiatCurrency, amount });
+            step = 'quote';
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to get quote';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    async function refreshQuote() {
+        if (!amount) return;
+        isWorking = true;
+        try {
+            quote = await koywe.getQuote(fetch, { ramp: 'offramp', fiatCurrency, amount });
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to refresh quote';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Order creation → sign USDC payment → submit tx hash → poll payout
+    // ------------------------------------------------------------------
+
+    async function confirmQuote() {
+        if (!quote || !walletStore.publicKey || !bankAccountId) return;
+        isWorking = true;
+        error = null;
+        try {
+            order = await koywe.createOffRampOrder(fetch, {
+                quoteId: quote.id,
+                bankAccountId,
+            });
+            if (!order.depositAddress) {
+                throw new Error('Koywe did not return a deposit address for this order');
+            }
+            await signAndSubmit(order.depositAddress, order.sourceAmount);
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to create order';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    async function signAndSubmit(destination: string, usdcAmount: string) {
+        if (!walletStore.publicKey || !order) return;
+        step = 'signing';
+        try {
+            const xdr = await buildPaymentTransaction({
+                sourcePublicKey: walletStore.publicKey,
+                destinationPublicKey: destination,
+                asset: stellarAsset,
+                amount: usdcAmount,
+                network,
+            });
+            const signed = await signWithFreighter(xdr, network);
+            const result = await submitTransaction(signed.signedXdr, network);
+            stellarTxHash = result.hash;
+            // TODO(koywe): the submit-tx-hash path is documented but unverified live.
+            await koywe.submitTxHash(fetch, order.id, result.hash);
+            step = 'awaiting-payout';
+            payoutPoller.start();
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to send USDC';
+            step = 'quote';
+        }
+    }
+
+    async function pollPayout({ stop }: { stop: () => void }) {
+        if (!order) return;
+        const updated = await koywe.getOrder(fetch, order.id);
+        if (!updated) return;
+        order = { ...order, status: updated.status };
+        if (updated.status === 'DELIVERED') {
+            step = 'complete';
+            stop();
+        } else if (
+            updated.status === 'REJECTED' ||
+            updated.status === 'INVALID_WITHDRAWALS_DETAILS'
+        ) {
+            error = `Order ${updated.status.toLowerCase().replace(/_/g, ' ')}`;
+            stop();
+        }
+    }
+
+    function reset() {
+        amount = '';
+        quote = null;
+        order = null;
+        stellarTxHash = null;
+        error = null;
+        step = 'account';
+        payoutPoller.stop();
+    }
+
+    function clearError() {
+        error = null;
+    }
+
+    onMount(() => {
+        return () => payoutPoller.stop();
+    });
+</script>
+
+<div class="mx-auto max-w-2xl px-4 py-8">
+    <header class="mb-6 flex items-center justify-between">
+        <div>
+            <a href={resolve('/anchors/koywe')} class="text-sm text-indigo-600 hover:underline">
+                ← Koywe
+            </a>
+            <h1 class="mt-1 text-2xl font-semibold text-gray-900">
+                Off-Ramp ({tokenSymbol} → {fiatCurrency})
+            </h1>
+            <p class="mt-1 text-sm text-gray-500">
+                Sell {tokenSymbol} on Stellar for {fiatCurrency} via Koywe.
+            </p>
+        </div>
+        <WalletConnect />
+    </header>
+
+    <!-- =================== CONNECT ============================== -->
+    {#if step === 'connect'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            {#if !walletStore.isConnected}
+                <h2 class="text-lg font-semibold text-gray-900">Connect your wallet</h2>
+                <p class="mt-1 text-sm text-gray-500">
+                    You'll send {tokenSymbol} from this Stellar wallet. Connect Freighter to continue.
+                </p>
+            {:else}
+                <h2 class="text-lg font-semibold text-gray-900">Start</h2>
+                <p class="mt-1 text-sm text-gray-500">We'll check your Koywe KYC status.</p>
+                <button
+                    onclick={startOnboarding}
+                    disabled={isWorking}
+                    class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                    {isWorking ? 'Loading…' : 'Continue'}
+                </button>
+            {/if}
+        </div>
+    {/if}
+
+    <!-- =================== PAYOUT ACCOUNT ======================= -->
+    {#if step === 'account'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            {#if kycChecked && kycStatus !== 'approved'}
+                <div class="mb-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+                    <p class="font-medium">KYC required</p>
+                    <p class="mt-1">
+                        Koywe requires identity verification before paying out fiat. KYC is
+                        Koywe-hosted and opens in a new tab.
+                    </p>
+                    <button
+                        onclick={openKyc}
+                        class="mt-2 inline-block rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+                    >
+                        Open KYC ↗
+                    </button>
+                    {#if kycUrlError}
+                        <p class="mt-2 text-xs text-amber-700">{kycUrlError}</p>
+                    {/if}
+                </div>
+            {/if}
+
+            <h2 class="text-lg font-semibold text-gray-900">Payout account</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Enter the Koywe bank-account id (CVU) that will receive your {fiatCurrency}.
+            </p>
+            <!-- TODO(koywe): replace with a bank-account registration step once the
+                 POST /rest/bank-accounts body shape is confirmed for this app. -->
+            <label class="mt-4 block text-sm font-medium text-gray-700" for="bankAccountId">
+                Bank account id
+            </label>
+            <input
+                id="bankAccountId"
+                type="text"
+                bind:value={bankAccountId}
+                placeholder="ba_..."
+                class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+            <button
+                onclick={() => (step = 'amount')}
+                disabled={!bankAccountId}
+                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+                Continue
+            </button>
+        </div>
+    {/if}
+
+    <!-- =================== AMOUNT ================================ -->
+    {#if step === 'amount'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Amount</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Enter the {tokenSymbol} amount to convert to {fiatCurrency}.
+            </p>
+
+            <TrustlineStatus
+                {stellarAsset}
+                {network}
+                showBalance
+                balanceCurrency={tokenSymbol}
+                onStatusChange={(s) => (hasTrustline = s.hasTrustline)}
+            />
+
+            <AmountInput
+                bind:amount
+                label="Amount ({tokenSymbol})"
+                placeholder="10"
+                isWalletConnected={walletStore.isConnected}
+                {hasTrustline}
+                isGettingQuote={isWorking}
+                onSubmit={getQuote}
+            />
+        </div>
+    {/if}
+
+    <!-- =================== QUOTE ================================= -->
+    {#if step === 'quote' && displayQuote}
+        <div class="space-y-4">
+            <QuoteDisplay quote={displayQuote} onRefresh={refreshQuote} isRefreshing={isWorking} />
+            <div class="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+                <span class="text-gray-500">Payout to</span>
+                <span class="ml-1 font-mono text-gray-600">{bankAccountId}</span>
+            </div>
+            <div class="flex gap-3">
+                <button
+                    onclick={() => (step = 'amount')}
+                    class="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    onclick={confirmQuote}
+                    disabled={isWorking}
+                    class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                    {isWorking ? 'Creating order…' : 'Confirm & send USDC'}
+                </button>
+            </div>
+        </div>
+    {/if}
+
+    <!-- =================== SIGNING =============================== -->
+    {#if step === 'signing'}
+        <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                A Freighter window should be open. Confirm the {tokenSymbol} payment to Koywe's deposit
+                address.
+            </p>
+            <div class="mt-4 flex items-center justify-center py-6">
+                <div
+                    class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                ></div>
+                <span class="ml-3 text-sm text-gray-500">Awaiting signature…</span>
+            </div>
+        </div>
+    {/if}
+
+    <!-- =================== AWAITING PAYOUT ======================= -->
+    {#if step === 'awaiting-payout' && order}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Awaiting fiat payout</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Your {tokenSymbol} payment is on its way. Koywe is sending {fiatCurrency} to your bank
+                account.
+            </p>
+            <div class="mt-4 space-y-1 text-sm text-gray-600">
+                {#if stellarTxHash}
+                    <p>
+                        Stellar tx:
+                        <a
+                            href="https://stellar.expert/explorer/{network}/tx/{stellarTxHash}"
+                            target="_blank"
+                            rel="noopener"
+                            class="text-indigo-600 hover:underline"
+                        >
+                            {stellarTxHash.slice(0, 12)}…↗
+                        </a>
+                    </p>
+                {/if}
+                <p>Order: <CopyableField value={order.id} mono /></p>
+                <p>Status: <span class="font-mono">{order.status}</span></p>
+            </div>
+            <div class="mt-4 flex items-center justify-center py-6">
+                <div
+                    class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                ></div>
+                <span class="ml-3 text-sm text-gray-500">Polling Koywe…</span>
+            </div>
+            {#if payoutPoller.timedOut}
+                <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+                    <p class="font-medium">Still processing</p>
+                    <p class="mt-1">
+                        Koywe hasn't confirmed the payout yet. You can close this page and check
+                        back later.
+                    </p>
+                </div>
+            {/if}
+        </div>
+    {/if}
+
+    <!-- =================== COMPLETE ============================== -->
+    {#if step === 'complete' && order}
+        {@const completionDetails = order.destinationAmount
+            ? [{ label: 'Amount', value: `${order.destinationAmount} ${fiatCurrency}` }]
+            : []}
+        {@const completionLinks = stellarTxHash
+            ? [
+                  {
+                      label: 'View payment on Stellar Expert ↗',
+                      href: `https://stellar.expert/explorer/${network}/tx/${stellarTxHash}`,
+                  },
+              ]
+            : []}
+        <CompletionStep
+            title="{fiatCurrency} sent"
+            message="Koywe sent {fiatCurrency} to your bank account."
+            details={completionDetails}
+            links={completionLinks}
+            onReset={reset}
+        />
+    {/if}
+
+    {#if error}
+        <ErrorAlert message={error} onDismiss={clearError} />
+    {/if}
+</div>
+
+<section class="mx-auto mt-8 max-w-2xl px-4">
+    <DevBox
+        items={[
+            {
+                text: 'View this page source',
+                link: 'https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/routes/anchors/koywe/offramp/+page.svelte',
+            },
+            {
+                text: 'View KoyweClient',
+                link: 'https://github.com/ElliotFriend/regional-starter-pack/blob/main/src/lib/anchors/koywe/client.ts',
+            },
+            {
+                text: 'View Koywe API routes',
+                link: 'https://github.com/ElliotFriend/regional-starter-pack/tree/main/src/routes/api/anchor/koywe',
+            },
+        ]}
+    />
+</section>

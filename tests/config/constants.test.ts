@@ -10,8 +10,12 @@ describe('PROVIDER', () => {
         expect(PROVIDER.TESTANCHOR).toBe('testanchor');
     });
 
+    it('includes KOYWE', () => {
+        expect(PROVIDER.KOYWE).toBe('koywe');
+    });
+
     it('has the expected providers', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(2);
+        expect(Object.keys(PROVIDER)).toHaveLength(3);
     });
 });
 
@@ -30,5 +34,13 @@ describe('SUPPORTED_COUNTRIES', () => {
         expect(brazil!.name).toBe('Brazil');
         expect(brazil!.currency).toBe('BRL');
         expect(brazil!.paymentMethod).toBe('PIX');
+    });
+
+    it('includes Argentina with ARS and WIREAR', () => {
+        const argentina = SUPPORTED_COUNTRIES.find((c) => c.code === 'AR');
+        expect(argentina).toBeDefined();
+        expect(argentina!.name).toBe('Argentina');
+        expect(argentina!.currency).toBe('ARS');
+        expect(argentina!.paymentMethod).toBe('WIREAR');
     });
 });
