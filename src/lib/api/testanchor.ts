@@ -25,8 +25,7 @@ import type {
     Sep38PriceRequest,
     Sep38PriceResponse,
 } from '$lib/anchors/sep/types';
-
-type Fetch = typeof fetch;
+import { authHeader, createApiRequester, type Fetch } from './http';
 
 export class TestAnchorApiError extends Error {
     constructor(
@@ -38,32 +37,9 @@ export class TestAnchorApiError extends Error {
     }
 }
 
-function authHeader(token: string): Record<string, string> {
-    return { Authorization: `Bearer ${token}` };
-}
-
-async function apiRequest<T>(fetch: Fetch, url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, init);
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new TestAnchorApiError(
-            response.status,
-            data.message || data.error || `Request failed: ${response.status}`,
-        );
-    }
-    return response.json();
-}
-
-async function postJson<T>(fetch: Fetch, url: string, body: unknown, token?: string): Promise<T> {
-    return apiRequest<T>(fetch, url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(token ? authHeader(token) : {}),
-        },
-        body: JSON.stringify(body),
-    });
-}
+const { apiRequest, postJson } = createApiRequester(
+    (statusCode, message) => new TestAnchorApiError(statusCode, message),
+);
 
 // ---------------------------------------------------------------------------
 // SEP-10 auth

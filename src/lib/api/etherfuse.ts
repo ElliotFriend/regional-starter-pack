@@ -22,8 +22,7 @@ import type {
     GetKycStatusArgs,
     GetAssetsArgs,
 } from '$lib/anchors/etherfuse';
-
-type Fetch = typeof fetch;
+import { createApiRequester, type Fetch } from './http';
 
 /** Error thrown by client-side Etherfuse API calls. */
 export class EtherfuseApiError extends Error {
@@ -36,25 +35,9 @@ export class EtherfuseApiError extends Error {
     }
 }
 
-async function apiRequest<T>(fetch: Fetch, url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, init);
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new EtherfuseApiError(
-            response.status,
-            data.message || data.error || `Request failed: ${response.status}`,
-        );
-    }
-    return response.json();
-}
-
-async function postJson<T>(fetch: Fetch, url: string, body: unknown): Promise<T> {
-    return apiRequest<T>(fetch, url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-}
+const { apiRequest, postJson } = createApiRequester(
+    (statusCode, message) => new EtherfuseApiError(statusCode, message),
+);
 
 // ---------------------------------------------------------------------------
 // Customer
