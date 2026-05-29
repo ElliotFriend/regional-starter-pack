@@ -120,14 +120,14 @@ const withdrawal = await anchor.sep6Withdraw(
 // withdrawal.signableXdr — sign this with Freighter and submit
 ```
 
-### `TestAnchorClient` (SEP playground)
+### `TestAnchorPlaygroundClient` (SEP playground)
 
 A stateful, SEP-namespaced "playground" client used by the `/testanchor` protocol demo page. Methods like `client.sep24.deposit()`, `client.sep12.getCustomer()`. Good for learning the raw SEP protocols.
 
 ```typescript
-import { createTestAnchorClient } from 'path/to/anchors/testanchor';
+import { createTestAnchorPlaygroundClient } from 'path/to/anchors/testanchor';
 
-const client = createTestAnchorClient();
+const client = createTestAnchorPlaygroundClient();
 await client.initialize();
 await client.authenticate(publicKey, signerFn);
 const info = await client.sep24.getInfo();

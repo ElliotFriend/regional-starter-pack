@@ -2,10 +2,10 @@
 
 This directory contains **two** standalone clients for [testanchor.stellar.org](https://testanchor.stellar.org), serving different purposes:
 
-| File        | Class                  | Used by                                                           | Purpose                                                            |
-| ----------- | ---------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `ramp.ts`   | `TestAnchorRampClient` | `/anchors/testanchor/{interactive,programmatic}/{onramp,offramp}` | Curated ramp client. Returns SEP types directly.                   |
-| `client.ts` | `TestAnchorClient`     | `/testanchor`                                                     | Stateful SEP-namespaced playground used by the protocol demo page. |
+| File            | Class                        | Used by                                                           | Purpose                                                            |
+| --------------- | ---------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ramp.ts`       | `TestAnchorRampClient`       | `/anchors/testanchor/{interactive,programmatic}/{onramp,offramp}` | Curated ramp client. Returns SEP types directly.                   |
+| `playground.ts` | `TestAnchorPlaygroundClient` | `/testanchor`                                                     | Stateful SEP-namespaced playground used by the protocol demo page. |
 
 Both are framework-agnostic and copy-pasteable. They compose the [SEP modules](../sep/) under different ergonomics.
 
@@ -174,17 +174,17 @@ while (tx && tx.status !== 'completed' && tx.status !== 'error') {
 
 ---
 
-## `TestAnchorClient` (SEP playground)
+## `TestAnchorPlaygroundClient` (SEP playground)
 
 A stateful, SEP-namespaced "playground" client. Methods are grouped under `client.sep6`, `client.sep24`, `client.sep10`, `client.sep12`, `client.sep31`, `client.sep38`. The JWT is stored on the client after authentication and injected into subsequent requests. Good for learning the raw SEP protocols and powering the `/testanchor` demo page.
 
 ### Quick start
 
 ```typescript
-import { createTestAnchorClient } from 'path/to/anchors/testanchor';
+import { createTestAnchorPlaygroundClient } from 'path/to/anchors/testanchor';
 
-const client = createTestAnchorClient();
-// Or: createTestAnchorClient({ domain: 'anchor.example.com', ... }, fetch);
+const client = createTestAnchorPlaygroundClient();
+// Or: createTestAnchorPlaygroundClient({ domain: 'anchor.example.com', ... }, fetch);
 
 // 1. Initialize (fetches stellar.toml, discovers endpoints)
 const toml = await client.initialize();
@@ -304,11 +304,11 @@ Pass SvelteKit's `fetch` to the client for proper SSR request context:
 
 ```typescript
 // +page.ts
-import { createTestAnchorClient } from '$lib/anchors/testanchor';
+import { createTestAnchorPlaygroundClient } from '$lib/anchors/testanchor';
 import { error } from '@sveltejs/kit';
 
 export async function load({ fetch }) {
-    const client = createTestAnchorClient(undefined, fetch);
+    const client = createTestAnchorPlaygroundClient(undefined, fetch);
 
     try {
         await client.initialize();
@@ -328,9 +328,9 @@ export async function load({ fetch }) {
 ## Choosing between the two
 
 - **`TestAnchorRampClient`** — use this if you're building production ramp UI. Methods return SEP types directly; explicit token passing makes it safe to share across requests.
-- **`TestAnchorClient`** — use this if you're learning the SEP protocols or building a playground UI. The namespaced API (`client.sep24.deposit()`) reads like the SEP spec; the cached token is convenient for an interactive shell.
+- **`TestAnchorPlaygroundClient`** — use this if you're learning the SEP protocols or building a playground UI. The namespaced API (`client.sep24.deposit()`) reads like the SEP spec; the cached token is convenient for an interactive shell.
 
-Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorClient`.
+Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorPlaygroundClient`.
 
 ## Implementing a similar client for another SEP-compliant anchor
 

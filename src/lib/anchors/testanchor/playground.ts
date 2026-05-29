@@ -1,14 +1,26 @@
 /**
- * Test Anchor Client
+ * Test Anchor Playground Client
  *
- * A unified client for testanchor.stellar.org that composes all supported SEP modules.
- * This serves as a reference implementation for building SEP-compatible anchor integrations.
+ * A stateful, namespaced SEP playground client for testanchor.stellar.org,
+ * used by the `/testanchor` demo page to walk through each SEP protocol
+ * (SEP-1, SEP-10, SEP-12, SEP-6, SEP-24, SEP-31, SEP-38) interactively.
  *
- * SEP operations are accessed via namespaced properties that mirror the protocol structure:
- *   client.sep6.getInfo(), client.sep24.deposit(), client.sep38.getPrice(), etc.
+ * SEP operations are accessed via namespaced properties that mirror the
+ * protocol structure: `client.sep6.deposit(...)`, `client.sep24.poll(...)`,
+ * `client.sep38.getPrice(...)`, etc. Authentication is stateful — call
+ * `client.authenticate(...)` once and the SEP-10 token is cached on the
+ * instance.
  *
- * Initialization and authentication stay at the top level:
- *   client.initialize(), client.authenticate(), client.getToken(), etc.
+ * NOT used by the curated `/anchors/testanchor/...` ramp pages — those use
+ * the stateless `TestAnchorRampClient` from `./ramp.ts` instead. The two
+ * clients coexist deliberately:
+ *
+ * - `TestAnchorPlaygroundClient` (this file) — stateful, instance-scoped
+ *   token, namespaced API, optimised for a one-user-per-page demo.
+ * - `TestAnchorRampClient` (`./ramp.ts`) — stateless, token passed per
+ *   call, flat API, optimised for serving multiple users from one server
+ *   instance and for matching the bespoke per-provider client shape used
+ *   by Etherfuse and (eventually) Koywe, PDAX, etc.
  */
 
 import { sep1, sep6, sep10, sep12, sep24, sep31, sep38 } from '../sep';
@@ -38,7 +50,7 @@ import type {
     Sep38QuoteResponse,
 } from '../sep/types';
 
-export interface TestAnchorConfig {
+export interface TestAnchorPlaygroundConfig {
     domain?: string;
     networkPassphrase?: string;
 }
@@ -47,12 +59,10 @@ const DEFAULT_DOMAIN = 'testanchor.stellar.org';
 const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
 
 /**
- * Test Anchor Client
- *
- * Provides a unified interface for interacting with the Stellar test anchor.
- * Handles authentication, token management, and all supported SEP operations.
+ * Test Anchor Playground Client — see file-level docstring for the full
+ * comparison against `TestAnchorRampClient`.
  */
-export class TestAnchorClient {
+export class TestAnchorPlaygroundClient {
     private domain: string;
     private networkPassphrase: string;
     private toml: sep1.StellarTomlRecord | null = null;
@@ -60,7 +70,7 @@ export class TestAnchorClient {
     private account: string | null = null;
     private fetchFn: typeof fetch;
 
-    constructor(config: TestAnchorConfig = {}, fetchFn: typeof fetch = fetch) {
+    constructor(config: TestAnchorPlaygroundConfig = {}, fetchFn: typeof fetch = fetch) {
         this.domain = config.domain || DEFAULT_DOMAIN;
         this.networkPassphrase = config.networkPassphrase || TESTNET_PASSPHRASE;
         this.fetchFn = fetchFn;
@@ -373,12 +383,10 @@ export class TestAnchorClient {
     };
 }
 
-/**
- * Create a new TestAnchorClient instance.
- */
-export function createTestAnchorClient(
-    config?: TestAnchorConfig,
+/** Create a new `TestAnchorPlaygroundClient` instance. */
+export function createTestAnchorPlaygroundClient(
+    config?: TestAnchorPlaygroundConfig,
     fetchFn?: typeof fetch,
-): TestAnchorClient {
-    return new TestAnchorClient(config, fetchFn);
+): TestAnchorPlaygroundClient {
+    return new TestAnchorPlaygroundClient(config, fetchFn);
 }
