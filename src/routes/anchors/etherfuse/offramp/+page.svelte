@@ -7,7 +7,6 @@
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import KycIframe from '$lib/components/KycIframe.svelte';
     import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
     import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
@@ -380,18 +379,24 @@
             {:else if kycUrl && kycStatus !== 'approved' && kycStatus !== 'approved_chain_deploying'}
                 <h2 class="text-lg font-semibold text-gray-900">Complete identity verification</h2>
                 <p class="mt-1 text-sm text-gray-500">
-                    Complete identity verification and register a bank account inside Etherfuse's
-                    onboarding flow. We'll detect approval automatically.
+                    Complete identity verification and register a bank account in Etherfuse's
+                    onboarding flow, which opens in a new tab. Return here when you're done — we'll
+                    detect approval automatically.
                 </p>
                 <div class="mt-4 rounded-md bg-gray-50 p-3 text-xs text-gray-600">
                     Status: <span class="font-mono">{kycStatus}</span>
                 </div>
-                <div class="mt-4">
-                    <KycIframe url={kycUrl} onComplete={refreshKycStatus} />
-                </div>
+                <a
+                    href={kycUrl}
+                    target="_blank"
+                    rel="noopener"
+                    class="mt-4 inline-block rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                    Open verification ↗
+                </a>
                 <button
                     onclick={refreshKycStatus}
-                    class="mt-4 text-sm text-indigo-600 hover:underline"
+                    class="mt-4 block text-sm text-indigo-600 hover:underline"
                 >
                     Refresh status now
                 </button>
