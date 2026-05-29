@@ -5,6 +5,7 @@
     import { authStore } from '$lib/stores/auth';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import { getStellarAsset } from '$lib/wallet/stellar';
+    import { createPoller } from '$lib/utils/poll.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
@@ -28,10 +29,11 @@
     let interactiveUrl = $state<string | null>(null);
     let isWorking = $state(false);
     let error = $state<string | null>(null);
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let pollCount = $state(0);
-    const MAX_POLLS = 120;
-    const pollingTimedOut = $derived(pollCount >= MAX_POLLS);
+    const poller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 120,
+        onTick: pollTransaction,
+    });
 
     $effect(() => {
         if (walletStore.isConnected && step === 'connect') {
@@ -71,7 +73,7 @@
             interactiveUrl = session.url;
             step = 'hosted';
             window.open(session.url, '_blank', 'noopener');
-            startPolling();
+            poller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to start withdrawal';
         } finally {
@@ -79,44 +81,23 @@
         }
     }
 
-    function startPolling() {
-        stopPolling();
-        pollCount = 0;
-        pollTimer = setInterval(async () => {
-            pollCount += 1;
-            if (pollingTimedOut) {
-                stopPolling();
-                return;
-            }
-            if (!transactionId) return;
-            const token = cachedAuth();
-            if (!token) return;
-            try {
-                const updated = await ta.getSep24Transaction(fetch, token, transactionId);
-                if (updated) {
-                    transaction = updated;
-                    if (updated.status === 'completed') {
-                        step = 'complete';
-                        stopPolling();
-                    } else if (
-                        updated.status === 'refunded' ||
-                        updated.status === 'expired' ||
-                        updated.status === 'error' ||
-                        updated.status === 'no_market'
-                    ) {
-                        stopPolling();
-                    }
-                }
-            } catch (err) {
-                console.warn('[testanchor sep24 offramp] poll failed:', err);
-            }
-        }, 5000);
-    }
-
-    function stopPolling() {
-        if (pollTimer) {
-            clearInterval(pollTimer);
-            pollTimer = null;
+    async function pollTransaction({ stop }: { stop: () => void }) {
+        if (!transactionId) return;
+        const token = cachedAuth();
+        if (!token) return;
+        const updated = await ta.getSep24Transaction(fetch, token, transactionId);
+        if (!updated) return;
+        transaction = updated;
+        if (updated.status === 'completed') {
+            step = 'complete';
+            stop();
+        } else if (
+            updated.status === 'refunded' ||
+            updated.status === 'expired' ||
+            updated.status === 'error' ||
+            updated.status === 'no_market'
+        ) {
+            stop();
         }
     }
 
@@ -131,14 +112,14 @@
         interactiveUrl = null;
         error = null;
         step = walletStore.isConnected ? 'ready' : 'connect';
-        stopPolling();
+        poller.stop();
     }
 
     function clearError() {
         error = null;
     }
 
-    onMount(() => () => stopPolling());
+    onMount(() => () => poller.stop());
 </script>
 
 <div class="mx-auto max-w-2xl px-4 py-8">
@@ -244,7 +225,7 @@
                 <span class="ml-3 text-sm text-gray-500">Polling SEP-24 transaction…</span>
             </div>
 
-            {#if pollingTimedOut}
+            {#if poller.timedOut}
                 <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                     <p class="font-medium">Still processing</p>
                     <p class="mt-1">

@@ -5,6 +5,7 @@
     import { authStore } from '$lib/stores/auth';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import { getStellarAsset } from '$lib/wallet/stellar';
+    import { createPoller } from '$lib/utils/poll.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
     import AmountInput from '$lib/components/ramp/AmountInput.svelte';
@@ -37,10 +38,11 @@
 
     let isWorking = $state(false);
     let error = $state<string | null>(null);
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let pollCount = $state(0);
-    const MAX_POLLS = 60;
-    const pollingTimedOut = $derived(pollCount >= MAX_POLLS);
+    const poller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 60,
+        onTick: pollTransaction,
+    });
 
     $effect(() => {
         if (walletStore.isConnected && step === 'connect') {
@@ -123,7 +125,7 @@
                 amount,
             });
             step = 'payment';
-            startPolling();
+            poller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to start deposit';
         } finally {
@@ -131,49 +133,28 @@
         }
     }
 
-    function startPolling() {
-        stopPolling();
-        pollCount = 0;
-        pollTimer = setInterval(async () => {
-            pollCount += 1;
-            if (pollingTimedOut) {
-                stopPolling();
-                return;
-            }
-            if (!deposit?.id) return;
-            const token = cachedAuth();
-            if (!token) return;
-            try {
-                const updated = await ta.getSep6Transaction(fetch, token, deposit.id);
-                if (updated) {
-                    transaction = updated;
-                    if (updated.status === 'completed') {
-                        step = 'complete';
-                        stopPolling();
-                    } else if (
-                        updated.status === 'refunded' ||
-                        updated.status === 'expired' ||
-                        updated.status === 'error' ||
-                        updated.status === 'no_market'
-                    ) {
-                        stopPolling();
-                    } else if (updated.status === 'pending_customer_info_update') {
-                        // Need more KYC mid-flow — bring user back to KYC step
-                        stopPolling();
-                        step = 'kyc';
-                        await checkKyc();
-                    }
-                }
-            } catch (err) {
-                console.warn('[testanchor sep6 onramp] poll failed:', err);
-            }
-        }, 5000);
-    }
-
-    function stopPolling() {
-        if (pollTimer) {
-            clearInterval(pollTimer);
-            pollTimer = null;
+    async function pollTransaction({ stop }: { stop: () => void }) {
+        if (!deposit?.id) return;
+        const token = cachedAuth();
+        if (!token) return;
+        const updated = await ta.getSep6Transaction(fetch, token, deposit.id);
+        if (!updated) return;
+        transaction = updated;
+        if (updated.status === 'completed') {
+            step = 'complete';
+            stop();
+        } else if (
+            updated.status === 'refunded' ||
+            updated.status === 'expired' ||
+            updated.status === 'error' ||
+            updated.status === 'no_market'
+        ) {
+            stop();
+        } else if (updated.status === 'pending_customer_info_update') {
+            // Need more KYC mid-flow — bring user back to KYC step
+            stop();
+            step = 'kyc';
+            await checkKyc();
         }
     }
 
@@ -183,7 +164,7 @@
         transaction = null;
         error = null;
         step = walletStore.isConnected ? 'kyc' : 'connect';
-        stopPolling();
+        poller.stop();
         if (walletStore.isConnected) checkKyc();
     }
 
@@ -191,7 +172,7 @@
         error = null;
     }
 
-    onMount(() => () => stopPolling());
+    onMount(() => () => poller.stop());
 
     const fieldEntries = $derived(
         customer?.fields
@@ -363,7 +344,7 @@
                 Transaction ID: <CopyableField value={deposit.id ?? ''} mono />
             </div>
 
-            {#if pollingTimedOut}
+            {#if poller.timedOut}
                 <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                     Still processing — check back later with the transaction id above.
                 </div>

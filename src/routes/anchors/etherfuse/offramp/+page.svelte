@@ -14,6 +14,7 @@
     import DevBox from '$lib/components/ui/DevBox.svelte';
     import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
     import { signWithFreighter } from '$lib/wallet/freighter';
+    import { createPoller } from '$lib/utils/poll.svelte';
     import * as ef from '$lib/api/etherfuse';
     import type { StellarNetwork } from '$lib/wallet/types';
     import type {
@@ -73,12 +74,24 @@
     // UI flags
     let isWorking = $state(false);
     let error = $state<string | null>(null);
-    let kycPollTimer: ReturnType<typeof setInterval> | null = null;
-    let xdrPollTimer: ReturnType<typeof setInterval> | null = null;
-    let payoutPollTimer: ReturnType<typeof setInterval> | null = null;
-    let pollCount = $state(0);
-    const MAX_POLL_COUNT = 60;
-    const pollingTimedOut = $derived(pollCount >= MAX_POLL_COUNT);
+    // Three pollers: KYC (until approved, capped 10 min), XDR (until anchor
+    // returns burnTransaction or terminal status, 5 min), payout (until anchor
+    // confirms fiat sent, 5 min).
+    const kycPoller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 120,
+        onTick: () => refreshKycStatus(),
+    });
+    const xdrPoller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 60,
+        onTick: pollForXdr,
+    });
+    const payoutPoller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 60,
+        onTick: pollPayout,
+    });
 
     // ------------------------------------------------------------------
     // QuoteDisplay adapter
@@ -124,7 +137,7 @@
                 bankAccountId: customer.bankAccountId,
             });
             await refreshKycStatus();
-            startKycPolling();
+            kycPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to start onboarding';
         } finally {
@@ -141,22 +154,10 @@
             });
             if (kycStatus === 'approved' || kycStatus === 'approved_chain_deploying') {
                 await refreshBankAccounts();
-                stopKycPolling();
+                kycPoller.stop();
             }
         } catch (err) {
             console.warn('[Etherfuse offramp] KYC poll failed:', err);
-        }
-    }
-
-    function startKycPolling() {
-        stopKycPolling();
-        kycPollTimer = setInterval(refreshKycStatus, 5000);
-    }
-
-    function stopKycPolling() {
-        if (kycPollTimer) {
-            clearInterval(kycPollTimer);
-            kycPollTimer = null;
         }
     }
 
@@ -230,7 +231,7 @@
                 bankAccountId: selectedBankAccountId,
             });
             step = 'awaiting-xdr';
-            startXdrPolling();
+            xdrPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to create order';
         } finally {
@@ -238,41 +239,20 @@
         }
     }
 
-    function startXdrPolling() {
-        stopXdrPolling();
-        pollCount = 0;
-        xdrPollTimer = setInterval(async () => {
-            pollCount += 1;
-            if (pollingTimedOut) {
-                stopXdrPolling();
-                return;
-            }
-            if (!order) return;
-            try {
-                const updated = await ef.getOffRampOrder(fetch, order.id);
-                if (updated) {
-                    order = updated;
-                    if (updated.burnTransaction) {
-                        stopXdrPolling();
-                        await signAndSubmit(updated.burnTransaction);
-                    } else if (
-                        updated.status === 'failed' ||
-                        updated.status === 'canceled' ||
-                        updated.status === 'refunded'
-                    ) {
-                        stopXdrPolling();
-                    }
-                }
-            } catch (err) {
-                console.warn('[Etherfuse offramp] XDR poll failed:', err);
-            }
-        }, 5000);
-    }
-
-    function stopXdrPolling() {
-        if (xdrPollTimer) {
-            clearInterval(xdrPollTimer);
-            xdrPollTimer = null;
+    async function pollForXdr({ stop }: { stop: () => void }) {
+        if (!order) return;
+        const updated = await ef.getOffRampOrder(fetch, order.id);
+        if (!updated) return;
+        order = updated;
+        if (updated.burnTransaction) {
+            stop();
+            await signAndSubmit(updated.burnTransaction);
+        } else if (
+            updated.status === 'failed' ||
+            updated.status === 'canceled' ||
+            updated.status === 'refunded'
+        ) {
+            stop();
         }
     }
 
@@ -283,54 +263,32 @@
             const result = await submitTransaction(signed.signedXdr, network);
             stellarTxHash = result.hash;
             step = 'awaiting-payout';
-            startPayoutPolling();
+            payoutPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to sign and submit burn';
             // Allow retry — drop back to the XDR-arrived state.
             step = 'awaiting-xdr';
-            if (order?.burnTransaction) {
-                // XDR is still present on the order; user can click "Sign again".
-            } else {
-                startXdrPolling();
+            if (!order?.burnTransaction) {
+                xdrPoller.start();
             }
+            // Otherwise the XDR is still present on the order; user can click "Sign again".
         }
     }
 
-    function startPayoutPolling() {
-        stopPayoutPolling();
-        pollCount = 0;
-        payoutPollTimer = setInterval(async () => {
-            pollCount += 1;
-            if (pollingTimedOut) {
-                stopPayoutPolling();
-                return;
-            }
-            if (!order) return;
-            try {
-                const updated = await ef.getOffRampOrder(fetch, order.id);
-                if (updated) {
-                    order = updated;
-                    if (updated.status === 'completed') {
-                        step = 'complete';
-                        stopPayoutPolling();
-                    } else if (
-                        updated.status === 'failed' ||
-                        updated.status === 'canceled' ||
-                        updated.status === 'refunded'
-                    ) {
-                        stopPayoutPolling();
-                    }
-                }
-            } catch (err) {
-                console.warn('[Etherfuse offramp] Payout poll failed:', err);
-            }
-        }, 5000);
-    }
-
-    function stopPayoutPolling() {
-        if (payoutPollTimer) {
-            clearInterval(payoutPollTimer);
-            payoutPollTimer = null;
+    async function pollPayout({ stop }: { stop: () => void }) {
+        if (!order) return;
+        const updated = await ef.getOffRampOrder(fetch, order.id);
+        if (!updated) return;
+        order = updated;
+        if (updated.status === 'completed') {
+            step = 'complete';
+            stop();
+        } else if (
+            updated.status === 'failed' ||
+            updated.status === 'canceled' ||
+            updated.status === 'refunded'
+        ) {
+            stop();
         }
     }
 
@@ -341,8 +299,8 @@
         stellarTxHash = null;
         error = null;
         step = bankAccounts.length > 0 ? 'amount' : 'onboarding';
-        stopXdrPolling();
-        stopPayoutPolling();
+        xdrPoller.stop();
+        payoutPoller.stop();
     }
 
     function clearError() {
@@ -357,9 +315,9 @@
 
     onMount(() => {
         return () => {
-            stopKycPolling();
-            stopXdrPolling();
-            stopPayoutPolling();
+            kycPoller.stop();
+            xdrPoller.stop();
+            payoutPoller.stop();
         };
     });
 
@@ -581,7 +539,7 @@
             <div class="text-xs text-gray-400">
                 Order ID: <CopyableField value={order.id} mono />
             </div>
-            {#if pollingTimedOut}
+            {#if xdrPoller.timedOut}
                 <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                     <p class="font-medium">Still waiting</p>
                     <p class="mt-1">
@@ -641,7 +599,7 @@
                 ></div>
                 <span class="ml-3 text-sm text-gray-500">Polling Etherfuse…</span>
             </div>
-            {#if pollingTimedOut}
+            {#if payoutPoller.timedOut}
                 <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                     <p class="font-medium">Still processing</p>
                     <p class="mt-1">

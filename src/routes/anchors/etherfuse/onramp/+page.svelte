@@ -13,6 +13,7 @@
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
     import { getStellarAsset } from '$lib/wallet/stellar';
+    import { createPoller } from '$lib/utils/poll.svelte';
     import * as ef from '$lib/api/etherfuse';
     import type { StellarNetwork } from '$lib/wallet/types';
     import type {
@@ -64,11 +65,19 @@
     // UI flags
     let isWorking = $state(false);
     let error = $state<string | null>(null);
-    let kycPollTimer: ReturnType<typeof setInterval> | null = null;
-    let orderPollTimer: ReturnType<typeof setInterval> | null = null;
-    let pollCount = $state(0);
-    const MAX_POLL_COUNT = 60; // ~5 min @ 5s
-    const pollingTimedOut = $derived(pollCount >= MAX_POLL_COUNT);
+
+    // Polling: KYC runs until approved (capped at 10 min); order runs until
+    // status is terminal (capped at 5 min).
+    const kycPoller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 120,
+        onTick: () => refreshKycStatus(),
+    });
+    const orderPoller = createPoller({
+        intervalMs: 5000,
+        maxAttempts: 60,
+        onTick: pollOrder,
+    });
 
     // Sandbox
     let isSimulatingFiat = $state(false);
@@ -120,7 +129,7 @@
             // Immediately check status — a returning user (409 recovery) may
             // already be approved.
             await refreshKycStatus();
-            startKycPolling();
+            kycPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to start onboarding';
         } finally {
@@ -137,25 +146,13 @@
             });
             if (kycStatus === 'approved' || kycStatus === 'approved_chain_deploying') {
                 await refreshBankAccounts();
-                stopKycPolling();
+                kycPoller.stop();
                 if (bankAccounts.length > 0) {
                     step = 'amount';
                 }
             }
         } catch (err) {
             console.warn('[Etherfuse onramp] KYC status poll failed:', err);
-        }
-    }
-
-    function startKycPolling() {
-        stopKycPolling();
-        kycPollTimer = setInterval(refreshKycStatus, 5000);
-    }
-
-    function stopKycPolling() {
-        if (kycPollTimer) {
-            clearInterval(kycPollTimer);
-            kycPollTimer = null;
         }
     }
 
@@ -226,7 +223,7 @@
                 bankAccountId: bankAccounts[0]?.id ?? customer.bankAccountId,
             });
             step = 'payment';
-            startOrderPolling();
+            orderPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to create order';
         } finally {
@@ -234,41 +231,20 @@
         }
     }
 
-    function startOrderPolling() {
-        stopOrderPolling();
-        pollCount = 0;
-        orderPollTimer = setInterval(async () => {
-            pollCount += 1;
-            if (pollingTimedOut) {
-                stopOrderPolling();
-                return;
-            }
-            if (!order) return;
-            try {
-                const updated = await ef.getOnRampOrder(fetch, order.id);
-                if (updated) {
-                    order = updated;
-                    if (updated.status === 'completed') {
-                        step = 'complete';
-                        stopOrderPolling();
-                    } else if (
-                        updated.status === 'failed' ||
-                        updated.status === 'canceled' ||
-                        updated.status === 'refunded'
-                    ) {
-                        stopOrderPolling();
-                    }
-                }
-            } catch (err) {
-                console.warn('[Etherfuse onramp] Order poll failed:', err);
-            }
-        }, 5000);
-    }
-
-    function stopOrderPolling() {
-        if (orderPollTimer) {
-            clearInterval(orderPollTimer);
-            orderPollTimer = null;
+    async function pollOrder({ stop }: { stop: () => void }) {
+        if (!order) return;
+        const updated = await ef.getOnRampOrder(fetch, order.id);
+        if (!updated) return;
+        order = updated;
+        if (updated.status === 'completed') {
+            step = 'complete';
+            stop();
+        } else if (
+            updated.status === 'failed' ||
+            updated.status === 'canceled' ||
+            updated.status === 'refunded'
+        ) {
+            stop();
         }
     }
 
@@ -306,7 +282,7 @@
         error = null;
         fiatSimulated = false;
         step = bankAccounts.length > 0 ? 'amount' : 'onboarding';
-        stopOrderPolling();
+        orderPoller.stop();
     }
 
     function clearError() {
@@ -315,8 +291,8 @@
 
     onMount(() => {
         return () => {
-            stopKycPolling();
-            stopOrderPolling();
+            kycPoller.stop();
+            orderPoller.stop();
         };
     });
 </script>
@@ -594,7 +570,7 @@
             </div>
 
             <div class="mt-6">
-                {#if pollingTimedOut}
+                {#if orderPoller.timedOut}
                     <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                         <p class="font-medium">Still processing</p>
                         <p class="mt-1">
