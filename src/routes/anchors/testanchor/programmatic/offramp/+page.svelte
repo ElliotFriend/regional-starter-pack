@@ -2,9 +2,9 @@
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
     import { walletStore } from '$lib/stores/wallet.svelte';
-    import { authStore } from '$lib/stores/auth';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
+    import { createSep10Session } from '$lib/wallet/sep10-session';
     import { createPoller } from '$lib/utils/poll.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -52,27 +52,17 @@
         }
     });
 
-    async function ensureAuth(): Promise<string | undefined> {
-        if (!walletStore.publicKey) return undefined;
-        const cached = authStore.get(PROVIDER, walletStore.publicKey);
-        if (cached) return cached;
-        const challenge = await ta.getChallenge(fetch, walletStore.publicKey);
-        const { signedXdr } = await signWithFreighter(challenge.transaction, walletStore.network);
-        const { token } = await ta.submitChallenge(fetch, signedXdr);
-        authStore.set(PROVIDER, walletStore.publicKey, token);
-        return token;
-    }
-
-    function cachedAuth(): string | undefined {
-        return walletStore.publicKey ? authStore.get(PROVIDER, walletStore.publicKey) : undefined;
-    }
+    const sep10 = createSep10Session(PROVIDER, {
+        getChallenge: ta.getChallenge,
+        submitChallenge: ta.submitChallenge,
+    });
 
     async function checkKyc() {
         if (!walletStore.publicKey) return;
         isWorking = true;
         error = null;
         try {
-            const token = await ensureAuth();
+            const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
             customer = await ta.getCustomer(fetch, token);
             if (customer.status === 'ACCEPTED') {
@@ -98,7 +88,7 @@
         isWorking = true;
         error = null;
         try {
-            const token = await ensureAuth();
+            const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
             await ta.putCustomer(fetch, token, kycFields);
             customer = await ta.getCustomer(fetch, token);
@@ -117,7 +107,7 @@
         isWorking = true;
         error = null;
         try {
-            const token = await ensureAuth();
+            const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
             withdraw = await ta.sep6Withdraw(
                 fetch,
@@ -156,7 +146,7 @@
 
     async function pollTransaction({ stop }: { stop: () => void }) {
         if (!withdraw?.id) return;
-        const token = cachedAuth();
+        const token = sep10.cached();
         if (!token) return;
         const updated = await ta.getSep6Transaction(fetch, token, withdraw.id);
         if (!updated) return;
