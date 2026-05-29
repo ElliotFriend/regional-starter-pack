@@ -20,6 +20,7 @@ import type {
     GetQuoteArgs,
     CreateOnRampOrderArgs,
     CreateOffRampOrderArgs,
+    CreateAccountArgs,
 } from '$lib/anchors/koywe';
 import { createApiRequester, type Fetch } from './http';
 
@@ -82,12 +83,18 @@ export async function createOffRampOrder(
     return postJson<KoyweOffRampOrder>(fetch, '/api/anchor/koywe/offramp', args);
 }
 
-/** Attach a Stellar tx hash to an off-ramp order (TODO-flagged path server-side). */
-export async function submitTxHash(fetch: Fetch, orderId: string, txHash: string): Promise<void> {
+/** Attach a Stellar tx hash to an off-ramp order. */
+export async function submitTxHash(
+    fetch: Fetch,
+    orderId: string,
+    txHash: string,
+    email?: string,
+): Promise<void> {
     await postJson<{ ok: boolean }>(fetch, '/api/anchor/koywe/offramp', {
         action: 'submitTxHash',
         orderId,
         txHash,
+        email,
     });
 }
 
@@ -95,12 +102,15 @@ export async function submitTxHash(fetch: Fetch, orderId: string, txHash: string
 // Order polling (shared by both ramps)
 // ---------------------------------------------------------------------------
 
-export async function getOrder(fetch: Fetch, orderId: string): Promise<KoyweOrder | null> {
+export async function getOrder(
+    fetch: Fetch,
+    orderId: string,
+    email?: string,
+): Promise<KoyweOrder | null> {
+    const params = new URLSearchParams({ orderId });
+    if (email) params.set('email', email);
     try {
-        return await apiRequest<KoyweOrder>(
-            fetch,
-            `/api/anchor/koywe/order?orderId=${encodeURIComponent(orderId)}`,
-        );
+        return await apiRequest<KoyweOrder>(fetch, `/api/anchor/koywe/order?${params}`);
     } catch (err) {
         if (err instanceof KoyweApiError && err.statusCode === 404) return null;
         throw err;
@@ -111,16 +121,18 @@ export async function getOrder(fetch: Fetch, orderId: string): Promise<KoyweOrde
 // KYC
 // ---------------------------------------------------------------------------
 
-export async function getKycStatus(fetch: Fetch): Promise<KoyweKycStatus> {
-    const data = await apiRequest<{ status: KoyweKycStatus }>(fetch, '/api/anchor/koywe/kyc');
+export async function getKycStatus(fetch: Fetch, email: string): Promise<KoyweKycStatus> {
+    const data = await apiRequest<{ status: KoyweKycStatus }>(
+        fetch,
+        `/api/anchor/koywe/kyc?email=${encodeURIComponent(email)}`,
+    );
     return data.status;
 }
 
 /**
- * Get the Koywe hosted-KYC URL. Currently throws server-side (501) — the
- * endpoint is unconfirmed. Surfaced here so callers can catch and message it.
+ * Register a delegated-KYC account (the "submit KYC" step). Posts the user's
+ * identity details to Koywe via `POST /api/anchor/koywe/kyc`.
  */
-export async function getKycUrl(fetch: Fetch): Promise<string> {
-    const data = await postJson<{ url: string }>(fetch, '/api/anchor/koywe/kyc', {});
-    return data.url;
+export async function createAccount(fetch: Fetch, args: CreateAccountArgs): Promise<void> {
+    await postJson<{ ok: boolean }>(fetch, '/api/anchor/koywe/kyc', args);
 }

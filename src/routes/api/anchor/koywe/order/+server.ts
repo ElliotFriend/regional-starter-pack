@@ -1,6 +1,7 @@
 /**
  * Koywe order endpoint.
  * GET: fetch an order (on- or off-ramp) by `orderId` query param for polling.
+ *   Optional `email` query param scopes the auth token to that user.
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -13,8 +14,9 @@ export const GET: RequestHandler = async ({ url }) => {
     if (!orderId) {
         throw error(400, { message: 'orderId query parameter is required' });
     }
+    const email = url.searchParams.get('email') ?? undefined;
     try {
-        const order = await getKoywe().getOrder(orderId);
+        const order = await getKoywe().getOrder(orderId, email);
         if (!order) {
             throw error(404, { message: 'Order not found' });
         }

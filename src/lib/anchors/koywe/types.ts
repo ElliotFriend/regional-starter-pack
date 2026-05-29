@@ -25,11 +25,16 @@ export interface KoyweConfig {
     /** Base URL of the Koywe crypto API (e.g. `https://api-sandbox.koywe.com`). */
     baseUrl: string;
     /**
-     * End-user email scoping the auth token. The sandbox uses a fixed per-region
-     * test user (Argentina = `stellar-ar@koywe-test.com`); in production this is
-     * the authenticated user's email.
+     * Optional default end-user email.
+     *
+     * Email is **optional** on `POST /rest/auth` (the docs only *recommend* it
+     * "to use the JWT in the following calls"), so the client no longer requires
+     * a baked-in identity. Per-user operations (`createAccount`, `getKycStatus`,
+     * order creation) take an `email` argument and authenticate a JWT scoped to
+     * that user; catalogue/quote calls use an email-less app token. This field,
+     * if set, is only a fallback for those per-user calls.
      */
-    email: string;
+    email?: string;
     /**
      * Stellar issuer for the USDC that Koywe delivers, for this network. Koywe's
      * API does not return a Stellar issuer, and it differs by network (Circle's
@@ -234,6 +239,8 @@ export interface CreateOnRampOrderArgs {
     quoteId: string;
     /** Stellar address that will receive the USDC. */
     stellarAddress: string;
+    /** End-user email; the order's JWT is scoped to it (falls back to config). */
+    email?: string;
     /** End-user national document number (some flows require it). */
     documentNumber?: string;
 }
@@ -244,8 +251,72 @@ export interface CreateOffRampOrderArgs {
     quoteId: string;
     /** Registered bank-account id receiving the fiat payout. */
     bankAccountId: string;
+    /** End-user email; the order's JWT is scoped to it (falls back to config). */
+    email?: string;
     /** End-user national document number (some flows require it). */
     documentNumber?: string;
+}
+
+/**
+ * Args for {@link KoyweClient.createAccount} — the delegated-KYC registration.
+ *
+ * This is the "submit KYC" step: the integrator collects the end-user's identity
+ * details and POSTs them to Koywe (`POST /rest/accounts`), which then performs
+ * verification. There is no hosted KYC widget for delegated KYC.
+ *
+ * Field names mirror the Koywe glossary. `country` codes are ISO-3 (`ARG`,
+ * `CHL`, `COL`, `MEX`, `PER`).
+ */
+export interface CreateAccountArgs {
+    /** Email the account is registered under; scopes the auth token. */
+    email: string;
+    /** National-identity document. */
+    document: {
+        /** Document number. */
+        documentNumber: string;
+        /** Document type (e.g. `"DNI"`). */
+        documentType: string;
+        /** ISO-3 country of issuance (`ARG`, `CHL`, `COL`, `MEX`, `PER`). */
+        country: string;
+        /** `true` for a legal entity; defaults to `false` (natural person). */
+        isCompany?: boolean;
+        /** Optional secondary documents. */
+        others?: Array<{ documentNumber: string; documentType: string; country: string }>;
+    };
+    /** Residential address (must match the document's country of issuance). */
+    address: {
+        /** ISO-3 country of residence. */
+        country: string;
+        /** Postal code. */
+        zipCode: string;
+        /** First subdivision (state/province). */
+        state: string;
+        /** City. */
+        city: string;
+        /** Street address with numbering. */
+        street: string;
+        /** City subdivision (neighborhood). */
+        neighborhood?: string;
+    };
+    /** Personal / legal-entity information. */
+    personalInfo: {
+        /** Given names, or the legal entity's trade name. */
+        names: string;
+        /** Date of birth, `YYYY-MM-DD`. */
+        dob: string;
+        /** Contact phone number. */
+        phoneNumber: string;
+        /** Profession or business activity. */
+        activity: string;
+        /** First surname (natural persons). */
+        firstLastname?: string;
+        /** Second surname, if any. */
+        secondLastname?: string;
+        /** Nationality code. */
+        nationality?: string;
+        /** `M`, `F`, or `O`. */
+        gender?: 'M' | 'F' | 'O';
+    };
 }
 
 // ===========================================================================
@@ -355,6 +426,41 @@ export interface KoyweOrderResponse {
 /** Request body for `POST /rest/orders/{orderId}/txHash`. */
 export interface KoyweTxHashRequest {
     txHash: string;
+}
+
+/**
+ * Request body for `POST /rest/accounts` (delegated-KYC registration), matching
+ * the `NewAccount` schema in `koywe.openapi.yaml`. The fields are grouped under
+ * `document` / `address` / `personalInfo`, and the address fields keep their
+ * `address*` prefix even when nested.
+ */
+export interface KoyweAccountRequest {
+    email?: string;
+    document: {
+        documentNumber: string;
+        documentType: string;
+        country: string;
+        isCompany: boolean;
+        others?: Array<{ documentNumber: string; documentType: string; country: string }>;
+    };
+    address: {
+        addressCountry: string;
+        addressZipCode: string;
+        addressState: string;
+        addressCity: string;
+        addressStreet: string;
+        addressNeighborhood?: string;
+    };
+    personalInfo: {
+        names: string;
+        dob: string;
+        phoneNumber: string;
+        activity: string;
+        firstLastname?: string;
+        secondLastname?: string;
+        nationality?: string;
+        gender?: string;
+    };
 }
 
 /** Response from `GET /rest/accounts/{email}`. */

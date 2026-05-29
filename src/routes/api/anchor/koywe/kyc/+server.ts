@@ -1,20 +1,23 @@
 /**
  * Koywe KYC endpoints.
  *
- * GET: read the current KYC status for the configured user.
- * POST: get the Koywe hosted-KYC URL.
- *   NOTE: the hosted KYC endpoint is unconfirmed; the client throws 501 here
- *   (NOT_IMPLEMENTED) until it is wired up.
+ * GET ?email=…: read the current KYC status for a user.
+ * POST: register a delegated-KYC account (this is the "submit KYC" step).
+ *   body: CreateAccountArgs ({ email, document, address, personalInfo }).
  */
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getKoywe } from '$lib/server/koyweInstance';
-import { KoyweError } from '$lib/anchors/koywe';
+import { KoyweError, type CreateAccountArgs } from '$lib/anchors/koywe';
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ url }) => {
+    const email = url.searchParams.get('email');
+    if (!email) {
+        throw error(400, { message: 'email query parameter is required' });
+    }
     try {
-        const status = await getKoywe().getKycStatus();
+        const status = await getKoywe().getKycStatus(email);
         return json({ status });
     } catch (err) {
         if (err instanceof KoyweError) {
@@ -24,10 +27,16 @@ export const GET: RequestHandler = async () => {
     }
 };
 
-export const POST: RequestHandler = async () => {
+export const POST: RequestHandler = async ({ request }) => {
     try {
-        const url = await getKoywe().getKycUrl();
-        return json({ url });
+        const body = (await request.json()) as CreateAccountArgs;
+        if (!body.email || !body.document || !body.address || !body.personalInfo) {
+            throw error(400, {
+                message: 'email, document, address, and personalInfo are required',
+            });
+        }
+        await getKoywe().createAccount(body);
+        return json({ ok: true }, { status: 201 });
     } catch (err) {
         if (err instanceof KoyweError) {
             throw error(err.statusCode, { message: err.message });

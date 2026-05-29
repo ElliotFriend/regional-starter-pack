@@ -11,26 +11,34 @@ const STELLAR_PUBKEY = 'GASAZERTFNL6EWRFIHKQV53GMYBTUQAHAUE37N4N6D6WXQE34B47Q5HH
 const USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 const WIREAR_ID = '655bf1159b9b8df1604fe982';
 
-function createClient() {
+/**
+ * Build a client. Email is now optional (per-user operations take it as an
+ * argument), so the default client carries no baked-in identity — mirroring the
+ * server singleton.
+ */
+function createClient(email?: string) {
     return new KoyweClient({
         clientId: CLIENT_ID,
         secret: SECRET,
         baseUrl: BASE_URL,
-        email: EMAIL,
         usdcIssuer: USDC_ISSUER,
+        ...(email ? { email } : {}),
     });
 }
 
-/** Register a `POST /rest/auth` handler that returns a token and counts calls. */
+/**
+ * Register a `POST /rest/auth` handler that returns a per-call token and records
+ * the email seen on each call (`undefined` for the email-less app token).
+ */
 function mockAuth() {
-    const calls = { count: 0 };
+    const calls = { count: 0, emails: [] as (string | undefined)[] };
     server.use(
         http.post(`${BASE_URL}/rest/auth`, async ({ request }) => {
             calls.count += 1;
             const body = (await request.json()) as Record<string, unknown>;
             expect(body.clientId).toBe(CLIENT_ID);
             expect(body.secret).toBe(SECRET);
-            expect(body.email).toBe(EMAIL);
+            calls.emails.push(body.email as string | undefined);
             return HttpResponse.json({ token: `tok-${calls.count}` });
         }),
     );
@@ -76,26 +84,42 @@ describe('metadata', () => {
 // ---------------------------------------------------------------------------
 
 describe('authentication', () => {
-    it('signs in once and reuses the cached token across calls', async () => {
+    it('caches an email-less app token and reuses it across catalogue calls', async () => {
         const client = createClient();
         const auth = mockAuth();
         server.use(
-            http.get(`${BASE_URL}/rest/orders/order-1`, ({ request }) => {
+            http.get(`${BASE_URL}/rest/payment-providers`, ({ request }) => {
                 expect(request.headers.get('authorization')).toBe('Bearer tok-1');
-                return HttpResponse.json({
-                    orderId: 'order-1',
-                    status: 'WAITING',
-                    amountIn: 10000,
-                    amountOut: 5.59,
-                    symbolIn: 'ARS',
-                    symbolOut: 'USDC Stellar',
-                });
+                return HttpResponse.json([{ _id: WIREAR_ID, name: 'WIREAR', fee: 1 }]);
             }),
         );
 
-        await client.getOrder('order-1');
-        await client.getOrder('order-1');
+        await client.getPaymentProviders('ARS');
+        await client.getPaymentProviders('ARS');
         expect(auth.count).toBe(1);
+        expect(auth.emails).toEqual([undefined]);
+    });
+
+    it('signs in separately per email and caches each token independently', async () => {
+        const client = createClient();
+        const auth = mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/accounts/:email`, () =>
+                HttpResponse.json({ document: { documentNumber: '1' } }),
+            ),
+            http.get(`${BASE_URL}/rest/payment-providers`, () => HttpResponse.json([])),
+        );
+
+        await client.getKycStatus('a@koywe-test.com');
+        await client.getKycStatus('a@koywe-test.com');
+        await client.getKycStatus('b@koywe-test.com');
+        await client.getPaymentProviders('ARS'); // email-less app token
+
+        // One auth for each distinct email + one for the app token.
+        expect(auth.count).toBe(3);
+        expect(auth.emails).toContain('a@koywe-test.com');
+        expect(auth.emails).toContain('b@koywe-test.com');
+        expect(auth.emails).toContain(undefined);
     });
 });
 
@@ -240,12 +264,15 @@ describe('getQuote', () => {
 describe('createOnRampOrder', () => {
     it('creates an order and parses WIREAR instructions + tracking URL', async () => {
         const client = createClient();
-        mockAuth();
+        const auth = mockAuth();
         server.use(
             http.post(`${BASE_URL}/rest/orders`, async ({ request }) => {
+                // The order auths with — and is linked to — the per-user email.
+                expect(request.headers.get('authorization')).toBe('Bearer tok-1');
                 const body = (await request.json()) as Record<string, unknown>;
                 expect(body.quoteId).toBe('quote-123');
                 expect(body.destinationAddress).toBe(STELLAR_PUBKEY);
+                expect(body.email).toBe(EMAIL);
                 return HttpResponse.json({
                     orderId: 'order-9',
                     quoteId: 'quote-123',
@@ -263,7 +290,9 @@ describe('createOnRampOrder', () => {
         const order = await client.createOnRampOrder({
             quoteId: 'quote-123',
             stellarAddress: STELLAR_PUBKEY,
+            email: EMAIL,
         });
+        expect(auth.emails).toContain(EMAIL);
 
         expect(order.id).toBe('order-9');
         expect(order.status).toBe('WAITING');
@@ -425,7 +454,7 @@ describe('getKycStatus', () => {
                 });
             }),
         );
-        expect(await client.getKycStatus()).toBe('approved');
+        expect(await client.getKycStatus(EMAIL)).toBe('approved');
     });
 
     it('maps a present-but-empty document to not_started', async () => {
@@ -436,7 +465,7 @@ describe('getKycStatus', () => {
                 HttpResponse.json({ email: EMAIL, document: {} }),
             ),
         );
-        expect(await client.getKycStatus()).toBe('not_started');
+        expect(await client.getKycStatus(EMAIL)).toBe('not_started');
     });
 
     it('maps a 404 (no account) to not_started', async () => {
@@ -450,22 +479,96 @@ describe('getKycStatus', () => {
                 ),
             ),
         );
-        expect(await client.getKycStatus()).toBe('not_started');
+        expect(await client.getKycStatus(EMAIL)).toBe('not_started');
     });
 });
 
 // ---------------------------------------------------------------------------
-// getKycUrl — flagged unknown, must throw NotImplemented (501)
+// getKycStatus — requires an email (arg or config fallback)
 // ---------------------------------------------------------------------------
 
-describe('getKycUrl', () => {
-    it('throws a 501 KoyweError until the hosted KYC mechanism is confirmed', async () => {
+describe('getKycStatus (no email)', () => {
+    it('throws when no email is provided and none is configured', async () => {
         const client = createClient();
-        await expect(client.getKycUrl()).rejects.toMatchObject({
+        await expect(client.getKycStatus()).rejects.toMatchObject({
             name: 'KoyweError',
-            code: 'NOT_IMPLEMENTED',
-            statusCode: 501,
+            code: 'MISSING_EMAIL',
         });
+    });
+
+    it('falls back to the configured email when no argument is given', async () => {
+        const client = createClient(EMAIL);
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/accounts/:email`, ({ params }) => {
+                expect(decodeURIComponent(params.email as string)).toBe(EMAIL);
+                return HttpResponse.json({ document: { documentNumber: '1' } });
+            }),
+        );
+        expect(await client.getKycStatus()).toBe('approved');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// createAccount — delegated-KYC registration (POST /rest/accounts)
+// ---------------------------------------------------------------------------
+
+describe('createAccount', () => {
+    it('POSTs a nested delegated-KYC body and auths with the user email', async () => {
+        const client = createClient();
+        const auth = mockAuth();
+        type AccountBody = {
+            email?: string;
+            document: Record<string, unknown>;
+            address: Record<string, unknown>;
+            personalInfo: Record<string, unknown>;
+        };
+        let received: AccountBody | undefined;
+        server.use(
+            http.post(`${BASE_URL}/rest/accounts`, async ({ request }) => {
+                expect(request.headers.get('authorization')).toBe('Bearer tok-1');
+                received = (await request.json()) as AccountBody;
+                return HttpResponse.json({ email: EMAIL }, { status: 201 });
+            }),
+        );
+
+        await client.createAccount({
+            email: EMAIL,
+            document: { documentNumber: '95456858', documentType: 'DNI', country: 'ARG' },
+            address: {
+                country: 'ARG',
+                zipCode: '1000',
+                state: 'CABA',
+                city: 'Buenos Aires',
+                neighborhood: 'Centro',
+                street: 'Av. 9 de Julio 1',
+            },
+            personalInfo: {
+                names: 'Test',
+                firstLastname: 'User',
+                nationality: 'ARG',
+                gender: 'O',
+                dob: '1990-01-01',
+                phoneNumber: '+5491100000000',
+                activity: 'Engineer',
+            },
+        });
+
+        expect(auth.emails).toContain(EMAIL);
+        expect(received?.email).toBe(EMAIL);
+        // document group, with isCompany defaulted.
+        expect(received?.document.documentNumber).toBe('95456858');
+        expect(received?.document.documentType).toBe('DNI');
+        expect(received?.document.isCompany).toBe(false);
+        // address group keeps the documented `address*` prefix.
+        expect(received?.address.addressCountry).toBe('ARG');
+        expect(received?.address.addressZipCode).toBe('1000');
+        expect(received?.address.addressStreet).toBe('Av. 9 de Julio 1');
+        expect(received?.address.addressNeighborhood).toBe('Centro');
+        // personalInfo group.
+        expect(received?.personalInfo.names).toBe('Test');
+        expect(received?.personalInfo.dob).toBe('1990-01-01');
+        expect(received?.personalInfo.firstLastname).toBe('User');
     });
 });
 

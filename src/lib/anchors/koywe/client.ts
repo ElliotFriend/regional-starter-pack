@@ -8,7 +8,10 @@
  *
  * **Server-side only** — authenticates with a `clientId`/`secret` pair that must
  * never be exposed to the browser. Exchanges them for a 24h JWT (`POST /rest/auth`)
- * scoped to a per-user email and caches it for the client's lifetime.
+ * and caches one token per user email (plus an email-less "app" token for
+ * catalogue/quote calls that aren't user-scoped). Email is optional on `/auth`;
+ * per-user operations (`createAccount`, `getKycStatus`, order creation) take an
+ * `email` argument so a single client can serve many users.
  *
  * On-ramp: Argentine pesos (ARS) → USDC on Stellar via WIREAR (CVU bank
  * transfer), QRI-AR (QR), or Khipu. Off-ramp: USDC → ARS to a registered bank
@@ -22,11 +25,13 @@
  *     clientId: process.env.KOYWE_CLIENT_ID!,
  *     secret: process.env.KOYWE_SECRET!,
  *     baseUrl: process.env.KOYWE_BASE_URL!,
- *     email: 'stellar-ar@koywe-test.com',
  *     usdcIssuer: process.env.PUBLIC_USDC_ISSUER!,
  * });
  *
+ * // Catalogue + pricing need no user identity.
  * const quote = await koywe.getQuote({ ramp: 'onramp', fiatCurrency: 'ARS', amount: '10000' });
+ * // Per-user operations take the end-user's email.
+ * const status = await koywe.getKycStatus('alice@example.com');
  * ```
  */
 
@@ -46,6 +51,8 @@ import {
     type GetQuoteArgs,
     type CreateOnRampOrderArgs,
     type CreateOffRampOrderArgs,
+    type CreateAccountArgs,
+    type KoyweAccountRequest,
     type KoyweAuthResponse,
     type KoyweTokenCurrency,
     type KoywePaymentProvider,
@@ -63,10 +70,10 @@ const USDC_DISPLAY_SYMBOL = 'USDC';
 /**
  * Client for the Koywe crypto fiat on/off ramp API.
  *
- * Handles auth-token caching, currency/rail discovery, executable quotes,
- * order creation (on- and off-ramp), order polling, and KYC status. The hosted
- * KYC widget URL and the off-ramp tx-hash submit path are flagged with `TODO`
- * pending live confirmation.
+ * Handles per-user auth-token caching, currency/rail discovery, executable
+ * quotes, delegated-KYC account registration, order creation (on- and
+ * off-ramp), order polling, and KYC status. Request/response shapes are
+ * confirmed against `koywe.openapi.yaml`.
  */
 export class KoyweClient {
     /** Machine-readable provider identifier. */
@@ -81,8 +88,12 @@ export class KoyweClient {
     readonly supportedRails: readonly KoyweRail[] = ['wirear', 'qri'];
 
     private readonly config: KoyweConfig;
-    /** Cached JWT for `config.email`. Lazily populated by {@link authToken}. */
-    private token: string | undefined;
+    /**
+     * Cached JWTs keyed by email. The empty-string key holds the email-less
+     * "app" token used for catalogue/quote calls. Lazily populated by
+     * {@link authToken}.
+     */
+    private readonly tokens = new Map<string, string>();
 
     constructor(config: KoyweConfig) {
         this.config = config;
@@ -203,12 +214,18 @@ export class KoyweClient {
             );
         }
 
-        const response = await this.request<KoyweOrderResponse>('POST', '/rest/orders', {
-            quoteId: args.quoteId,
-            destinationAddress: args.stellarAddress,
-            email: this.config.email,
-            documentNumber: args.documentNumber,
-        });
+        const email = args.email ?? this.config.email;
+        const response = await this.request<KoyweOrderResponse>(
+            'POST',
+            '/rest/orders',
+            {
+                quoteId: args.quoteId,
+                destinationAddress: args.stellarAddress,
+                ...(email ? { email } : {}),
+                documentNumber: args.documentNumber,
+            },
+            email,
+        );
 
         return {
             id: response.orderId,
@@ -234,21 +251,24 @@ export class KoyweClient {
      * The user then sends USDC to the returned {@link KoyweOffRampOrder.depositAddress}
      * and submits the resulting Stellar tx hash via {@link submitTxHash}.
      *
-     * TODO(koywe): the off-ramp order field name is assumed to be
-     * `destinationAddress` carrying the bank-account id (matches the documented
-     * OpenAPI shape), but this was not verified against the live sandbox.
+     * Per the `orders_body` schema, off-ramp orders carry the bank-account id in
+     * `destinationAddress`.
      *
      * @throws {KoyweError} On API failure.
      */
     async createOffRampOrder(args: CreateOffRampOrderArgs): Promise<KoyweOffRampOrder> {
-        const response = await this.request<KoyweOrderResponse>('POST', '/rest/orders', {
-            quoteId: args.quoteId,
-            // TODO(koywe): off-ramp uses the bank-account id as destinationAddress
-            // per the docs; confirm against a live off-ramp order.
-            destinationAddress: args.bankAccountId,
-            email: this.config.email,
-            documentNumber: args.documentNumber,
-        });
+        const email = args.email ?? this.config.email;
+        const response = await this.request<KoyweOrderResponse>(
+            'POST',
+            '/rest/orders',
+            {
+                quoteId: args.quoteId,
+                destinationAddress: args.bankAccountId,
+                ...(email ? { email } : {}),
+                documentNumber: args.documentNumber,
+            },
+            email,
+        );
 
         return {
             id: response.orderId,
@@ -268,15 +288,15 @@ export class KoyweClient {
      * Attach the Stellar transaction hash to an off-ramp order so Koywe can
      * reconcile the on-chain USDC transfer (`POST /rest/orders/{orderId}/txHash`).
      *
-     * TODO(koywe): this path matches the documented OpenAPI spec but was not
-     * exercised against the live sandbox.
-     *
      * @throws {KoyweError} On API failure.
      */
-    async submitTxHash(orderId: string, txHash: string): Promise<void> {
-        await this.request('POST', `/rest/orders/${encodeURIComponent(orderId)}/txHash`, {
-            txHash,
-        });
+    async submitTxHash(orderId: string, txHash: string, email?: string): Promise<void> {
+        await this.request(
+            'POST',
+            `/rest/orders/${encodeURIComponent(orderId)}/txHash`,
+            { txHash },
+            email ?? this.config.email,
+        );
     }
 
     // =========================================================================
@@ -289,11 +309,13 @@ export class KoyweClient {
      * @returns The order, or `null` if not found.
      * @throws {KoyweError} On non-404 API errors.
      */
-    async getOrder(orderId: string): Promise<KoyweOrder | null> {
+    async getOrder(orderId: string, email?: string): Promise<KoyweOrder | null> {
         try {
             const response = await this.request<KoyweOrderResponse>(
                 'GET',
                 `/rest/orders/${encodeURIComponent(orderId)}`,
+                undefined,
+                email ?? this.config.email,
             );
             return {
                 id: response.orderId,
@@ -319,38 +341,65 @@ export class KoyweClient {
     // =========================================================================
 
     /**
-     * Get a URL for Koywe's hosted KYC flow.
+     * Register a delegated-KYC account (`POST /rest/accounts`).
      *
-     * TODO(koywe): the hosted KYC widget URL endpoint is unknown — the last
-     * sandbox investigation did not surface a documented endpoint. Until it is
-     * confirmed, this throws a clear 501 so callers can surface a "contact
-     * support / complete KYC out-of-band" affordance rather than guessing.
+     * This is the "submit KYC" step: the integrator collects the end-user's
+     * identity details and posts them to Koywe, which performs verification.
+     * There is no hosted KYC widget in the delegated-KYC model. The JWT is
+     * scoped to `args.email`, which the account is registered under.
      *
-     * @throws {KoyweError} Always, with code `NOT_IMPLEMENTED` and status 501.
+     * @throws {KoyweError} On API failure (e.g. validation errors).
      */
-    async getKycUrl(): Promise<string> {
-        throw new KoyweError(
-            'Koywe hosted KYC widget URL is not yet wired up — endpoint unconfirmed. ' +
-                'Complete KYC in the Koywe dashboard for the test user.',
-            'NOT_IMPLEMENTED',
-            501,
-        );
+    async createAccount(args: CreateAccountArgs): Promise<void> {
+        const body: KoyweAccountRequest = {
+            email: args.email,
+            document: {
+                documentNumber: args.document.documentNumber,
+                documentType: args.document.documentType,
+                country: args.document.country,
+                isCompany: args.document.isCompany ?? false,
+                ...(args.document.others ? { others: args.document.others } : {}),
+            },
+            address: {
+                addressCountry: args.address.country,
+                addressZipCode: args.address.zipCode,
+                addressState: args.address.state,
+                addressCity: args.address.city,
+                addressStreet: args.address.street,
+                ...(args.address.neighborhood
+                    ? { addressNeighborhood: args.address.neighborhood }
+                    : {}),
+            },
+            personalInfo: { ...args.personalInfo },
+        };
+        await this.request('POST', '/rest/accounts', body, args.email);
     }
 
     /**
-     * Get the current KYC status for the configured user.
+     * Get the current KYC status for a user.
      *
      * Reads the account profile (`GET /rest/accounts/{email}`) and infers
      * approval from the presence of a `document.documentNumber`. A 404 (no
      * account) maps to `not_started`.
      *
-     * @throws {KoyweError} On non-404 API errors.
+     * @param email The user's email; falls back to `config.email`.
+     * @throws {KoyweError} If no email is available, or on non-404 API errors.
      */
-    async getKycStatus(): Promise<KoyweKycStatus> {
+    async getKycStatus(email?: string): Promise<KoyweKycStatus> {
+        const resolved = email ?? this.config.email;
+        if (!resolved) {
+            throw new KoyweError(
+                'An email is required to check Koywe KYC status',
+                'MISSING_EMAIL',
+                400,
+            );
+        }
         try {
             const account = await this.request<KoyweAccountResponse>(
                 'GET',
-                `/rest/accounts/${encodeURIComponent(this.config.email)}`,
+                `/rest/accounts/${encodeURIComponent(resolved)}`,
+                undefined,
+                resolved,
             );
             return account.document?.documentNumber ? 'approved' : 'not_started';
         } catch (error) {
@@ -366,12 +415,15 @@ export class KoyweClient {
     // =========================================================================
 
     /**
-     * Return a cached JWT, signing in via `POST /rest/auth` on first use.
-     * The token is scoped to `config.email` and valid for 24h; we keep it for
-     * the lifetime of the (lazily-instantiated) client.
+     * Return a cached JWT for `email` (or an email-less app token when omitted),
+     * signing in via `POST /rest/auth` on first use. Tokens are valid for 24h
+     * and kept for the lifetime of the (lazily-instantiated) client. Email is
+     * optional on `/auth`; including it scopes the JWT to that user's account.
      */
-    private async authToken(): Promise<string> {
-        if (this.token) return this.token;
+    private async authToken(email?: string): Promise<string> {
+        const key = email ?? '';
+        const cached = this.tokens.get(key);
+        if (cached) return cached;
 
         const url = `${this.config.baseUrl}/rest/auth`;
         const response = await fetch(url, {
@@ -380,7 +432,7 @@ export class KoyweClient {
             body: JSON.stringify({
                 clientId: this.config.clientId,
                 secret: this.config.secret,
-                email: this.config.email,
+                ...(email ? { email } : {}),
             }),
         });
 
@@ -394,17 +446,22 @@ export class KoyweClient {
         }
 
         const data = (await response.json()) as KoyweAuthResponse;
-        this.token = data.token;
-        return this.token;
+        this.tokens.set(key, data.token);
+        return data.token;
     }
 
-    /** Send an authenticated JSON request, mapping Koywe errors to {@link KoyweError}. */
+    /**
+     * Send an authenticated JSON request, mapping Koywe errors to
+     * {@link KoyweError}. Pass `email` to use that user's JWT; omit it for
+     * catalogue/quote calls that aren't user-scoped.
+     */
     private async request<T>(
         method: 'GET' | 'POST' | 'PUT' | 'DELETE',
         endpoint: string,
         body?: unknown,
+        email?: string,
     ): Promise<T> {
-        const token = await this.authToken();
+        const token = await this.authToken(email);
         const url = `${this.config.baseUrl}${endpoint}`;
         console.log(`[Koywe] ${method} ${url}`, body ? JSON.stringify(body) : '');
 

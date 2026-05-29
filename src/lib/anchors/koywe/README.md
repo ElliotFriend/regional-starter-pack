@@ -25,12 +25,11 @@ const koywe = new KoyweClient({
     clientId: process.env.KOYWE_CLIENT_ID!,
     secret: process.env.KOYWE_SECRET!,
     baseUrl: process.env.KOYWE_BASE_URL!, // https://api-sandbox.koywe.com
-    email: 'stellar-ar@koywe-test.com', // Argentina sandbox test user
     usdcIssuer: process.env.PUBLIC_USDC_ISSUER!, // network-correct USDC issuer
 });
 ```
 
-`clientId` doubles as the `metaAccount`; there are no org/merchant path params. The auth token is scoped to `email` and cached for the client's lifetime.
+`clientId` doubles as the `metaAccount`; there are no org/merchant path params. Email is **optional** on `POST /rest/auth`, so the client carries no baked-in identity: per-user operations (`createAccount`, `getKycStatus`, order creation) take an `email` argument, and the client caches one JWT per email (plus an email-less "app" token for catalogue/quote calls). A single client instance therefore serves many users. The optional `email` config field is only a fallback for those per-user calls.
 
 ## Why `usdcIssuer` is injected
 
@@ -42,34 +41,38 @@ On-ramp and off-ramp share authentication and diverge at order creation.
 
 **On-ramp (ARS → USDC):**
 
-1. **Payment method** — `getPaymentProviders('ARS')` lists rails (WIREAR / QRI-AR / Khipu).
-2. **Quote** — `getQuote({ ramp: 'onramp', fiatCurrency: 'ARS', amount, paymentMethodId })` returns an executable quote (~2-5 min).
-3. **Order** — `createOnRampOrder({ quoteId, stellarAddress })`. WIREAR returns inline CVU/alias/bank instructions; QRI/Khipu return an `interactiveUrl` hosted redirect.
-4. **Fulfillment** — the user pays ARS via the chosen rail; Koywe delivers USDC to the Stellar address.
-5. **Polling** — `getOrder(orderId)` until `DELIVERED`.
+1. **Account / KYC** — `getKycStatus(email)`; if not `approved`, `createAccount({ email, document, address, personalInfo })` submits delegated KYC (there is no hosted KYC widget).
+2. **Payment method** — `getPaymentProviders('ARS')` lists rails (WIREAR / QRI-AR / Khipu).
+3. **Quote** — `getQuote({ ramp: 'onramp', fiatCurrency: 'ARS', amount, paymentMethodId })` returns an executable quote (~2-5 min).
+4. **Order** — `createOnRampOrder({ quoteId, stellarAddress, email })`. WIREAR returns inline CVU/alias/bank instructions; QRI/Khipu return an `interactiveUrl` hosted redirect.
+5. **Fulfillment** — the user pays ARS via the chosen rail; Koywe delivers USDC to the Stellar address.
+6. **Polling** — `getOrder(orderId, email)` until `DELIVERED`.
 
 **Off-ramp (USDC → ARS):**
 
-1. **Quote** — `getQuote({ ramp: 'offramp', fiatCurrency: 'ARS', amount })`.
-2. **Order** — `createOffRampOrder({ quoteId, bankAccountId })` returns a Koywe Stellar `depositAddress`.
-3. **Send** — the user signs and submits a USDC payment to `depositAddress`.
-4. **Reconcile** — `submitTxHash(orderId, txHash)` attaches the Stellar tx hash.
-5. **Polling** — `getOrder(orderId)` until `DELIVERED`.
+1. **Account / KYC** — same as on-ramp: `getKycStatus(email)` / `createAccount(...)`.
+2. **Quote** — `getQuote({ ramp: 'offramp', fiatCurrency: 'ARS', amount })`.
+3. **Order** — `createOffRampOrder({ quoteId, bankAccountId, email })` returns a Koywe Stellar `depositAddress`.
+4. **Send** — the user signs and submits a USDC payment to `depositAddress`.
+5. **Reconcile** — `submitTxHash(orderId, txHash, email)` attaches the Stellar tx hash.
+6. **Polling** — `getOrder(orderId, email)` until `DELIVERED`.
 
 ## Order states
 
 `WAITING → PENDING → EXECUTING → IN_PROGRESS → DELIVERED` (plus `REJECTED`, `INVALID_WITHDRAWALS_DETAILS`). Statuses are passed through verbatim; flow pages map them to UI states.
 
-## KYC
+## KYC (delegated)
 
-KYC is Koywe-hosted. `getKycStatus()` reads `GET /rest/accounts/{email}` and infers `approved` from the presence of `document.documentNumber` (404 → `not_started`).
+Koywe uses **delegated KYC**: the integrator collects the user's identity details and submits them via `createAccount({ email, document, address, personalInfo })` (`POST /rest/accounts`). There is no hosted KYC widget. `getKycStatus(email)` reads `GET /rest/accounts/{email}` and infers `approved` from the presence of `document.documentNumber` (404 → `not_started`). Note that the account may not flip to `approved` synchronously in sandbox.
 
-## Flagged unknowns (see inline `TODO(koywe)`)
+## API reference
 
-- **Hosted KYC widget URL** — endpoint unconfirmed. `getKycUrl()` throws a `KoyweError` with code `NOT_IMPLEMENTED` / status `501` rather than guessing. Complete KYC for the test user via the Koywe dashboard.
-- **Off-ramp order field name** — `createOffRampOrder` sends the bank-account id as `destinationAddress` (matches the documented OpenAPI `orders_body`), but this was not verified against a live off-ramp order.
-- **Submit-tx-hash path** — `submitTxHash` POSTs to `/rest/orders/{orderId}/txHash` per the documented spec; unverified live.
+Request/response shapes are confirmed against `koywe.openapi.yaml` (in this directory) — the authoritative source. The server base path is `/rest` (`https://api-sandbox.koywe.com/rest`). For both ramps, `orders_body.destinationAddress` carries the Stellar address (on-ramp) or the bank-account id (off-ramp).
+
+## Known gaps
+
+- **Bank-account registration** — the off-ramp expects an already-registered Koywe bank-account id; `POST /rest/bank-accounts` is documented in the spec but not yet wired into this app's flow.
 
 ## Sandbox quirks
 
-There is no fiat-received simulation API. In the live sandbox only **Khipu** reaches `DELIVERED` (pay `1234` / `123456` on the Khipu test page); WIREAR and QRI orders stay in `WAITING`. The unit tests still exercise the full `WAITING → DELIVERED` progression via mocks.
+There is no on-ramp fiat-received simulation API (the spec only simulates the off-ramp bank leg once the testnet crypto payment is confirmed). In the live sandbox only **Khipu** reaches `DELIVERED` for on-ramp (pay `1234` / `123456` on the Khipu test page); WIREAR and QRI orders stay in `WAITING`. The unit tests still exercise the full `WAITING → DELIVERED` progression via mocks.

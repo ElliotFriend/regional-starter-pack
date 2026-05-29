@@ -33,6 +33,8 @@
 
     type Step =
         | 'connect'
+        | 'identity'
+        | 'kyc'
         | 'account'
         | 'amount'
         | 'quote'
@@ -41,10 +43,28 @@
         | 'complete';
     let step = $state<Step>('connect');
 
-    // KYC + payout account
+    // Identity + KYC
+    let email = $state('');
     let kycStatus = $state<KoyweKycStatus>('not_started');
-    let kycChecked = $state(false);
-    let kycUrlError = $state<string | null>(null);
+    let kycForm = $state({
+        documentNumber: '',
+        documentType: 'DNI',
+        documentCountry: 'ARG',
+        names: '',
+        firstLastname: '',
+        dob: '',
+        phoneNumber: '',
+        activity: '',
+        nationality: 'ARG',
+        gender: '' as '' | 'M' | 'F' | 'O',
+        street: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        neighborhood: '',
+    });
+
+    // Payout account
     // TODO(koywe): bank-account registration shape is not yet wired in this app.
     // For now the user supplies an already-registered Koywe bank-account id.
     let bankAccountId = $state('');
@@ -62,6 +82,8 @@
 
     const payoutPoller = createPoller({ intervalMs: 5000, maxAttempts: 60, onTick: pollPayout });
 
+    const emailValid = $derived(email.trim().length > 0 && email.includes('@'));
+
     const displayQuote = $derived(
         quote
             ? {
@@ -78,17 +100,20 @@
     );
 
     // ------------------------------------------------------------------
-    // KYC discovery
+    // KYC discovery + submission
     // ------------------------------------------------------------------
 
-    async function startOnboarding() {
-        if (!walletStore.publicKey) return;
+    async function checkKyc() {
+        if (!emailValid) return;
         isWorking = true;
         error = null;
         try {
-            kycStatus = await koywe.getKycStatus(fetch);
-            kycChecked = true;
-            step = 'account';
+            kycStatus = await koywe.getKycStatus(fetch, email);
+            if (kycStatus === 'approved') {
+                step = 'account';
+            } else {
+                step = 'kyc';
+            }
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to check Koywe KYC status';
         } finally {
@@ -96,16 +121,62 @@
         }
     }
 
-    async function openKyc() {
-        kycUrlError = null;
+    function fillTestData() {
+        kycForm = {
+            documentNumber: '95456858',
+            documentType: 'DNI',
+            documentCountry: 'ARG',
+            names: 'Test',
+            firstLastname: 'User',
+            dob: '1990-01-01',
+            phoneNumber: '+5491155551234',
+            activity: 'Software Engineer',
+            nationality: 'ARG',
+            gender: 'O',
+            street: 'Av. 9 de Julio 1000',
+            city: 'Buenos Aires',
+            state: 'CABA',
+            zipCode: 'C1043',
+            neighborhood: 'Centro',
+        };
+    }
+
+    async function submitKyc() {
+        isWorking = true;
+        error = null;
         try {
-            const url = await koywe.getKycUrl(fetch);
-            window.open(url, '_blank', 'noopener');
+            await koywe.createAccount(fetch, {
+                email,
+                document: {
+                    documentNumber: kycForm.documentNumber,
+                    documentType: kycForm.documentType,
+                    country: kycForm.documentCountry,
+                },
+                address: {
+                    country: kycForm.documentCountry,
+                    zipCode: kycForm.zipCode,
+                    state: kycForm.state,
+                    city: kycForm.city,
+                    street: kycForm.street,
+                    neighborhood: kycForm.neighborhood || undefined,
+                },
+                personalInfo: {
+                    names: kycForm.names,
+                    dob: kycForm.dob,
+                    phoneNumber: kycForm.phoneNumber,
+                    activity: kycForm.activity,
+                    firstLastname: kycForm.firstLastname || undefined,
+                    nationality: kycForm.nationality || undefined,
+                    gender: kycForm.gender || undefined,
+                },
+            });
+            // Refresh status; sandbox KYC may not flip to 'approved' immediately.
+            kycStatus = await koywe.getKycStatus(fetch, email);
+            step = 'account';
         } catch (err) {
-            kycUrlError =
-                err instanceof Error
-                    ? err.message
-                    : 'Koywe hosted KYC is not available yet. Complete KYC in the Koywe dashboard.';
+            error = err instanceof Error ? err.message : 'Failed to submit Koywe KYC';
+        } finally {
+            isWorking = false;
         }
     }
 
@@ -151,6 +222,7 @@
             order = await koywe.createOffRampOrder(fetch, {
                 quoteId: quote.id,
                 bankAccountId,
+                email,
             });
             if (!order.depositAddress) {
                 throw new Error('Koywe did not return a deposit address for this order');
@@ -177,8 +249,7 @@
             const signed = await signWithFreighter(xdr, network);
             const result = await submitTransaction(signed.signedXdr, network);
             stellarTxHash = result.hash;
-            // TODO(koywe): the submit-tx-hash path is documented but unverified live.
-            await koywe.submitTxHash(fetch, order.id, result.hash);
+            await koywe.submitTxHash(fetch, order.id, result.hash, email);
             step = 'awaiting-payout';
             payoutPoller.start();
         } catch (err) {
@@ -189,7 +260,7 @@
 
     async function pollPayout({ stop }: { stop: () => void }) {
         if (!order) return;
-        const updated = await koywe.getOrder(fetch, order.id);
+        const updated = await koywe.getOrder(fetch, order.id, email);
         if (!updated) return;
         order = { ...order, status: updated.status };
         if (updated.status === 'DELIVERED') {
@@ -249,37 +320,228 @@
                 </p>
             {:else}
                 <h2 class="text-lg font-semibold text-gray-900">Start</h2>
-                <p class="mt-1 text-sm text-gray-500">We'll check your Koywe KYC status.</p>
+                <p class="mt-1 text-sm text-gray-500">
+                    Next we'll identify your Koywe account and check your KYC status.
+                </p>
                 <button
-                    onclick={startOnboarding}
-                    disabled={isWorking}
+                    onclick={() => (step = 'identity')}
                     class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    {isWorking ? 'Loading…' : 'Continue'}
+                    Continue
                 </button>
             {/if}
+        </div>
+    {/if}
+
+    <!-- =================== IDENTITY ============================== -->
+    {#if step === 'identity'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Your email</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Koywe scopes your account and KYC to an email address.
+            </p>
+
+            <label class="mt-4 block">
+                <span class="text-sm font-medium text-gray-700">Email</span>
+                <input
+                    type="email"
+                    bind:value={email}
+                    placeholder="you@example.com"
+                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+            </label>
+
+            <button
+                onclick={checkKyc}
+                disabled={!emailValid || isWorking}
+                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+                {isWorking ? 'Checking…' : 'Continue'}
+            </button>
+        </div>
+    {/if}
+
+    <!-- =================== KYC =================================== -->
+    {#if step === 'kyc'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Koywe verifies your identity before paying out fiat. Enter your details
+                        below.
+                    </p>
+                </div>
+                <button
+                    onclick={fillTestData}
+                    class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Fill test data
+                </button>
+            </div>
+
+            <!-- Document -->
+            <fieldset class="mt-6">
+                <legend class="text-sm font-semibold text-gray-900">Document</legend>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <label class="block sm:col-span-1">
+                        <span class="text-xs font-medium text-gray-700">Type</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.documentType}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block sm:col-span-1">
+                        <span class="text-xs font-medium text-gray-700">Number</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.documentNumber}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block sm:col-span-1">
+                        <span class="text-xs font-medium text-gray-700">Country</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.documentCountry}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                </div>
+            </fieldset>
+
+            <!-- Personal -->
+            <fieldset class="mt-6">
+                <legend class="text-sm font-semibold text-gray-900">Personal</legend>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">First name(s)</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.names}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Last name</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.firstLastname}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Date of birth</span>
+                        <input
+                            type="date"
+                            bind:value={kycForm.dob}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Phone number</span>
+                        <input
+                            type="tel"
+                            bind:value={kycForm.phoneNumber}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Activity</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.activity}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Nationality</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.nationality}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Gender</span>
+                        <select
+                            bind:value={kycForm.gender}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        >
+                            <option value="">Select…</option>
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                            <option value="O">Other</option>
+                        </select>
+                    </label>
+                </div>
+            </fieldset>
+
+            <!-- Address -->
+            <fieldset class="mt-6">
+                <legend class="text-sm font-semibold text-gray-900">Address</legend>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label class="block sm:col-span-2">
+                        <span class="text-xs font-medium text-gray-700">Street</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.street}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">City</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.city}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">State / Province</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.state}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Zip code</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.zipCode}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-700">Neighborhood</span>
+                        <input
+                            type="text"
+                            bind:value={kycForm.neighborhood}
+                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                    </label>
+                </div>
+            </fieldset>
+
+            <button
+                onclick={submitKyc}
+                disabled={isWorking}
+                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+                {isWorking ? 'Submitting…' : 'Submit KYC'}
+            </button>
         </div>
     {/if}
 
     <!-- =================== PAYOUT ACCOUNT ======================= -->
     {#if step === 'account'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            {#if kycChecked && kycStatus !== 'approved'}
-                <div class="mb-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
-                    <p class="font-medium">KYC required</p>
-                    <p class="mt-1">
-                        Koywe requires identity verification before paying out fiat. KYC is
-                        Koywe-hosted and opens in a new tab.
-                    </p>
-                    <button
-                        onclick={openKyc}
-                        class="mt-2 inline-block rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
-                    >
-                        Open KYC ↗
-                    </button>
-                    {#if kycUrlError}
-                        <p class="mt-2 text-xs text-amber-700">{kycUrlError}</p>
-                    {/if}
+            {#if kycStatus !== 'approved'}
+                <div class="mb-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
+                    Your identity verification may still be pending. You can continue — Koywe will
+                    pay out fiat once verification completes.
                 </div>
             {/if}
 

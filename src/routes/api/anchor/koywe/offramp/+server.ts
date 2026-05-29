@@ -2,11 +2,8 @@
  * Koywe off-ramp endpoint.
  * POST: either create an off-ramp order (USDC → fiat) from a quote, or attach a
  * Stellar tx hash to an existing order.
- *   create:        { quoteId, bankAccountId, documentNumber? }
- *   submit txHash: { action: 'submitTxHash', orderId, txHash }
- *
- * NOTE: both the off-ramp order field name and the txHash submit path are
- * TODO-flagged in the client pending live confirmation.
+ *   create:        { quoteId, bankAccountId, email?, documentNumber? }
+ *   submit txHash: { action: 'submitTxHash', orderId, txHash, email? }
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -22,7 +19,7 @@ export const POST: RequestHandler = async ({ request }) => {
             if (!body.orderId || !body.txHash) {
                 throw error(400, { message: 'orderId and txHash are required' });
             }
-            await getKoywe().submitTxHash(body.orderId, body.txHash);
+            await getKoywe().submitTxHash(body.orderId, body.txHash, body.email);
             return json({ ok: true });
         }
 
@@ -32,6 +29,7 @@ export const POST: RequestHandler = async ({ request }) => {
         const order = await getKoywe().createOffRampOrder({
             quoteId: body.quoteId,
             bankAccountId: body.bankAccountId,
+            email: body.email,
             documentNumber: body.documentNumber,
         });
         return json(order, { status: 201 });
