@@ -19,7 +19,7 @@
         KoywePaymentMethod,
         KoyweQuote,
         KoyweOnRampOrder,
-        KoyweKycStatus,
+        KoyweAccountCheck,
     } from '$lib/anchors/koywe';
 
     // ------------------------------------------------------------------
@@ -49,7 +49,7 @@
 
     // Identity + KYC
     let email = $state('');
-    let kycStatus = $state<KoyweKycStatus>('not_started');
+    let accountCheck = $state<KoyweAccountCheck | null>(null);
     let kycForm = $state({
         documentNumber: '',
         documentType: 'DNI',
@@ -119,15 +119,16 @@
         isWorking = true;
         error = null;
         try {
-            kycStatus = await koywe.getKycStatus(fetch, email);
-            if (kycStatus === 'approved') {
+            accountCheck = await koywe.checkAccount(fetch, email);
+            // No account yet → collect KYC; otherwise proceed (operability is shown).
+            if (accountCheck.accountStatus === 'not_started') {
+                step = 'kyc';
+            } else {
                 await loadPaymentMethods();
                 step = 'method';
-            } else {
-                step = 'kyc';
             }
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to check Koywe KYC status';
+            error = err instanceof Error ? err.message : 'Failed to check Koywe account status';
         } finally {
             isWorking = false;
         }
@@ -182,8 +183,8 @@
                     gender: kycForm.gender || undefined,
                 },
             });
-            // Refresh status; sandbox KYC may not flip to 'approved' immediately.
-            kycStatus = await koywe.getKycStatus(fetch, email);
+            // Re-check operability; the account may not be verified synchronously.
+            accountCheck = await koywe.checkAccount(fetch, email);
             await loadPaymentMethods();
             step = 'method';
         } catch (err) {
@@ -540,10 +541,25 @@
     <!-- =================== PAYMENT METHOD ======================== -->
     {#if step === 'method'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            {#if kycStatus !== 'approved'}
+            {#if accountCheck && !accountCheck.canOperate}
                 <div class="mb-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
-                    Your identity verification may still be pending. You can continue — Koywe will
-                    deliver USDC once verification completes.
+                    <p class="font-medium">
+                        Koywe can't operate this account yet (status: {accountCheck.accountStatus}).
+                    </p>
+                    {#if accountCheck.missing.length > 0}
+                        <p class="mt-1">Still needed by Koywe:</p>
+                        <ul class="mt-1 list-disc pl-4">
+                            {#each accountCheck.missing as item (item.field)}
+                                <li>
+                                    {item.message} <span class="opacity-60">({item.field})</span>
+                                </li>
+                            {/each}
+                        </ul>
+                    {/if}
+                    <p class="mt-1">
+                        You can continue, but Koywe will only deliver USDC once verification
+                        completes.
+                    </p>
                 </div>
             {/if}
 

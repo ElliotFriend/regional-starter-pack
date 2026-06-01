@@ -206,6 +206,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             {
                 text: "Off-ramp is blocked at bank-account registration: POST /rest/bank-accounts returns a 400 ownership-validation error even for Koywe's own documented DNI↔CVU test pairs. Appears to be a non-functional sandbox validation backend on Koywe's side; awaiting the Koywe team.",
             },
+            {
+                text: 'KYC document numbers are single-use: re-using a whitelisted test DNI on a new account returns "account already exists with that document number", so the small pool of sandbox test identities is quickly exhausted. Account verification status is read live via GET /rest/accounts/{email}/check.',
+            },
         ],
         regions: {
             argentina: {

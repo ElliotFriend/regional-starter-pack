@@ -16,7 +16,7 @@ import type {
     KoyweOnRampOrder,
     KoyweOffRampOrder,
     KoyweOrder,
-    KoyweKycStatus,
+    KoyweAccountCheck,
     GetQuoteArgs,
     CreateOnRampOrderArgs,
     CreateOffRampOrderArgs,
@@ -148,12 +148,15 @@ export async function getOrder(
 // KYC
 // ---------------------------------------------------------------------------
 
-export async function getKycStatus(fetch: Fetch, email: string): Promise<KoyweKycStatus> {
-    const data = await apiRequest<{ status: KoyweKycStatus }>(
+/**
+ * Check whether the account can operate (Koywe's real verdict + missing
+ * requirements), via `GET /api/anchor/koywe/kyc`.
+ */
+export async function checkAccount(fetch: Fetch, email: string): Promise<KoyweAccountCheck> {
+    return apiRequest<KoyweAccountCheck>(
         fetch,
         `/api/anchor/koywe/kyc?email=${encodeURIComponent(email)}`,
     );
-    return data.status;
 }
 
 /**

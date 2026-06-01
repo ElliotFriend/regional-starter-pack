@@ -29,7 +29,7 @@ const koywe = new KoyweClient({
 });
 ```
 
-`clientId` doubles as the `metaAccount`; there are no org/merchant path params. Email is **optional** on `POST /rest/auth`, so the client carries no baked-in identity: per-user operations (`createAccount`, `getKycStatus`, order creation) take an `email` argument, and the client caches one JWT per email (plus an email-less "app" token for catalogue/quote calls). A single client instance therefore serves many users. The optional `email` config field is only a fallback for those per-user calls.
+`clientId` doubles as the `metaAccount`; there are no org/merchant path params. Email is **optional** on `POST /rest/auth`, so the client carries no baked-in identity: per-user operations (`createAccount`, `checkAccount`, order creation) take an `email` argument, and the client caches one JWT per email (plus an email-less "app" token for catalogue/quote calls). A single client instance therefore serves many users. The optional `email` config field is only a fallback for those per-user calls.
 
 ## Why `usdcIssuer` is injected
 
@@ -41,7 +41,7 @@ On-ramp and off-ramp share authentication and diverge at order creation.
 
 **On-ramp (ARS → USDC):**
 
-1. **Account / KYC** — `getKycStatus(email)`; if not `approved`, `createAccount({ email, document, address, personalInfo })` submits delegated KYC (there is no hosted KYC widget).
+1. **Account / KYC** — `checkAccount(email)`; if no account exists, `createAccount({ email, document, address, personalInfo })` submits delegated KYC (there is no hosted KYC widget). `checkAccount` reports `canOperate` + any missing requirements.
 2. **Payment method** — `getPaymentProviders('ARS')` lists rails (WIREAR / QRI-AR / Khipu).
 3. **Quote** — `getQuote({ ramp: 'onramp', fiatCurrency: 'ARS', amount, paymentMethodId })` returns an executable quote (~2-5 min).
 4. **Order** — `createOnRampOrder({ quoteId, stellarAddress, email })`. WIREAR returns inline CVU/alias/bank instructions; QRI/Khipu return an `interactiveUrl` hosted redirect.
@@ -50,7 +50,7 @@ On-ramp and off-ramp share authentication and diverge at order creation.
 
 **Off-ramp (USDC → ARS):**
 
-1. **Account / KYC** — same as on-ramp: `getKycStatus(email)` / `createAccount(...)`.
+1. **Account / KYC** — same as on-ramp: `checkAccount(email)` / `createAccount(...)`.
 2. **Payout account** — `createBankAccount({ email, accountNumber, countryCode: 'ARG', currencySymbol: 'ARS', documentNumber? })` registers the CVU and returns a `KoyweBankAccount` whose `id` the order references. Re-registering the same account 400s, so look it up with `getBankAccounts({ email, countryCode, currencySymbol })` first to stay idempotent.
 3. **Quote** — `getQuote({ ramp: 'offramp', fiatCurrency: 'ARS', amount })`.
 4. **Order** — `createOffRampOrder({ quoteId, bankAccountId, email })` (the `bankAccountId` is the registered account's `id`) returns a Koywe Stellar `depositAddress`.
@@ -64,7 +64,12 @@ On-ramp and off-ramp share authentication and diverge at order creation.
 
 ## KYC (delegated)
 
-Koywe uses **delegated KYC**: the integrator collects the user's identity details and submits them via `createAccount({ email, document, address, personalInfo })` (`POST /rest/accounts`). There is no hosted KYC widget. `getKycStatus(email)` reads `GET /rest/accounts/{email}` and infers `approved` from the presence of `document.documentNumber` (404 → `not_started`). Note that the account may not flip to `approved` synchronously in sandbox.
+Koywe uses **delegated KYC**: the integrator collects the user's identity and submits it, rather than redirecting to a hosted widget. There are two halves:
+
+1. **Identity data** — `createAccount({ email, document, address, personalInfo })` (`POST /rest/accounts`). ✅ implemented.
+2. **Supporting documents** — `POST /upload-delegated-kyc-files` (multipart `pdf`/`video`/`image`). ❌ **not yet implemented** — likely required before an account becomes fully verified / `canOperate`.
+
+**Status:** `checkAccount(email)` reads `GET /rest/accounts/{email}/check` (the `CheckAccount` schema) and returns Koywe's real verdict — `{ canOperate, accountStatus, missing[], nextVerificationDate }` — not an inference from whether a document was submitted. A 404 (no account) maps to `{ canOperate: false, accountStatus: 'not_started', missing: [] }`. The flow pages gate on this: `accountStatus === 'not_started'` → collect KYC; otherwise proceed but surface `canOperate` and the `missing` requirements (Koywe only delivers/pays out once truly verified). Use `checkAccount` rather than assuming "document present ⇒ approved" — that only ever meant "submitted," and a delegated-KYC account can have a document on file yet remain unverified pending document uploads.
 
 ## API reference
 
@@ -84,4 +89,17 @@ There is no on-ramp fiat-received simulation API (the spec only simulates the of
 | 11270545       | 4310001322000000000846 |
 | 30890437       | 4310001342400000011259 |
 
-But registering even a documented pair exactly (`documentNumber: 34770518` + CVU `0000242600000000009120`, on a fresh account KYC'd under that DNI) returns `400 KoyweBadRequest`: _"Failed to validate if bank account &lt;id&gt; - number &lt;cvu&gt; belongs to 34770518"_. The wording ("failed to validate **if**") and the fact that the documented happy-path values are rejected point to the sandbox's ownership-verification backend not being functional, rather than a request-shape problem on our side — our body matches the documented example (the only omitted field is the optional `bankCode`). **The off-ramp cannot be completed end-to-end until Koywe's sandbox honors its own test pairs; this needs the Koywe team.** The client/route code is implemented to spec and unit-tested against mocks.
+But registering even a documented pair exactly (`documentNumber: 34770518` + CVU `0000242600000000009120`, on a fresh account KYC'd under that DNI) returns `400 KoyweBadRequest`: _"Failed to validate if bank account &lt;id&gt; - number &lt;cvu&gt; belongs to 34770518"_. The wording ("failed to validate **if**") and the fact that the documented happy-path values are rejected point to the sandbox's ownership-verification backend not being functional, rather than a request-shape problem on our side — our body matches the documented example (the only omitted field is the optional `bankCode`). The client/route code is implemented to spec and unit-tested against mocks.
+
+A second, compounding wrinkle: a DNI is **single-use** — once any account has been KYC'd under a document number, `POST /rest/accounts` for that DNI on a new email returns _"account already exists with that document number"_. With only five whitelisted test DNIs, the pool gets consumed quickly during testing, and an account can't have its DNI changed after creation.
+
+## TODO — remaining Koywe work (integration paused 2026-06-01)
+
+The integration is **paused** here. On-ramp works end-to-end via Khipu; the off-ramp is blocked at bank-account registration. Remaining work, none of which is a code-shape bug on our side:
+
+1. **[Koywe team] Off-ramp bank-account ownership validation** — `POST /rest/bank-accounts` rejects Koywe's own documented DNI↔CVU test pairs (see above). Blocks the entire off-ramp. Needs Koywe to fix the sandbox validation backend (or tell us what the request is missing).
+2. **[Koywe team] Single-use whitelisted DNIs** — the five test DNIs are consumed after first use; ask Koywe for either a larger pool or a sandbox reset so the off-ramp can be re-tested.
+3. **[us, once #1/#2 unblock] Document upload** — `POST /upload-delegated-kyc-files` (multipart `pdf`/`video`/`image`) is **not implemented**; it is likely required before an account reaches `canOperate: true`. Wire it only after `checkAccount`'s `missing[]` confirms documents are the gap (read the amber banner in the flow pages).
+4. **[us] Confirm off-ramp to `DELIVERED`** — never verified end-to-end; do this once #1–#3 are resolved.
+
+These are tracked as `knownIssues` on `ANCHORS.koywe` (rendered on the anchor page) and as a `TODO(koywe)` in `routes/anchors/koywe/offramp/+page.svelte`.

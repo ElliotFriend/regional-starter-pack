@@ -16,7 +16,7 @@
     import { createPoller } from '$lib/utils/poll.svelte';
     import * as koywe from '$lib/api/koywe';
     import type { StellarNetwork } from '$lib/wallet/types';
-    import type { KoyweQuote, KoyweOffRampOrder, KoyweKycStatus } from '$lib/anchors/koywe';
+    import type { KoyweQuote, KoyweOffRampOrder, KoyweAccountCheck } from '$lib/anchors/koywe';
 
     // ------------------------------------------------------------------
     // Region & token derivation (Koywe Argentina — USDC on Stellar → ARS)
@@ -46,7 +46,7 @@
 
     // Identity + KYC
     let email = $state('');
-    let kycStatus = $state<KoyweKycStatus>('not_started');
+    let accountCheck = $state<KoyweAccountCheck | null>(null);
     let kycForm = $state({
         documentNumber: '',
         documentType: 'DNI',
@@ -68,6 +68,13 @@
     // Payout account: the user enters a CVU/account number, which we register
     // with Koywe (POST /rest/bank-accounts) to obtain the bank-account id the
     // off-ramp order references as its destinationAddress.
+    //
+    // TODO(koywe): off-ramp is BLOCKED here (integration paused 2026-06-01).
+    // POST /rest/bank-accounts rejects even Koywe's own documented DNI↔CVU test
+    // pairs with a 400 ownership-validation error, and the whitelisted DNIs are
+    // single-use. Both are Koywe sandbox-side; document upload
+    // (POST /upload-delegated-kyc-files) is also not yet built. See the koywe
+    // README "TODO — remaining Koywe work" section for the full list.
     let accountNumber = $state('');
     let bankAccountId = $state('');
 
@@ -110,14 +117,11 @@
         isWorking = true;
         error = null;
         try {
-            kycStatus = await koywe.getKycStatus(fetch, email);
-            if (kycStatus === 'approved') {
-                step = 'account';
-            } else {
-                step = 'kyc';
-            }
+            accountCheck = await koywe.checkAccount(fetch, email);
+            // No account yet → collect KYC; otherwise show the real check result.
+            step = accountCheck.accountStatus === 'not_started' ? 'kyc' : 'account';
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to check Koywe KYC status';
+            error = err instanceof Error ? err.message : 'Failed to check Koywe account status';
         } finally {
             isWorking = false;
         }
@@ -177,8 +181,8 @@
                     gender: kycForm.gender || undefined,
                 },
             });
-            // Refresh status; sandbox KYC may not flip to 'approved' immediately.
-            kycStatus = await koywe.getKycStatus(fetch, email);
+            // Re-check operability; the account may not be verified synchronously.
+            accountCheck = await koywe.checkAccount(fetch, email);
             step = 'account';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to submit Koywe KYC';
@@ -581,10 +585,24 @@
     <!-- =================== PAYOUT ACCOUNT ======================= -->
     {#if step === 'account'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            {#if kycStatus !== 'approved'}
+            {#if accountCheck && !accountCheck.canOperate}
                 <div class="mb-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
-                    Your identity verification may still be pending. You can continue — Koywe will
-                    pay out fiat once verification completes.
+                    <p class="font-medium">
+                        Koywe can't operate this account yet (status: {accountCheck.accountStatus}).
+                    </p>
+                    {#if accountCheck.missing.length > 0}
+                        <p class="mt-1">Still needed by Koywe:</p>
+                        <ul class="mt-1 list-disc pl-4">
+                            {#each accountCheck.missing as item (item.field)}
+                                <li>
+                                    {item.message} <span class="opacity-60">({item.field})</span>
+                                </li>
+                            {/each}
+                        </ul>
+                    {/if}
+                    <p class="mt-1">
+                        You can continue, but Koywe will only pay out once verification completes.
+                    </p>
                 </div>
             {/if}
 

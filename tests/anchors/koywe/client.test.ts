@@ -104,15 +104,15 @@ describe('authentication', () => {
         const client = createClient();
         const auth = mockAuth();
         server.use(
-            http.get(`${BASE_URL}/rest/accounts/:email`, () =>
-                HttpResponse.json({ document: { documentNumber: '1' } }),
+            http.get(`${BASE_URL}/rest/accounts/:email/check`, () =>
+                HttpResponse.json({ canOperate: true, accountStatus: 'verified' }),
             ),
             http.get(`${BASE_URL}/rest/payment-providers`, () => HttpResponse.json([])),
         );
 
-        await client.getKycStatus('a@koywe-test.com');
-        await client.getKycStatus('a@koywe-test.com');
-        await client.getKycStatus('b@koywe-test.com');
+        await client.checkAccount('a@koywe-test.com');
+        await client.checkAccount('a@koywe-test.com');
+        await client.checkAccount('b@koywe-test.com');
         await client.getPaymentProviders('ARS'); // email-less app token
 
         // One auth for each distinct email + one for the app token.
@@ -542,59 +542,82 @@ describe('getOrder', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getKycStatus (GET /rest/accounts/{email})
+// checkAccount (GET /rest/accounts/{email}/check)
 // ---------------------------------------------------------------------------
 
-describe('getKycStatus', () => {
-    it('maps a populated account document to approved', async () => {
+describe('checkAccount', () => {
+    it('maps a verified, operable account', async () => {
         const client = createClient();
         mockAuth();
         server.use(
-            http.get(`${BASE_URL}/rest/accounts/:email`, ({ params }) => {
+            http.get(`${BASE_URL}/rest/accounts/:email/check`, ({ params }) => {
                 expect(decodeURIComponent(params.email as string)).toBe(EMAIL);
                 return HttpResponse.json({
-                    email: EMAIL,
-                    document: { documentNumber: '95456858', documentType: 'DNI', country: 'ARG' },
+                    canOperate: true,
+                    accountStatus: 'verified',
+                    errors: [],
+                    nextVerificationDate: '2026-12-01T00:00:00.000Z',
                 });
             }),
         );
-        expect(await client.getKycStatus(EMAIL)).toBe('approved');
+        const check = await client.checkAccount(EMAIL);
+        expect(check.canOperate).toBe(true);
+        expect(check.accountStatus).toBe('verified');
+        expect(check.missing).toEqual([]);
+        expect(check.nextVerificationDate).toBe('2026-12-01T00:00:00.000Z');
     });
 
-    it('maps a present-but-empty document to not_started', async () => {
+    it('maps a pending account with the missing requirements', async () => {
         const client = createClient();
         mockAuth();
         server.use(
-            http.get(`${BASE_URL}/rest/accounts/:email`, () =>
-                HttpResponse.json({ email: EMAIL, document: {} }),
+            http.get(`${BASE_URL}/rest/accounts/:email/check`, () =>
+                HttpResponse.json({
+                    canOperate: false,
+                    accountStatus: 'pending',
+                    errors: [
+                        {
+                            field: 'document.documentNumber',
+                            message: 'document number is required',
+                        },
+                    ],
+                }),
             ),
         );
-        expect(await client.getKycStatus(EMAIL)).toBe('not_started');
+        const check = await client.checkAccount(EMAIL);
+        expect(check.canOperate).toBe(false);
+        expect(check.accountStatus).toBe('pending');
+        expect(check.missing).toEqual([
+            { field: 'document.documentNumber', message: 'document number is required' },
+        ]);
     });
 
-    it('maps a 404 (no account) to not_started', async () => {
+    it('maps a 404 (no account) to a not_started, non-operable check', async () => {
         const client = createClient();
         mockAuth();
         server.use(
-            http.get(`${BASE_URL}/rest/accounts/:email`, () =>
+            http.get(`${BASE_URL}/rest/accounts/:email/check`, () =>
                 HttpResponse.json(
                     { statusCode: 404, message: 'account not found' },
                     { status: 404 },
                 ),
             ),
         );
-        expect(await client.getKycStatus(EMAIL)).toBe('not_started');
+        const check = await client.checkAccount(EMAIL);
+        expect(check.canOperate).toBe(false);
+        expect(check.accountStatus).toBe('not_started');
+        expect(check.missing).toEqual([]);
     });
 });
 
 // ---------------------------------------------------------------------------
-// getKycStatus — requires an email (arg or config fallback)
+// checkAccount — requires an email (arg or config fallback)
 // ---------------------------------------------------------------------------
 
-describe('getKycStatus (no email)', () => {
+describe('checkAccount (no email)', () => {
     it('throws when no email is provided and none is configured', async () => {
         const client = createClient();
-        await expect(client.getKycStatus()).rejects.toMatchObject({
+        await expect(client.checkAccount()).rejects.toMatchObject({
             name: 'KoyweError',
             code: 'MISSING_EMAIL',
         });
@@ -604,12 +627,12 @@ describe('getKycStatus (no email)', () => {
         const client = createClient(EMAIL);
         mockAuth();
         server.use(
-            http.get(`${BASE_URL}/rest/accounts/:email`, ({ params }) => {
+            http.get(`${BASE_URL}/rest/accounts/:email/check`, ({ params }) => {
                 expect(decodeURIComponent(params.email as string)).toBe(EMAIL);
-                return HttpResponse.json({ document: { documentNumber: '1' } });
+                return HttpResponse.json({ canOperate: true, accountStatus: 'verified' });
             }),
         );
-        expect(await client.getKycStatus()).toBe('approved');
+        expect((await client.checkAccount()).canOperate).toBe(true);
     });
 });
 

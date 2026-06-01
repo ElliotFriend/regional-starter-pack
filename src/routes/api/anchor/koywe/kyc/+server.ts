@@ -1,7 +1,8 @@
 /**
  * Koywe KYC endpoints.
  *
- * GET ?email=…: read the current KYC status for a user.
+ * GET ?email=…: check whether the account can operate (canOperate, accountStatus,
+ *   and any missing requirements) via GET /rest/accounts/{email}/check.
  * POST: register a delegated-KYC account (this is the "submit KYC" step).
  *   body: CreateAccountArgs ({ email, document, address, personalInfo }).
  */
@@ -17,8 +18,8 @@ export const GET: RequestHandler = async ({ url }) => {
         throw error(400, { message: 'email query parameter is required' });
     }
     try {
-        const status = await getKoywe().getKycStatus(email);
-        return json({ status });
+        const check = await getKoywe().checkAccount(email);
+        return json(check);
     } catch (err) {
         if (err instanceof KoyweError) {
             throw error(err.statusCode, { message: err.message });

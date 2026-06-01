@@ -10,7 +10,7 @@
  * never be exposed to the browser. Exchanges them for a 24h JWT (`POST /rest/auth`)
  * and caches one token per user email (plus an email-less "app" token for
  * catalogue/quote calls that aren't user-scoped). Email is optional on `/auth`;
- * per-user operations (`createAccount`, `getKycStatus`, order creation) take an
+ * per-user operations (`createAccount`, `checkAccount`, order creation) take an
  * `email` argument so a single client can serve many users.
  *
  * On-ramp: Argentine pesos (ARS) → USDC on Stellar via WIREAR (CVU bank
@@ -31,7 +31,7 @@
  * // Catalogue + pricing need no user identity.
  * const quote = await koywe.getQuote({ ramp: 'onramp', fiatCurrency: 'ARS', amount: '10000' });
  * // Per-user operations take the end-user's email.
- * const status = await koywe.getKycStatus('alice@example.com');
+ * const check = await koywe.checkAccount('alice@example.com'); // { canOperate, accountStatus, missing }
  * ```
  */
 
@@ -41,7 +41,8 @@ import {
     type KoyweConfig,
     type KoyweRail,
     type KoyweTokenInfo,
-    type KoyweKycStatus,
+    type KoyweAccountCheck,
+    type KoyweCheckAccountResponse,
     type KoywePaymentMethod,
     type KoyweQuote,
     type KoyweDepositInstructions,
@@ -63,7 +64,6 @@ import {
     type KoywePaymentProvider,
     type KoyweQuoteResponse,
     type KoyweOrderResponse,
-    type KoyweAccountResponse,
     type KoyweErrorResponse,
 } from './types';
 
@@ -439,35 +439,47 @@ export class KoyweClient {
     }
 
     /**
-     * Get the current KYC status for a user.
+     * Check whether a user's account can actually operate
+     * (`GET /rest/accounts/{email}/check`).
      *
-     * Reads the account profile (`GET /rest/accounts/{email}`) and infers
-     * approval from the presence of a `document.documentNumber`. A 404 (no
-     * account) maps to `not_started`.
+     * This is Koywe's real verdict — `canOperate` plus the list of still-missing
+     * requirements — not an inference from whether a document was submitted.
+     * Prefer this over assuming "document present ⇒ approved": delegated-KYC
+     * accounts can have a document on file yet still be unverified (e.g. pending
+     * document uploads via `POST /upload-delegated-kyc-files`). A 404 (no
+     * account) maps to a non-operable `not_started` check.
      *
      * @param email The user's email; falls back to `config.email`.
      * @throws {KoyweError} If no email is available, or on non-404 API errors.
      */
-    async getKycStatus(email?: string): Promise<KoyweKycStatus> {
+    async checkAccount(email?: string): Promise<KoyweAccountCheck> {
         const resolved = email ?? this.config.email;
         if (!resolved) {
             throw new KoyweError(
-                'An email is required to check Koywe KYC status',
+                'An email is required to check a Koywe account',
                 'MISSING_EMAIL',
                 400,
             );
         }
         try {
-            const account = await this.request<KoyweAccountResponse>(
+            const result = await this.request<KoyweCheckAccountResponse>(
                 'GET',
-                `/rest/accounts/${encodeURIComponent(resolved)}`,
+                `/rest/accounts/${encodeURIComponent(resolved)}/check`,
                 undefined,
                 resolved,
             );
-            return account.document?.documentNumber ? 'approved' : 'not_started';
+            return {
+                canOperate: result.canOperate ?? false,
+                accountStatus: result.accountStatus ?? 'unknown',
+                missing: (result.errors ?? []).map((e) => ({
+                    field: e.field,
+                    message: e.message,
+                })),
+                nextVerificationDate: result.nextVerificationDate,
+            };
         } catch (error) {
             if (error instanceof KoyweError && error.statusCode === 404) {
-                return 'not_started';
+                return { canOperate: false, accountStatus: 'not_started', missing: [] };
             }
             throw error;
         }

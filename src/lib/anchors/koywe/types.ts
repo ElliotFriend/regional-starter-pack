@@ -29,7 +29,7 @@ export interface KoyweConfig {
      *
      * Email is **optional** on `POST /rest/auth` (the docs only *recommend* it
      * "to use the JWT in the following calls"), so the client no longer requires
-     * a baked-in identity. Per-user operations (`createAccount`, `getKycStatus`,
+     * a baked-in identity. Per-user operations (`createAccount`, `checkAccount`,
      * order creation) take an `email` argument and authenticate a JWT scoped to
      * that user; catalogue/quote calls use an email-less app token. This field,
      * if set, is only a fallback for those per-user calls.
@@ -86,8 +86,25 @@ export interface KoyweTokenInfo {
 // Client surface — output types
 // ---------------------------------------------------------------------------
 
-/** Internal KYC status values derived from the Koywe account profile. */
-export type KoyweKycStatus = 'not_started' | 'approved';
+/**
+ * Account operability check (`GET /rest/accounts/{email}/check`) — Koywe's real
+ * verdict on whether an account is verified enough to transact, plus what's
+ * still missing. This replaces inferring "approved" from the mere presence of a
+ * submitted document, which only ever meant "KYC submitted", not "KYC passed".
+ */
+export interface KoyweAccountCheck {
+    /** True only when Koywe will let the account operate (fully verified). */
+    canOperate: boolean;
+    /**
+     * Koywe's account status string, passed through verbatim (e.g. `"verified"`,
+     * `"pending"`). `"not_started"` is our sentinel when no account exists (404).
+     */
+    accountStatus: string;
+    /** Requirements still missing before the account can operate. */
+    missing: Array<{ field: string; message: string }>;
+    /** ISO 8601 timestamp of the next scheduled re-verification, if Koywe returns one. */
+    nextVerificationDate?: string;
+}
 
 /** Koywe order lifecycle states (passed through verbatim from the API). */
 export type KoyweOrderStatus =
@@ -552,6 +569,18 @@ export interface KoyweAccountRequest {
         nationality?: string;
         gender?: string;
     };
+}
+
+/**
+ * Response from `GET /rest/accounts/{email}/check` (the `CheckAccount` schema).
+ * Reports whether the account can operate and lists any missing requirements.
+ */
+export interface KoyweCheckAccountResponse {
+    canOperate?: boolean;
+    accountStatus?: string;
+    /** Missing-requirement details (the `CheckAccountDetails` schema). */
+    errors?: Array<{ field: string; message: string }>;
+    nextVerificationDate?: string;
 }
 
 /** Response from `GET /rest/accounts/{email}`. */
