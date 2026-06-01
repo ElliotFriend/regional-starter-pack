@@ -21,6 +21,9 @@ import type {
     CreateOnRampOrderArgs,
     CreateOffRampOrderArgs,
     CreateAccountArgs,
+    CreateBankAccountArgs,
+    GetBankAccountsArgs,
+    KoyweBankAccount,
 } from '$lib/anchors/koywe';
 import { createApiRequester, type Fetch } from './http';
 
@@ -75,6 +78,30 @@ export async function createOnRampOrder(
 // ---------------------------------------------------------------------------
 // Off-ramp
 // ---------------------------------------------------------------------------
+
+/**
+ * Register an off-ramp payout bank account. The returned account's `id` is what
+ * {@link createOffRampOrder} takes as `bankAccountId`.
+ */
+export async function createBankAccount(
+    fetch: Fetch,
+    args: CreateBankAccountArgs,
+): Promise<KoyweBankAccount> {
+    return postJson<KoyweBankAccount>(fetch, '/api/anchor/koywe/bank-accounts', args);
+}
+
+/** List a user's registered bank accounts (lets the flow be idempotent on retry). */
+export async function getBankAccounts(
+    fetch: Fetch,
+    args: GetBankAccountsArgs,
+): Promise<KoyweBankAccount[]> {
+    const params = new URLSearchParams({
+        email: args.email,
+        countryCode: args.countryCode,
+        currencySymbol: args.currencySymbol,
+    });
+    return apiRequest<KoyweBankAccount[]>(fetch, `/api/anchor/koywe/bank-accounts?${params}`);
+}
 
 export async function createOffRampOrder(
     fetch: Fetch,

@@ -203,6 +203,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             {
                 text: 'The off-ramp order field name and the submit-tx-hash REST path follow the documented OpenAPI spec but have not been verified end-to-end against the live sandbox.',
             },
+            {
+                text: "Off-ramp is blocked at bank-account registration: POST /rest/bank-accounts returns a 400 ownership-validation error even for Koywe's own documented DNI↔CVU test pairs. Appears to be a non-functional sandbox validation backend on Koywe's side; awaiting the Koywe team.",
+            },
         ],
         regions: {
             argentina: {

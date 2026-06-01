@@ -51,11 +51,12 @@ On-ramp and off-ramp share authentication and diverge at order creation.
 **Off-ramp (USDC → ARS):**
 
 1. **Account / KYC** — same as on-ramp: `getKycStatus(email)` / `createAccount(...)`.
-2. **Quote** — `getQuote({ ramp: 'offramp', fiatCurrency: 'ARS', amount })`.
-3. **Order** — `createOffRampOrder({ quoteId, bankAccountId, email })` returns a Koywe Stellar `depositAddress`.
-4. **Send** — the user signs and submits a USDC payment to `depositAddress`.
-5. **Reconcile** — `submitTxHash(orderId, txHash, email)` attaches the Stellar tx hash.
-6. **Polling** — `getOrder(orderId, email)` until `DELIVERED`.
+2. **Payout account** — `createBankAccount({ email, accountNumber, countryCode: 'ARG', currencySymbol: 'ARS', documentNumber? })` registers the CVU and returns a `KoyweBankAccount` whose `id` the order references. Re-registering the same account 400s, so look it up with `getBankAccounts({ email, countryCode, currencySymbol })` first to stay idempotent.
+3. **Quote** — `getQuote({ ramp: 'offramp', fiatCurrency: 'ARS', amount })`.
+4. **Order** — `createOffRampOrder({ quoteId, bankAccountId, email })` (the `bankAccountId` is the registered account's `id`) returns a Koywe Stellar `depositAddress`.
+5. **Send** — the user signs and submits a USDC payment to `depositAddress`.
+6. **Reconcile** — `submitTxHash(orderId, txHash, email)` attaches the Stellar tx hash.
+7. **Polling** — `getOrder(orderId, email)` until `DELIVERED`.
 
 ## Order states
 
@@ -69,10 +70,18 @@ Koywe uses **delegated KYC**: the integrator collects the user's identity detail
 
 Request/response shapes are confirmed against `koywe.openapi.yaml` (in this directory) — the authoritative source. The server base path is `/rest` (`https://api-sandbox.koywe.com/rest`). For both ramps, `orders_body.destinationAddress` carries the Stellar address (on-ramp) or the bank-account id (off-ramp).
 
-## Known gaps
-
-- **Bank-account registration** — the off-ramp expects an already-registered Koywe bank-account id; `POST /rest/bank-accounts` is documented in the spec but not yet wired into this app's flow.
-
 ## Sandbox quirks
 
 There is no on-ramp fiat-received simulation API (the spec only simulates the off-ramp bank leg once the testnet crypto payment is confirmed). In the live sandbox only **Khipu** reaches `DELIVERED` for on-ramp (pay `1234` / `123456` on the Khipu test page); WIREAR and QRI orders stay in `WAITING`. The unit tests still exercise the full `WAITING → DELIVERED` progression via mocks.
+
+**Off-ramp bank-account registration is blocked in sandbox (Koywe-side).** `POST /rest/bank-accounts` runs an ownership check ("the bank account holder matches the user who is operating the account"). The docs publish whitelisted DNI↔CVU test pairs:
+
+| Document (DNI) | Account number (CVU)   |
+| -------------- | ---------------------- |
+| 34770518       | 0000242600000000009120 |
+| 14013056       | 0000362700000000000116 |
+| 25715125       | 0000389400000000000055 |
+| 11270545       | 4310001322000000000846 |
+| 30890437       | 4310001342400000011259 |
+
+But registering even a documented pair exactly (`documentNumber: 34770518` + CVU `0000242600000000009120`, on a fresh account KYC'd under that DNI) returns `400 KoyweBadRequest`: _"Failed to validate if bank account &lt;id&gt; - number &lt;cvu&gt; belongs to 34770518"_. The wording ("failed to validate **if**") and the fact that the documented happy-path values are rejected point to the sandbox's ownership-verification backend not being functional, rather than a request-shape problem on our side — our body matches the documented example (the only omitted field is the optional `bankCode`). **The off-ramp cannot be completed end-to-end until Koywe's sandbox honors its own test pairs; this needs the Koywe team.** The client/route code is implemented to spec and unit-tested against mocks.

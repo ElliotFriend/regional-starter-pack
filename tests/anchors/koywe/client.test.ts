@@ -371,6 +371,110 @@ describe('createOffRampOrder', () => {
 });
 
 // ---------------------------------------------------------------------------
+// createBankAccount / getBankAccounts (off-ramp payout registration)
+// ---------------------------------------------------------------------------
+
+describe('createBankAccount', () => {
+    it('registers an Argentine bank account and maps _id → id', async () => {
+        const client = createClient();
+        const auth = mockAuth();
+        let received: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/rest/bank-accounts`, async ({ request }) => {
+                // Registration is user-scoped — auths with the per-user token.
+                expect(request.headers.get('authorization')).toBe('Bearer tok-1');
+                received = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    _id: 'ba-9',
+                    countryCode: 'ARG',
+                    currencySymbol: 'ARS',
+                    accountNumber: '0000242600000000009120',
+                    bankCode: 'TESTBANK',
+                    name: 'BANCO TEST',
+                });
+            }),
+        );
+
+        const account = await client.createBankAccount({
+            email: EMAIL,
+            accountNumber: '0000242600000000009120',
+            currencySymbol: 'ARS',
+            countryCode: 'ARG',
+            documentNumber: '95456858',
+        });
+
+        // Body matches the documented bankaccounts_body shape.
+        expect(auth.emails).toContain(EMAIL);
+        expect(received?.accountNumber).toBe('0000242600000000009120');
+        expect(received?.countryCode).toBe('ARG');
+        expect(received?.currencySymbol).toBe('ARS');
+        expect(received?.email).toBe(EMAIL);
+        expect(received?.documentNumber).toBe('95456858');
+
+        // The mapped `id` is exactly what an off-ramp order passes as destinationAddress.
+        expect(account.id).toBe('ba-9');
+        expect(account.accountNumber).toBe('0000242600000000009120');
+        expect(account.bankName).toBe('BANCO TEST');
+    });
+
+    it("omits documentNumber when not supplied (already-KYC'd user)", async () => {
+        const client = createClient();
+        mockAuth();
+        let received: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/rest/bank-accounts`, async ({ request }) => {
+                received = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json({
+                    _id: 'ba-1',
+                    countryCode: 'ARG',
+                    currencySymbol: 'ARS',
+                    accountNumber: '0000242600000000009120',
+                });
+            }),
+        );
+        await client.createBankAccount({
+            email: EMAIL,
+            accountNumber: '0000242600000000009120',
+            currencySymbol: 'ARS',
+            countryCode: 'ARG',
+        });
+        expect(received).not.toHaveProperty('documentNumber');
+    });
+});
+
+describe('getBankAccounts', () => {
+    it('lists a user’s registered bank accounts, mapping ids', async () => {
+        const client = createClient();
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/bank-accounts`, ({ request }) => {
+                const url = new URL(request.url);
+                expect(url.searchParams.get('countryCode')).toBe('ARG');
+                expect(url.searchParams.get('currencySymbol')).toBe('ARS');
+                expect(url.searchParams.get('email')).toBe(EMAIL);
+                return HttpResponse.json([
+                    {
+                        _id: 'ba-1',
+                        countryCode: 'ARG',
+                        currencySymbol: 'ARS',
+                        accountNumber: '0000242600000000009120',
+                        name: 'BANCO TEST',
+                    },
+                ]);
+            }),
+        );
+        const accounts = await client.getBankAccounts({
+            email: EMAIL,
+            countryCode: 'ARG',
+            currencySymbol: 'ARS',
+        });
+        expect(accounts).toHaveLength(1);
+        expect(accounts[0].id).toBe('ba-1');
+        expect(accounts[0].accountNumber).toBe('0000242600000000009120');
+    });
+});
+
+// ---------------------------------------------------------------------------
 // submitTxHash (TODO-flagged path)
 // ---------------------------------------------------------------------------
 

@@ -52,6 +52,11 @@ import {
     type CreateOnRampOrderArgs,
     type CreateOffRampOrderArgs,
     type CreateAccountArgs,
+    type CreateBankAccountArgs,
+    type GetBankAccountsArgs,
+    type KoyweBankAccount,
+    type KoyweBankAccountRequest,
+    type KoyweBankAccountResponse,
     type KoyweAccountRequest,
     type KoyweAuthResponse,
     type KoyweTokenCurrency,
@@ -244,6 +249,64 @@ export class KoyweClient {
     // =========================================================================
     // Off-ramp
     // =========================================================================
+
+    /**
+     * Register a bank account to receive an off-ramp payout
+     * (`POST /rest/bank-accounts`).
+     *
+     * Off-ramp orders reference the payout account by id, so this must run
+     * before {@link createOffRampOrder}: the returned {@link KoyweBankAccount.id}
+     * is what you pass as `bankAccountId`. In the live sandbox the
+     * `accountNumber` must be one of Koywe's validated test accounts for the
+     * country and correspond to the user's document number.
+     *
+     * @throws {KoyweError} On API failure (e.g. an unvalidated account number, or
+     *   `"this bank account is already registered"` — use {@link getBankAccounts}
+     *   to recover the existing id).
+     */
+    async createBankAccount(args: CreateBankAccountArgs): Promise<KoyweBankAccount> {
+        const body: KoyweBankAccountRequest = {
+            accountNumber: args.accountNumber,
+            countryCode: args.countryCode,
+            currencySymbol: args.currencySymbol,
+            email: args.email,
+            ...(args.documentNumber ? { documentNumber: args.documentNumber } : {}),
+            ...(args.bankCode ? { bankCode: args.bankCode } : {}),
+            ...(args.accountType ? { accountType: args.accountType } : {}),
+        };
+        const response = await this.request<KoyweBankAccountResponse>(
+            'POST',
+            '/rest/bank-accounts',
+            body,
+            args.email,
+        );
+        return mapBankAccount(response);
+    }
+
+    /**
+     * List a user's registered bank accounts for a country/currency
+     * (`GET /rest/bank-accounts`).
+     *
+     * Useful to make {@link createBankAccount} idempotent: look up an existing
+     * account by `accountNumber` before registering, since re-registering the
+     * same account returns a `"this bank account is already registered"` error.
+     *
+     * @throws {KoyweError} On API failure.
+     */
+    async getBankAccounts(args: GetBankAccountsArgs): Promise<KoyweBankAccount[]> {
+        const params = new URLSearchParams({
+            countryCode: args.countryCode,
+            currencySymbol: args.currencySymbol,
+            email: args.email,
+        });
+        const response = await this.request<KoyweBankAccountResponse[]>(
+            'GET',
+            `/rest/bank-accounts?${params}`,
+            undefined,
+            args.email,
+        );
+        return response.map(mapBankAccount);
+    }
 
     /**
      * Create an off-ramp order (USDC on Stellar → fiat) from an executable quote.
@@ -513,6 +576,18 @@ export class KoyweClient {
 function displayAsset(symbol: string | undefined): string {
     if (!symbol) return '';
     return symbol === USDC_STELLAR_SYMBOL ? USDC_DISPLAY_SYMBOL : symbol;
+}
+
+/** Map a raw Koywe `BankAccount` to the client-facing {@link KoyweBankAccount}. */
+function mapBankAccount(response: KoyweBankAccountResponse): KoyweBankAccount {
+    return {
+        id: response._id,
+        accountNumber: response.accountNumber,
+        countryCode: response.countryCode,
+        currencySymbol: response.currencySymbol,
+        bankCode: response.bankCode,
+        bankName: response.name,
+    };
 }
 
 /** Friendly UI label for a Koywe payment-provider name. */

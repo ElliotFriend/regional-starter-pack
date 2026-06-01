@@ -7,35 +7,35 @@ free to duplicate.
 
 ## Files created
 
-| File                                                     | ~LOC | Notes                                              |
-| -------------------------------------------------------- | ---: | -------------------------------------------------- |
-| `src/lib/anchors/koywe/client.ts`                        |  522 | `KoyweClient`, own `request`/auth-cache, mappers   |
-| `src/lib/anchors/koywe/types.ts`                         |  379 | client surface + raw API shapes + `KoyweError`     |
-| `src/lib/anchors/koywe/index.ts`                         |    3 | barrel re-export                                   |
-| `src/lib/anchors/koywe/README.md`                        |   75 | setup, flow, flagged unknowns, sandbox quirks      |
-| `src/lib/server/koyweInstance.ts`                        |   33 | `getKoywe()` singleton (reads env + USDC issuer)   |
-| `src/lib/api/koywe.ts`                                   |  126 | client-side fetch wrappers + `KoyweApiError`       |
-| `src/routes/api/anchor/koywe/payment-methods/+server.ts` |   26 | GET rails for a fiat symbol                        |
-| `src/routes/api/anchor/koywe/quotes/+server.ts`          |   31 | POST executable quote                              |
-| `src/routes/api/anchor/koywe/onramp/+server.ts`          |   30 | POST create on-ramp order                          |
-| `src/routes/api/anchor/koywe/offramp/+server.ts`         |   44 | POST create off-ramp order + submit txHash         |
-| `src/routes/api/anchor/koywe/order/+server.ts`           |   28 | GET poll order                                     |
-| `src/routes/api/anchor/koywe/kyc/+server.ts`             |   37 | GET status / POST hosted-KYC url (501)             |
-| `src/routes/anchors/koywe/+page.svelte`                  |  135 | landing page (single Argentina region)             |
-| `src/routes/anchors/koywe/onramp/+page.svelte`           |  503 | bespoke state machine (method→amount→quote→pay)    |
-| `src/routes/anchors/koywe/offramp/+page.svelte`          |  470 | bespoke state machine (sign+submit USDC→payout)    |
-| `tests/anchors/koywe/client.test.ts`                     |  503 | 23 MSW-backed client tests                         |
-| `static/anchor-logos/koywe.png`                          |    — | copied from `ar/koywe` branch                      |
+| File                                                     | ~LOC | Notes                                            |
+| -------------------------------------------------------- | ---: | ------------------------------------------------ |
+| `src/lib/anchors/koywe/client.ts`                        |  522 | `KoyweClient`, own `request`/auth-cache, mappers |
+| `src/lib/anchors/koywe/types.ts`                         |  379 | client surface + raw API shapes + `KoyweError`   |
+| `src/lib/anchors/koywe/index.ts`                         |    3 | barrel re-export                                 |
+| `src/lib/anchors/koywe/README.md`                        |   75 | setup, flow, flagged unknowns, sandbox quirks    |
+| `src/lib/server/koyweInstance.ts`                        |   33 | `getKoywe()` singleton (reads env + USDC issuer) |
+| `src/lib/api/koywe.ts`                                   |  126 | client-side fetch wrappers + `KoyweApiError`     |
+| `src/routes/api/anchor/koywe/payment-methods/+server.ts` |   26 | GET rails for a fiat symbol                      |
+| `src/routes/api/anchor/koywe/quotes/+server.ts`          |   31 | POST executable quote                            |
+| `src/routes/api/anchor/koywe/onramp/+server.ts`          |   30 | POST create on-ramp order                        |
+| `src/routes/api/anchor/koywe/offramp/+server.ts`         |   44 | POST create off-ramp order + submit txHash       |
+| `src/routes/api/anchor/koywe/order/+server.ts`           |   28 | GET poll order                                   |
+| `src/routes/api/anchor/koywe/kyc/+server.ts`             |   37 | GET status / POST hosted-KYC url (501)           |
+| `src/routes/anchors/koywe/+page.svelte`                  |  135 | landing page (single Argentina region)           |
+| `src/routes/anchors/koywe/onramp/+page.svelte`           |  503 | bespoke state machine (method→amount→quote→pay)  |
+| `src/routes/anchors/koywe/offramp/+page.svelte`          |  470 | bespoke state machine (sign+submit USDC→payout)  |
+| `tests/anchors/koywe/client.test.ts`                     |  503 | 23 MSW-backed client tests                       |
+| `static/anchor-logos/koywe.png`                          |    — | copied from `ar/koywe` branch                    |
 
 ## Files modified
 
-| File                              | Change                                                            |
-| --------------------------------- | ----------------------------------------------------------------- |
-| `src/lib/constants.ts`            | `PROVIDER.KOYWE`, Argentina in `SUPPORTED_COUNTRIES`              |
-| `src/lib/config/rails.ts`         | added `wirear` + `qri` rails                                      |
-| `src/lib/config/regions.ts`       | added `argentina` region (Koywe anchor, WIREAR/QRI rails)        |
-| `src/lib/config/anchors.ts`       | added curated `koywe` `AnchorProfile` (regions, flow, known issues) |
-| `tests/config/{anchors,constants,rails,regions}.test.ts` | new assertions + bumped counts (2→3 anchors, 2→3 providers) |
+| File                                                     | Change                                                              |
+| -------------------------------------------------------- | ------------------------------------------------------------------- |
+| `src/lib/constants.ts`                                   | `PROVIDER.KOYWE`, Argentina in `SUPPORTED_COUNTRIES`                |
+| `src/lib/config/rails.ts`                                | added `wirear` + `qri` rails                                        |
+| `src/lib/config/regions.ts`                              | added `argentina` region (Koywe anchor, WIREAR/QRI rails)           |
+| `src/lib/config/anchors.ts`                              | added curated `koywe` `AnchorProfile` (regions, flow, known issues) |
+| `tests/config/{anchors,constants,rails,regions}.test.ts` | new assertions + bumped counts (2→3 anchors, 2→3 providers)         |
 
 ## Verification
 

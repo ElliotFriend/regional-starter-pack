@@ -199,6 +199,29 @@ export interface KoyweOffRampOrder {
     interactiveUrl?: string;
 }
 
+/**
+ * A registered bank account (off-ramp payout destination).
+ *
+ * Off-ramp orders reference a bank account by its {@link id} — that `id` is what
+ * {@link CreateOffRampOrderArgs.bankAccountId} carries into the order's
+ * `destinationAddress`. Register a CVU/account number with
+ * {@link KoyweClient.createBankAccount} to obtain one.
+ */
+export interface KoyweBankAccount {
+    /** Koywe bank-account id (`_id`) — passed as an off-ramp order's `destinationAddress`. */
+    id: string;
+    /** The local account number (e.g. an Argentine CVU). */
+    accountNumber: string;
+    /** ISO-3 country code (e.g. `"ARG"`). */
+    countryCode: string;
+    /** Fiat currency symbol (e.g. `"ARS"`). */
+    currencySymbol: string;
+    /** Provider/bank code, if Koywe returned one. */
+    bankCode?: string;
+    /** Human-readable bank name, if Koywe returned one. */
+    bankName?: string;
+}
+
 /** Unified order shape returned by {@link KoyweClient.getOrder}. */
 export interface KoyweOrder {
     id: string;
@@ -255,6 +278,42 @@ export interface CreateOffRampOrderArgs {
     email?: string;
     /** End-user national document number (some flows require it). */
     documentNumber?: string;
+}
+
+/**
+ * Args for {@link KoyweClient.createBankAccount} — registers an off-ramp payout
+ * account.
+ *
+ * The `accountNumber` must be one of Koywe's validated test accounts for the
+ * country (in the live sandbox), and must correspond to the registered user's
+ * document number. `documentNumber` is required only when the user is not yet
+ * KYC'd; for a KYC'd user it can be omitted.
+ */
+export interface CreateBankAccountArgs {
+    /** Email the account is registered under; scopes the auth token. */
+    email: string;
+    /** Local account number (e.g. an Argentine CVU). */
+    accountNumber: string;
+    /** Fiat currency symbol (e.g. `"ARS"`). */
+    currencySymbol: string;
+    /** ISO-3 country code (e.g. `"ARG"`). */
+    countryCode: string;
+    /** National document number — required when the user is not KYC'd. */
+    documentNumber?: string;
+    /** Provider/bank code, when the rail requires one. */
+    bankCode?: string;
+    /** `"checking"` or `"savings"`, when the rail requires one. */
+    accountType?: 'checking' | 'savings';
+}
+
+/** Args for {@link KoyweClient.getBankAccounts}. */
+export interface GetBankAccountsArgs {
+    /** Email whose bank accounts to list; scopes the auth token. */
+    email: string;
+    /** Fiat currency symbol (e.g. `"ARS"`). */
+    currencySymbol: string;
+    /** ISO-3 country code (e.g. `"ARG"`). */
+    countryCode: string;
 }
 
 /**
@@ -426,6 +485,38 @@ export interface KoyweOrderResponse {
 /** Request body for `POST /rest/orders/{orderId}/txHash`. */
 export interface KoyweTxHashRequest {
     txHash: string;
+}
+
+/**
+ * Request body for `POST /rest/bank-accounts` (the `bankaccounts_body` schema).
+ * `accountNumber`, `countryCode`, and `currencySymbol` are required; `bankCode`
+ * and `documentNumber` are optional (the latter only required when the user is
+ * not KYC'd).
+ */
+export interface KoyweBankAccountRequest {
+    accountNumber: string;
+    countryCode: string;
+    currencySymbol: string;
+    email?: string;
+    documentNumber?: string;
+    bankCode?: string;
+    accountType?: string;
+}
+
+/**
+ * A bank account as returned by `POST`/`GET /rest/bank-accounts` (the `BankAccount`
+ * schema). The identifier is `_id`.
+ */
+export interface KoyweBankAccountResponse {
+    _id: string;
+    bankCode?: string;
+    countryCode: string;
+    currencySymbol: string;
+    accountNumber: string;
+    /** Owning account reference. */
+    account?: string;
+    /** Human-readable bank name. */
+    name?: string;
 }
 
 /**

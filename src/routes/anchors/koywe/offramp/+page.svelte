@@ -24,6 +24,7 @@
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
     const fiatCurrency = 'ARS';
+    const fiatCountry = 'ARG';
     const tokenSymbol = 'USDC';
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
 
@@ -64,9 +65,10 @@
         neighborhood: '',
     });
 
-    // Payout account
-    // TODO(koywe): bank-account registration shape is not yet wired in this app.
-    // For now the user supplies an already-registered Koywe bank-account id.
+    // Payout account: the user enters a CVU/account number, which we register
+    // with Koywe (POST /rest/bank-accounts) to obtain the bank-account id the
+    // off-ramp order references as its destinationAddress.
+    let accountNumber = $state('');
     let bankAccountId = $state('');
 
     // Ramp state
@@ -122,8 +124,12 @@
     }
 
     function fillTestData() {
+        // Sandbox: off-ramp bank accounts are ownership-validated, so the document
+        // number must be one of Koywe's whitelisted DNIs and the CVU must be its
+        // paired value. This uses the pair (34770518 ↔ 0000242600000000009120).
+        // Use a *fresh email* — an existing account is locked to its first DNI.
         kycForm = {
-            documentNumber: '95456858',
+            documentNumber: '34770518',
             documentType: 'DNI',
             documentCountry: 'ARG',
             names: 'Test',
@@ -139,6 +145,7 @@
             zipCode: 'C1043',
             neighborhood: 'Centro',
         };
+        accountNumber = '0000242600000000009120';
     }
 
     async function submitKyc() {
@@ -175,6 +182,42 @@
             step = 'account';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to submit Koywe KYC';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Payout bank account (register, then reference by id in the order)
+    // ------------------------------------------------------------------
+
+    async function registerBankAccount() {
+        const number = accountNumber.trim();
+        if (!number) return;
+        isWorking = true;
+        error = null;
+        try {
+            // Idempotent: re-registering the same account 400s, so reuse an
+            // existing one if the user already added this CVU.
+            const existing = await koywe.getBankAccounts(fetch, {
+                email,
+                countryCode: fiatCountry,
+                currencySymbol: fiatCurrency,
+            });
+            const match = existing.find((a) => a.accountNumber === number);
+            const account =
+                match ??
+                (await koywe.createBankAccount(fetch, {
+                    email,
+                    accountNumber: number,
+                    countryCode: fiatCountry,
+                    currencySymbol: fiatCurrency,
+                    documentNumber: kycForm.documentNumber || undefined,
+                }));
+            bankAccountId = account.id;
+            step = 'amount';
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to register bank account';
         } finally {
             isWorking = false;
         }
@@ -547,26 +590,33 @@
 
             <h2 class="text-lg font-semibold text-gray-900">Payout account</h2>
             <p class="mt-1 text-sm text-gray-500">
-                Enter the Koywe bank-account id (CVU) that will receive your {fiatCurrency}.
+                Enter the CVU (account number) that will receive your {fiatCurrency}. We'll register
+                it with Koywe as your payout account.
             </p>
-            <!-- TODO(koywe): replace with a bank-account registration step once the
-                 POST /rest/bank-accounts body shape is confirmed for this app. -->
-            <label class="mt-4 block text-sm font-medium text-gray-700" for="bankAccountId">
-                Bank account id
+            <label class="mt-4 block text-sm font-medium text-gray-700" for="accountNumber">
+                CVU / account number
             </label>
             <input
-                id="bankAccountId"
+                id="accountNumber"
                 type="text"
-                bind:value={bankAccountId}
-                placeholder="ba_..."
+                bind:value={accountNumber}
+                placeholder="0000242600000000009120"
                 class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
             />
+            <p class="mt-2 text-xs text-amber-700">
+                Heads up: Koywe's sandbox currently rejects bank-account registration with a
+                validation error even for its own documented DNI↔CVU test pairs (e.g. DNI
+                <span class="font-mono">34770518</span> ↔ CVU
+                <span class="font-mono">0000242600000000009120</span>, which "Fill test data" uses).
+                This is a known Koywe-side limitation — the off-ramp can't complete past this step
+                until it's resolved.
+            </p>
             <button
-                onclick={() => (step = 'amount')}
-                disabled={!bankAccountId}
+                onclick={registerBankAccount}
+                disabled={!accountNumber.trim() || isWorking}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-                Continue
+                {isWorking ? 'Registering…' : 'Register & continue'}
             </button>
         </div>
     {/if}
@@ -605,7 +655,7 @@
             <QuoteDisplay quote={displayQuote} onRefresh={refreshQuote} isRefreshing={isWorking} />
             <div class="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
                 <span class="text-gray-500">Payout to</span>
-                <span class="ml-1 font-mono text-gray-600">{bankAccountId}</span>
+                <span class="ml-1 font-mono text-gray-600">{accountNumber}</span>
             </div>
             <div class="flex gap-3">
                 <button
