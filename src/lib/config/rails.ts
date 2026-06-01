@@ -33,6 +33,20 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             'Generic bank transfer rail used by the SEP test anchor for end-to-end integration testing.',
         type: 'bank_transfer',
     },
+    wirear: {
+        id: 'wirear',
+        name: 'CVU Transfer',
+        description:
+            "Argentine immediate bank transfer to a CVU (Clave Virtual Uniforme) — Koywe's WIREAR rail.",
+        type: 'bank_transfer',
+    },
+    qri: {
+        id: 'qri',
+        name: 'QR Transfer',
+        description:
+            'QR-code based interbank transfer in Argentina, completed in the user’s banking app.',
+        type: 'other',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {

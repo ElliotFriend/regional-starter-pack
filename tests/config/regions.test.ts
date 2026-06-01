@@ -46,6 +46,20 @@ describe('getRegion', () => {
         expect(region!.anchors).toEqual(['etherfuse']);
     });
 
+    it('returns Argentina region with ARS and Koywe anchor', () => {
+        const region = getRegion('argentina');
+        expect(region).toBeDefined();
+        expect(region!.id).toBe('argentina');
+        expect(region!.name).toBe('Argentina');
+        expect(region!.currency).toBe('ARS');
+        expect(region!.code).toBe('AR');
+        expect(region!.flag).toBe('🇦🇷');
+        expect(region!.anchors).toEqual(['koywe']);
+        const railIds = region!.paymentRails.map((r) => r.id);
+        expect(railIds).toContain('wirear');
+        expect(railIds).toContain('qri');
+    });
+
     it('returns undefined for nonexistent region', () => {
         expect(getRegion('nonexistent')).toBeUndefined();
     });
@@ -74,6 +88,12 @@ describe('getAnchorsForRegion', () => {
         expect(anchors[0].id).toBe('etherfuse');
     });
 
+    it('returns only Koywe for Argentina', () => {
+        const anchors = getAnchorsForRegion('argentina');
+        expect(anchors).toHaveLength(1);
+        expect(anchors[0].id).toBe('koywe');
+    });
+
     it('returns empty array for nonexistent region', () => {
         expect(getAnchorsForRegion('nonexistent')).toEqual([]);
     });
@@ -86,6 +106,12 @@ describe('getRegionsForAnchor', () => {
         const ids = regions.map((r) => r.id);
         expect(ids).toContain('mexico');
         expect(ids).toContain('brazil');
+    });
+
+    it('returns Argentina for koywe', () => {
+        const regions = getRegionsForAnchor('koywe');
+        expect(regions).toHaveLength(1);
+        expect(regions[0].id).toBe('argentina');
     });
 
     it('returns empty array for removed anchors', () => {

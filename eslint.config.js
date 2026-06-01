@@ -23,6 +23,10 @@ export default defineConfig(
             // typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
             // see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
             'no-undef': 'off',
+            // Bespoke per-provider pages use dynamic hrefs for cross-provider links and external
+            // URLs (anchor docs, hosted KYC, status pages, Stellar Expert) — the rule's
+            // typed-routes model isn't a fit.
+            'svelte/no-navigation-without-resolve': 'off',
             '@typescript-eslint/no-unused-vars': [
                 'error',
                 {

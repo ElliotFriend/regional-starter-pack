@@ -180,6 +180,118 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    koywe: {
+        id: 'koywe',
+        name: 'Koywe',
+        description:
+            'Koywe is a Latin American crypto-finance infrastructure provider offering fiat on/off ramps between local currencies and stablecoins. In Argentina it ramps Argentine pesos (ARS) to USDC on Stellar via local CVU and QR bank-transfer rails.',
+        logo: '/anchor-logos/koywe.png',
+        links: {
+            website: 'https://koywe.com',
+            documentation: 'https://docs-crypto.koywe.com/en',
+        },
+        knownIssues: [
+            {
+                text: 'Koywe does not return a Stellar issuer for USDC (it is network-dependent), so the integration injects PUBLIC_USDC_ISSUER for the active network.',
+            },
+            {
+                text: 'The hosted KYC widget URL endpoint is unconfirmed in the sandbox — the client surfaces a clear "not implemented" state until it is wired up. Complete KYC for the test user via the Koywe dashboard.',
+            },
+            {
+                text: 'In the sandbox only the Khipu rail reaches DELIVERED (via its test pay page); WIREAR and QRI orders stay in WAITING because there is no fiat-received simulation API.',
+            },
+            {
+                text: 'The off-ramp order field name and the submit-tx-hash REST path follow the documented OpenAPI spec but have not been verified end-to-end against the live sandbox.',
+            },
+            {
+                text: "Off-ramp is blocked at bank-account registration: POST /rest/bank-accounts returns a 400 ownership-validation error even for Koywe's own documented DNI↔CVU test pairs. Appears to be a non-functional sandbox validation backend on Koywe's side; awaiting the Koywe team.",
+            },
+            {
+                text: 'KYC document numbers are single-use: re-using a whitelisted test DNI on a new account returns "account already exists with that document number", so the small pool of sandbox test identities is quickly exhausted. Account verification status is read live via GET /rest/accounts/{email}/check.',
+            },
+        ],
+        regions: {
+            argentina: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['wirear', 'qri'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Request sandbox integration credentials (clientId + secret) from Koywe.',
+                link: 'https://docs-crypto.koywe.com/en',
+            },
+            {
+                text: 'Authenticate with POST /rest/auth to obtain a 24h JWT scoped to the end-user email.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Authenticate',
+                    description:
+                        'Exchange the integration clientId/secret for a JWT scoped to the user email.',
+                },
+                {
+                    title: 'Select Payment Method',
+                    description:
+                        'Fetch ARS payment providers (WIREAR / QRI / Khipu) and let the user pick a rail.',
+                },
+                {
+                    title: 'Get Quote',
+                    description:
+                        'Request an executable ARS → USDC quote for the chosen payment method.',
+                },
+                {
+                    title: 'Create On-Ramp Order',
+                    description:
+                        'Submit the order with the user’s Stellar address; receive CVU instructions or a hosted redirect.',
+                },
+                {
+                    title: 'Pay via Local Rail',
+                    description:
+                        'The user transfers ARS via CVU, or completes the hosted QR/Khipu redirect.',
+                },
+                {
+                    title: 'Receive USDC',
+                    description:
+                        'Koywe delivers USDC to the user’s Stellar wallet once funds settle.',
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Authenticate',
+                    description: 'Exchange the integration credentials for a user-scoped JWT.',
+                },
+                {
+                    title: 'Get Quote',
+                    description: 'Request an executable USDC → ARS quote.',
+                },
+                {
+                    title: 'Create Off-Ramp Order',
+                    description:
+                        'Submit the order against a registered bank account; receive a Koywe deposit address.',
+                },
+                {
+                    title: 'Send USDC',
+                    description:
+                        'Sign and submit the USDC payment to the Koywe deposit address with Freighter.',
+                },
+                {
+                    title: 'Submit Tx Hash',
+                    description:
+                        'Attach the Stellar transaction hash so Koywe can reconcile the transfer.',
+                },
+                {
+                    title: 'Receive ARS',
+                    description: 'Koywe pays out ARS to the user’s bank account.',
+                },
+            ],
+        },
+    },
     testanchor: {
         id: 'testanchor',
         name: 'Test Anchor',

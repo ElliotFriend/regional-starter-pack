@@ -47,6 +47,18 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.pix],
         anchors: ['etherfuse'],
     },
+    argentina: {
+        id: 'argentina',
+        name: 'Argentina',
+        code: 'AR',
+        currency: 'ARS',
+        currencySymbol: '$',
+        flag: '🇦🇷',
+        description:
+            'Argentina pairs high stablecoin demand with instant CVU bank transfers. Koywe ramps Argentine pesos to USDC on Stellar with local payment rails (WIREAR, QR) and competitive FX.',
+        paymentRails: [PAYMENT_RAILS.wirear, PAYMENT_RAILS.qri],
+        anchors: ['koywe'],
+    },
     testnet: {
         id: 'testnet',
         name: 'Testnet',

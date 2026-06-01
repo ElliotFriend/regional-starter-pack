@@ -1,11 +1,24 @@
 <script lang="ts">
-    import type { Quote } from '$lib/anchors/types';
     import { onMount } from 'svelte';
     import { displayCurrency, formatAmount, formatCurrency } from '$lib/utils/currency';
     import { calculateExpiresIn } from '$lib/utils/quote';
 
+    /**
+     * Structural shape for the quote display — accepts anything with these fields,
+     * decoupled from any specific anchor's native quote type.
+     */
+    interface QuoteShape {
+        fromCurrency: string;
+        toCurrency: string;
+        fromAmount: string;
+        toAmount: string;
+        exchangeRate: string;
+        fee: string;
+        expiresAt: string;
+    }
+
     interface Props {
-        quote: Quote;
+        quote: QuoteShape;
         onRefresh?: () => void;
         isRefreshing?: boolean;
     }

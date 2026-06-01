@@ -1,10 +1,10 @@
 import type { PageLoad } from './$types';
 
-import { createTestAnchorClient } from '$lib/anchors/testanchor';
+import { createTestAnchorPlaygroundClient } from '$lib/anchors/testanchor';
 import { error } from '@sveltejs/kit';
 
 export const load: PageLoad = async ({ fetch }) => {
-    const client = createTestAnchorClient(undefined, fetch);
+    const client = createTestAnchorPlaygroundClient(undefined, fetch);
 
     try {
         const toml = await client.initialize();

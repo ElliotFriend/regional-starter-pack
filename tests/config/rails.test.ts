@@ -19,6 +19,20 @@ describe('getPaymentRail', () => {
         expect(rail!.description).toBeDefined();
     });
 
+    it('returns WIREAR (CVU) rail', () => {
+        const rail = getPaymentRail('wirear');
+        expect(rail).toBeDefined();
+        expect(rail!.id).toBe('wirear');
+        expect(rail!.type).toBe('bank_transfer');
+        expect(rail!.description).toBeDefined();
+    });
+
+    it('returns QRI rail', () => {
+        const rail = getPaymentRail('qri');
+        expect(rail).toBeDefined();
+        expect(rail!.id).toBe('qri');
+    });
+
     it('returns undefined for nonexistent rail', () => {
         expect(getPaymentRail('nonexistent')).toBeUndefined();
     });

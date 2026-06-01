@@ -2,12 +2,13 @@ import { page } from 'vitest/browser';
 import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import Page from './+page.svelte';
-import type { TestAnchorClient } from '$lib/anchors/testanchor/client';
+import type { TestAnchorPlaygroundClient } from '$lib/anchors/testanchor/playground';
 
-// Minimal mock of the testanchor client — just enough for the component
-// to render without errors. The interactive features (auth, transfers)
-// are not tested here. Cast through `unknown` because the real
-// TestAnchorClient has many additional methods we don't exercise.
+// Minimal mock of the testanchor playground client — just enough for
+// the component to render without errors. The interactive features
+// (auth, transfers) are not tested here. Cast through `unknown` because
+// the real TestAnchorPlaygroundClient has many additional methods we
+// don't exercise.
 const mockClient = {
     initialize: async () => ({}),
     authenticate: async () => {},
@@ -15,7 +16,7 @@ const mockClient = {
     sep6: { getInfo: async () => null },
     sep24: { getInfo: async () => null },
     sep38: { getInfo: async () => null },
-} as unknown as TestAnchorClient;
+} as unknown as TestAnchorPlaygroundClient;
 
 const mockData = {
     regions: [],

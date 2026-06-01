@@ -9,8 +9,8 @@
 export const SUPPORTED_COUNTRIES = [
     { code: 'MX', name: 'Mexico', currency: 'MXN', paymentMethod: 'SPEI' },
     { code: 'BR', name: 'Brazil', currency: 'BRL', paymentMethod: 'PIX' },
+    { code: 'AR', name: 'Argentina', currency: 'ARS', paymentMethod: 'WIREAR' },
     /** TODO: Enable regions as they come online or as activations approach. */
-    // { code: 'AR', name: 'Argentina', currency: 'ARS', paymentMethod: 'COELSA' },
     // { code: 'CO', name: 'Colombia', currency: 'COP', paymentMethod: 'ACH' },
     // { code: 'CL', name: 'Chile', currency: 'CLP', paymentMethod: 'ACH_CHL' },
     // { code: 'BO', name: 'Bolivia', currency: 'BOB', paymentMethod: 'ACH_BOL' },
@@ -25,6 +25,7 @@ export const DEFAULT_COUNTRY = 'MX';
 export const PROVIDER = {
     ETHERFUSE: 'etherfuse',
     TESTANCHOR: 'testanchor',
+    KOYWE: 'koywe',
 } as const;
 
 // KYC statuses (internal)

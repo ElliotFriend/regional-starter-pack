@@ -1,0 +1,3151 @@
+openapi: 3.1.0
+info:
+  title: Koywe Crypto API
+  description: >
+    The Koywe Crypto API lets you onramp, offramp, and manage cryptocurrency
+    flows across Latin America.
+
+
+    ## Authentication
+
+
+    Most endpoints require a **Bearer JWT token**. Obtain one by calling the
+    authentication endpoint with your API credentials, then pass it in the
+    `Authorization` header:
+
+
+    ```
+
+    Authorization: Bearer <token>
+
+    ```
+
+
+    > **Tip:** Use the **Send** button on the authentication endpoint below to
+    get a token, then paste it into the **Authentication** section at the top of
+    this page to test all other endpoints.
+  version: 1.0.1
+  contact:
+    name: Koywe
+    url: https://koywe.com
+servers:
+  - url: https://api-sandbox.koywe.com/rest
+    description: Sandbox
+  - url: https://api.koywe.com/rest
+    description: Production
+tags:
+  - name: Currency
+  - name: Token
+  - name: Payment-provider
+  - name: Payout-provider
+  - name: Auth
+  - name: Orders
+  - name: Bank Queries
+  - name: Deals
+paths:
+  /accounts/movements-balance/{accountID}:
+    get:
+      tags:
+        - Accounts
+      summary: Get movements balance data
+      description: Returns the registered movements and balance of the user.
+      operationId: accountMovementsBalance
+      parameters:
+        - name: accountID
+          in: path
+          description: accountID associated with the user
+          required: true
+          schema:
+            type: string
+        - name: email
+          in: query
+          description: Optional email parameter to filter the data
+          required: false
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultAccountMovementsBalance'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+  /accounts/{email}:
+    get:
+      tags:
+        - Accounts
+      summary: Get account data
+      description: Returns the registered information of the user.
+      operationId: accountEmail
+      parameters:
+        - name: email
+          in: path
+          description: Email associated with the currency of choice.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+  /accounts/{email}/check:
+    get:
+      tags:
+        - Accounts
+      summary: Check if can operate
+      description: Check if an account meets all the minimum requirements needed to
+        operate, returning the missing information.
+      operationId: accountEmailCheck
+      parameters:
+        - name: email
+          in: path
+          description: Email associated with the currency of choice.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/CheckAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+  /accounts:
+    post:
+      tags:
+        - Accounts
+      summary: Creates a new account
+      description: Create a new account.
+      operationId: account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewAccount'
+        required: true
+      responses:
+        '201':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+    put:
+      tags:
+        - Accounts
+      summary: Updates an account
+      description: Update data of an existing account.
+      operationId: accountUpdate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccount'
+        required: false
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultUpdateAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+    get:
+      tags:
+        - Accounts
+      summary: Get account data
+      description: Returns the registered information of the user by filtering with
+        document number, document type, and country. This endpoint provides an
+        alternative way to retrieve account information when the email is not
+        known.
+      operationId: getAccountByDocumentInfo
+      parameters:
+        - name: documentNumber
+          in: query
+          description: Document number associated with the currency of choice.
+          required: true
+          schema:
+            type: string
+        - name: documentType
+          in: query
+          description: Document type associated with the currency of choice.
+          required: true
+          schema:
+            type: string
+            enum:
+              - RUT
+              - DNI
+              - RFC
+              - CE
+              - CED_CIU
+              - CED_EXT
+              - NIT
+              - TI
+              - NUIP
+              - TE
+              - PPT
+              - PASS
+              - PEP
+        - name: country
+          in: query
+          description: Country associated with the currency of choice.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                documentNumber invalid:
+                  value:
+                    message: Invalid document number format
+                documentType invalid:
+                  value:
+                    message: '"documentType" must be one of [RUT, DNI, RFC, CE, CED_CIU, CED_EXT,
+                      NIT, TI, NUIP, TE, PPT, PASS, PEP]'
+                country invalid:
+                  value:
+                    message: '"country" must be one of [MEX, CHL, COL, PER]'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /currency-tokens:
+    get:
+      tags:
+        - Currency
+      summary: Returns all supported Currency-Token pairs.
+      description: For the moment Koywe supports operations with the following local
+        currencies [CLP, MXN, COP, PEN, ARS, BRL, BOB]
+      operationId: tokenCurrecyPairs
+      parameters:
+        - name: clientId
+          in: query
+          description: Your company's unique Koywe identifier.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Currency'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                clientId invalid:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+                clientId Length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+  /currency-tokens/{currencySymbol}:
+    get:
+      tags:
+        - Currency
+      summary: Returns supported Currency-Token pairs for a given currency.
+      description: Receives a currency symbol to filter. [CLP, COP, MXN, PEN, ARS, BRL, BOB]
+      operationId: tokenCurrecyPair
+      parameters:
+        - name: currencySymbol
+          in: path
+          description: Symbol associated with the currency of choice.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+        - name: clientId
+          in: query
+          description: Your company's unique Koywe identifier.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Currency'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                clientId invalid:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+                clientId Length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+                Symbol invalid:
+                  value:
+                    message: '"symbol" must be one of [CLP, MXN, COP, PEN, ARS, BRL, BOB]'
+  /token-currencies:
+    get:
+      tags:
+        - Token
+      summary: Returns all supported Coin-Token pairs.
+      description: For the moment Koywe supports operations with the following tokens
+        [ETH, MATIC, BNB, BTC, USDC, DAI]
+      operationId: currencyTokenPair
+      parameters:
+        - name: clientId
+          in: query
+          description: Your company's unique Koywe identifier.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                clientId invalid:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+                clientId Length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+  /token-currencies/{tokenSymbol}:
+    get:
+      tags:
+        - Token
+      summary: Returns supported Coin-Token pairs.
+      description: Receives a token symbol to filter. For the moment Koywe supports
+        operations with the following tokens [ETH, MATIC, BNB, BTC, USDC, DAI]
+      operationId: currecyTokenPairs
+      parameters:
+        - name: tokenSymbol
+          in: path
+          description: Symbol associated with the token of choice.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+        - name: clientId
+          in: query
+          description: Your company's unique Koywe identifier.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                clientId invalid:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+                clientId Length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+                tokenSymbol invalid:
+                  value:
+                    message: '"symbol" must be one of [eth, matic, bnb, btc, usdc, dai]'
+  /payment-providers:
+    get:
+      tags:
+        - Payment-provider
+      summary: Returns a list of available payment methods for a given currency.
+      description: If you want to know how to receive your own clientId, please check
+        the "Credentials" section. the domain for all images provided directly
+        by Koywe have the form
+        https://rampa.koywe.com/paymentProviders/exampleImage.svg (keep in mind
+        that this is just an example, but the domain shown is the actual one
+        Koywe uses)
+      operationId: PaymentOptionsList
+      parameters:
+        - name: symbol
+          in: query
+          description: Currency Symbol associated with the currency of choice.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: clientId
+          in: query
+          description: Your company's unique Koywe identifier.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payments'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                clientId invalid:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+                clientId Length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+                Symbol invalid:
+                  value:
+                    message: '"symbol" must be one of [CLP, MXN, COP, PEN, ARS, BRL, BOB]'
+  /payout-providers:
+    get:
+      tags:
+        - Payout-provider
+      summary: This endpoint is deprecated | ~ Returns a list of available payout
+        providers for a given currency. ~
+      description: '**This endpoint is deprecated and will be removed in a future
+        version.** | ~If you want to know how to receive your own clientId,
+        please check the "Credentials" section. the domain for all images
+        provided directly by Koywe have the form
+        https://rampa.koywe.com/paymentProviders/exampleImage.svg (keep in mind
+        that this is just an example, but the domain shown is the actual one
+        Koywe uses)~'
+      operationId: PayOutProvider
+      parameters:
+        - name: symbol
+          in: query
+          description: Currency Symbol associated with the currency of choice.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: clientId
+          in: query
+          description: Your company's unique Koywe identifier.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      deprecated: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: string
+                example: This is a deprecated endpoint.
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                clientId invalid:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+                clientId Length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+                Symbol invalid:
+                  value:
+                    message: '"symbol" must be one of [CLP, MXN, COP, PEN, ARS, BRL, BOB]'
+  /auth:
+    post:
+      tags:
+        - Auth
+      summary: Returns an Authorization Token.
+      description: If you want to know how to receive your own clientId and secret,
+        please check the "Credentials" section. "email" is optional.
+      operationId: auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/auth_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                ClientId invalid length:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+                ClientId required:
+                  value:
+                    message: '"clientId" is required'
+                ClientId invalid:
+                  value:
+                    message: '"clientId" is not a valid objectId'
+                Email invalid:
+                  value:
+                    message: '"email" must be a valid email'
+                Secret required:
+                  value:
+                    message: '"secret" is required'
+                Authentication invalid:
+                  value:
+                    message: Invalid authentication
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404'
+  /auth/validate:
+    post:
+      tags:
+        - Auth
+      summary: Returns an id and sends a validation email.
+      description: The email that is sent contains a 6-digit code that allows you to
+        validate your session.
+      operationId: validate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/auth_validate_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationId'
+        '400':
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                Email required:
+                  value:
+                    message: '"email" is required'
+                Email syntax:
+                  value:
+                    message: '"email" must be a valid email'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404'
+              examples:
+                Client_not_found:
+                  value:
+                    message: 'Client not found for ID: 63631a561f41f8fd18f8c3e1'
+  /auth/code:
+    post:
+      tags:
+        - Auth
+      summary: Returns session data.
+      description: The value "code" shall be retrieved from the email sent by the
+        previous method call (auth/validate).
+      operationId: code
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/auth_code_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenWithCode'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                Code Syntax:
+                  value:
+                    message: '"code" must only contain digits.'
+                Code Length:
+                  value:
+                    message: '"code" length must be 6 characters long'
+                Code Invalid:
+                  value:
+                    message: Invalid code
+                Code required:
+                  value:
+                    message: '"code" is required'
+                Email Syntax:
+                  value:
+                    message: '"email" must be a valid email'
+                ClientId Syntax:
+                  value:
+                    message: '"clientId" length must be 24 characters long'
+                ClientId value Syntax:
+                  value:
+                    message: '"clientId" must only contain alphanumeric characters'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                Email not found:
+                  value:
+                    message: Account not found.
+                ClientId not found:
+                  value:
+                    message: Client not found
+  /paymentReceipt:
+    post:
+      tags:
+        - PaymentReceipt
+      summary: Attaches a payment receipt to an order.
+      description: This service allows you to attach the receipt of the transfer made
+        to the order. It is important that the receipt contains at least the
+        amount, the date and time, and the destination account. If the receipt
+        is not valid, the order will be rejected.
+      operationId: paymentReceipt
+      security:
+        - AuthorizationToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/paymentReceipt_body'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/paymentReceipt_response'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error_response_400_payment_order'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error_response_404_payment_order'
+  /orders:
+    get:
+      tags:
+        - Orders
+      summary: Returns a lists of orders.
+      description: To try these services, an Authorization token must be provided as a
+        BearerToken header. The Authorization token can be obtained in the /auth
+        service.
+      operationId: order
+      parameters:
+        - name: pageSize
+          in: query
+          description: This value has a limit of 50, represents the number of responses
+            per page.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: number
+        - name: pageNumber
+          in: query
+          description: Number of pages shown.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: number
+        - name: initDate
+          in: query
+          description: "The initial date from which records are retrieved. Format:
+            YYYY-MM-DD. Records from this date onwards will be included unless
+            an 'endDate' is specified."
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          description: 'The end date until which records are retrieved. Format:
+            YYYY-MM-DD. Only records up to this date will be included. If
+            omitted, records up to the current date are returned.'
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Orders'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                pageSize invalid:
+                  value:
+                    message: PageSize must be between 1 and 50
+                pageNumber invalid:
+                  value:
+                    message: PageNumber must be at least 1
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+    post:
+      tags:
+        - Orders
+      summary: Creates a new order.
+      description: Creates a purchase or sell order, returns a UUID for tracking and,
+        depending on the payment method, an URL to do so. For authenticated
+        calls that do not have an email asociated, one must be included as a
+        parameter to link the transaction to a specific user. If quoteId is
+        provided and quote is still valid, symbolIn, symbolOut, amountIn,
+        amountOut, and paymentMethodId are nullable. In the case of amountIn and
+        amountOut, only one must be passed as an input parameter.
+      operationId: Createorder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/orders_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrder'
+              examples:
+                Purchase:
+                  value:
+                    orderId: 3ae57c43-6fae-4b0c-b0d5-2c35759e76d9
+                    quoteId: 63e154dbc47d9176668a9af6
+                    amountIn: 1313696
+                    amountOut: 1
+                    symbolIn: CLP
+                    symbolOut: ETH
+                    paymentMethodId: 63473a5f743da0f55fa04c8f
+                    providedAction: url.example.com
+                    email: kenneth@koywe.com
+                    documentNumber: '158289164'
+                Sell:
+                  value:
+                    orderId: 3ae57c43-6fae-4b0c-b0d5-2c35759e76d9
+                    quoteId: 63e154dbc47d9176668a9af6
+                    amountIn: 1
+                    amountOut: 1313696
+                    symbolIn: ETH
+                    symbolOut: CLP
+                    providedAction: url.example.com
+                    email: kenneth@koywe.com
+                    documentNumber: '158289164'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                Address empty:
+                  value:
+                    message: '"destinationAddress" is not allowed to be empty'
+                Account not found:
+                  value:
+                    message: 'Account not found for email: **@**.***'
+                Email required:
+                  value:
+                    message: email field is required
+                Email difference:
+                  value:
+                    message: 'account email can not be different to token account:'
+                QuoteId syntax:
+                  value:
+                    message: '"quoteId" must be a string'
+                QuoteId empty:
+                  value:
+                    message: '"quoteId" is not allowed to be empty'
+                metadata syntax:
+                  value:
+                    message: '"metadata" must be a string'
+                metadata empty:
+                  value:
+                    message: '"metadata" is not allowed to be empty'
+                documentNumber syntax:
+                  value:
+                    message: '"documentNumber" must be a string'
+                documentNumber empty:
+                  value:
+                    message: '"documentNumber" is not allowed to be empty'
+                input parameters conflict:
+                  value:
+                    message: Must contain only one of [amountIn, amountOut]
+                QuoteId parameters exclusion:
+                  value:
+                    message: quoteId must be used without symbolOut, symbolIn, amountOut or amountIn
+                PaymentMethodId invalid:
+                  value:
+                    message: Payment method is restricted
+                Currency amount less than permited:
+                  value:
+                    message: Currency amount is less than the minimum available
+                Currency amount more than permited:
+                  value:
+                    message: Currency amount exceeds the maximum available
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /orders/{orderId}:
+    get:
+      tags:
+        - Orders
+      summary: Returns order information
+      description: To try these services, an Authorization token must be provided as a
+        BearerToken header. The Authorization token can be obtained in the /auth
+        service.
+      operationId: Getorder
+      parameters:
+        - name: orderId
+          in: path
+          description: Order's identifier.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                orderId invalid:
+                  value:
+                    message: '"orderId" must be a valid GUID'
+                Code Length:
+                  value:
+                    message: '"code" length must be 6 characters long'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+    put:
+      tags:
+        - Orders
+      summary: Reprocess a order.
+      description: Service responsible for reprocessing an order in case of banking
+        errors. The objective is to be able to finalize the transaction of
+        converting crypto to the corresponding currency, where a transfer is
+        made to the bank account associated with the order.
+      operationId: Reprocessorder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/reprocess_order_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+              examples:
+                Reprocess:
+                  value:
+                    _id: 66eb25f75752142702c3ca5e
+                    bankCode: '90646'
+                    name: STP
+                    account: 66b114eea67737d9811432b8
+                    currencySymbol: MXN
+                    countryCode: MEX
+                    accountNumber: '646180374711307483'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                AddressDestination empty:
+                  value:
+                    message: '"destinationAddress" is required.'
+                orderId empty:
+                  value:
+                    message: '"orderI" is required.'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /orders/tx-hash/{txHash}:
+    get:
+      tags:
+        - Orders
+      summary: Returns order/s information by txHash
+      description: To try these services, an Authorization token must be provided as a
+        BearerToken header. The Authorization token can be obtained in the /auth
+        service.
+      operationId: GetOrderByTxHash
+      parameters:
+        - name: txHash
+          in: path
+          description: Transaction Hash of an order(s)
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersByTxHash'
+        '400':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/get_by_tx_hash_inline_response_400'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/get_by_tx_hash_inline_response_500'
+      security:
+        - AuthorizationToken: []
+  /orders/{orderId}/txHash:
+    post:
+      tags:
+        - Orders
+      summary: Adds txHash to Order
+      description: Adds a transaction hash (txhash) to the specified order. Requires
+        the 'orderId' as a parameter and a valid 'txhash' in the request body.
+      operationId: addTxHashToOrder
+      parameters:
+        - name: orderId
+          in: path
+          description: Order's identifier.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/txHashResquest'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/txHashResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                orderId invalid:
+                  value:
+                    message: '"orderId" must be a valid GUID'
+                Code Length:
+                  value:
+                    message: '"code" length must be 6 characters long'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /orders/external_id/{externalId}:
+    get:
+      tags:
+        - Orders
+      summary: Returns order information by ExternalId.
+      description: To try these services, an Authorization token must be provided as a
+        BearerToken header. The Authorization token can be obtained in the /auth
+        service.
+      operationId: GetorderbyExternalId
+      parameters:
+        - name: externalId
+          in: path
+          description: External Order's identifier.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /orders/offramp/{orderId}/refund:
+    post:
+      tags:
+        - Orders
+      summary: Crypto Refund Request Service
+      description: >-
+        This service allows users to request a refund of cryptocurrencies when
+        off-ramp orders have errors in their fiat transfer details (status:
+        INVALID_WITHDRAWALS_DETAIL). The refund process is managed through
+        multiple statuses and notifications via webhooks.
+
+            Flows:
+            1. **Refund Request:**
+               - Endpoint: `/orders/offramp/{orderId}/refund`
+               - Description: Initiates a cryptocurrency refund request for orders with errors in their fiat transfer details.
+               - Result: Generates a new order status `REFUND_STARTED` and sends a notification via webhook with the event `refund_started` to confirm the request receipt.
+
+            2. **Crypto Sending Process:**
+               - Once the process of sending cryptocurrencies begins, the status changes to `REFUND_IN_PROGRESS`. A notification will be sent via webhook with the event `refund_in_progress`.
+
+            3. **Sending Confirmation:**
+               - When the cryptocurrency sending is confirmed, the final order status will be `REFUND_DELIVERED` and a notification will be sent via webhook with the event `refund_delivered`.
+
+            **Note:**
+            - Multiple notifications may be received for each change in the order
+      operationId: OrderRefund
+      parameters:
+        - name: orderId
+          in: path
+          description: OrderId identifier.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/refund_order_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderRefund'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /quotes:
+    post:
+      tags:
+        - Quote Queries
+      summary: Creates a purchase or sell quote
+      description: Only one of the input parameters "amountIn" and "amountOut" must be
+        provided. for on ramps receives additionally clientId and
+        paymentMethodId. Returns a quoteId that can be use to create an order
+        (is not necessary, but if provided and still valid, fewer values will be
+        necessary to create the order). If executable is true, we store it and
+        return a UUID.
+      operationId: CreateQuote
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/quotes_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                paymentMethodId required:
+                  value:
+                    message: '"paymentMethodId" is not allowed to be empty'
+                paymentMethodId syntax:
+                  value:
+                    message: '"paymentMethodId" must be a string'
+                input parameters conflict:
+                  value:
+                    message: Must contain only one of [amountIn, amountOut]
+                input parameters required:
+                  value:
+                    message: Must contain at least one of [amountIn, amountOut]
+        '403':
+          description: unprocessable entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_403'
+        '422':
+          description: unprocessable entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_422'
+  /quotes/{quoteId}:
+    get:
+      tags:
+        - Quote Queries
+      summary: Returns quote details.
+      description: Receives a quoteId value. One can be produced using the previous
+        quote service (post /quotes). Returns quote data.
+      operationId: GetQuote
+      parameters:
+        - name: quoteId
+          in: path
+          description: The quote's identifier.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400_1'
+  /bank-accounts:
+    get:
+      tags:
+        - Bank Queries
+      summary: Returns bank account
+      operationId: GetBankAccount
+      parameters:
+        - name: countryCode
+          in: query
+          description: Symbol of the country of choice.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: currencySymbol
+          in: query
+          description: Symbol of the currency of the chosen country.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: email
+          in: query
+          description: user email
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400_2'
+      security:
+        - AuthorizationToken: []
+    post:
+      tags:
+        - Bank Queries
+      summary: Adds a bank account to proceed with the operation.
+      description: bankCode and documentNumber are optional. documentedNumber is
+        required when the users is not KYC'd.
+      operationId: CreateBankAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/bankaccounts_body'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                accountNumber syntax:
+                  value:
+                    message: '"accountNumber" must be a string'
+                accountNumber empty:
+                  value:
+                    message: '"accountNumber" is not allowed to be empty'
+                bankCode empty:
+                  value:
+                    message: '"bankCode" is not allowed to be empty'
+                bankCode syntax:
+                  value:
+                    message: '"bankCode" must be a string'
+                bankCode invalid:
+                  value:
+                    message: 'BankCode not valid '
+                currencySymbol invalid:
+                  value:
+                    message: '"currencySymbol" must be one of [CLP, COP, MXN, PEN]'
+                Email required:
+                  value:
+                    message: email field is required
+                Email invalid:
+                  value:
+                    message: '"email" is not allowed'
+                parameter required:
+                  value:
+                    message: '"currencySymbol" is required'
+                country invalid:
+                  value:
+                    message: '"countryCode" must be one of [MEX, CHL, COL, PER]'
+                Email not found:
+                  value:
+                    message: Account not found.
+                ClientId not found:
+                  value:
+                    message: Client not found
+                Bank Account already exists:
+                  value:
+                    message: this bank account is already registered
+                DocumentNumber syntax:
+                  value:
+                    message: '"accountNumber" must be a string'
+                DocumentNumber empty:
+                  value:
+                    message: '"documentNumber" is not allowed to be empty'
+                DocumentNumber invalid:
+                  value:
+                    message: documentNumber is not valid for "countryCode"
+      security:
+        - AuthorizationToken: []
+    delete:
+      tags:
+        - Bank Queries
+      summary: Deletes bank account info.
+      operationId: DeleteBankAccount
+      parameters:
+        - name: _id
+          in: query
+          description: Bank info identifier.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: countryCode
+          in: query
+          description: Symbol of the country of choice.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: currencySymbol
+          in: query
+          description: Symbol of the currency of the chosen country.
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                _id length:
+                  value:
+                    message: '"_id" length must be 24 characters long'
+                accountNumber syntax:
+                  value:
+                    message: Bank Account not found
+                Invalid _id parameter:
+                  value:
+                    message: BankAccount error:Cast to ObjectId failed for value (type string) at
+                      path "_id" for model "BankAccount"
+      security:
+        - AuthorizationToken: []
+  /bank-info/{countryCode}:
+    get:
+      tags:
+        - Bank Queries
+      summary: Returns the list of supported banks by country
+      operationId: GetBankinfo
+      parameters:
+        - name: countryCode
+          in: path
+          description: Symbol of the country of choice.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankInfo'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                CountryCode Invalid:
+                  value:
+                    message: '"countryCode" must be one of [MEX, CHL, COL, PER]'
+                Country not available:
+                  value:
+                    message: 'not implemented for: *country*'
+  /scheduled-deals:
+    get:
+      tags:
+        - Deals
+      summary: Get deals
+      description: Returns deals information for authenticated user. To try these
+        services, an Authorization token must be provided as a BearerToken
+        header. The Authorization token can be obtained in the /auth service.
+        This endpoint is not available for every client, please contact us to
+        soporte@koywe.com for more info
+      operationId: Getdeals
+      parameters:
+        - name: status
+          in: query
+          description: Can be PAID | EXPIRED | PENDING
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          description: ''
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          description: ''
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: string
+        - name: pageSize
+          in: query
+          description: Max amount of documents in the response
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: string
+        - name: pageNumber
+          in: query
+          description: Current page
+          required: true
+          style: form
+          explode: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deals'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+              examples:
+                status empty:
+                  value:
+                    message: '"status" cannot be empty'
+                status invalid:
+                  value:
+                    message: '"status" must be: PAID, EXPIRED or PENDING'
+        '404':
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_404_1'
+      security:
+        - AuthorizationToken: []
+  /client/getAddress:
+    get:
+      tags:
+        - Clients
+      summary: Receives a crypto symbol, retrieves the wallet address
+      description: Receives a crypto symbol, retrieves the wallet address
+      operationId: getAddress
+      parameters:
+        - name: cryptoSymbol
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Retrieve address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientAddressOutput'
+        '403':
+          description: Forbidden.
+      security:
+        - AuthorizationToken: []
+  /clients/updateWebhook:
+    post:
+      tags:
+        - Clients
+      summary: Create or update a webhook
+      description: Create or update a webhook
+      operationId: updateWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Callback'
+        required: true
+      responses:
+        '201':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultCallback'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+  /clients/updateValidationWebhook:
+    post:
+      tags:
+        - Clients
+      summary: Create or update the validation webhook
+      description: Create or update the validation webhook
+      operationId: clientUpdateWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationCallback'
+        required: true
+      responses:
+        '201':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/ResultValidationCallback'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_400'
+      security:
+        - AuthorizationToken: []
+  /upload-delegated-kyc-files:
+    post:
+      tags:
+        - Clients
+      summary: Allows clients with delegated KYC to securely upload documents required
+        for the identity verification process.
+      description: The endpoint facilitates efficient and safe uploading of necessary
+        files to complete the KYC process.
+      operationId: uploadDelegatedKycFiles
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: File uploaded successfully
+                  fileUrl:
+                    type: string
+                    format: uri
+                    example: https://example-bucket.s3.amazonaws.com/path/to/file.pdf
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: File size should not exceed the allowed limit.
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Invalid token
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Forbidden: No Token Provided'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Failed to register file upload.
+      security:
+        - AuthorizationToken: []
+components:
+  schemas:
+    paymentReceipt_body:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: 76a6e9bd-364c-428e-9363-d557fec2b715
+        url:
+          type: string
+          example: https://example.com/receipt.png
+    paymentReceipt_response:
+      type: object
+      properties:
+        result:
+          type: boolean
+    FileUpload:
+      type: object
+      properties:
+        pdf:
+          type: string
+          format: binary
+        video:
+          type: string
+          format: binary
+        image:
+          type: string
+          format: binary
+      oneOf:
+        - required:
+            - pdf
+        - required:
+            - video
+        - required:
+            - image
+      description: Provide the binary content of the file as the value for the
+        respective file type field (pdf, video, or image).
+    CountryCurrencyReport:
+      type: object
+      properties:
+        country:
+          type: string
+          example: CHL
+        currencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrencyDetails'
+    CurrencyDetails:
+      type: object
+      properties:
+        currency:
+          type: string
+          example: Chilean Peso
+        totalOnOps:
+          type: integer
+          example: 0
+        netOnCurrencyAmount:
+          type: number
+          example: 0
+          format: double
+        totalOffOps:
+          type: integer
+          example: 1
+        netOffCurrencyAmount:
+          type: number
+          example: 5000
+          format: double
+        balance:
+          type: number
+          example: 3255
+          format: double
+        totalTopUpOps:
+          type: integer
+          example: 1
+        netTopUpCurrencyAmount:
+          type: number
+          example: 8255
+          format: double
+    Currency:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6294cd18d2b5f912da43e678
+        name:
+          type: string
+          example: Peso Chileno
+        symbol:
+          type: string
+          example: CLP
+        decimals:
+          type: integer
+          format: int32
+          example: 0
+        logo:
+          type: string
+          example: url.example.com/clp.svg
+        limits:
+          $ref: '#/components/schemas/Currency_limits'
+        tokens:
+          type: array
+          items:
+            $ref: '#/components/schemas/Currency_tokens'
+    Token:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6303d71295ee10bace884ac4
+        name:
+          type: string
+          example: Binance Coin
+        symbol:
+          type: string
+          example: BNB
+        decimals:
+          type: integer
+          format: int32
+          example: 18
+        logo:
+          type: string
+          example: url.example.com/bnb.svg
+        currencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Token_currencies'
+    Payments:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 632d7fe6237ded3a748112cf
+        name:
+          type: string
+          example: WIRECL
+        description:
+          type: string
+          example: La comisión de transferencia bancaria equivale a un 1% del total de tu
+            compra
+        fee:
+          type: integer
+          example: 0
+        image:
+          type: string
+          example: https://rampa.koywe.com/paymentProviders/wire-cl.png
+        details:
+          type: string
+          example: |-
+            Koywe SpA
+            Cta Cte 6824645
+            76.215.256-2
+            Banco Santander
+            tef@koywe.com
+    AuthToken:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6Im5pY29sYXNAa295d2UuY29tIiwibWV0YUFjY291bnQiOiI2Mzg4ZDVjNzA2YmFkOWIxNjE1MWYzNmEiLCJjbGllbnRBdXRoIjpmYWxzZSwiaWF0IjoxNjc0NTAzMzE2LCJleHAiOjE2NzQ1NDY1MTZ9.C1aL9-FSL-VF8t9wce--4M6ZB_d1IHihpDuOYCmUcIT_-M3Fvp2Zds1HSI9WKPjvCj4zLhCBIX9Z8MExhOPinLsjWJO_SC96YFzo7HjZRZgRKgRNMjPaz5w2NSRnRKYqRbaH_ZLIcdoMu1hD7y1wQhsSh1TXQ9MuWfXZvto-484geJ5FWjkmaV5QpNIP-1B5OVL_skZ46Kin4uX3CMpRjeFA3x0__RLZIOqVFy_1XCnzrew_UjamXWoUWonP_4xoPmcSTz23OEvPPxW2syFkvakDskIovOyCU2WzlLs0nMhY6UnKQzpGhN9DclXdVG89xyJOB9ri2GKAW8pIIbguioTgqhykpaaSxRoDFtIvsGD8ptDMoF4xp1aZG2Tq_23MFVrF8EbTzHTx0DB4Gt2hWY5W5nabEU9gts0PqIbuEWVhD4KryrOQv5vmbfr2GuXRx_194zAD2ixSfxyiWnhAN_FMvzmj2wwe-GWWLaKH35yqHfwNRJIkYqEX5TL5T0KFR5izWbGJoyR6EXn6MU1-SrO1by22HmLlKF7Fs-2zXSYTT31a5KnWenA2UPMWbLUbsP_xY3ESWP3YY2k7QRkqIP-Rl90RYHi5_z2
+    AuthTokenWithCode:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6Im5pY29sYXNAa295d2UuY29tIiwibWV0YUFjY291bnQiOiI2Mzg4ZDVjNzA2YmFkOWIxNjE1MWYzNmEiLCJjbGllbnRBdXRoIjpmYWxzZSwiaWF0IjoxNjc0NTAzMzE2LCJleHAiOjE2NzQ1NDY1MTZ9.C1aL9-FSL-VF8t9wce--4M6ZB_d1IHihpDuOYCmUcIT_-M3Fvp2Zds1HSI9WKPjvCj4zLhCBIX9Z8MExhOPinLsjWJO_SC96YFzo7HjZRZgRKgRNMjPaz5w2NSRnRKYqRbaH_ZLIcdoMu1hD7y1wQhsSh1TXQ9MuWfXZvto-484geJ5FWjkmaV5QpNIP-1B5OVL_skZ46Kin4uX3CMpRjeFA3x0__RLZIOqVFy_1XCnzrew_UjamXWoUWonP_4xoPmcSTz23OEvPPxW2syFkvakDskIovOyCU2WzlLs0nMhY6UnKQzpGhN9DclXdVG89xyJOB9ri2GKAW8pIIbguioTgqhykpaaSxRoDFtIvsGD8ptDMoF4xp1aZG2Tq_23MFVrF8EbTzHTx0DB4Gt2hWY5W5nabEU9gts0PqIbuEWVhD4KryrOQv5vmbfr2GuXRx_194zAD2ixSfxyiWnhAN_FMvzmj2wwe-GWWLaKH35yqHfwNRJIkYqEX5TL5T0KFR5izWbGJoyR6EXn6MU1-SrO1by22HmLlKF7Fs-2zXSYTT31a5KnWenA2UPMWbLUbsP_xY3ESWP3YY2k7QRkqIP-Rl90RYHi5_z2
+        isIdentify:
+          type: boolean
+          example: false
+        needVerificate:
+          type: boolean
+          example: true
+        identity:
+          type: string
+          example: ''
+        firstOp:
+          type: boolean
+          example: false
+    ValidationId:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 63c80872b85f35f37e567064
+    CreateOrder:
+      type: object
+      properties:
+        orderId:
+          type: string
+        quoteId:
+          type: string
+        amountIn:
+          type: number
+        amountOut:
+          type: number
+        symbolIn:
+          type: string
+        symbolOut:
+          type: string
+        paymentMethodId:
+          type: string
+        providedAction:
+          type: string
+        email:
+          type: string
+        documentNumber:
+          type: string
+        externalId:
+          type: string
+    Order:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: b88f4ed0-10a2-412f-be3e-b5e47abe9b50
+        quoteId:
+          type:
+            - string
+            - 'null'
+        orderType:
+          type:
+            - string
+            - 'null'
+          example: currency-crypto
+        symbolIn:
+          type: string
+          example: CLP
+        symbolOut:
+          type: string
+          example: MATIC
+        amountIn:
+          type: number
+          example: 25000
+        amountOut:
+          type: number
+          example: 32.171150520770496
+        email:
+          type:
+            - string
+            - 'null'
+          example: example@gmail.com
+        exchangeRate:
+          type: number
+          example: 746.01
+        koyweFee:
+          type: number
+          example: 1000
+        partnerFee:
+          type:
+            - number
+            - 'null'
+          example: 500
+        networkFee:
+          type:
+            - number
+            - 'null'
+          example: 1000
+        status:
+          type: string
+          example: REJECTED
+        statusDetails:
+          type:
+            - string
+            - 'null'
+          description: Additional details about the order status for off-ramp transactions
+        outReceipt:
+          type:
+            - string
+            - 'null'
+          example: 98abd8a6dbdba6d4b
+        bankAccountId:
+          type:
+            - string
+            - 'null'
+          example: 6294d815d2b5f912da43e699
+        txHash:
+          type:
+            - string
+            - 'null'
+          description: Transaction hash for transactions, either for outgoing or incoming
+            transactions
+        metaData:
+          type:
+            - string
+            - 'null'
+        externalId:
+          type:
+            - string
+            - 'null'
+          example: A1d2t3456
+        feesInFiat:
+          anyOf:
+            - $ref: '#/components/schemas/Order_fees'
+            - type: 'null'
+        feesInUSD:
+          anyOf:
+            - $ref: '#/components/schemas/Order_fees'
+            - type: 'null'
+        dates:
+          type: object
+          properties:
+            confirmationDate:
+              type: string
+              example: 2023-01-01T10:00:00Z
+            paymentDate:
+              type: string
+              example: 2023-01-01T12:00:00Z
+            executionDate:
+              type: string
+              example: 2023-01-01T14:00:00Z
+            deliveryDate:
+              type: string
+              example: 2023-01-01T16:00:00Z
+        destinationAddress:
+          type:
+            - string
+            - 'null'
+          example: '0x40f9bf922c23c43acede50Ab4425280C0ffBD697'
+        paymentMethodId:
+          type:
+            - string
+            - 'null'
+          example: 6294d815d2b5f912da43e699
+        logoIn:
+          type: string
+          example: urlExample.com/currencies/CLP.svg
+        logoOut:
+          type: string
+          example: urlExample.com/currencies/MATIC.svg
+        refund:
+          anyOf:
+            - allOf:
+                - $ref: '#/components/schemas/OrderRefundDetails'
+            - type: 'null'
+        errors:
+          type:
+            - object
+            - 'null'
+          properties:
+            invalidWithdrawalsDetails:
+              type: object
+              properties:
+                _id:
+                  type: string
+                  example: 6234f5d4d9f4
+                name:
+                  type: string
+                  example: John Doe
+                bankCode:
+                  type: string
+                  example: '001'
+                countryCode:
+                  type: string
+                  example: CL
+                currencySymbol:
+                  type: string
+                  example: CLP
+                accountNumber:
+                  type: string
+                  example: '1234567890'
+                account:
+                  type: string
+                  example: Savings
+                accountType:
+                  type: string
+                  example: Savings
+                entityName:
+                  type: string
+                  example: Banco de Chile
+        bankAccount:
+          type:
+            - object
+            - 'null'
+          description: Bank account details associated with the order
+          properties:
+            id:
+              type: string
+            accountNumber:
+              type: string
+            accountType:
+              type: string
+            bankName:
+              type: string
+    OrderRefundDetails:
+      type: object
+      properties:
+        dates:
+          type: object
+          properties:
+            startDate:
+              type: string
+              example: 2023-01-01T18:00:00Z
+            processDate:
+              type: string
+              example: 2023-01-01T20:00:00Z
+            deliveredDate:
+              type: string
+              example: 2023-01-01T22:00:00Z
+        destinationAddress:
+          type: string
+          example: '0x40f9bf922c23c43acede50Ab4425280C0ffBD697'
+        transactionReceipt:
+          type: string
+          example: 98abd8a6dbdba6d4b
+    OrderRefund:
+      type: object
+      properties:
+        message:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          example: 2024-06-24T17:27:48.585Z
+        code:
+          description: |2-
+                        - `REFUND_000`: Refund order successful.
+
+                        - `REFUND_001`: Order not found.
+
+                        - `REFUND_002`: Wrong order type.
+
+                        - `REFUND_003`: Wrong order status.
+
+                        - `REFUND_004`: Refund is processing.
+
+                        - `REFUND_005`: Refund already requested.
+
+                        - `REFUND_006`: Wrong wallet address.
+
+                        - `REFUND_007`: Missing transaction wallet address.
+          type: string
+          example: REFUND_000
+        data:
+          type: object
+          properties:
+            orderId:
+              type: string
+              example: b3b6d577-1be4-4845-9d5b-b43fdef1920a
+    Deal:
+      type: object
+      properties:
+        orderIds:
+          type: array
+          items:
+            description: order Ids
+            type: string
+          example:
+            - b88f4ed0-10a2-412f-be3e-b5e47abe9b50
+        quoteId:
+          type: string
+        amount:
+          type: number
+          example: 1000
+        pendingAmount:
+          type: number
+          example: 1000
+        symbolIn:
+          type: string
+          example: CLP
+        symbolOut:
+          type: string
+          example: MATIC
+        document:
+          type: number
+          example: 752174722
+        amountCrypto:
+          type: number
+          example: 32.171150520770496
+        scheduledDealdId:
+          type: string
+          example: 3965a24q-fdfd-4d65-96e4-c412de827213
+        destinationAddress:
+          type: string
+          example: '0x40f9bf922c23c43acede50Ab4425280C0ffBD697'
+        email:
+          type: string
+          example: example@gmail.com
+        exchangeRate:
+          type: number
+          example: 746.01
+        status:
+          type: string
+          example: PAID
+        createdAt:
+          type: string
+          example: 2023-11-30T15:42:20.269+00:00
+        expiresAt:
+          type: string
+          example: 2023-11-30T15:42:20.269+00:00
+        metadata:
+          type: string
+    Pagination:
+      type: object
+      properties:
+        totalcount:
+          type: number
+          example: 30
+        pageSize:
+          type: number
+          example: 6
+        pageNumber:
+          type: number
+          example: 5
+    Orders:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    OrdersByTxHash:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+    Deals:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deal'
+        totalPages:
+          type: number
+    Quote:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          example: 63da8100c6d0af192f9f9e8c
+        amountIn:
+          type: number
+          example: 238228
+        amountOut:
+          type: number
+          example: 1
+        symbolIn:
+          type: string
+          example: CLP
+        symbolOut:
+          type: string
+          example: BNB
+        paymentMethodId:
+          type: string
+          example: 632d7fe6237ded3a748112cf
+        exchangeRate:
+          type: number
+          example: 235816
+        koyweFee:
+          type: number
+          example: 2358.16
+        networkFee:
+          type: number
+          example: 54
+        co2:
+          type: number
+          example: 0
+        validFor:
+          type: number
+          example: 10
+        validUntil:
+          type: number
+          example: 1675264266
+    BankAccount:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 63dd5fd9cccad469ee2408f7
+        bankCode:
+          type: string
+          example: SANTANDER
+        countryCode:
+          type: string
+          example: CHL
+        currencySymbol:
+          type: string
+          example: CLP
+        accountNumber:
+          type: string
+          example: '1234596789'
+        account:
+          type: string
+          example: 62f28c4aa05176c3dfba8e
+        name:
+          type: string
+          example: BANCO SANTANDER
+    BankInfo:
+      type: object
+      properties:
+        bankCode:
+          type: string
+          example: BANCO_CHILE
+        name:
+          type: string
+          example: BANCO DE CHILE
+        institutionName:
+          type: string
+          example: BANCO DE CHILE
+        transferCode:
+          type: string
+          example: '001'
+    inline_response_400:
+      type: object
+      properties:
+        message:
+          type: string
+    txHashResquest:
+      type: object
+      properties:
+        txHash:
+          type: string
+    txHashResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        message:
+          type: string
+    auth_body:
+      type: object
+      required:
+        - clientId
+        - secret
+      properties:
+        clientId:
+          type: string
+        email:
+          type: string
+        secret:
+          type: string
+    inline_response_404:
+      type: object
+      properties:
+        message:
+          type: string
+          example: partner not found
+    error_response_404_payment_order:
+      type: object
+      properties:
+        statusCode:
+          type: number
+          example: 404
+        message:
+          type: string
+          example: 'Payment order not found: 76a6e9bd-364c-428e-9363-d557fec2b714'
+    error_response_400_payment_order:
+      type: object
+      properties:
+        statusCode:
+          type: number
+          example: 400
+        message:
+          type: string
+          example: '"orderId" must be a valid GUID'
+    auth_validate_body:
+      type: object
+      required:
+        - clientId
+        - email
+      properties:
+        clientId:
+          type: string
+        email:
+          type: string
+    auth_code_body:
+      type: object
+      required:
+        - clientId
+        - email
+        - code
+      properties:
+        email:
+          type: string
+        code:
+          type: string
+        clientId:
+          type: string
+    inline_response_404_1:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Client not found
+    get_by_tx_hash_inline_response_500:
+      type: object
+      properties:
+        message:
+          type: string
+          example: More than one paid order found for the given confirmation hash
+    get_by_tx_hash_inline_response_400:
+      type: object
+      properties:
+        message:
+          type: string
+          example: No order is associated to this transaction hash
+    orders_body:
+      required:
+        - destinationAddress
+        - quoteId
+      type: object
+      properties:
+        quoteId:
+          type: string
+          example: 63dd19bcf23fcbec3bfee51b
+          description: "[Related
+            Documentation](https://docs.koywe.com/english/documentation/api-doc\
+            umentation/restful-api/Quote%20Queries/Creates-a-purchase-or-sell-q\
+            uote)"
+        email:
+          type: string
+          example: example@domain.com
+        documentNumber:
+          type: string
+        destinationAddress:
+          type: string
+          example: '0x40f9bf922c23c43acdad71Ab4425280C0ffBD697'
+          description: "This is a required attribute when creating an order. Its content
+            varies depending on the type of order: for an 'off-ramp' order,
+            `destinationAddress` should contain the identifier of the bank
+            account (BankAccount); for an 'on-ramp' order, it should be the
+            destination address for the cryptocurrencies. This attribute is
+            crucial in ensuring that funds are sent to the correct place."
+        metadata:
+          type: string
+          description: This is an optional attribute that you can use to store any
+            additional information you need to associate with the order. This
+            information will be stored with the order details and can come in
+            handy for keeping track of customer-specific data, order features,
+            or other relevant information not covered in other attributes of the
+            order.
+        externalId:
+          type: string
+          description: This attribute is employed to provide idempotency in the order
+            creation requests. It is a unique identifier per order, supplied
+            from the client side, that allows for a unique identification of an
+            order and prevents the duplicate processing of the same order. By
+            incorporating an `externalId`, clients have the ability to safely
+            retry requests without the fear of inadvertently carrying out
+            repeated transactions.
+        callbackUrl:
+          type: string
+          description: This is an optional attribute that can be provided when creating an
+            order. If supplied, this value will be returned in the
+            'providedAction' attribute of the response upon the creation of the
+            order. The primary purpose is to allow the client to redirect users
+            to a specific URL following the order creation. If no `callbackUrl`
+            is provided, the system will generate and return a default URL,
+            reflected in the 'providedAction' attribute, that points to a
+            specific interface of Koywe.
+    refund_order_body:
+      required:
+        - destinationAddress
+      type: object
+      properties:
+        destinationAddress:
+          type: string
+          example: '0x40f9bf922c23c43acdad71Ab4425280C0ffBD697'
+          description: it should be the destination address for the cryptocurrencies. This
+            attribute is crucial in ensuring that funds are sent to the correct
+            place.
+    reprocess_order_body:
+      required:
+        - destinationAddress
+      type: object
+      properties:
+        destinationAddress:
+          type: string
+          example: 63e154dbc47d9176668a9af6
+          description: It should be the new bank account of the user account that owns the
+            order to be able to make the fiat currency deposit.
+    quotes_body:
+      type: object
+      properties:
+        clientId:
+          type: string
+          example: eff455bda8da192d6ae0019c
+        symbolIn:
+          type: string
+          example: CLP
+        symbolOut:
+          type: string
+          example: BNB
+        amountIn:
+          type: number
+          example: 200000
+        amountOut:
+          type: number
+          example: 1
+        paymentMethodId:
+          type: string
+          example: 632d7fe6237ded3a748112cf
+          description: This is a crucial attribute when creating 'on-ramp' orders. It acts
+            as an identifier for the payment method that will be used to receive
+            funds. Its purpose is to ensure alignment between the system and the
+            client regarding the transaction mechanism, paving the way for
+            efficient transaction processing and tracking. For 'off-ramp'
+            orders, providing this attribute is not required.
+        executable:
+          type: boolean
+          example: false
+    inline_response_422:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Debes ingresar crypto o currency
+    inline_response_403:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Payment method is restricted
+    inline_response_400_1:
+      type: object
+      properties:
+        message:
+          type: string
+          example: '"quoteId" length must be 24 characters long'
+    inline_response_400_2:
+      type: object
+      properties:
+        message:
+          type: string
+          example: bank account not found
+    bankaccounts_body:
+      required:
+        - accountNumber
+        - countryCode
+        - currencySymbol
+      type: object
+      properties:
+        bankCode:
+          type: string
+          example: BANK
+        accountNumber:
+          type: string
+          example: '123456789'
+        countryCode:
+          type: string
+          example: CHL
+        currencySymbol:
+          type: string
+          example: CLP
+        documentNumber:
+          type: string
+        email:
+          type: string
+        payoutMethodId:
+          type: string
+          description: '[DEPRECATED] Currently being used only for Colombia, this optional
+            field represents the payout provider.'
+        accountType:
+          type: string
+          description: 'Must be one of: checking or savings'
+    Currency_limits:
+      type: object
+      properties:
+        min:
+          type: number
+          example: 2000
+        max:
+          type: number
+          example: 2000000
+    Currency_tokens:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6283b7f8c7ab3a52fd8a51fc
+        name:
+          type: string
+          example: Binance Coin
+        symbol:
+          type: string
+          example: BNB
+        decimals:
+          type: integer
+          format: int32
+          example: 18
+        logo:
+          type: string
+          example: url.example.com/bnb.svg
+    Token_currencies:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6294cd18d2b5f912da43e678
+        name:
+          type: string
+          example: Peso Chileno
+        symbol:
+          type: string
+          example: CLP
+        decimals:
+          type: integer
+          format: int32
+          example: 0
+        logo:
+          type: string
+          example: url.example.com/clp.svg
+        limits:
+          $ref: '#/components/schemas/Currency_limits'
+    Order_date:
+      type: object
+      properties:
+        confirmationDate:
+          type: string
+          example: 2023-01-17T16:37:22.626Z
+        paymentDate:
+          type: string
+        executionDate:
+          type: string
+        deliveryDate:
+          type: string
+    Order_fees:
+      type: object
+      properties:
+        koyweFee:
+          type: number
+          example: 10
+        netFee:
+          type: number
+          example: 1
+        partnerFee:
+          type: number
+          example: 0.5
+    CheckAccountDetails:
+      type: object
+      properties:
+        field:
+          type: string
+          example: document.documentNumber
+        message:
+          type: string
+          example: document number is required
+    CheckAccount:
+      type: object
+      properties:
+        canOperate:
+          type: boolean
+          example: false
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckAccountDetails'
+        accountStatus:
+          type: string
+          example: verified
+        nextVerificationDate:
+          type: string
+          example: 2025-04-28T22:58:37.585Z
+    SecondaryDocument:
+      required:
+        - documentNumber
+        - documentType
+        - country
+      type: object
+      properties:
+        documentNumber:
+          type: string
+        documentType:
+          type: string
+          enum:
+            - RUT
+            - DNI
+            - RFC
+            - CE
+            - CED_CIU
+            - CED_EXT
+            - NIT
+            - TI
+            - NUIP
+            - TE
+            - PPT
+            - PASS
+            - PEP
+        country:
+          type: string
+    MainDocument:
+      required:
+        - isCompany
+        - documentNumber
+        - documentType
+        - country
+      type: object
+      properties:
+        isCompany:
+          type: boolean
+        documentNumber:
+          type: string
+        documentType:
+          type: string
+          enum:
+            - RUT
+            - DNI
+            - RFC
+            - CE
+            - CED_CIU
+            - CED_EXT
+            - NIT
+            - TI
+            - NUIP
+            - TE
+            - PPT
+            - PASS
+            - PEP
+        country:
+          type: string
+        others:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecondaryDocument'
+    UpdateMainDocument:
+      type: object
+      properties:
+        others:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecondaryDocument'
+    Address:
+      required:
+        - addressCity
+        - addressStreet
+        - addressZipCode
+        - addressCountry
+        - addressState
+      type: object
+      properties:
+        addressCity:
+          type: string
+        addressStreet:
+          type: string
+        addressZipCode:
+          type: string
+        addressCountry:
+          type: string
+        addressState:
+          type: string
+        addressNeighborhood:
+          type: string
+    PersonalInfo:
+      required:
+        - names
+        - activity
+        - phoneNumber
+        - dob
+      type: object
+      properties:
+        names:
+          type: string
+        firstLastname:
+          type: string
+        secondLastname:
+          type: string
+        activity:
+          type: string
+        dob:
+          type: string
+        phoneNumber:
+          type: string
+        nationality:
+          type: string
+        gender:
+          type: string
+    UpdatePersonalInfo:
+      type: object
+      properties:
+        names:
+          type: string
+        firstLastname:
+          type: string
+        secondLastname:
+          type: string
+        activity:
+          type: string
+        dob:
+          type: string
+        phoneNumber:
+          type: string
+        nationality:
+          type: string
+        gender:
+          type: string
+    MovementDetails:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          example: d219960c-6244-41ea-9db1-0655fa724c6f
+        transactionStatus:
+          type: string
+          example: DELIVERED
+        amount:
+          type: number
+          format: float
+          example: 82185
+        currencySymbol:
+          type: string
+          example: CLP
+        cryptoSymbol:
+          type: string
+          example: USDC Polygon
+        exchangeRate:
+          type: number
+          format: float
+          example: 803
+        localCurrencyConversion:
+          type: number
+          format: float
+          example: 101.347063
+        dates:
+          type: object
+          properties:
+            orderedDate:
+              type: string
+              format: date-time
+              example: 2023-07-06T13:52:35.134Z
+            payedDate:
+              type: string
+              format: date-time
+              example: 2023-07-06T14:00:11.943Z
+            transactionDate:
+              type: string
+              format: date-time
+              example: 2023-07-06T14:00:20.754Z
+            deliveredDate:
+              type: string
+              format: date-time
+              example: 2023-07-06T14:11:29.719Z
+            _id:
+              type: string
+              format: uuid
+              example: 64a6c723b67c262341bc705d
+        paymentMethod:
+          type: string
+          example: KHIPU
+        invoiceLink:
+          type: string
+          format: uri
+          example: https://invoice.koywe.com/api/invoices/pdf/d219960c-6244-41ea-9db1-0655fa724c6f
+        txhash:
+          type: string
+          example: '0xbe97c2ef9838f429701ab58134ea22215a9a612b723b3f83c54635c224083500'
+    BalanceDetails:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: uuid
+          example: 64a6c677ca3d967f1760eb9a
+        accountId:
+          type: string
+          format: uuid
+          example: 64a6c358683529b844a3f03d
+        currencySymbol:
+          type: string
+          example: CLP
+        countryCode:
+          type: string
+          example: CHL
+        totalBalance:
+          type: number
+          format: float
+          example: 0
+        description:
+          type: string
+          example: 'balance: alvaroescalonacastillo@gmail.com'
+        retries:
+          type:
+            - integer
+            - 'null'
+          format: int32
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+          example: 2023-07-06T13:49:43.067Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2023-07-06T13:49:43.067Z
+        __v:
+          type: integer
+          format: int32
+          example: 0
+    NewAccount:
+      required:
+        - document
+        - address
+        - personalInfo
+      type: object
+      properties:
+        email:
+          type: string
+          example: example@mail.com
+        document:
+          type: object
+          $ref: '#/components/schemas/MainDocument'
+        address:
+          type: object
+          $ref: '#/components/schemas/Address'
+        personalInfo:
+          type: object
+          $ref: '#/components/schemas/PersonalInfo'
+    ResultAccountMovementsBalance:
+      required:
+        - allMovements
+        - balances
+      type: object
+      properties:
+        allMovements:
+          type: array
+          items:
+            $ref: '#/components/schemas/MovementDetails'
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/BalanceDetails'
+    ResultAccount:
+      required:
+        - email
+        - document
+        - address
+        - personalInfo
+      type: object
+      properties:
+        email:
+          type: string
+          example: example@mail.com
+        document:
+          type: object
+          $ref: '#/components/schemas/MainDocument'
+        address:
+          type: object
+          $ref: '#/components/schemas/Address'
+        personalInfo:
+          type: object
+          $ref: '#/components/schemas/PersonalInfo'
+    ResultUpdateAccount:
+      required:
+        - email
+        - document
+        - address
+        - personalInfo
+      type: object
+      properties:
+        email:
+          type: string
+          example: example@mail.com
+        document:
+          type: object
+          $ref: '#/components/schemas/MainDocument'
+        address:
+          type: object
+          $ref: '#/components/schemas/Address'
+        personalInfo:
+          type: object
+          $ref: '#/components/schemas/PersonalInfo'
+        resultUpdateDocumentNumber:
+          type: string
+          example: Document number is pending validation
+    UpdateAccount:
+      type: object
+      properties:
+        email:
+          type: string
+          example: example@mail.com
+        document:
+          type: object
+          $ref: '#/components/schemas/UpdateMainDocument'
+        address:
+          type: object
+          $ref: '#/components/schemas/Address'
+        personalInfo:
+          type: object
+          $ref: '#/components/schemas/UpdatePersonalInfo'
+        updateEmail:
+          type: string
+          example: example@mail.com
+        updateDocumentNumber:
+          type: string
+          example: '11111111'
+        updateDocumentType:
+          type: string
+          example: RUT
+          enum:
+            - RUT
+            - DNI
+            - RFC
+            - CE
+            - CED_CIU
+            - CED_EXT
+            - NIT
+            - TI
+            - NUIP
+            - TE
+            - PPT
+            - PASS
+            - PEP
+    ClientAddressOutput:
+      type: object
+      properties:
+        address:
+          type: string
+          example: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+    Callback:
+      required:
+        - url
+      type: object
+      properties:
+        url:
+          type: string
+          example: https://webhook.site/d00d833c-ea45-4df2-91d2
+        secret:
+          type: string
+          example: test1234
+    ResultCallback:
+      required:
+        - callback
+      type: object
+      properties:
+        callback:
+          type: object
+          $ref: '#/components/schemas/callbackResponse'
+    callbackResponse:
+      required:
+        - _id
+        - url
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 65e8c66d64ab5eeea1c2eda0
+        url:
+          type: string
+          example: https://webhook.site/d00d833c-ea45-4df2-91d2-b583178493bf
+        secret:
+          type: string
+          example: test1234
+    ValidationCallback:
+      required:
+        - url
+        - secret
+        - field
+        - authMethod
+      type: object
+      properties:
+        url:
+          type: string
+          example: https://webhook.site/d00d833c-ea45-4df2-91d2
+        secret:
+          type: string
+          example: test1234
+        field:
+          type: string
+          example: email
+        authMethod:
+          type: string
+          example: Hash
+    ResultValidationCallback:
+      required:
+        - callback
+      type: object
+      properties:
+        validationCallback:
+          type: object
+          $ref: '#/components/schemas/validationCallbackResponse'
+    validationCallbackResponse:
+      required:
+        - _id
+        - url
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 65e8c66d64ab5eeea1c2eda0
+        url:
+          type: string
+          example: https://webhook.site/d00d833c-ea45-4df2-91d2-b583178493bf
+        secret:
+          type: string
+          example: test1234
+        field:
+          type: string
+          example: email
+        authMethod:
+          type: string
+          example: Hash
+  securitySchemes:
+    AuthorizationToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
