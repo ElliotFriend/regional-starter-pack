@@ -2,7 +2,7 @@
 
 Concrete actions derived from six rounds of independent architectural review. See [`meta-meta-analysis.md`](./meta-meta-analysis.md) for the reasoning. Items are prioritized as **P0** (gates the merge), **P1** (should do soon after merge), or **P2** (nice-to-have).
 
-Current state: `experiment/eff-anchor-interface` is the recommended direction (16-of-18 reviewer instances across 6 rounds). The experiment branch is not yet merged to `main` because the dissent's substantive concerns (Goal #2 duplication cost) deserve a remediation pass first.
+Current state: `experiment/eff-anchor-interface` is the recommended direction (16-of-18 reviewer instances across 6 rounds). **All P0 merge gates have landed** (P0.1, P0.2, P0.4, P0.5, P0.6 complete; P0.3 partial-by-design with recorded rationale). The full test suite passes (480 tests). The branch is merge-ready pending a Koywe merge-readiness check (Koywe — originally a post-merge P2.1 validation — was built early on this branch, so it ships with the merge).
 
 ---
 
@@ -26,6 +26,8 @@ export function createPoller(opts: {
 
 Replace the inline `setInterval` boilerplate in all 6 flow pages with a call to this helper. **Cited in every round, every reviewer.** Estimated impact: −250–400 LOC across the flow pages.
 
+**Status:** ✅ Landed (`7f4f07d`). `src/lib/utils/poll.svelte.ts` (`createPoller`) adopted across all flow pages (etherfuse + testanchor + koywe).
+
 ### P0.2 — Extract `sep10-session.ts`
 
 **Problem:** The `ensureAuth` / `cachedAuth` / `signWithFreighter` / `authStore.get`+`set` dance is duplicated in 4 testanchor pages (programmatic on/off-ramp + interactive on/off-ramp).
@@ -41,6 +43,8 @@ export async function ensureSep10Token(
 ```
 
 Cited rounds 1, 2, 3, 4, 5, 6.
+
+**Status:** ✅ Landed (`285ea9d`). `src/lib/wallet/sep10-session.ts` (`createSep10Session`) adopted in all 4 testanchor pages (programmatic + interactive on/off-ramp). Etherfuse uses its own API-key flow and does not need it.
 
 ### P0.3 — Port `ramp/*` step primitives from `main` into experiment
 
@@ -75,6 +79,8 @@ The reviewers' "−400–700 LOC" estimate assumed all three components would la
 
 Cited rounds 1, 3, 4, 6.
 
+**Status:** ✅ Landed (`f5f7097`). `tests/anchors/testanchor/ramp.test.ts` covers `TestAnchorRampClient`. Full suite green (480 tests).
+
 ### P0.5 — Resolve `TestAnchorClient` + `TestAnchorRampClient` co-existence
 
 **Problem:** The experiment branch exports both `TestAnchorClient` (the original SEP playground used by `/testanchor`) and `TestAnchorRampClient` (the curated ramp client used by `/anchors/testanchor`). Two clients in one directory is confusing.
@@ -86,6 +92,8 @@ Cited rounds 1, 3, 4, 6.
 
 Cited rounds 2, 3, 4, 5.
 
+**Status:** ✅ Landed (`32b3a0a`) via option (b)+(c). `TestAnchorClient` renamed to `TestAnchorPlaygroundClient` (now in `playground.ts`); `TestAnchorRampClient` in `ramp.ts`. README has a discriminating "which client to use" section.
+
 ### P0.6 — Extract `http.ts` shared `apiRequest` / `postJson`
 
 **Problem:** `src/lib/api/etherfuse.ts` (~215 LOC) and `src/lib/api/testanchor.ts` (~226 LOC) duplicate `apiRequest` / `postJson` / `authHeader` helpers.
@@ -93,6 +101,8 @@ Cited rounds 2, 3, 4, 5.
 **Fix:** Extract `src/lib/api/http.ts` with the shared `apiRequest<T>(fetch, url, init)` and `postJson<T>(fetch, url, body, token?)`. Both provider wrappers import them. Provider-specific error classes (`EtherfuseApiError`, `TestAnchorApiError`) stay.
 
 Cited rounds 3, 4, 6.
+
+**Status:** ✅ Landed (`8ec0262`). `src/lib/api/http.ts` imported by all three provider wrappers (`etherfuse.ts`, `testanchor.ts`, `koywe.ts`).
 
 ---
 
