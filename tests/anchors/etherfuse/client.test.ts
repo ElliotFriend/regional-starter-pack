@@ -2676,6 +2676,210 @@ describe('getCustomer() displayName handling', () => {
 });
 
 // ---------------------------------------------------------------------------
+// registerFiatAccount()
+// ---------------------------------------------------------------------------
+
+describe('registerFiatAccount()', () => {
+    /** Stub both calls the method makes: the presigned-URL request and the register POST. */
+    function stubRegister(captured: { body?: unknown; url?: string }) {
+        return [
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () =>
+                HttpResponse.json({ presigned_url: 'https://onboard.test/session-abc' }),
+            ),
+            http.post(`${BASE_URL}/ramp/bank-account`, async ({ request }) => {
+                captured.url = request.url;
+                captured.body = await request.json();
+                return HttpResponse.json({
+                    accountId: 'acct-123',
+                    label: '',
+                    status: 'active',
+                    organizationId: 'org-1',
+                });
+            }),
+        ];
+    }
+
+    it('throws AnchorError when publicKey is missing', async () => {
+        const client = createClient();
+        try {
+            await client.registerFiatAccount!({
+                customerId: 'cust-1',
+                account: {
+                    type: 'pix',
+                    pixKey: '37155878661',
+                    pixKeyType: 'cpf',
+                    taxId: '37155878661',
+                    accountHolderName: 'João Silva',
+                },
+            });
+            expect.fail('Expected AnchorError');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            expect((err as AnchorError).code).toBe('MISSING_PUBLIC_KEY');
+            expect((err as AnchorError).statusCode).toBe(400);
+        }
+    });
+
+    it('registers a PIX account: splits name, generates transactionId, maps cpf from taxId', async () => {
+        const client = createClient();
+        const captured: { body?: unknown; url?: string } = {};
+        server.use(...stubRegister(captured));
+
+        const result = await client.registerFiatAccount!({
+            customerId: 'cust-1',
+            publicKey: STELLAR_PUBKEY,
+            account: {
+                type: 'pix',
+                pixKey: '37155878661',
+                pixKeyType: 'cpf',
+                taxId: '37155878661',
+                accountHolderName: 'João Silva',
+            },
+        });
+
+        expect(captured.url).toContain('/ramp/bank-account');
+        const body = captured.body as { presignedUrl: string; account: Record<string, string> };
+        expect(body.presignedUrl).toBe('https://onboard.test/session-abc');
+        expect(body.account.transactionId).toEqual(expect.any(String));
+        expect(body.account.transactionId.length).toBeGreaterThan(0);
+        expect(body.account.firstName).toBe('João');
+        expect(body.account.lastName).toBe('Silva');
+        expect(body.account.pixKey).toBe('37155878661');
+        expect(body.account.pixKeyType).toBe('cpf');
+        expect(body.account.cpf).toBe('37155878661');
+        // SPEI-only fields must not leak into a PIX body.
+        expect(body.account.clabe).toBeUndefined();
+
+        expect(result).toEqual({
+            id: 'acct-123',
+            customerId: 'cust-1',
+            type: 'PIX',
+            status: 'active',
+            createdAt: expect.any(String),
+        });
+    });
+
+    it('defaults pixKeyType to cpf and keeps multi-word last names intact', async () => {
+        const client = createClient();
+        const captured: { body?: unknown; url?: string } = {};
+        server.use(...stubRegister(captured));
+
+        await client.registerFiatAccount!({
+            customerId: 'cust-1',
+            publicKey: STELLAR_PUBKEY,
+            account: {
+                type: 'pix',
+                pixKey: '37155878661',
+                taxId: '37155878661',
+                accountHolderName: 'Maria da Silva Santos',
+            },
+        });
+
+        const body = captured.body as { account: Record<string, string> };
+        expect(body.account.pixKeyType).toBe('cpf');
+        expect(body.account.firstName).toBe('Maria');
+        expect(body.account.lastName).toBe('da Silva Santos');
+    });
+
+    it('registers a SPEI account: forwards clabe/beneficiary/bankName', async () => {
+        const client = createClient();
+        const captured: { body?: unknown; url?: string } = {};
+        server.use(...stubRegister(captured));
+
+        const result = await client.registerFiatAccount!({
+            customerId: 'cust-1',
+            publicKey: STELLAR_PUBKEY,
+            account: {
+                type: 'spei',
+                clabe: '012180001234567890',
+                bankName: 'BBVA',
+                beneficiary: 'María García',
+            },
+        });
+
+        const body = captured.body as { account: Record<string, string> };
+        expect(body.account.clabe).toBe('012180001234567890');
+        expect(body.account.beneficiary).toBe('María García');
+        expect(body.account.bankName).toBe('BBVA');
+        // PIX-only fields must not leak into a SPEI body.
+        expect(body.account.transactionId).toBeUndefined();
+        expect(body.account.pixKey).toBeUndefined();
+
+        expect(result.type).toBe('SPEI');
+        expect(result.id).toBe('acct-123');
+        expect(result.status).toBe('active');
+    });
+
+    it('falls back to the generated stub id when the response omits accountId', async () => {
+        const client = createClient();
+        let capturedBody: { account: { transactionId: string } } | undefined;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () =>
+                HttpResponse.json({ presigned_url: 'https://onboard.test/session-abc' }),
+            ),
+            http.post(`${BASE_URL}/ramp/bank-account`, async ({ request }) => {
+                capturedBody = (await request.json()) as typeof capturedBody;
+                // Response without accountId/bankAccountId.
+                return HttpResponse.json({ label: '', status: 'active', organizationId: 'org-1' });
+            }),
+        );
+
+        const result = await client.registerFiatAccount!({
+            customerId: 'cust-1',
+            publicKey: STELLAR_PUBKEY,
+            account: {
+                type: 'pix',
+                pixKey: '37155878661',
+                pixKeyType: 'cpf',
+                taxId: '37155878661',
+                accountHolderName: 'João Silva',
+            },
+        });
+
+        // No accountId in the response, so the id is the locally-minted stub UUID.
+        expect(result.id).toEqual(expect.any(String));
+        expect(result.id.length).toBeGreaterThan(0);
+        expect(capturedBody).toBeDefined();
+    });
+
+    it('throws AnchorError on a failed registration', async () => {
+        const client = createClient();
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/onboarding-url`, () =>
+                HttpResponse.json({ presigned_url: 'https://onboard.test/session-abc' }),
+            ),
+            http.post(`${BASE_URL}/ramp/bank-account`, () =>
+                HttpResponse.json(
+                    { error: { code: 'INVALID_ACCOUNT', message: 'Proxy account not found' } },
+                    { status: 400 },
+                ),
+            ),
+        );
+
+        try {
+            await client.registerFiatAccount!({
+                customerId: 'cust-1',
+                publicKey: STELLAR_PUBKEY,
+                account: {
+                    type: 'pix',
+                    pixKey: '37155878661',
+                    pixKeyType: 'cpf',
+                    taxId: '37155878661',
+                    accountHolderName: 'João Silva',
+                },
+            });
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(AnchorError);
+            expect((err as AnchorError).code).toBe('INVALID_ACCOUNT');
+            expect((err as AnchorError).statusCode).toBe(400);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
 // submitKycIdentity()
 // ---------------------------------------------------------------------------
 
@@ -2738,6 +2942,35 @@ describe('submitKycIdentity()', () => {
         expect(body.identity.dateOfBirth).toBe('1990-05-15');
         expect(body.identity.address.country).toBe('MX');
         expect(body.identity.idNumbers[0].type).toBe('CURP');
+    });
+
+    it('forwards email, phoneNumber, and occupation when provided', async () => {
+        const client = createClient();
+        let capturedBody: unknown;
+
+        server.use(
+            http.post(`${BASE_URL}/ramp/customer/cust-kyc-contact/kyc`, async ({ request }) => {
+                capturedBody = await request.json();
+                return HttpResponse.json({ status: 'proposed', message: 'OK' });
+            }),
+        );
+
+        const identityWithContact: EtherfuseKycIdentityRequest = {
+            ...IDENTITY_REQUEST,
+            identity: {
+                ...IDENTITY_REQUEST.identity,
+                email: 'alice@example.com',
+                phoneNumber: '+5511987654321',
+                occupation: 'Software Engineer',
+            },
+        };
+
+        await client.submitKycIdentity('cust-kyc-contact', identityWithContact);
+
+        const body = capturedBody as EtherfuseKycIdentityRequest;
+        expect(body.identity.email).toBe('alice@example.com');
+        expect(body.identity.phoneNumber).toBe('+5511987654321');
+        expect(body.identity.occupation).toBe('Software Engineer');
     });
 
     it('throws AnchorError on 422 validation failure', async () => {
