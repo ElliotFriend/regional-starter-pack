@@ -390,8 +390,8 @@ export interface CreateAccountArgs {
         secondLastname?: string;
         /** Nationality code. */
         nationality?: string;
-        /** `M`, `F`, or `O`. */
-        gender?: 'M' | 'F' | 'O';
+        /** Koywe's Spanish enum: `H` (Hombre/Male), `M` (Mujer/Female), or `O` (Otro/Other). */
+        gender?: 'H' | 'M' | 'O';
     };
 }
 
