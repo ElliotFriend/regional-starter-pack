@@ -42,6 +42,12 @@ export interface KoyweConfig {
      * network-appropriate value (`PUBLIC_USDC_ISSUER`).
      */
     usdcIssuer: string;
+    /**
+     * Log requests, responses, and errors to the console. Off by default —
+     * request bodies include PII (delegated-KYC identity, bank accounts). The
+     * integration secret and JWTs are never logged either way.
+     */
+    debug?: boolean;
 }
 
 /**

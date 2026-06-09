@@ -29,6 +29,11 @@ const koywe = new KoyweClient({
 });
 ```
 
+Optional config:
+
+- `email` — fallback identity for per-user calls (see below).
+- `debug` — log requests, responses, and errors to the console. **Off by default**: request bodies carry PII (delegated-KYC identity, bank accounts), so only enable it where logs are private (e.g. local development). The integration secret and JWTs are never logged either way.
+
 `clientId` doubles as the `metaAccount`; there are no org/merchant path params. Email is **optional** on `POST /rest/auth`, so the client carries no baked-in identity: per-user operations (`createAccount`, `checkAccount`, order creation) take an `email` argument, and the client caches one JWT per email (plus an email-less "app" token for catalogue/quote calls). A single client instance therefore serves many users. The optional `email` config field is only a fallback for those per-user calls.
 
 ## Why `usdcIssuer` is injected

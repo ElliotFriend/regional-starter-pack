@@ -13,6 +13,7 @@
 import { KoyweClient } from '$lib/anchors/koywe';
 import { KOYWE_CLIENT_ID, KOYWE_SECRET, KOYWE_BASE_URL } from '$env/static/private';
 import { PUBLIC_USDC_ISSUER } from '$env/static/public';
+import { dev } from '$app/environment';
 
 let instance: KoyweClient | undefined;
 
@@ -24,6 +25,8 @@ export function getKoywe(): KoyweClient {
             secret: KOYWE_SECRET,
             baseUrl: KOYWE_BASE_URL,
             usdcIssuer: PUBLIC_USDC_ISSUER,
+            // Request/response logging in local dev only — bodies carry PII.
+            debug: dev,
         });
     }
     return instance;

@@ -21,7 +21,8 @@ A focused wrapper around the SEP modules for talking to the test anchor. Returns
 import { TestAnchorRampClient } from 'path/to/anchors/testanchor';
 
 const anchor = new TestAnchorRampClient();
-// Optional config: { domain, networkPassphrase, horizonUrl, fetchFn }
+// Optional config: { domain, networkPassphrase, horizonUrl, fetchFn, debug }
+// `debug` logs request URLs and response statuses to the console (off by default).
 ```
 
 ### SEP-1 discovery

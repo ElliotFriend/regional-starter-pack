@@ -68,6 +68,12 @@ export interface TestAnchorRampClientConfig {
     networkPassphrase?: string;
     horizonUrl?: string;
     fetchFn?: typeof fetch;
+    /**
+     * Log request URLs and response statuses to the console. Off by default.
+     * Note: `toml()` resolves via the SDK's `StellarToml.Resolver`, which has
+     * its own HTTP client, so toml fetches are never logged.
+     */
+    debug?: boolean;
 }
 
 /** Error thrown when the anchor's stellar.toml does not advertise a required SEP. */
@@ -133,7 +139,8 @@ export class TestAnchorRampClient {
         this.domain = config.domain || DEFAULT_DOMAIN;
         this.networkPassphrase = config.networkPassphrase || TESTNET_PASSPHRASE;
         this.horizonUrl = config.horizonUrl || DEFAULT_HORIZON;
-        this.fetchFn = withRequestLogging(config.fetchFn || fetch);
+        const baseFetch = config.fetchFn || fetch;
+        this.fetchFn = config.debug ? withRequestLogging(baseFetch) : baseFetch;
     }
 
     // =========================================================================

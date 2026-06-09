@@ -113,6 +113,16 @@ export class KoyweClient {
         ];
     }
 
+    /** Console-log when `config.debug` is set. Never passed credentials. */
+    private debugLog(...args: unknown[]): void {
+        if (this.config.debug) console.log(...args);
+    }
+
+    /** Console-error when `config.debug` is set. */
+    private debugError(...args: unknown[]): void {
+        if (this.config.debug) console.error(...args);
+    }
+
     // =========================================================================
     // Discovery
     // =========================================================================
@@ -538,7 +548,7 @@ export class KoyweClient {
     ): Promise<T> {
         const token = await this.authToken(email);
         const url = `${this.config.baseUrl}${endpoint}`;
-        console.log(`[Koywe] ${method} ${url}`, body ? JSON.stringify(body) : '');
+        this.debugLog(`[Koywe] ${method} ${url}`, body ? JSON.stringify(body) : '');
 
         const response = await fetch(url, {
             method,
@@ -551,7 +561,7 @@ export class KoyweClient {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[Koywe] Error ${response.status}:`, errorText);
+            this.debugError(`[Koywe] Error ${response.status}:`, errorText);
 
             let parsed: KoyweErrorResponse | undefined;
             try {
@@ -574,7 +584,7 @@ export class KoyweClient {
         }
 
         const text = await response.text();
-        console.log(`[Koywe] Response:`, text || '(empty)');
+        this.debugLog(`[Koywe] Response:`, text || '(empty)');
         if (!text) return undefined as T;
         return JSON.parse(text) as T;
     }

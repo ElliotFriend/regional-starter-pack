@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { TestAnchorRampClient, TestAnchorSepUnsupportedError } from '$lib/anchors/testanchor';
@@ -421,5 +421,51 @@ describe('SEP-24 interactive ramps', () => {
 
         const client = createClient();
         await expect(client.getSep24Transaction(TOKEN, 'missing')).resolves.toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// debug logging
+// ---------------------------------------------------------------------------
+
+describe('debug logging', () => {
+    // toml() resolves via the SDK's StellarToml.Resolver, which has its own
+    // HTTP client — only calls routed through `fetchFn` (e.g. SEP-10) log.
+    function mockChallenge(): void {
+        server.use(
+            http.get(AUTH, () =>
+                HttpResponse.json({
+                    transaction: 'AAAAAGmocked',
+                    network_passphrase: 'Test SDF Network ; September 2015',
+                }),
+            ),
+        );
+    }
+
+    it('is silent by default — request URLs never hit the console', async () => {
+        const client = createClient();
+        mockToml();
+        mockChallenge();
+        vi.mocked(console.log).mockClear();
+        await client.getChallenge(USER_PUBKEY);
+        expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('logs request URLs and response statuses when debug is enabled', async () => {
+        const client = new TestAnchorRampClient({
+            horizonUrl: HORIZON,
+            fetchFn: fetch,
+            debug: true,
+        });
+        mockToml();
+        mockChallenge();
+        vi.mocked(console.log).mockClear();
+        await client.getChallenge(USER_PUBKEY);
+        const logged = vi
+            .mocked(console.log)
+            .mock.calls.map((call) => call.join(' '))
+            .join('\n');
+        expect(logged).toContain(`[TestAnchor] GET ${AUTH}`);
+        expect(logged).toContain('[TestAnchor] Response (200)');
     });
 });

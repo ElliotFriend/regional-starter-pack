@@ -76,8 +76,8 @@ API-key anchors (Etherfuse) never expose their key. SEP-10 tokens travel via the
 
 ### Adding a new curated anchor
 
-1. Create `src/lib/anchors/<name>/{client,types,index}.ts` shaped however the anchor's API works. No interface to satisfy. Define your own error class.
-2. Create `src/lib/server/<name>Instance.ts` — singleton getter that reads env vars.
+1. Create `src/lib/anchors/<name>/{client,types,index}.ts` shaped however the anchor's API works. No interface to satisfy. Define your own error class. Give the config a `debug?: boolean` flag (default off) that gates ALL console logging — log everything (requests, responses, errors) when set, nothing when not, and never log credentials even in debug. Cover both behaviors with tests (see the `debug logging` blocks in existing anchor tests).
+2. Create `src/lib/server/<name>Instance.ts` — singleton getter that reads env vars. Pass `debug: dev` (from `$app/environment`) so the client logs in local dev and stays quiet in production.
 3. Create `src/lib/api/<name>.ts` — client-side fetch wrappers per route. Mirror the per-provider shape from `etherfuse.ts` / `testanchor.ts`.
 4. Create `src/routes/api/anchor/<name>/<operation>/+server.ts` per operation.
 5. Create `src/routes/anchors/<name>/+page.svelte` (landing) and `<name>/<flow>/+page.svelte` per flow. Compose primitives from `src/lib/components/`. Don't try to share flow logic with another anchor in this PR — let it duplicate.

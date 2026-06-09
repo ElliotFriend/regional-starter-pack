@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { KoyweClient, KoyweError } from '$lib/anchors/koywe';
@@ -729,5 +729,70 @@ describe('error handling', () => {
             expect(e.code).toBe('KoyweBadRequest');
             expect(e.message).toContain('amountIn is required');
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// debug logging
+// ---------------------------------------------------------------------------
+
+describe('debug logging', () => {
+    function createDebugClient() {
+        return new KoyweClient({
+            clientId: CLIENT_ID,
+            secret: SECRET,
+            baseUrl: BASE_URL,
+            usdcIssuer: USDC_ISSUER,
+            debug: true,
+        });
+    }
+
+    it('is silent by default — requests and responses never hit the console', async () => {
+        const client = createClient();
+        mockAuth();
+        mockProviders();
+        vi.mocked(console.log).mockClear();
+        await client.getPaymentProviders('ARS');
+        expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('is silent by default on API errors too', async () => {
+        const client = createClient();
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/payment-providers`, () =>
+                HttpResponse.json({ message: 'nope', error: 'BAD' }, { status: 400 }),
+            ),
+        );
+        vi.mocked(console.error).mockClear();
+        await expect(client.getPaymentProviders('ARS')).rejects.toThrow();
+        expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it('logs requests and responses when debug is enabled', async () => {
+        const client = createDebugClient();
+        mockAuth();
+        mockProviders();
+        vi.mocked(console.log).mockClear();
+        await client.getPaymentProviders('ARS');
+        const logged = vi
+            .mocked(console.log)
+            .mock.calls.map((call) => call.join(' '))
+            .join('\n');
+        expect(logged).toContain(`[Koywe] GET ${BASE_URL}/rest/payment-providers`);
+        expect(logged).toContain('WIREAR');
+    });
+
+    it('never logs the integration secret, even with debug enabled', async () => {
+        const client = createDebugClient();
+        mockAuth();
+        mockProviders();
+        vi.mocked(console.log).mockClear();
+        await client.getPaymentProviders('ARS');
+        const logged = vi
+            .mocked(console.log)
+            .mock.calls.map((call) => call.join(' '))
+            .join('\n');
+        expect(logged).not.toContain(SECRET);
     });
 });

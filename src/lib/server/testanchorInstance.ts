@@ -3,13 +3,15 @@
  */
 
 import { TestAnchorRampClient } from '$lib/anchors/testanchor';
+import { dev } from '$app/environment';
 
 let instance: TestAnchorRampClient | undefined;
 
 /** Lazily-instantiated TestAnchorRampClient. */
 export function getTestAnchor(): TestAnchorRampClient {
     if (!instance) {
-        instance = new TestAnchorRampClient();
+        // Request logging in local dev only.
+        instance = new TestAnchorRampClient({ debug: dev });
     }
     return instance;
 }
