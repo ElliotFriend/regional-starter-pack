@@ -106,6 +106,21 @@ export class EtherfuseClient {
         this.blockchain = config.defaultBlockchain || 'stellar';
     }
 
+    /** Console-log when `config.debug` is set. Never passed the API key. */
+    private debugLog(...args: unknown[]): void {
+        if (this.config.debug) console.log(...args);
+    }
+
+    /** Console-warn when `config.debug` is set. */
+    private debugWarn(...args: unknown[]): void {
+        if (this.config.debug) console.warn(...args);
+    }
+
+    /** Console-error when `config.debug` is set. */
+    private debugError(...args: unknown[]): void {
+        if (this.config.debug) console.error(...args);
+    }
+
     // =========================================================================
     // Customer
     // =========================================================================
@@ -145,6 +160,14 @@ export class EtherfuseClient {
                 bankAccountId,
                 publicKey: args.publicKey,
                 blockchain: this.blockchain,
+                ...(args.email
+                    ? {
+                          userInfo: {
+                              email: args.email,
+                              displayName: args.displayName || args.email,
+                          },
+                      }
+                    : {}),
             });
 
             const now = new Date().toISOString();
@@ -163,7 +186,7 @@ export class EtherfuseClient {
                 const match = err.message.match(/see org:\s*([0-9a-f-]+)/i);
                 if (match) {
                     const existingCustomerId = match[1];
-                    console.log(
+                    this.debugLog(
                         `[Etherfuse] Public key already registered, using existing customer: ${existingCustomerId}`,
                     );
 
@@ -174,7 +197,7 @@ export class EtherfuseClient {
                             existingBankAccountId = accounts[0].id;
                         }
                     } catch (bankErr) {
-                        console.warn(
+                        this.debugWarn(
                             `[Etherfuse] Could not fetch bank accounts for recovered customer:`,
                             bankErr,
                         );
@@ -254,6 +277,14 @@ export class EtherfuseClient {
                 bankAccountId: resolvedBankAccountId,
                 publicKey: args.publicKey,
                 blockchain: this.blockchain,
+                ...(args.email
+                    ? {
+                          userInfo: {
+                              email: args.email,
+                              displayName: args.displayName || args.email,
+                          },
+                      }
+                    : {}),
             },
         );
         return response.presigned_url;
@@ -371,6 +402,12 @@ export class EtherfuseClient {
             // number (500) — `<input type="number">` bindings can leak numbers
             // even though the type signature says string, so coerce here.
             sourceAmount: String(args.sourceAmount),
+            // On-ramp only: pass the destination wallet so the quote fee can
+            // cover one-time account / trustline onboarding for new Stellar
+            // wallets. Off-ramps deposit to a bank, so walletAddress is omitted.
+            ...(type === 'onramp' && args.stellarAddress
+                ? { walletAddress: args.stellarAddress }
+                : {}),
         });
 
         return {
@@ -440,8 +477,8 @@ export class EtherfuseClient {
             stellarAddress: args.publicKey,
             deposit: buildDepositInstructions({
                 depositClabe: onramp.depositClabe,
-                bankName: onramp.bankName,
-                beneficiary: onramp.beneficiary,
+                bankName: onramp.depositBankName,
+                beneficiary: onramp.depositAccountHolder || onramp.beneficiary,
                 depositPixKey: onramp.depositPixKey,
                 depositPixKeyType: onramp.depositPixKeyType,
                 depositPixCode: onramp.depositPixCode,
@@ -496,6 +533,7 @@ export class EtherfuseClient {
             publicKey: args.publicKey,
             quoteId: args.quoteId,
             memo: args.memo || undefined,
+            ...(args.useAnchor ? { useAnchor: true } : {}),
         });
 
         const { offramp } = response;
@@ -513,6 +551,11 @@ export class EtherfuseClient {
             stellarAddress: args.publicKey,
             bankAccountId: args.bankAccountId,
             burnTransaction: undefined,
+            // Anchor mode returns the payment target up-front (no burn XDR to poll for).
+            isAnchorOrder: args.useAnchor || undefined,
+            anchorAccount: offramp.withdrawAnchorAccount ?? undefined,
+            anchorMemo: offramp.withdrawMemo ?? undefined,
+            anchorMemoType: offramp.withdrawMemoType ?? undefined,
             createdAt: now,
             updatedAt: now,
         };
@@ -563,7 +606,9 @@ export class EtherfuseClient {
                     id: account.bankAccountId,
                     rail: isPix ? 'pix' : 'spei',
                     accountIdentifier: isPix ? (account.pixKey ?? '') : (account.abbrClabe ?? ''),
-                    accountHolderName: account.accountHolderName,
+                    // The documented bank-account shape carries the holder name in
+                    // `label`; `accountHolderName` is a speculative Brazil field.
+                    accountHolderName: account.label ?? account.accountHolderName ?? undefined,
                     status: account.status,
                     compliant: account.compliant,
                     createdAt: account.createdAt,
@@ -608,7 +653,7 @@ export class EtherfuseClient {
      */
     async simulateFiatReceived(orderId: string): Promise<number> {
         const url = `${this.config.baseUrl}/ramp/order/fiat_received`;
-        console.log(`[Etherfuse] POST ${url}`, JSON.stringify({ orderId }));
+        this.debugLog(`[Etherfuse] POST ${url}`, JSON.stringify({ orderId }));
 
         const response = await fetch(url, {
             method: 'POST',
@@ -620,7 +665,7 @@ export class EtherfuseClient {
         });
 
         const text = await response.text();
-        console.log(`[Etherfuse] Response (${response.status}):`, text || '(empty)');
+        this.debugLog(`[Etherfuse] Response (${response.status}):`, text || '(empty)');
 
         return response.status;
     }
@@ -662,7 +707,7 @@ export class EtherfuseClient {
         body?: unknown,
     ): Promise<T> {
         const url = `${this.config.baseUrl}${endpoint}`;
-        console.log(`[Etherfuse] ${method} ${url}`, body ? JSON.stringify(body) : '');
+        this.debugLog(`[Etherfuse] ${method} ${url}`, body ? JSON.stringify(body) : '');
 
         const response = await fetch(url, {
             method,
@@ -675,7 +720,7 @@ export class EtherfuseClient {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[Etherfuse] Error ${response.status}:`, errorText);
+            this.debugError(`[Etherfuse] Error ${response.status}:`, errorText);
 
             let errorData: EtherfuseErrorResponse = {
                 error: { code: 'UNKNOWN_ERROR', message: '' },
@@ -694,7 +739,7 @@ export class EtherfuseClient {
         }
 
         const text = await response.text();
-        console.log(`[Etherfuse] Response:`, text || '(empty)');
+        this.debugLog(`[Etherfuse] Response:`, text || '(empty)');
 
         if (!text) {
             return undefined as T;
@@ -758,6 +803,8 @@ function mapOnRampOrder(response: EtherfuseOrderResponse): EtherfuseOnRampOrder 
         feeAmountInFiat: response.feeAmountInFiat,
         deposit: buildDepositInstructions({
             depositClabe: response.depositClabe,
+            bankName: response.depositBankName ?? undefined,
+            beneficiary: response.depositAccountHolder ?? undefined,
             depositPixKey: response.depositPixKey,
             depositPixKeyType: response.depositPixKeyType,
             depositPixCode: response.depositPixCode,
@@ -765,6 +812,8 @@ function mapOnRampOrder(response: EtherfuseOrderResponse): EtherfuseOnRampOrder 
             currency: '',
         }),
         confirmedTxSignature: response.confirmedTxSignature,
+        stellarClaimableBalanceId: response.stellarClaimableBalanceId ?? undefined,
+        stellarClaimTransaction: response.stellarClaimTransaction ?? undefined,
         statusPage: response.statusPage,
         memo: response.memo,
         createdAt: response.createdAt,
@@ -787,6 +836,10 @@ function mapOffRampOrder(response: EtherfuseOrderResponse): EtherfuseOffRampOrde
         feeBps: response.feeBps,
         feeAmountInFiat: response.feeAmountInFiat,
         burnTransaction: response.burnTransaction,
+        isAnchorOrder: response.isAnchorOrder ?? undefined,
+        anchorAccount: response.withdrawAnchorAccount ?? undefined,
+        anchorMemo: response.withdrawMemo ?? undefined,
+        anchorMemoType: response.withdrawMemoType ?? undefined,
         confirmedTxSignature: response.confirmedTxSignature,
         statusPage: response.statusPage,
         memo: response.memo,

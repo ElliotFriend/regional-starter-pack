@@ -280,7 +280,8 @@
         const updated = await ef.getOffRampOrder(fetch, order.id);
         if (!updated) return;
         order = updated;
-        if (updated.status === 'completed') {
+        // `completed` = fiat sent; `finalized` = reversal window passed. Both terminal.
+        if (updated.status === 'completed' || updated.status === 'finalized') {
             step = 'complete';
             stop();
         } else if (

@@ -93,7 +93,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
-                text: 'Support for PIX ramping in Brazil is currently Sandbox only, and not documented all that well. The Etherfuse API is baseline working for this, but is a bit of a work-in-progress still.',
+                text: "Brazil support (BRL ↔ TESOURO over PIX) is underway and undocumented: Etherfuse's published FX API and OpenAPI spec currently cover only Mexico (MXN ↔ CETES over SPEI) plus USD-denominated stablecoins (USDC, EURC). The Brazil/PIX request and response shapes in this client are speculative and unverified against a live environment.",
             },
             {
                 text: 'If you try to create your customers through API calls, submitting the various "agreements" via POST requests to Etherfuse currently fails with a 406 error. This blocks customer KYC via these API methods. The Onboarding URL approach still works.',

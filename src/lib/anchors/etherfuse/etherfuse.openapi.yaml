@@ -1,0 +1,4449 @@
+openapi: 3.1.0
+info:
+  title: FX API
+  version: 1.0.0
+  description: |
+    API for managing FX operations including onboarding, quotes, orders, and customer management.
+    This API provides endpoints for managing customers, bank accounts, crypto wallets, orders, and webhooks.
+
+servers:
+  - url: https://api.etherfuse.com
+    description: Production API
+  - url: https://api.sand.etherfuse.com
+    description: Sandbox API (for testing)
+
+tags:
+  - name: Lookup
+    description: Public endpoints for looking up stablebond and exchange rate data
+  - name: Assets
+    description: Get available assets for ramping
+  - name: Onboarding
+    description: Customer onboarding and KYC
+  - name: Bank Accounts
+    description: Manage customer bank accounts
+  - name: Agreements
+    description: Handle customer agreements and consents
+  - name: Quotes
+    description: Get quotes for conversions
+  - name: Orders
+    description: Create and manage orders
+  - name: Swaps
+    description: Create and manage swaps
+  - name: Customers
+    description: Manage customers
+  - name: Crypto Wallets
+    description: Manage crypto wallets
+  - name: Webhooks
+    description: Manage webhook subscriptions
+  - name: Organizations
+    description: Manage organizations and child organizations
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'API key for authentication. Pass the key directly (e.g., `Authorization: your-api-key`). Do not use a `Bearer` prefix.'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+      example:
+        error: 'Invalid request parameters'
+
+    RampableAsset:
+      type: object
+      properties:
+        symbol:
+          type: string
+          description: Token symbol (e.g., "CETES", "USDC")
+        identifier:
+          type: string
+          description: Chain-specific identifier to use in quotes (e.g., "CETES:GCRYUGD5..." for Stellar)
+        name:
+          type: string
+          description: Display name for the asset
+        currency:
+          type: string
+          description: The fiat currency this asset is associated with (e.g., "mxn" for CETES, "usd" for USDC)
+        balance:
+          type: string
+          nullable: true
+          description: Balance in the wallet (if available)
+        image:
+          type: string
+          nullable: true
+          description: Image URL for the asset
+
+    Customer:
+      type: object
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: Unique identifier for the customer
+        displayName:
+          type: string
+          nullable: true
+          description: Display name of the customer
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the customer was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the customer was last updated
+      example:
+        customerId: '123e4567-e89b-12d3-a456-426614174000'
+        displayName: 'John Doe'
+        createdAt: '2024-01-01T00:00:00Z'
+        updatedAt: '2024-01-01T00:00:00Z'
+
+    BankAccount:
+      type: object
+      properties:
+        bankAccountId:
+          type: string
+          format: uuid
+          description: Unique identifier for the bank account. Must be a valid UUID v4.
+        customerId:
+          type: string
+          format: uuid
+          description: ID of the customer who owns this bank account
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the bank account was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the bank account was last updated
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the bank account was deleted (if applicable)
+        abbrClabe:
+          type: string
+          description: Abbreviated CLABE number for the bank account
+        etherfuseDepositClabe:
+          type: string
+          nullable: true
+          description: Etherfuse deposit CLABE number
+        label:
+          type: string
+          nullable: true
+          description: Custom label for the bank account
+        compliant:
+          type: boolean
+          description: Whether the bank account is compliant. This is a derived value — true if the account has been explicitly marked compliant OR if the owning organization is approved (KYB'd).
+        status:
+          type: string
+          enum: [pending, awaitingDepositVerification, active, inactive]
+          description: Current status of the bank account
+      example:
+        bankAccountId: '123e4567-e89b-12d3-a456-426614174000'
+        customerId: '123e4567-e89b-12d3-a456-426614174001'
+        createdAt: '2024-01-01T00:00:00Z'
+        updatedAt: '2024-01-01T00:00:00Z'
+        abbrClabe: '1234...5678'
+        compliant: true
+        status: 'active'
+
+    Wallet:
+      type: object
+      properties:
+        walletId:
+          type: string
+          format: uuid
+          description: Unique identifier for the wallet
+        customerId:
+          type: string
+          format: uuid
+          description: ID of the customer who owns this wallet
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the wallet was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the wallet was last updated
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the wallet was deleted (if applicable)
+        displayName:
+          type: string
+          nullable: true
+          description: Display name for the wallet
+        publicKey:
+          type: string
+          description: Public key of the wallet
+        blockchain:
+          type: string
+          enum: [solana, stellar, base, polygon, monad]
+          description: Blockchain type
+        isAuthenticated:
+          type: boolean
+          description: Whether the wallet is authenticated
+        kycStatus:
+          type: string
+          nullable: true
+          description: Current KYC verification status for the wallet. The `approved_chain_deploying` status indicates the user is approved but waiting for on-chain marking (Solana only).
+          enum: [not_started, proposed, approved, approved_chain_deploying, rejected]
+        kycOnChain:
+          type: boolean
+          nullable: true
+          description: Whether KYC is marked on-chain for the wallet. Only present for Solana wallets; for other blockchain types this field is omitted as on-chain KYC marking does not apply.
+        claimedOwnership:
+          type: boolean
+          nullable: true
+          description: Whether the wallet has active claimed ownership by the organization. When true and the organization is approved, the wallet is treated as compliant without requiring individual KYC. Only present when claimed ownership has been set.
+      example:
+        walletId: '123e4567-e89b-12d3-a456-426614174000'
+        customerId: '123e4567-e89b-12d3-a456-426614174001'
+        createdAt: '2024-01-01T00:00:00Z'
+        updatedAt: '2024-01-01T00:00:00Z'
+        publicKey: '9Qx7r...'
+        blockchain: 'solana'
+        isAuthenticated: true
+        kycStatus: 'approved'
+        kycOnChain: true
+        claimedOwnership: true
+
+    CreateOrderResponse:
+      type: object
+      description: |
+        Response when creating an order. The response is wrapped in either an "onramp" or "offramp" key
+        depending on the order direction (derived from the quote).
+      oneOf:
+        - type: object
+          title: Onramp Response
+          properties:
+            onramp:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                  format: uuid
+                  description: Unique identifier for the order
+                depositClabe:
+                  type: string
+                  description: CLABE number where customer should deposit MXN
+                depositAmount:
+                  type: number
+                  format: decimal
+                  description: Amount in MXN the customer should deposit
+                depositBankName:
+                  type: string
+                  description: Bank that holds the deposit CLABE (e.g. "STP")
+                depositAccountHolder:
+                  type: string
+                  description: Account holder name for the deposit CLABE (e.g. "Etherfuse MX")
+        - type: object
+          title: Offramp Response
+          properties:
+            offramp:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                  format: uuid
+                  description: Unique identifier for the order
+                withdrawAnchorAccount:
+                  type: string
+                  nullable: true
+                  description: 'Stellar anchor account address to send payment to (only present when useAnchor is true)'
+                withdrawMemo:
+                  type: string
+                  nullable: true
+                  description: 'Base64-encoded hash memo to include in the payment transaction (only present when useAnchor is true)'
+                withdrawMemoType:
+                  type: string
+                  nullable: true
+                  description: 'Memo type — always "hash" for anchor orders (only present when useAnchor is true)'
+      examples:
+        onramp:
+          summary: Onramp order response
+          value:
+            onramp:
+              orderId: '123e4567-e89b-12d3-a456-426614174000'
+              depositClabe: '646180157034567890'
+              depositAmount: 1000.00
+              depositBankName: 'STP'
+              depositAccountHolder: 'Etherfuse MX'
+        offramp:
+          summary: Offramp order response
+          value:
+            offramp:
+              orderId: '123e4567-e89b-12d3-a456-426614174000'
+        offramp_anchor:
+          summary: Offramp anchor order response (Stellar only)
+          value:
+            offramp:
+              orderId: '123e4567-e89b-12d3-a456-426614174000'
+              withdrawAnchorAccount: 'GABPM7AXXSE27X3NIN5IVSFCW5AWQLF3RFGUZCW3USNFRZCHLU6CC3SN'
+              withdrawMemo: 'RkFLRU1FTU8xMjM0NTY3ODkw...'
+              withdrawMemoType: 'hash'
+
+    Order:
+      type: object
+      description: |
+        Order object returned in webhooks and when fetching order details.
+        This is the payload you'll receive in `order_updated` webhook events.
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Unique identifier for the order
+        customerId:
+          type: string
+          format: uuid
+          description: Organization ID associated with the order. In webhook payloads, this is the recipient organization's ID.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the order was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the order was last updated
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the order was deleted (if applicable)
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the order was completed
+        amountInFiat:
+          type: number
+          format: decimal
+          nullable: true
+          description: Amount in fiat currency (MXN)
+        amountInTokens:
+          type: number
+          format: decimal
+          nullable: true
+          description: Amount in crypto tokens
+        confirmedTxSignature:
+          type: string
+          nullable: true
+          description: Blockchain transaction hash when crypto transfer is confirmed
+        walletId:
+          type: string
+          format: uuid
+          description: ID of the wallet used for the order
+        bankAccountId:
+          type: string
+          format: uuid
+          description: ID of the bank account used for the order
+        burnTransaction:
+          type: string
+          nullable: true
+          description: Encoded transaction for the user to sign (offramp orders)
+        isAnchorOrder:
+          type: boolean
+          nullable: true
+          description: 'Whether this order uses anchor mode (Stellar only)'
+        withdrawAnchorAccount:
+          type: string
+          nullable: true
+          description: 'Stellar anchor account address to send payment to (anchor mode only)'
+        withdrawMemo:
+          type: string
+          nullable: true
+          description: 'Base64-encoded hash memo to include in the payment (anchor mode only)'
+        withdrawMemoType:
+          type: string
+          nullable: true
+          description: 'Memo type for anchor payments — always "hash" (anchor mode only)'
+        memo:
+          type: string
+          nullable: true
+          description: Optional memo for the order
+        depositClabe:
+          type: string
+          nullable: true
+          description: CLABE number for deposit (onramp orders only)
+        depositBankName:
+          type: string
+          nullable: true
+          description: Bank that holds the deposit CLABE, e.g. "STP" (onramp orders only)
+        depositAccountHolder:
+          type: string
+          nullable: true
+          description: Account holder name for the deposit CLABE, e.g. "Etherfuse MX" (onramp orders only)
+        orderType:
+          type: string
+          enum: [onramp, offramp]
+          description: Type of the order
+        status:
+          type: string
+          enum: [created, funded, completed, finalized, failed, refunded, canceled]
+          description: Current status of the order. For offramps, `completed` means fiat has been sent to the customer. `finalized` means the reversal window has passed and the funds cannot be returned.
+        statusPage:
+          type: string
+          format: uri
+          description: URL to an Etherfuse-branded page where the customer can view order status and sign transactions (for offramps). Can be used as an alternative to handling transaction signing in your application.
+        feeBps:
+          type: integer
+          nullable: true
+          description: Fee in basis points (e.g., 20 = 0.20%)
+        feeAmountInFiat:
+          type: number
+          format: decimal
+          nullable: true
+          description: Actual fee amount collected in fiat currency
+        exchangeRate:
+          type: string
+          nullable: true
+          description: >-
+            Fee-inclusive exchange rate between source and target assets at the
+            time of order creation. This is the rate the user actually received.
+            For example, if a user exchanged MXN for CETES with a fee, this
+            reflects the rate after the fee was applied. Null for historical
+            orders created before this field was added.
+        etherfuseMidMarketRate:
+          type: string
+          nullable: true
+          description: >-
+            Raw mid-market rate before fees. For stablebond ramps, this is the
+            bond price (e.g., MXN per CETE). For FX ramps, this is the forex
+            mid-market rate between the underlying fiat currencies. Null for
+            historical orders.
+        sourceAsset:
+          type: string
+          nullable: true
+          description: >-
+            Source asset identifier for this order. For onramps, this is the
+            fiat currency (e.g., "MXN"). For offramps, this is the crypto
+            asset identifier.
+        targetAsset:
+          type: string
+          nullable: true
+          description: >-
+            Target asset identifier for this order. For onramps, this is the
+            crypto asset identifier. For offramps, this is the fiat currency
+            (e.g., "MXN").
+        stellarClaimableBalanceId:
+          type: string
+          nullable: true
+          description: |
+            Stellar claimable balance ID (hex). Present on completed Stellar onramp orders
+            where the wallet required setup (no account or no trustline). The user must
+            sign a claim transaction to receive their tokens. See `stellarClaimTransaction`.
+        stellarClaimTransaction:
+          type: string
+          nullable: true
+          description: |
+            Unsigned Stellar transaction XDR (base64-encoded). Present on completed Stellar
+            onramp orders that used the claimable balance flow. Contains `ChangeTrust` and
+            `ClaimClaimableBalance` operations. The user signs this with their wallet and
+            submits it to Horizon to add the trustline and claim their tokens in one step.
+        partnerFeeBps:
+          type: integer
+          nullable: true
+          description: Partner fee in basis points applied to this order (e.g., 100 = 1.00%). Only present when a partner fee was configured at quote time.
+        partnerFeeAmountFiat:
+          type: number
+          format: decimal
+          nullable: true
+          description: Partner fee amount collected in fiat currency. Derived from the total fee using the partner fee ratio.
+        partnerFeeStatus:
+          type: string
+          enum: [none, pending, disbursed]
+          nullable: true
+          description: |
+            Disbursement status of the partner fee. Only present when `partnerFeeBps` > 0.
+            - `none` — Order not yet completed
+            - `pending` — Order completed, partner fee awaiting offline disbursement
+            - `disbursed` — Partner fee has been paid out
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the webhook
+        eventType:
+          type: string
+          enum:
+            [
+              bank_account_updated,
+              customer_updated,
+              order_updated,
+              quote_updated,
+              swap_updated,
+              kyc_updated,
+            ]
+          description: Type of event the webhook is subscribed to
+        url:
+          type: string
+          format: uri
+          description: URL where webhook events will be sent
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the webhook was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the webhook was last updated
+      example:
+        id: '123e4567-e89b-12d3-a456-426614174000'
+        eventType: 'order_updated'
+        url: 'https://example.com/webhook'
+        createdAt: '2024-01-01T00:00:00Z'
+        updatedAt: '2024-01-01T00:00:00Z'
+
+    WebhookEvent:
+      type: object
+      description: |
+        Webhook payload sent to your registered webhook URL.
+        The payload is signed with HMAC-SHA256 using your webhook secret.
+        Signature is in the `X-Signature` header as `sha256={hex_signature}`.
+
+        The payload uses a tagged format where the event type is the key and the data is the value:
+        - `{"order_updated": {...}}` for order events
+        - `{"swap_updated": {...}}` for swap events
+        - `{"customer_updated": {...}}` for customer events
+        - `{"bank_account_updated": {...}}` for bank account events
+
+        The `status` field inside the data indicates the specific state (e.g., "created", "funded", "completed", "finalized").
+
+        For `order_updated` events, all organizations involved in the order receive their own webhook delivery with `customerId` set to the recipient organization's ID.
+      properties:
+        order_updated:
+          $ref: '#/components/schemas/Order'
+        swap_updated:
+          $ref: '#/components/schemas/SwapResponse'
+        customer_updated:
+          $ref: '#/components/schemas/Customer'
+        bank_account_updated:
+          $ref: '#/components/schemas/BankAccount'
+      examples:
+        order_created:
+          summary: Onramp order created
+          value:
+            order_updated:
+              orderId: '123e4567-e89b-12d3-a456-426614174000'
+              customerId: '123e4567-e89b-12d3-a456-426614174001'
+              walletId: '223e4567-e89b-12d3-a456-426614174002'
+              bankAccountId: '323e4567-e89b-12d3-a456-426614174003'
+              orderType: 'onramp'
+              status: 'created'
+              amountInFiat: 1000.00
+              depositClabe: '646180157034567890'
+              depositBankName: 'STP'
+              depositAccountHolder: 'Etherfuse MX'
+              createdAt: '2025-01-15T10:00:00Z'
+              updatedAt: '2025-01-15T10:00:00Z'
+              statusPage: 'https://status.etherfuse.com/order/123e4567-e89b-12d3-a456-426614174000'
+        order_funded:
+          summary: Onramp order funded (fiat received)
+          value:
+            order_updated:
+              orderId: '123e4567-e89b-12d3-a456-426614174000'
+              customerId: '123e4567-e89b-12d3-a456-426614174001'
+              walletId: '223e4567-e89b-12d3-a456-426614174002'
+              bankAccountId: '323e4567-e89b-12d3-a456-426614174003'
+              orderType: 'onramp'
+              status: 'funded'
+              amountInFiat: 1000.00
+              amountInTokens: 49.50
+              depositClabe: '646180157034567890'
+              depositBankName: 'STP'
+              depositAccountHolder: 'Etherfuse MX'
+              feeBps: 20
+              feeAmountInFiat: 2.00
+              exchangeRate: '0.0495'
+              etherfuseMidMarketRate: '0.0497'
+              sourceAsset: 'MXN'
+              targetAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              createdAt: '2025-01-15T10:00:00Z'
+              updatedAt: '2025-01-15T10:05:00Z'
+              statusPage: 'https://status.etherfuse.com/order/123e4567-e89b-12d3-a456-426614174000'
+        order_completed:
+          summary: Onramp order completed (crypto sent)
+          value:
+            order_updated:
+              orderId: '123e4567-e89b-12d3-a456-426614174000'
+              customerId: '123e4567-e89b-12d3-a456-426614174001'
+              walletId: '223e4567-e89b-12d3-a456-426614174002'
+              bankAccountId: '323e4567-e89b-12d3-a456-426614174003'
+              orderType: 'onramp'
+              status: 'completed'
+              amountInFiat: 1000.00
+              amountInTokens: 49.50
+              confirmedTxSignature: '3Kz8V2x...abc123'
+              depositClabe: '646180157034567890'
+              depositBankName: 'STP'
+              depositAccountHolder: 'Etherfuse MX'
+              feeBps: 20
+              feeAmountInFiat: 2.00
+              exchangeRate: '0.0495'
+              etherfuseMidMarketRate: '0.0497'
+              sourceAsset: 'MXN'
+              targetAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              createdAt: '2025-01-15T10:00:00Z'
+              updatedAt: '2025-01-15T10:10:00Z'
+              completedAt: '2025-01-15T10:10:00Z'
+              statusPage: 'https://status.etherfuse.com/order/123e4567-e89b-12d3-a456-426614174000'
+        offramp_created:
+          summary: Offramp order created (waiting for crypto)
+          value:
+            order_updated:
+              orderId: '423e4567-e89b-12d3-a456-426614174000'
+              customerId: '123e4567-e89b-12d3-a456-426614174001'
+              walletId: '223e4567-e89b-12d3-a456-426614174002'
+              bankAccountId: '323e4567-e89b-12d3-a456-426614174003'
+              orderType: 'offramp'
+              status: 'created'
+              amountInTokens: 50.00
+              burnTransaction: 'AQAAAA...encoded_tx'
+              exchangeRate: '20.10'
+              etherfuseMidMarketRate: '20.14'
+              sourceAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              targetAsset: 'MXN'
+              createdAt: '2025-01-15T10:00:00Z'
+              updatedAt: '2025-01-15T10:00:00Z'
+              statusPage: 'https://status.etherfuse.com/order/423e4567-e89b-12d3-a456-426614174000'
+        swap_created:
+          summary: Swap created (waiting for user to sign)
+          value:
+            swap_updated:
+              orderId: '523e4567-e89b-12d3-a456-426614174000'
+              customerId: '123e4567-e89b-12d3-a456-426614174001'
+              sendTransaction: 'AQAAAA...encoded_transaction_for_user_to_sign'
+              sendTransactionHash: ''
+              status: 'created'
+              createdAt: '2025-01-15T10:00:00Z'
+              updatedAt: '2025-01-15T10:00:00Z'
+        swap_completed:
+          summary: Swap completed
+          value:
+            swap_updated:
+              orderId: '523e4567-e89b-12d3-a456-426614174000'
+              customerId: '123e4567-e89b-12d3-a456-426614174001'
+              sendTransaction: 'AQAAAA...encoded_tx'
+              sendTransactionHash: '4Lz9W3yZn0...def456'
+              receiveTransactionHash: '5Mz0X4zAo1...ghi789'
+              status: 'completed'
+              createdAt: '2025-01-15T10:00:00Z'
+              updatedAt: '2025-01-15T10:02:00Z'
+
+    PagedRequest:
+      type: object
+      properties:
+        filters:
+          type: object
+          nullable: true
+          description: Optional filters for the request
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of items per page
+        pageNumber:
+          type: integer
+          minimum: 0
+          description: Page number (0-based)
+      example:
+        pageSize: 10
+        pageNumber: 0
+
+    PagedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+          description: Array of items in the current page
+        totalItems:
+          type: integer
+          description: Total number of items
+        pageSize:
+          type: integer
+          description: Number of items per page
+        pageNumber:
+          type: integer
+          description: Current page number
+        totalPages:
+          type: integer
+          description: Total number of pages
+      example:
+        items: []
+        totalItems: 0
+        pageSize: 10
+        pageNumber: 0
+        totalPages: 0
+
+    PresignedUrlPayload:
+      type: object
+      description: |
+        Payload containing a presigned URL for user authentication.
+        The presigned URL serves as the authentication mechanism for the end user and contains
+        cryptographically signed claims (customer ID, wallet public key, organization ID).
+      properties:
+        presignedUrl:
+          type: string
+          description: |
+            Presigned URL obtained from `POST /ramp/onboarding-url`. This URL authenticates
+            the end user and authorizes actions on their behalf.
+      required:
+        - presignedUrl
+      example:
+        presignedUrl: 'https://devnet.etherfuse.com/onboarding?token=eyJhbGciOiJIUzI1NiIs...'
+
+    CustomerAgreementPayload:
+      type: object
+      description: |
+        Payload for accepting the customer agreement. The presigned URL authenticates the end user
+        who will be bound by the agreement.
+      properties:
+        presignedUrl:
+          type: string
+          description: |
+            Presigned URL obtained from `POST /ramp/onboarding-url`. This URL authenticates
+            the end user and authorizes them to accept the agreement.
+        customerInfo:
+          type: object
+          nullable: true
+          description: |
+            Optional customer information. When using programmatic KYC, this field may be omitted
+            since identity data was already submitted via the KYC endpoints.
+      required:
+        - presignedUrl
+      example:
+        presignedUrl: 'https://devnet.etherfuse.com/onboarding?token=eyJhbGciOiJIUzI1NiIs...'
+
+    AgreementResponse:
+      type: object
+      description: Response confirming an agreement has been recorded
+      properties:
+        success:
+          type: boolean
+          description: Whether the agreement was successfully recorded
+        acceptedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the agreement was accepted
+        agreementType:
+          type: string
+          description: Type of agreement accepted
+          enum: [electronic_signature, terms_and_conditions, customer_agreement]
+      example:
+        success: true
+        acceptedAt: '2024-01-15T10:00:00Z'
+        agreementType: 'customer_agreement'
+
+    UserInfo:
+      type: object
+      description: |
+        Optional info about the end user (the individual customer behind a personal organization).
+
+        **Recommended.** When provided, Etherfuse pre-creates the user record so that when the
+        customer eventually signs in via the hosted onboarding UI their Firebase identity attaches
+        to the right user. It also enables personalized status-change emails (KYC approved/rejected,
+        bank account verified, etc.).
+
+        **Will eventually be required** for personal organizations. Reject early in your integration
+        if you don't have this data — partners that don't migrate before the cutover will start
+        receiving 400 errors.
+      required:
+        - email
+        - displayName
+      properties:
+        email:
+          type: string
+          format: email
+          description: End user's email address.
+        displayName:
+          type: string
+          description: End user's display name.
+      example:
+        email: 'ana@example.com'
+        displayName: 'Ana García'
+
+    GenerateOnboardingUrlPayload:
+      type: object
+      required:
+        - customerId
+        - bankAccountId
+        - publicKey
+        - blockchain
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: Customer ID. This id is generated by you, the API consumer, and provided to etherfuse as a way to associate this customer with your organization.
+        bankAccountId:
+          type: string
+          format: uuid
+          description: Bank account ID. This id is generated by you, the API consumer, and provided to etherfuse as a way to associate this bank account with the customer.
+        publicKey:
+          type: string
+          description: Public key for the customer wallet
+        blockchain:
+          type: string
+          enum: [solana, stellar, base, polygon, monad]
+          description: Blockchain type for the wallet
+        userInfo:
+          $ref: '#/components/schemas/UserInfo'
+      example:
+        customerId: '123e4567-e89b-12d3-a456-426614174000'
+        bankAccountId: '123e4567-e89b-12d3-a456-426614174001'
+        publicKey: '9Qx7r...'
+        blockchain: 'solana'
+        userInfo:
+          email: 'ana@example.com'
+          displayName: 'Ana García'
+
+    OrderPreviewPayload:
+      type: object
+      properties:
+        amountFiat:
+          type: number
+          format: decimal
+          nullable: true
+          description: Amount in fiat currency
+        amountCrypto:
+          type: number
+          format: decimal
+          nullable: true
+          description: Amount in crypto currency
+        direction:
+          type: string
+          enum: [onramp, offramp]
+          description: Transaction direction
+      example:
+        amountFiat: 100.00
+        direction: 'onramp'
+
+    CreateOrderPayload:
+      type: object
+      required:
+        - orderId
+        - bankAccountId
+        - quoteId
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Client-generated order ID
+        bankAccountId:
+          type: string
+          format: uuid
+          description: Bank account ID for the fiat leg
+        publicKey:
+          type: string
+          nullable: true
+          description: Customer's crypto wallet address. Required if `cryptoWalletId` is not provided.
+        cryptoWalletId:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID of a registered crypto wallet. If provided, `publicKey` is optional and will be resolved from the wallet record.
+        quoteId:
+          type: string
+          format: uuid
+          description: Quote ID from a previous /ramp/quote call. The order will use the blockchain, direction, and amounts from the quote.
+        memo:
+          type: string
+          nullable: true
+          description: Optional memo for the transaction
+        useAnchor:
+          type: boolean
+          default: false
+          description: |
+            When `true`, the order uses **anchor mode** (Stellar only). Instead of returning a pre-signed `burnTransaction`,
+            the response includes `withdrawAnchorAccount`, `withdrawMemo`, and `withdrawMemoType`. Your application builds
+            and submits the payment transaction directly to the anchor account with the provided memo.
+
+            Only valid for **Stellar offramp** orders. Requests with `useAnchor: true` on non-Stellar blockchains will be rejected.
+      example:
+        orderId: '123e4567-e89b-12d3-a456-426614174000'
+        bankAccountId: '123e4567-e89b-12d3-a456-426614174001'
+        publicKey: 'GDUKMGUGD3V6VXTU2RLAUM7A2FABLMHCPWTMDHKP7HHJ6FCZKEY4PVWL'
+        quoteId: '844393ca-be57-4817-a58a-5b60e2792c06'
+
+    QuoteRequest:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+          description: Unique identifier for the quote
+        customerId:
+          type: string
+          format: uuid
+          description: ID of the customer requesting the quote
+        blockchain:
+          type: string
+          enum: [stellar, solana, base, polygon, monad]
+          description: Blockchain for the quote
+        quoteAssets:
+          oneOf:
+            - type: object
+              title: Onramp
+              properties:
+                type:
+                  type: string
+                  enum: [onramp]
+                  description: Type of quote (onramp - fiat to crypto)
+                sourceAsset:
+                  type: string
+                  enum: [MXN]
+                  description: Source asset code (fiat currency)
+                targetAsset:
+                  type: string
+                  description: Target asset identifier with issuer (e.g., USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+              required:
+                - type
+                - sourceAsset
+                - targetAsset
+            - type: object
+              title: Offramp
+              properties:
+                type:
+                  type: string
+                  enum: [offramp]
+                  description: Type of quote (offramp - crypto to fiat)
+                sourceAsset:
+                  type: string
+                  description: Source asset identifier with issuer (e.g., USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+                targetAsset:
+                  type: string
+                  enum: [MXN]
+                  description: Target asset code (fiat currency)
+              required:
+                - type
+                - sourceAsset
+                - targetAsset
+            - type: object
+              title: Swap
+              properties:
+                type:
+                  type: string
+                  enum: [swap]
+                  description: Type of quote (swap - crypto to crypto)
+                sourceAsset:
+                  type: string
+                  description: Source asset identifier with issuer (e.g., USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+                targetAsset:
+                  type: string
+                  description: Target asset identifier with issuer (e.g., CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC)
+              required:
+                - type
+                - sourceAsset
+                - targetAsset
+          discriminator:
+            propertyName: type
+          description: Quote assets configuration based on quote type
+        sourceAmount:
+          type: string
+          description: Amount of the source asset
+        walletAddress:
+          type: string
+          nullable: true
+          description: |
+            Public key of the destination wallet. Optional but recommended for Stellar onramps.
+            When provided for Stellar onramp quotes, the system checks whether the wallet has an
+            on-chain account and trustline. If setup is needed (new account or missing trustline),
+            the fee will include a one-time onboarding cost to fund the wallet. Without this field,
+            the quote assumes the wallet is already set up.
+        partnerFeeBps:
+          type: integer
+          minimum: 0
+          maximum: 500
+          description: |
+            Optional partner fee override in basis points (0–500). If provided, this value is used
+            as the partner fee for this quote instead of the organization's default. Only applies
+            when the organization has partner fees enabled.
+      required:
+        - quoteId
+        - customerId
+        - blockchain
+        - quoteAssets
+        - sourceAmount
+      examples:
+        onramp_mxn_to_usdc:
+          summary: Onramp MXN to USDC
+          value:
+            quoteId: '844393ca-be57-4817-a58a-5b60e2792c10'
+            customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'onramp'
+              sourceAsset: 'MXN'
+              targetAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+            sourceAmount: '1000'
+        onramp_stellar_new_wallet:
+          summary: Onramp MXN to USDC (new Stellar wallet)
+          value:
+            quoteId: 'd44393ca-be57-4817-a58a-5b60e2792c15'
+            customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'onramp'
+              sourceAsset: 'MXN'
+              targetAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+            sourceAmount: '1000'
+            walletAddress: 'GDUKMGUGD3V6VXTU2RLAUM7A2FABLMHCPWTMDHKP7HHJ6FCZKEY4PVWL'
+        onramp_mxn_to_cetes:
+          summary: Onramp MXN to CETES
+          value:
+            quoteId: '944393ca-be57-4817-a58a-5b60e2792c11'
+            customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'onramp'
+              sourceAsset: 'MXN'
+              targetAsset: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+            sourceAmount: '1000'
+        offramp_usdc_to_mxn:
+          summary: Offramp USDC to MXN
+          value:
+            quoteId: 'a44393ca-be57-4817-a58a-5b60e2792c12'
+            customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'offramp'
+              sourceAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              targetAsset: 'MXN'
+            sourceAmount: '50'
+        offramp_cetes_to_mxn:
+          summary: Offramp CETES to MXN
+          value:
+            quoteId: 'b44393ca-be57-4817-a58a-5b60e2792c13'
+            customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'offramp'
+              sourceAsset: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+              targetAsset: 'MXN'
+            sourceAmount: '100'
+        swap_usdc_to_cetes:
+          summary: Swap USDC to CETES
+          value:
+            quoteId: 'c44393ca-be57-4817-a58a-5b60e2792c14'
+            customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'swap'
+              sourceAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              targetAsset: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+            sourceAmount: '100'
+
+    QuoteResponse:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+          description: Unique identifier for the quote
+        blockchain:
+          type: string
+          enum: [stellar, solana, base, polygon, monad]
+          description: Blockchain for the quote
+        quoteAssets:
+          oneOf:
+            - type: object
+              title: Onramp
+              properties:
+                type:
+                  type: string
+                  enum: [onramp]
+                  description: Type of quote (onramp - fiat to crypto)
+                sourceAsset:
+                  type: string
+                  enum: [MXN]
+                  description: Source asset code (fiat currency)
+                targetAsset:
+                  type: string
+                  description: Target asset identifier with issuer (e.g., USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+              required:
+                - type
+                - sourceAsset
+                - targetAsset
+            - type: object
+              title: Offramp
+              properties:
+                type:
+                  type: string
+                  enum: [offramp]
+                  description: Type of quote (offramp - crypto to fiat)
+                sourceAsset:
+                  type: string
+                  description: Source asset identifier with issuer (e.g., USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+                targetAsset:
+                  type: string
+                  enum: [MXN]
+                  description: Target asset code (fiat currency)
+              required:
+                - type
+                - sourceAsset
+                - targetAsset
+            - type: object
+              title: Swap
+              properties:
+                type:
+                  type: string
+                  enum: [swap]
+                  description: Type of quote (swap - crypto to crypto)
+                sourceAsset:
+                  type: string
+                  description: Source asset identifier with issuer (e.g., USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN)
+                targetAsset:
+                  type: string
+                  description: Target asset identifier with issuer (e.g., CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC)
+              required:
+                - type
+                - sourceAsset
+                - targetAsset
+          discriminator:
+            propertyName: type
+        sourceAmount:
+          type: string
+          description: Amount of the source asset
+        destinationAmount:
+          type: string
+          description: Amount of the destination asset after conversion
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the quote was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the quote was last updated
+        expiresAt:
+          type: string
+          format: date-time
+          description: Timestamp when the quote expires
+        exchangeRate:
+          type: string
+          description: >-
+            Fee-inclusive exchange rate between source and destination assets.
+            This is the rate the user will actually receive — fees are already
+            reflected in this rate. Multiply by sourceAmount to get
+            destinationAmount.
+        etherfuseMidMarketRate:
+          type: string
+          nullable: true
+          description: >-
+            Raw mid-market rate before fees. For stablebond ramps, this is the
+            bond price. For FX ramps, this is the forex mid-market rate between
+            the underlying fiat currencies.
+        feeBps:
+          type: string
+          nullable: true
+          description: Fee in basis points (e.g., "20" = 0.20%)
+        feeAmount:
+          type: string
+          nullable: true
+          description: Fee amount in source asset currency
+        destinationAmountAfterFee:
+          type: string
+          nullable: true
+          description: Amount the user actually receives after fees are deducted
+        partnerFeeBps:
+          type: integer
+          nullable: true
+          description: Partner fee in basis points applied to this quote (e.g., 100 = 1.00%). Only present when a partner fee is configured for the requesting organization.
+        partnerFeeAmount:
+          type: string
+          nullable: true
+          description: Partner fee amount in source asset currency. Only present when a partner fee is configured.
+      required:
+        - quoteId
+        - blockchain
+        - quoteAssets
+        - sourceAmount
+        - destinationAmount
+        - createdAt
+        - updatedAt
+        - expiresAt
+        - exchangeRate
+      examples:
+        onramp_mxn_to_usdc:
+          summary: Onramp MXN to USDC
+          value:
+            quoteId: '844393ca-be57-4817-a58a-5b60e2792c10'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'onramp'
+              sourceAsset: 'MXN'
+              targetAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+            sourceAmount: '1000'
+            destinationAmount: '49.50'
+            destinationAmountAfterFee: '49.40'
+            feeBps: '20'
+            feeAmount: '2.00'
+            createdAt: '2025-12-17T18:29:46.190163520Z'
+            updatedAt: '2025-12-17T18:29:46.190163520Z'
+            expiresAt: '2025-12-17T18:31:46.195307961Z'
+            exchangeRate: '0.0495'
+            etherfuseMidMarketRate: '0.0497'
+        onramp_mxn_to_cetes:
+          summary: Onramp MXN to CETES
+          value:
+            quoteId: '944393ca-be57-4817-a58a-5b60e2792c11'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'onramp'
+              sourceAsset: 'MXN'
+              targetAsset: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+            sourceAmount: '1000'
+            destinationAmount: '999.00'
+            destinationAmountAfterFee: '997.00'
+            feeBps: '20'
+            feeAmount: '2.00'
+            createdAt: '2025-12-17T18:29:46.190163520Z'
+            updatedAt: '2025-12-17T18:29:46.190163520Z'
+            expiresAt: '2025-12-17T18:31:46.195307961Z'
+            exchangeRate: '0.997'
+            etherfuseMidMarketRate: '0.999'
+        offramp_usdc_to_mxn:
+          summary: Offramp USDC to MXN
+          value:
+            quoteId: 'a44393ca-be57-4817-a58a-5b60e2792c12'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'offramp'
+              sourceAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              targetAsset: 'MXN'
+            sourceAmount: '50'
+            destinationAmount: '1000.00'
+            destinationAmountAfterFee: '998.00'
+            feeBps: '20'
+            feeAmount: '1.00'
+            createdAt: '2025-12-17T18:29:46.190163520Z'
+            updatedAt: '2025-12-17T18:29:46.190163520Z'
+            expiresAt: '2025-12-17T18:31:46.195307961Z'
+            exchangeRate: '19.96'
+            etherfuseMidMarketRate: '20.00'
+        offramp_cetes_to_mxn:
+          summary: Offramp CETES to MXN
+          value:
+            quoteId: 'b44393ca-be57-4817-a58a-5b60e2792c13'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'offramp'
+              sourceAsset: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+              targetAsset: 'MXN'
+            sourceAmount: '100'
+            destinationAmount: '100.10'
+            destinationAmountAfterFee: '99.90'
+            feeBps: '20'
+            feeAmount: '0.20'
+            createdAt: '2025-12-17T18:29:46.190163520Z'
+            updatedAt: '2025-12-17T18:29:46.190163520Z'
+            expiresAt: '2025-12-17T18:31:46.195307961Z'
+            exchangeRate: '0.999'
+            etherfuseMidMarketRate: '1.001'
+        swap_usdc_to_cetes:
+          summary: Swap USDC to CETES
+          value:
+            quoteId: 'c44393ca-be57-4817-a58a-5b60e2792c14'
+            blockchain: 'stellar'
+            quoteAssets:
+              type: 'swap'
+              sourceAsset: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+              targetAsset: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+            sourceAmount: '100'
+            destinationAmount: '1580.50'
+            destinationAmountAfterFee: '1577.34'
+            feeBps: '20'
+            feeAmount: '0.20'
+            createdAt: '2025-12-17T18:29:46.190163520Z'
+            updatedAt: '2025-12-17T18:29:46.190163520Z'
+            expiresAt: '2025-12-17T18:31:46.195307961Z'
+            exchangeRate: '15.7734'
+            etherfuseMidMarketRate: '15.8050614'
+
+    SwapPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Order ID for the swap (generated by the client)
+        quoteId:
+          type: string
+          format: uuid
+          description: Quote ID to use for the swap
+        publicKey:
+          type: string
+          description: Source wallet public key for the swap
+        blockchain:
+          type: string
+          enum: [stellar, solana, base, polygon, monad]
+          description: Blockchain type for the swap
+        targetWallet:
+          type: string
+          nullable: true
+          description: Target wallet address for the swap. If not provided, defaults to publicKey.
+      required:
+        - orderId
+        - quoteId
+        - publicKey
+        - blockchain
+      example:
+        orderId: '123e4567-e89b-12d3-a456-426614174000'
+        quoteId: '844393ca-be57-4817-a58a-5b60e2792c06'
+        publicKey: 'GDUKMGUGD3V6VXTU2RLAUM7A2FABLMHCPWTMDHKP7HHJ6FCZKEY4PVWL'
+        blockchain: 'stellar'
+
+    SwapResponse:
+      type: object
+      description: |
+        Swap response payload sent via the `swap_updated` webhook.
+        This is not returned directly from the POST /ramp/swap endpoint (which returns an empty body).
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Unique identifier for the swap order
+        customerId:
+          type: string
+          format: uuid
+          description: ID of the customer who initiated the swap
+        sendTransaction:
+          type: string
+          description: Encoded transaction for the user to sign and submit
+        sendTransactionHash:
+          type: string
+          description: Transaction hash of the send transaction once submitted
+        receiveTransactionHash:
+          type: string
+          nullable: true
+          description: Transaction hash of the receive transaction (if applicable)
+        status:
+          type: string
+          enum: [created, funded, completed, failed]
+          description: Current status of the swap
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the swap was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the swap was last updated
+      required:
+        - orderId
+        - customerId
+        - sendTransaction
+        - sendTransactionHash
+        - status
+        - createdAt
+        - updatedAt
+      example:
+        orderId: '123e4567-e89b-12d3-a456-426614174000'
+        customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+        sendTransaction: 'AQAAAA...encoded_tx'
+        sendTransactionHash: '3Kz8V2x...abc123'
+        receiveTransactionHash: '4Lz9W3y...def456'
+        status: 'completed'
+        createdAt: '2025-01-15T10:00:00Z'
+        updatedAt: '2025-01-15T10:05:00Z'
+
+    KycSubmissionRequest:
+      type: object
+      description: Request body for submitting KYC identity data programmatically
+      required:
+        - identity
+      properties:
+        pubkey:
+          type: string
+          description: Public key of the wallet to submit KYC for. Optional — if omitted, KYC is attached at the organization level.
+        identity:
+          type: object
+          description: User identity information
+          properties:
+            name:
+              type: object
+              properties:
+                givenName:
+                  type: string
+                  description: First/given name
+                familyName:
+                  type: string
+                  description: Last/family name
+            dateOfBirth:
+              type: string
+              format: date
+              description: Date of birth (YYYY-MM-DD)
+            address:
+              type: object
+              properties:
+                street:
+                  type: string
+                city:
+                  type: string
+                region:
+                  type: string
+                  description: State or region
+                postalCode:
+                  type: string
+                country:
+                  type: string
+                  description: ISO 3166-1 alpha-2 country code (e.g., "MX")
+            idNumbers:
+              type: array
+              description: Government ID numbers
+              items:
+                type: object
+                properties:
+                  value:
+                    type: string
+                    description: ID number (tax ID, national ID, etc.)
+                  type:
+                    type: string
+                    description: Type of ID (e.g., "RFC", "CURP", "SSN")
+      example:
+        pubkey: '9Qx7r...'
+        identity:
+          name:
+            givenName: 'John'
+            familyName: 'Doe'
+          dateOfBirth: '1990-01-15'
+          address:
+            street: '123 Main St'
+            city: 'Mexico City'
+            region: 'CDMX'
+            postalCode: '06600'
+            country: 'MX'
+          idNumbers:
+            - value: 'XAXX010101000'
+              type: 'RFC'
+
+    KycDocumentUploadRequest:
+      type: object
+      description: Request body for uploading KYC identity documents
+      required:
+        - documentType
+        - images
+      properties:
+        pubkey:
+          type: string
+          description: Public key of the wallet to upload documents for. Optional — if omitted, documents are attached at the organization level.
+        documentType:
+          type: string
+          enum: [document, selfie]
+          description: Type of document being uploaded (government ID or selfie photo)
+        images:
+          type: array
+          description: Array of images as data URLs (JPEG or PNG, max 10MB each)
+          items:
+            type: object
+            required:
+              - label
+              - image
+            properties:
+              label:
+                type: string
+                description: Label for the image (e.g., "id_front", "id_back", "selfie")
+              image:
+                type: string
+                description: Data URL containing base64-encoded image (e.g., "data:image/jpeg;base64,/9j/4AAQ...")
+      example:
+        pubkey: '9Qx7r...'
+        documentType: 'document'
+        images:
+          - label: 'id_front'
+            image: 'data:image/jpeg;base64,/9j/4AAQSkZJRg...'
+          - label: 'id_back'
+            image: 'data:image/jpeg;base64,/9j/4AAQSkZJRg...'
+
+    KycStatusResponse:
+      type: object
+      description: KYC status and submission details for a customer's wallet
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: Customer ID
+        walletPublicKey:
+          type: string
+          description: Wallet public key
+        status:
+          type: string
+          enum: [not_started, proposed, approved, approved_chain_deploying, rejected]
+          description: Current KYC status. The `approved_chain_deploying` status indicates approval is complete but on-chain marking is in progress (Solana only).
+        onChainMarked:
+          type: boolean
+          nullable: true
+          description: Whether KYC is marked on the blockchain. Only present for Solana wallets.
+        currentRejectionReason:
+          type: string
+          nullable: true
+          description: Reason for rejection (if status is rejected)
+        selfies:
+          type: array
+          description: Selfie verification images submitted by this partner
+          items:
+            $ref: '#/components/schemas/ProofOfIdentityContent'
+        documents:
+          type: array
+          description: Identity documents submitted by this partner
+          items:
+            $ref: '#/components/schemas/ProofOfIdentityDocument'
+        currentKycInfo:
+          $ref: '#/components/schemas/ProofOfIdentityUserInfo'
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when KYC was approved
+      example:
+        customerId: '123e4567-e89b-12d3-a456-426614174000'
+        walletPublicKey: '9Qx7r...'
+        status: 'approved'
+        onChainMarked: true
+        currentRejectionReason: null
+        selfies: []
+        documents: []
+        currentKycInfo:
+          id: 'info-123'
+          email: 'juan@example.com'
+          phoneNumber: '+521234567890'
+          dateOfBirth: '1990-05-15'
+          name:
+            givenName: 'Juan'
+            familyName: 'Garcia'
+          address:
+            street: 'Av. Reforma 123'
+            city: 'Mexico City'
+            region: 'CDMX'
+            postalCode: '06600'
+            country: 'MX'
+          idNumbers:
+            - value: 'GAJU900515HDFRNN09'
+              type: 'CURP'
+        approvedAt: '2024-01-01T00:00:00Z'
+
+    ProofOfIdentityContent:
+      type: object
+      description: A KYC verification content item (selfie or document image set)
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this content
+        type:
+          type: string
+          description: Content type (e.g., "selfie", "document")
+        contentLabel:
+          type: string
+          nullable: true
+          description: Label for the content
+        status:
+          type: string
+          enum: [approved, rejected, proposed]
+          description: Review status of this content
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the content was submitted
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the content was approved
+        rejectedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the content was rejected
+        rejectedReason:
+          type: string
+          nullable: true
+          description: Reason for rejection
+        ipAddress:
+          type: string
+          nullable: true
+          description: IP address of submitter
+        images:
+          type: array
+          nullable: true
+          description: Image URLs for this content
+          items:
+            $ref: '#/components/schemas/ImageInfo'
+        videoURL:
+          type: string
+          nullable: true
+          description: Video URL if applicable
+
+    ProofOfIdentityDocument:
+      type: object
+      description: A KYC identity document with extracted data
+      allOf:
+        - $ref: '#/components/schemas/ProofOfIdentityContent'
+        - type: object
+          properties:
+            extractedData:
+              $ref: '#/components/schemas/ProofOfIdentityUserInfo'
+              nullable: true
+              description: Data extracted from the document via OCR
+
+    ProofOfIdentityUserInfo:
+      type: object
+      description: Identity information for a user
+      properties:
+        id:
+          type: string
+          description: Unique identifier
+        walletId:
+          type: string
+          nullable: true
+          description: Associated wallet ID
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Organization that owns this data
+        email:
+          type: string
+          nullable: true
+          description: Email address
+        useEmailForMarketing:
+          type: boolean
+          nullable: true
+          description: Marketing email consent
+        phoneNumber:
+          type: string
+          nullable: true
+          description: Phone number
+        dateOfBirth:
+          type: string
+          nullable: true
+          description: Date of birth (YYYY-MM-DD)
+        name:
+          $ref: '#/components/schemas/ProofOfIdentityName'
+          nullable: true
+        address:
+          $ref: '#/components/schemas/ProofOfIdentityAddress'
+          nullable: true
+        idNumbers:
+          type: array
+          description: Government ID numbers
+          items:
+            $ref: '#/components/schemas/ProofOfIdentityIdNumber'
+        occupation:
+          type: string
+          nullable: true
+          description: Occupation
+        identificationType:
+          type: string
+          nullable: true
+          description: Type of identification used
+        sourceOrganizationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Organization that submitted this data
+
+    ProofOfIdentityName:
+      type: object
+      description: User's name information
+      properties:
+        givenName:
+          type: string
+          description: First name
+        familyName:
+          type: string
+          description: Last name
+        middleName:
+          type: string
+          nullable: true
+          description: Middle name
+        motherMaidenName:
+          type: string
+          nullable: true
+          description: Mother's maiden name
+        preferredName:
+          type: string
+          nullable: true
+          description: Preferred name
+      required:
+        - givenName
+        - familyName
+
+    ProofOfIdentityAddress:
+      type: object
+      description: User's address information
+      properties:
+        street:
+          type: string
+          nullable: true
+          description: Street address line 1
+        street2:
+          type: string
+          nullable: true
+          description: Street address line 2
+        city:
+          type: string
+          nullable: true
+          description: City
+        region:
+          type: string
+          nullable: true
+          description: State/region/province
+        postalCode:
+          type: string
+          nullable: true
+          description: Postal/ZIP code
+        country:
+          type: string
+          description: Country code (ISO 3166-1 alpha-2)
+      required:
+        - country
+
+    ProofOfIdentityIdNumber:
+      type: object
+      description: Government ID number
+      properties:
+        value:
+          type: string
+          description: The ID number value
+        type:
+          type: string
+          description: Type of ID (e.g., "CURP", "INE", "passport")
+      required:
+        - value
+        - type
+
+    ImageInfo:
+      type: object
+      description: Image information with URL and label
+      properties:
+        imageURL:
+          type: string
+          description: URL to access the image
+        label:
+          type: string
+          description: Label for the image (e.g., "id_front", "id_back", "selfie")
+      required:
+        - imageURL
+        - label
+
+    KycUpdateWebhookPayload:
+      type: object
+      description: Webhook payload sent when KYC status changes for a customer's wallet
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: ID of the customer whose KYC status changed
+        walletPublicKey:
+          type: string
+          description: Public key of the wallet
+        approved:
+          type: boolean
+          description: Whether the KYC is now approved
+        updateReason:
+          type: string
+          nullable: true
+          description: Reason for the KYC status update (e.g., rejection reason)
+      example:
+        customerId: '123e4567-e89b-12d3-a456-426614174000'
+        walletPublicKey: '9Qx7r...'
+        approved: true
+        updateReason: 'KYC approved by admin'
+
+    CreateWebhookRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Webhook ID
+        eventType:
+          type: string
+          enum: [bank_account_updated, customer_updated, order_updated, swap_updated, kyc_updated]
+          description: Type of event to subscribe to
+        url:
+          type: string
+          format: uri
+          description: URL where webhook events will be sent
+      example:
+        id: '123e4567-e89b-12d3-a456-426614174000'
+        eventType: 'order_updated'
+        url: 'https://example.com/webhook'
+
+    CreateWebhookResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Webhook ID
+        eventType:
+          type: string
+          enum: [bank_account_updated, customer_updated, order_updated, swap_updated, kyc_updated]
+          description: Type of event the webhook is subscribed to
+        url:
+          type: string
+          format: uri
+          description: URL where webhook events will be sent
+        secret:
+          type: string
+          description: Webhook secret for signing events
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the webhook was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the webhook was last updated
+      example:
+        id: '123e4567-e89b-12d3-a456-426614174000'
+        eventType: 'order_updated'
+        url: 'https://example.com/webhook'
+        secret: 'base64_encoded_secret'
+        createdAt: '2024-01-01T00:00:00Z'
+        updatedAt: '2024-01-01T00:00:00Z'
+
+    # =========================================================================
+    # Account Registration Schemas
+    # =========================================================================
+
+    PersonalAccountRegistration:
+      type: object
+      description: Personal bank account registration data
+      required:
+        - transactionId
+        - firstName
+        - paternalLastName
+        - maternalLastName
+        - birthDate
+        - curp
+        - rfc
+        - clabe
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+          description: Unique transaction ID for this registration
+        firstName:
+          type: string
+          description: Account holder's first name
+        paternalLastName:
+          type: string
+          description: Account holder's paternal last name
+        maternalLastName:
+          type: string
+          description: Account holder's maternal last name
+        birthDate:
+          type: string
+          description: Date of birth in YYYYMMDD format
+          example: '19900101'
+        birthCountryIsoCode:
+          type: string
+          description: ISO 3166-1 alpha-2 country code for birth country. Defaults to MX if omitted.
+          example: 'MX'
+        birthCountryId:
+          type: string
+          description: Legacy numeric country ID. Prefer birthCountryIsoCode instead.
+          deprecated: true
+        curp:
+          type: string
+          description: Mexican CURP (Clave Única de Registro de Población)
+        rfc:
+          type: string
+          description: Mexican RFC (Registro Federal de Contribuyentes)
+        clabe:
+          type: string
+          description: 18-digit CLABE number (digits only, no letters or special characters)
+      example:
+        transactionId: '123e4567-e89b-12d3-a456-426614174000'
+        firstName: 'Juan'
+        paternalLastName: 'García'
+        maternalLastName: 'López'
+        birthDate: '19900101'
+        birthCountryIsoCode: 'MX'
+        curp: 'GALJ900101HDFRRN09'
+        rfc: 'GALJ9001016V3'
+        clabe: '012345678901234567'
+
+    BusinessAccountRegistration:
+      type: object
+      description: Business bank account registration data
+      required:
+        - transactionId
+        - name
+        - incorporatedDate
+        - rfc
+        - clabe
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+          description: Unique transaction ID for this registration
+        name:
+          type: string
+          description: Business legal name
+        countryIsoCode:
+          type: string
+          description: ISO 3166-1 alpha-2 country code. Defaults to MX if omitted.
+          example: 'MX'
+        countryId:
+          type: string
+          description: Legacy numeric country ID. Prefer countryIsoCode instead.
+          deprecated: true
+        incorporatedDate:
+          type: string
+          description: Date of incorporation in YYYYMMDD format
+          example: '20100315'
+        rfc:
+          type: string
+          description: Mexican RFC (Registro Federal de Contribuyentes)
+        clabe:
+          type: string
+          description: 18-digit CLABE number (digits only, no letters or special characters)
+
+    AccountRegistration:
+      oneOf:
+        - $ref: '#/components/schemas/PersonalAccountRegistration'
+        - $ref: '#/components/schemas/BusinessAccountRegistration'
+      description: |
+        Bank account registration data. Accepts either Personal or Business format.
+        The variant is auto-detected based on the fields present (untagged union).
+
+    # =========================================================================
+    # Lookup Schemas
+    # =========================================================================
+
+    StablebondsLookupResponse:
+      type: object
+      properties:
+        calculatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when supply data was calculated
+        stablebonds:
+          type: array
+          items:
+            $ref: '#/components/schemas/StablebondInfo'
+
+    StablebondInfo:
+      type: object
+      properties:
+        symbol:
+          type: string
+          description: Token symbol (e.g., "CETES", "USTRY")
+        netAmountDecimal:
+          type: string
+          description: Net token amount across all chains after adjustments
+        netValueDecimal:
+          type: string
+          description: Net value in bond currency (net_amount * token_price)
+        bondCurrency:
+          type: string
+          description: Bond's native currency (e.g., "MXN", "USD")
+        tokenPriceDecimal:
+          type: string
+          description: Current token price in bond currency
+        purchaseOrderAmount:
+          type: string
+          description: Tokens from matured purchase orders (not yet minted)
+        redeemOrderAmount:
+          type: string
+          description: Tokens from unredeemed divestments (already paid but not burned)
+        blockchains:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockchainSupply'
+          description: Per-chain supply breakdown
+        solanaMintAddress:
+          type: string
+          description: Solana address of the stablebond mint (core identifier)
+
+    BlockchainSupply:
+      type: object
+      properties:
+        blockchain:
+          type: string
+          enum: [solana, stellar, base, polygon]
+          description: Blockchain name
+        tokenIdentifier:
+          type: string
+          description: Chain-specific token identifier
+        totalSupply:
+          type: string
+          description: Total supply on this chain
+        notCountedVaultedAmount:
+          type: string
+          nullable: true
+          description: Amount vaulted and not counted in circulating supply
+
+    BondCostSource:
+      type: object
+      properties:
+        exchange_rate:
+          type: string
+          description: This provider's USD-to-fiat exchange rate
+        bond_cost_in_usd:
+          type: string
+          description: Bond cost in USD derived from this provider's exchange rate
+        updated_at:
+          type: integer
+          description: Unix timestamp of when this provider's rate was last updated
+
+    BondCost:
+      type: object
+      properties:
+        bond_cost_in_payment_token:
+          type: string
+          deprecated: true
+          description: Bond cost in fiat (deprecated, same as bond_cost_in_fiat)
+        bond_cost_in_usd:
+          type: string
+          description: Bond cost in USD using the aggregated exchange rate
+        fiat_exchange_rate_with_usd:
+          type: string
+          description: Aggregated USD-to-fiat exchange rate used for the primary bond_cost_in_usd calculation
+        bond_cost_in_fiat:
+          type: string
+          description: Bond cost in the bond's native fiat currency
+        current_basis_points:
+          type: integer
+          description: Current interest rate in basis points
+        bond_symbol:
+          type: string
+          description: Bond symbol (e.g., CETES, USTRY, GILTS)
+        currency:
+          type: string
+          description: Fiat currency code (e.g., MXN, USD, EUR)
+        current_time:
+          type: string
+          description: ISO 8601 timestamp of when this price was computed
+        mint:
+          type: string
+          description: Payment token mint address (e.g., USDC mint)
+        symbol:
+          type: string
+          description: Payment token symbol (e.g., USDC)
+        sources:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/BondCostSource'
+          description: Per-provider exchange rate data with derived bond_cost_in_usd for each provider
+
+paths:
+  /ramp/me:
+    get:
+      tags:
+        - Lookup
+      summary: Get current organization identity
+      description: |
+        Returns the identity of the organization associated with the current API key.
+        Useful for verifying which organization your API key belongs to.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Organization identity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: Organization ID
+                  displayName:
+                    type: string
+                    description: Display name of the organization
+                  approvedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Timestamp when the organization was approved (KYB complete)
+                  partnerFeeDefaultBps:
+                    type: integer
+                    minimum: 0
+                    maximum: 500
+                    description: Default partner fee in basis points applied to quotes for this organization. 0 means no partner fee.
+              example:
+                id: '123e4567-e89b-12d3-a456-426614174000'
+                displayName: 'Acme Corp'
+                approvedAt: '2024-06-15T10:00:00Z'
+                partnerFeeDefaultBps: 0
+
+  /ramp/assets:
+    get:
+      tags:
+        - Assets
+      summary: Get rampable assets
+      description: |
+        Returns all rampable stablecoins (e.g., USDC, EURC) and stablebonds (e.g., CETES) available on the specified blockchain.
+        The `currency` parameter controls sort priority — assets matching the requested currency appear first in the list, but all rampable assets for the chain are always returned.
+        Use the `identifier` from the response when creating quotes.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: blockchain
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [stellar, solana, base, polygon, monad]
+          description: The blockchain to get assets for
+        - name: currency
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Fiat currency used for sort priority — assets associated with this currency appear first (e.g., "mxn")
+        - name: wallet
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The wallet address to fetch balances for
+      responses:
+        '200':
+          description: Assets retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RampableAsset'
+              example:
+                assets:
+                  - symbol: 'CETES'
+                    identifier: 'CETES:GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO203IQZTHDHH4LATMYWC'
+                    name: 'CETES'
+                    currency: 'mxn'
+                    balance: '50.00'
+                    image: 'https://example.com/cetes.png'
+                  - symbol: 'USDC'
+                    identifier: 'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+                    name: 'USD Coin'
+                    currency: 'usd'
+                    balance: '100.50'
+                    image: 'https://example.com/usdc.png'
+                  - symbol: 'EURC'
+                    identifier: 'EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP'
+                    name: 'Euro Coin'
+                    currency: 'eur'
+                    balance: '25.00'
+                    image: 'https://example.com/eurc.png'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/onboarding-url:
+    post:
+      tags:
+        - Onboarding
+      summary: Generate onboarding URL
+      description: |
+        Generates a presigned URL for customer onboarding. If the customer does not exist, it will be created.
+
+        This is the primary endpoint for creating customers. You generate a UUID for `customerId` and `bankAccountId`,
+        and Etherfuse will create the customer and bank account records associated with your organization.
+
+        Upon visiting the URL, the customer will have 15 minutes to complete the onboarding process (KYC verification and bank account linking).
+
+        ## Personal organizations only
+
+        This endpoint always creates a **personal** organization — it forces individual KYC.
+        There is no `accountType` field; pass `business` orgs through
+        [POST /ramp/organization](#tag/organizations/post/ramp/organization) instead.
+
+        ## userInfo
+
+        Pass `userInfo` with the end user's email and display name. When provided, Etherfuse
+        pre-creates the user record so the customer's eventual sign-in attaches to the right user
+        and we can email them on status changes (KYC approved/rejected, bank account verified, etc.).
+
+        `userInfo` is currently optional. **It will become required** in a future release — start
+        sending it now.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateOnboardingUrlPayload'
+      responses:
+        '200':
+          description: URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  presigned_url:
+                    type: string
+                    description: The generated presigned URL. This URL needs to be visited by the customer, and will be used to verify the customer's identity and bank account.
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/onboarding/bank-accounts:
+    post:
+      tags:
+        - Onboarding
+      summary: Get onboarding bank accounts
+      description: Retrieves bank accounts for onboarding process
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignedUrlPayload'
+      responses:
+        '200':
+          description: Bank accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bankAccounts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BankAccount'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/bank-account:
+    post:
+      tags:
+        - Bank Accounts
+      summary: Create bank account (presigned URL)
+      description: |
+        Registers a customer's Mexican bank account (CLABE) for on/off-ramp transactions.
+        The `account` field accepts two variants — Personal or Business — auto-detected based on the fields present.
+
+        **Sandbox:** Submit `XEXX010101000` (personal) or `XEX010101000` (business) as the `rfc` to skip
+        SPEI provider registration and have the account marked `compliant: true` immediately. Any other RFC
+        in sandbox is sent through to the SPEI provider's sandbox environment as a real registration and
+        will not auto-approve. Both values are rejected in production.
+
+        **Note:** This endpoint is intended for customers onboarding through the Etherfuse UI using a presigned URL.
+        For programmatic bank account creation via API key, use `POST /ramp/customer/{customer_id}/bank-account` instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - presignedUrl
+                - account
+              properties:
+                presignedUrl:
+                  type: string
+                  description: Presigned URL for verification
+                account:
+                  $ref: '#/components/schemas/AccountRegistration'
+                skipAutoApproval:
+                  type: boolean
+                  default: false
+                  description: 'If true, skips automatic approval in sandbox environments'
+                label:
+                  type: string
+                  description: Optional display label for the account
+      responses:
+        '200':
+          description: Bank account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/bank-account:
+    post:
+      tags:
+        - Bank Accounts
+      summary: Create bank account (API key)
+      description: |
+        Programmatically creates a new bank account for a customer using API key authentication.
+        No presigned URL is required. The account registration data (name, CURP, RFC, CLABE, etc.)
+        is validated and sent to the payment processor.
+        Bank accounts require verification before they can be used for transactions.
+
+        **Sandbox:** Submit `XEXX010101000` (personal) or `XEX010101000` (business) as the `rfc` to skip
+        SPEI provider registration and have the account marked `compliant: true` immediately. The hosted
+        onboarding UI uses these RFCs automatically — programmatic callers have to opt in by passing them.
+        Any other RFC in sandbox is sent through to the SPEI provider's sandbox environment as a real
+        registration and will not auto-approve. Both values are rejected in production.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer to create the bank account for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - account
+              properties:
+                account:
+                  $ref: '#/components/schemas/AccountRegistration'
+                skipAutoApproval:
+                  type: boolean
+                  default: false
+                  description: 'If true, skips automatic approval in sandbox/devnet environments'
+                label:
+                  type: string
+                  nullable: true
+                  description: Optional label for the bank account
+                bankAccountId:
+                  type: string
+                  format: uuid
+                  description: 'Optional UUID for the bank account. Auto-generated if omitted.'
+      responses:
+        '201':
+          description: Bank account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        '400':
+          description: Invalid request parameters (invalid CLABE, RFC, CURP, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/agreements/electronic-signature:
+    post:
+      tags:
+        - Agreements
+      summary: Accept electronic signature consent
+      description: |
+        Records the user's consent to conduct business electronically (E-Sign Act compliance).
+
+        **Authentication:** The presigned URL serves as the authentication mechanism for the end user.
+        This endpoint must be called by or on behalf of the user who will be bound by this consent.
+
+        **Legal effect:** By calling this endpoint with a valid presigned URL, the user consents to:
+        - Receive documents and disclosures electronically
+        - Use electronic signatures for legally binding agreements
+        - Conduct transactions electronically
+
+        This is typically the first agreement accepted during onboarding.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignedUrlPayload'
+      responses:
+        '200':
+          description: Electronic signature consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgreementResponse'
+        '400':
+          description: Invalid or expired presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/agreements/terms-and-conditions:
+    post:
+      tags:
+        - Agreements
+      summary: Accept terms and conditions
+      description: |
+        Records the user's acceptance of Etherfuse's Terms and Conditions.
+
+        **Authentication:** The presigned URL serves as the authentication mechanism for the end user.
+        This endpoint must be called by or on behalf of the user who will be bound by these terms.
+
+        **Legal effect:** By calling this endpoint with a valid presigned URL, the user acknowledges
+        they have read, understood, and agree to be bound by the Terms and Conditions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignedUrlPayload'
+      responses:
+        '200':
+          description: Terms and conditions acceptance recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgreementResponse'
+        '400':
+          description: Invalid or expired presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/agreements/customer-agreement:
+    post:
+      tags:
+        - Agreements
+      summary: Accept customer agreement
+      description: |
+        Records the user's acceptance of the Customer Agreement, which governs the use of
+        Etherfuse's on/off ramp services.
+
+        **Authentication:** The presigned URL serves as the authentication mechanism for the end user.
+        This endpoint must be called by or on behalf of the user who will be bound by this agreement.
+
+        **Legal effect:** By calling this endpoint with a valid presigned URL, the user agrees to
+        the terms governing fiat-to-crypto and crypto-to-fiat transactions, including fees,
+        settlement times, and liability provisions.
+
+        **Optional customer info:** When using programmatic KYC, you may omit the `customerInfo`
+        field since identity data was already submitted via the KYC endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerAgreementPayload'
+      responses:
+        '200':
+          description: Customer agreement acceptance recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgreementResponse'
+        '400':
+          description: Invalid or expired presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/quote:
+    post:
+      tags:
+        - Quotes
+      summary: Get quote for conversion
+      description: |
+        Retrieves a quote for converting between assets. Supports three quote types:
+        - **Onramp**: fiat to crypto (sourceAsset: fiat currency code, targetAsset: asset identifier)
+        - **Offramp**: crypto to fiat (sourceAsset: asset identifier, targetAsset: fiat currency code)
+        - **Swap**: crypto to crypto (sourceAsset: asset identifier, targetAsset: asset identifier)
+
+        **Finding supported assets:** Use the `/ramp/assets` endpoint to get a list of supported assets for quotes, ramps, and swaps. This returns a non-exhaustive list of common assets that a specific wallet would likely want to use, along with their `identifier` values.
+
+        Crypto assets must be specified using asset identifiers in the format `CODE:ISSUER` (e.g., `USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`). Use the `identifier` field from the `/ramp/assets` response. Fiat currencies use standard currency codes (e.g., `MXN`).
+
+        The quote includes exchange rates, fees, and expiration information.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+      responses:
+        '200':
+          description: Quote retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/order-preview:
+    post:
+      tags:
+        - Orders
+      summary: Preview order details
+      description: Calculates and returns preview details for an order
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPreviewPayload'
+      responses:
+        '200':
+          description: Order preview generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  amountFiat:
+                    type: number
+                    format: decimal
+                    description: Amount in fiat currency
+                  amountCrypto:
+                    type: number
+                    format: decimal
+                    description: Amount in crypto currency
+                  direction:
+                    type: string
+                    enum: [onramp, offramp]
+                    description: Transaction direction
+                  settlementTime:
+                    type: string
+                    description: Estimated settlement time
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/order:
+    post:
+      tags:
+        - Orders
+      summary: Create a new order
+      description: |
+        Creates a new order for crypto/fiat conversion using a previously created quote.
+
+        **Flow:**
+        1. First, call `/ramp/quote` to get pricing and create a quote
+        2. Then, call this endpoint with the `quoteId` to execute the order
+
+        The order inherits the blockchain, direction (onramp/offramp), and amounts from the quote.
+        Quotes expire after 2 minutes, so create the order promptly after getting the quote.
+
+        **Wallet resolution:** Provide either `publicKey` or `cryptoWalletId` (or both). When `cryptoWalletId` is provided, the wallet is resolved by UUID and `publicKey` becomes optional.
+
+        For onramps, the bank account must belong to your organization or a child organization.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderPayload'
+      responses:
+        '200':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A pending onramp order already exists for this bank account and amount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /ramp/order/{order_id}/regenerate_tx:
+    post:
+      tags:
+        - Orders
+      summary: Regenerate transaction
+      description: |
+        Regenerates a pre-built transaction for an order.
+
+        **Offramp orders** (status: Created): The new transaction will be sent over the webhook asynchronously. Returns HTTP 202 Accepted.
+
+        **Stellar onramp orders with claimable balances** (status: Completed): If the stored claim transaction has a stale sequence number (e.g., the user transacted on Stellar before claiming), this endpoint rebuilds the unsigned XDR with a fresh sequence number and returns it synchronously. The order's `stellarClaimTransaction` field is also updated. Returns HTTP 200 with the fresh XDR in the response body.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the order to regenerate the transaction for
+      responses:
+        '200':
+          description: |
+            Stellar claim transaction regenerated successfully. The fresh unsigned XDR is returned in the response body and stored on the order.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stellarClaimTransaction:
+                    type: string
+                    description: Base64-encoded unsigned XDR for the claim transaction (ChangeTrust + ClaimClaimableBalance)
+        '202':
+          description: Offramp transaction regeneration request accepted. The new transaction will arrive via webhook.
+
+  /ramp/swap:
+    post:
+      tags:
+        - Swap
+      summary: Swap assets
+      description: |
+        Swaps two different crypto assets. This endpoint is asynchronous and returns an HTTP 200 OK with an empty body.
+
+        **Flow:**
+        1. First, call `/ramp/quote` with `quoteAssets.type: "swap"` to get pricing
+        2. Then, call this endpoint with the `quoteId` to initiate the swap
+        3. Listen for `swap_updated` webhook events to track swap progress and receive the transaction to sign
+
+        **Webhook Response:** Since this endpoint returns an empty body, you must use webhooks to receive swap updates. Register a webhook for the `swap_updated` event type via [POST /ramp/webhook](/api-reference/webhooks/create-webhook) to receive `SwapResponse` payloads as the swap progresses through statuses: `swap_created` → `swap_funded` → `swap_completed` (or `swap_failed`).
+
+        See the [Webhooks documentation](/api-reference/webhooks/create-webhook) for setup instructions and the webhook payload structure below.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwapPayload'
+      responses:
+        '200':
+          description: |
+            Swap initiated successfully. The response body is empty.
+
+            Subscribe to `swap_updated` webhooks to receive swap progress updates with the following payload:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwapResponse'
+              example:
+                orderId: '123e4567-e89b-12d3-a456-426614174000'
+                customerId: '34fcc67a-2454-4578-8435-e2bf03b4dc30'
+                sendTransaction: 'AQAAAA...encoded_tx'
+                sendTransactionHash: ''
+                status: 'created'
+                createdAt: '2025-01-15T10:00:00Z'
+                updatedAt: '2025-01-15T10:00:00Z'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /ramp/swap/{order_id}/regenerate_tx:
+    post:
+      tags:
+        - Swap
+      summary: Regenerate swap transaction
+      description: |
+        Regenerates a transaction for a swap.
+        Useful for cases where the transaction was not submitted prior to expiration.
+        The updated transaction will be returned via the swap_updated webhook.
+        Returns HTTP 202 Accepted if successful.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the swap order to regenerate the transaction for
+      responses:
+        '202':
+          description: Transaction regeneratation request has been accepted
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer details
+      description: Retrieves details for a specific customer
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer to retrieve
+      responses:
+        '200':
+          description: Customer details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/bank-account/{bank_account_id}:
+    get:
+      tags:
+        - Bank Accounts
+      summary: Get bank account details
+      description: Retrieves details for a specific bank account
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: bank_account_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the bank account to retrieve
+      responses:
+        '200':
+          description: Bank account details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        '404':
+          description: Bank account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/wallet:
+    post:
+      tags:
+        - Crypto Wallets
+      summary: Register a crypto wallet
+      description: |
+        Registers a crypto wallet for the authenticated organization. If the wallet was previously
+        soft-deleted, it will be restored.
+
+        Optionally claims ownership of the wallet on behalf of the organization. When an approved
+        (KYB'd) organization claims ownership of a wallet, that wallet is treated as compliant
+        without requiring individual KYC verification.
+
+        This endpoint is idempotent — registering an already-active wallet returns the existing record.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - publicKey
+                - blockchain
+              properties:
+                publicKey:
+                  type: string
+                  description: The public key of the crypto wallet to register
+                blockchain:
+                  type: string
+                  enum: [solana, stellar, base, polygon, monad]
+                  description: Blockchain type for the wallet
+                claimOwnership:
+                  type: boolean
+                  default: false
+                  description: If true, the organization claims ownership of this wallet. Combined with an approved org, this makes the wallet compliant without individual KYC.
+            example:
+              publicKey: '9Qx7r...'
+              blockchain: 'solana'
+              claimOwnership: true
+      responses:
+        '200':
+          description: Wallet registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/wallet/{wallet_id}:
+    get:
+      tags:
+        - Crypto Wallets
+      summary: Get wallet details
+      description: Retrieves details for a specific crypto wallet
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: wallet_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the wallet to retrieve
+      responses:
+        '200':
+          description: Wallet details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '404':
+          description: Wallet not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Crypto Wallets
+      summary: Delete a crypto wallet
+      description: |
+        Soft-deletes a crypto wallet and releases any claimed ownership associated with it.
+        The wallet can be re-registered later via `POST /ramp/wallet`.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: wallet_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the wallet to delete
+      responses:
+        '200':
+          description: Wallet deleted successfully
+        '404':
+          description: Wallet not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/order/{order_id}:
+    get:
+      tags:
+        - Orders
+      summary: Get order details
+      description: Retrieves details for a specific order accessible to your API key.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the order to retrieve
+      responses:
+        '200':
+          description: Order details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/order/{order_id}/cancel:
+    post:
+      tags:
+        - Orders
+      summary: Cancel an order
+      description: Cancels an order that is in `created` status. Only orders accessible to your API key can be canceled.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the order to cancel
+      responses:
+        '200':
+          description: Order canceled successfully
+        '403':
+          description: Not authorized to cancel this order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Order not found or not in a cancelable state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customers:
+    get:
+      tags:
+        - Customers
+      summary: List customers
+      description: |
+        Returns the first page of customers with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+    post:
+      tags:
+        - Customers
+      summary: List customers (with pagination)
+      description: |
+        Retrieves a paginated list of customers.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/bank-accounts:
+    get:
+      tags:
+        - Bank Accounts
+      summary: List bank accounts
+      description: |
+        Returns the first page of bank accounts with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Bank accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+    post:
+      tags:
+        - Bank Accounts
+      summary: List bank accounts (with pagination)
+      description: |
+        Retrieves a paginated list of bank accounts.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Bank accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/wallets:
+    get:
+      tags:
+        - Crypto Wallets
+      summary: List crypto wallets
+      description: |
+        Returns the first page of crypto wallets with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Wallets retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+    post:
+      tags:
+        - Crypto Wallets
+      summary: List crypto wallets (with pagination)
+      description: |
+        Retrieves a paginated list of crypto wallets.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Wallets retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/orders:
+    get:
+      tags:
+        - Orders
+      summary: List orders
+      description: |
+        Returns the first page of orders with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+    post:
+      tags:
+        - Orders
+      summary: List orders (with pagination)
+      description: |
+        Retrieves a paginated list of orders accessible to your API key.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/bank-accounts:
+    get:
+      tags:
+        - Customers
+      summary: Get customer bank accounts
+      description: |
+        Returns the first page of bank accounts for a specific customer with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      responses:
+        '200':
+          description: Bank accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Customers
+      summary: Get customer bank accounts (with pagination)
+      description: |
+        Retrieves bank accounts for a specific customer.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Bank accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/wallets:
+    get:
+      tags:
+        - Customers
+      summary: Get customer crypto wallets
+      description: |
+        Returns the first page of crypto wallets for a specific customer with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      responses:
+        '200':
+          description: Crypto wallets retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Customers
+      summary: Get customer crypto wallets (with pagination)
+      description: |
+        Retrieves crypto wallets for a specific customer.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Crypto wallets retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/orders:
+    get:
+      tags:
+        - Customers
+      summary: Get customer orders
+      description: |
+        Returns the first page of orders for a specific customer with defaults (pageSize 30, pageNumber 0, no filters).
+        Use the POST variant for pagination and date filtering.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Customers
+      summary: Get customer orders (with pagination)
+      description: |
+        Retrieves orders for a specific customer.
+        The request body is optional — omitting it returns the first page with defaults (pageSize 30, pageNumber 0, no filters).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/kyc:
+    post:
+      tags:
+        - KYC
+      summary: Submit KYC identity data
+      description: |
+        Submit identity information (name, address, DOB, tax ID) for a customer programmatically.
+        This is an alternative to the presigned URL flow where users complete KYC in the Etherfuse UI.
+
+        **Use case:** Partners who want to white-label the KYC experience can collect identity data
+        in their own UI and submit it via this endpoint.
+
+        Submitted data will be reviewed by Etherfuse admins before approval. You'll receive a
+        `kyc_updated` webhook when the status changes.
+
+        **Sandbox auto-approval:** In sandbox, submitting KYC for a `personal` customer org
+        immediately approves the customer, fires a `kyc_updated` webhook, and unlocks orders for
+        the wallet. The response `status` returns `"approved"` (not `"proposed"`). This shortcut
+        is sandbox-only — production still requires manual review.
+
+        **Data isolation:** Partners can only query KYC data they submitted. Data submitted by
+        other partners or directly by users is not visible.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KycSubmissionRequest'
+      responses:
+        '200':
+          description: KYC data submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: 'proposed'
+                  message:
+                    type: string
+                    example: 'KYC data submitted for review'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/kyc/{pubkey}:
+    get:
+      tags:
+        - KYC
+      summary: Get KYC status
+      description: |
+        Check the current KYC verification status for a customer's wallet.
+
+        **Data isolation:** Partners can only see KYC data submitted by their organization.
+        Documents and identity info submitted by other partners or directly by users are not returned.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+        - name: pubkey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Wallet public key
+      responses:
+        '200':
+          description: KYC status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycStatusResponse'
+        '404':
+          description: Customer or wallet not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/kyc/documents:
+    post:
+      tags:
+        - KYC
+      summary: Upload KYC documents
+      description: |
+        Upload identity documents (government ID, selfie) for a customer.
+
+        **Document requirements:**
+        - Formats: JPEG, PNG
+        - Max size: 10MB per image
+        - Required documents: `id_front`, `id_back` (if applicable), `selfie`
+        - Encoding: Base64
+
+        Submit documents using the `documentType` field:
+        - `document`: For government ID images (front and back)
+        - `selfie`: For selfie verification photo
+
+        Submitted documents will be reviewed by Etherfuse admins before approval.
+        You'll receive a `kyc_updated` webhook when the status changes.
+
+        **Sandbox auto-approval:** In sandbox, uploading documents for a `personal` customer org
+        immediately approves the customer and fires a `kyc_updated` webhook. The response
+        `status` returns `"approved"` (not `"proposed"`). This shortcut is sandbox-only —
+        production still requires manual review.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KycDocumentUploadRequest'
+      responses:
+        '200':
+          description: Documents uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: 'proposed'
+                  message:
+                    type: string
+                    example: 'Documents uploaded for review'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/webhook:
+    post:
+      tags:
+        - Webhooks
+      summary: Create webhook
+      description: Creates a new webhook for event notifications
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateWebhookResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/webhook/{webhook_id}:
+    get:
+      tags:
+        - Webhooks
+      summary: Get webhook details
+      description: Retrieves details for a specific webhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the webhook to retrieve
+      responses:
+        '200':
+          description: Webhook details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '404':
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete webhook
+      description: Deletes a specific webhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the webhook to delete
+      responses:
+        '204':
+          description: Webhook deleted successfully
+        '404':
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/webhooks:
+    post:
+      tags:
+        - Webhooks
+      summary: List webhooks
+      description: Retrieves a paginated list of webhooks
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedRequest'
+      responses:
+        '200':
+          description: Webhooks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # Organization Endpoints (API Key Authenticated)
+  # ============================================================================
+
+  /ramp/organization:
+    post:
+      tags:
+        - Organizations
+      summary: Create a child organization
+      description: |
+        Creates a new child organization under the caller's organization. The child org is created
+        in an unapproved state — approval happens separately through the Etherfuse approval workflow.
+
+        Optionally include wallets and a bank account to set up the child org in a single call.
+        Wallets are registered but not claimed — claiming and KYC sync happen after org approval.
+
+        If any provided UUID collides with an existing record, the request returns 409.
+
+        All fields are optional — sending an empty body `{}` creates a bare organization with no wallets or bank account.
+
+        ## Account types
+
+        Every organization has an `accountType` of either `personal` (an individual customer
+        completing KYC) or `business` (a company completing KYB). The two are handled differently
+        downstream: personal orgs go through individual KYC and Plaid; business orgs go through
+        KYB and skip per-wallet compliance.
+
+        - `personal` — pass `userInfo` so the end user records are created and we can email them on status changes.
+        - `business` — `userInfo` is rejected (business orgs do not have a single end user).
+
+        `accountType` is currently optional and defaults to `personal`. **It will become required
+        in a future release** — start sending it explicitly now.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  description: Optional UUID to use as the organization's primary key. If omitted, a UUID is generated automatically.
+                displayName:
+                  type: string
+                  description: Optional display name for the new organization. At most 200 characters. If omitted, defaults to "Customer for {parent org name}".
+                  maxLength: 200
+                accountType:
+                  type: string
+                  enum: [personal, business]
+                  description: |
+                    Type of organization. Defaults to `personal`. Will become required in a
+                    future release. See "Account types" above for guidance.
+                userInfo:
+                  $ref: '#/components/schemas/UserInfo'
+                wallets:
+                  type: array
+                  description: Optional wallets to register for the new organization. Maximum 50 wallets per request.
+                  maxItems: 50
+                  items:
+                    type: object
+                    required:
+                      - publicKey
+                      - blockchain
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        description: Optional UUID for the wallet record. Generated if omitted.
+                      publicKey:
+                        type: string
+                        description: Public key of the wallet
+                      blockchain:
+                        type: string
+                        enum: [solana, stellar, base, polygon, monad]
+                        description: Blockchain type for the wallet
+                partnerFeeDefaultBps:
+                  type: integer
+                  minimum: 0
+                  maximum: 500
+                  description: Optional default partner fee in basis points for this child organization (0–500). If omitted, defaults to 0 (no partner fee).
+                bankAccount:
+                  type: object
+                  description: |
+                    Optional bank account to register for the new organization. Uses the same schema as the bank account creation endpoint.
+
+                    **Sandbox:** Submit `XEXX010101000` (personal) or `XEX010101000` (business) as the `rfc` so Etherfuse skips SPEI provider registration and marks the account `compliant: true` immediately. Any other RFC in sandbox is sent through to the SPEI provider's sandbox environment as a real registration and will not auto-approve.
+                  properties:
+                    bankAccountId:
+                      type: string
+                      format: uuid
+                      description: Optional UUID for the bank account. Generated if omitted.
+                    label:
+                      type: string
+                      nullable: true
+                      description: Optional label for the bank account
+                    skipAutoApproval:
+                      type: boolean
+                      default: false
+                      description: 'If true, skips automatic approval in sandbox/devnet environments'
+                    account:
+                      $ref: '#/components/schemas/AccountRegistration'
+            example:
+              id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+              displayName: 'Ana García'
+              accountType: 'personal'
+              userInfo:
+                email: 'ana@example.com'
+                displayName: 'Ana García'
+              wallets:
+                - publicKey: '9Qx7r...'
+                  blockchain: 'solana'
+                - id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901'
+                  publicKey: 'GCRYUGD5...'
+                  blockchain: 'stellar'
+      responses:
+        '201':
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizationId:
+                    type: string
+                    format: uuid
+                    description: ID of the newly created organization
+                  displayName:
+                    type: string
+                    description: Display name of the organization
+                  accountType:
+                    type: string
+                    enum: [personal, business]
+                    description: Account type the organization was created with.
+                  partnerFeeDefaultBps:
+                    type: integer
+                    description: Default partner fee in basis points for this organization
+                  wallets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          description: Wallet record ID
+                        publicKey:
+                          type: string
+                          description: Public key of the wallet
+                        blockchain:
+                          type: string
+                          description: Blockchain type
+                  bankAccount:
+                    type: object
+                    nullable: true
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        description: Bank account ID
+                      label:
+                        type: string
+                        nullable: true
+                        description: Bank account label
+                      status:
+                        type: string
+                        description: Bank account status
+              example:
+                organizationId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+                displayName: 'Ana García'
+                accountType: 'personal'
+                wallets:
+                  - id: 'c3d4e5f6-a7b8-9012-cdef-123456789012'
+                    publicKey: '9Qx7r...'
+                    blockchain: 'solana'
+                  - id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901'
+                    publicKey: 'GCRYUGD5...'
+                    blockchain: 'stellar'
+                bankAccount: null
+        '400':
+          description: Invalid request — empty name, name exceeds 200 characters, invalid wallet data, or wallet count exceeds 50
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A provided UUID collides with an existing record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/organization/{org_id}/name:
+    put:
+      tags:
+        - Organizations
+      summary: Rename an organization
+      description: |
+        Renames the caller's own organization or a direct child organization. The caller's
+        organization is resolved from the API key.
+
+        The target `org_id` must be either:
+        - The caller's own organization, OR
+        - A direct child organization (where `parent_organization_id` equals the caller's org)
+
+        Grandchild organizations cannot be renamed through this endpoint.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the organization to rename (own org or direct child)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - displayName
+              properties:
+                displayName:
+                  type: string
+                  description: New display name for the organization. Must be non-empty and at most 200 characters.
+                  maxLength: 200
+            example:
+              displayName: 'Bando Guadalajara'
+      responses:
+        '200':
+          description: Organization renamed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizationId:
+                    type: string
+                    format: uuid
+                    description: ID of the renamed organization
+                  displayName:
+                    type: string
+                    description: New display name
+              example:
+                organizationId: '123e4567-e89b-12d3-a456-426614174000'
+                displayName: 'Bando Guadalajara'
+        '400':
+          description: Invalid name — empty, whitespace-only, or exceeds 200 characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Caller does not have authority over this organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found or soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/partner-fee:
+    put:
+      tags:
+        - Organizations
+      summary: Set partner fee default
+      description: |
+        Sets the default partner fee (in basis points) for the caller's organization. The
+        target organization is resolved from the API key — the fee always applies to the org
+        that owns the key. The fee is capped at 500 bps (5.00%).
+
+        To configure a different org (for example, a child organization), call this endpoint
+        using an API key issued for that org.
+
+        Once set, this default is applied to all new quotes for the organization unless overridden
+        per-quote via the `partnerFeeBps` field on the quote request.
+
+        Partner fees are layered on top of platform fees and settled offline via finance —
+        there is no on-chain component.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - partnerFeeDefaultBps
+              properties:
+                partnerFeeDefaultBps:
+                  type: integer
+                  minimum: 0
+                  maximum: 500
+                  description: Default partner fee in basis points (0–500). Set to 0 to disable.
+            example:
+              partnerFeeDefaultBps: 100
+      responses:
+        '200':
+          description: Partner fee default updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  partnerFeeDefaultBps:
+                    type: integer
+                    description: The new default partner fee in basis points
+              example:
+                partnerFeeDefaultBps: 100
+        '400':
+          description: Invalid value — must be between 0 and 500
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/customer/{customer_id}/wallet:
+    post:
+      tags:
+        - Crypto Wallets
+      summary: Register a wallet for a child org customer
+      description: |
+        Registers a crypto wallet for a customer that belongs to the caller's organization or a
+        direct child organization. This mirrors `POST /ramp/wallet` but is scoped to a specific
+        customer within the caller's org hierarchy.
+
+        If the wallet was previously soft-deleted, it will be restored. Optionally claims ownership
+        of the wallet on behalf of the customer's organization.
+
+        This endpoint is idempotent — registering an already-active wallet returns the existing record.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the customer to register the wallet for. Must belong to the caller's org or a direct child org.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - publicKey
+                - blockchain
+              properties:
+                publicKey:
+                  type: string
+                  description: The public key of the crypto wallet to register
+                blockchain:
+                  type: string
+                  enum: [solana, stellar, base, polygon, monad]
+                  description: Blockchain type for the wallet
+                claimOwnership:
+                  type: boolean
+                  default: false
+                  description: If true, the customer's organization claims ownership of this wallet. Combined with an approved org, this makes the wallet compliant without individual KYC.
+            example:
+              publicKey: '9Qx7r...'
+              blockchain: 'solana'
+              claimOwnership: false
+      responses:
+        '200':
+          description: Wallet registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '400':
+          description: Invalid public key format, invalid blockchain, or wallet already claimed by a different organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Customer not found or not within the caller's organization hierarchy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ramp/evm/approve:
+    post:
+      tags:
+        - Orders
+      summary: Generate EVM token approval transaction
+      description: |
+        Generates an unsigned ERC20 `approve()` transaction that enables gasless offramps
+        on EVM chains. When this feature is enabled for your organization, EVM offramp
+        transactions no longer require the user to hold native gas tokens (e.g., ETH on Base)
+        for the cross-chain bridging fee — Etherfuse covers the bridging cost and bundles it
+        into the offramp fee.
+
+        **This approval must be completed before creating an offramp order** via
+        `POST /ramp/order` for EVM wallets with this feature enabled. If the user has not
+        approved, the offramp transaction will fail on-chain.
+
+        **Prerequisites:**
+        - This feature must be enabled for your organization. Contact Etherfuse to enable
+          sponsored EVM offramps for your org and sub-orgs.
+        - The user must have a registered EVM wallet on a supported chain.
+
+        **Flow:**
+        1. Call this endpoint to get the approval transaction
+        2. Have the user sign and submit the transaction in their wallet
+        3. Once confirmed, create the offramp order via `POST /ramp/order`
+
+        **Approval amount options:**
+        - **Omit `amount`** (recommended): Approves for an unlimited amount. The user only
+          needs to do this once per token per chain, and all future offramps will work
+          without needing another approval.
+        - **Pass `amount`**: Approves for a specific amount in base units. The amount should
+          match what you plan to offramp. After the offramp, the approval is consumed and
+          you will need to call this endpoint again before the next offramp.
+
+        If the user has already approved a sufficient amount, the endpoint returns
+        `"transaction": null` with a message indicating no approval is needed.
+
+        The `amount` field is in **base units** (e.g., for a token with 6 decimals,
+        pass `10000000` for 10 tokens).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - blockchain
+                - wallet
+                - assetId
+              properties:
+                blockchain:
+                  type: string
+                  description: The EVM chain to approve on
+                  example: 'base'
+                  enum:
+                    - base
+                wallet:
+                  type: string
+                  description: The user's EVM wallet address
+                  example: '0xf82567432381D1326484E5A9140ABCa4294f82D0'
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                assetId:
+                  type: string
+                  description: The token contract address to approve
+                  example: '0xcC77c598d42f2f78Beb42C91d12B9d4041a5cE29'
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                amount:
+                  type: string
+                  description: |
+                    Amount to approve in base units (token smallest denomination).
+                    For a token with 6 decimals, `10000000` = 10 tokens.
+                    If omitted, approves for the maximum amount (recommended for one-time approval).
+                  example: '10000000'
+            examples:
+              unlimited_approval:
+                summary: Unlimited approval (recommended)
+                value:
+                  blockchain: 'base'
+                  wallet: '0xf82567432381D1326484E5A9140ABCa4294f82D0'
+                  assetId: '0xcC77c598d42f2f78Beb42C91d12B9d4041a5cE29'
+              specific_amount:
+                summary: Approve specific amount
+                value:
+                  blockchain: 'base'
+                  wallet: '0xf82567432381D1326484E5A9140ABCa4294f82D0'
+                  assetId: '0xcC77c598d42f2f78Beb42C91d12B9d4041a5cE29'
+                  amount: '10000000'
+      responses:
+        '200':
+          description: Approve transaction generated (or already approved)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction:
+                    type: string
+                    nullable: true
+                    description: |
+                      JSON-serialized unsigned transaction for the user to sign.
+                      Null if the user has already approved a sufficient amount.
+                  message:
+                    type: string
+                    description: Human-readable status message
+                  currentAllowance:
+                    type: string
+                    description: Current token allowance (only present when already approved)
+              examples:
+                needs_approval:
+                  summary: Approval needed
+                  value:
+                    transaction: '{"to":"0xcC77c598...","data":"0x095ea7b3...","value":"0","gasLimit":"51861","nonce":39,"gasPrice":"6000000","chainId":84532}'
+                    message: 'Approve transaction for gasless offramps on base'
+                already_approved:
+                  summary: Already approved
+                  value:
+                    transaction: null
+                    message: 'Already approved — no transaction needed'
+                    currentAllowance: '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_enabled:
+                  summary: Feature not enabled on this chain
+                  value:
+                    error: 'Sponsored transactions not available on polygon'
+                invalid_wallet:
+                  summary: Invalid wallet address
+                  value:
+                    error: 'Invalid wallet address format'
+
+  # ============================================================================
+  # Lookup Endpoints (Public - No Authentication Required)
+  # ============================================================================
+
+  /lookup/country-codes:
+    get:
+      operationId: getCountryCodes
+      tags:
+        - Lookup
+      summary: Get country codes
+      description: |
+        Returns the list of supported countries with ISO 3166-1 alpha-2 codes, alpha-3 codes, and English names.
+        Use these codes for `birthCountryIsoCode` and `countryIsoCode` fields when registering bank accounts.
+        This endpoint is public and does not require authentication.
+      responses:
+        '200':
+          description: Country codes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      description: ISO 3166-1 alpha-2 code
+                      example: 'MX'
+                    code3:
+                      type: string
+                      description: ISO 3166-1 alpha-3 code
+                      example: 'MEX'
+                    name:
+                      type: string
+                      description: English country name
+                      example: 'Mexico'
+
+  /lookup/stablebonds:
+    get:
+      operationId: getStablebonds
+      tags:
+        - Lookup
+      summary: Get all stablebonds
+      description: |
+        Returns a list of all stablebonds with their current prices, supplies, and multi-chain breakdown.
+        This endpoint is public and does not require authentication.
+        Data is cached for 5 minutes.
+      responses:
+        '200':
+          description: Stablebonds retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StablebondsLookupResponse'
+              example:
+                calculatedAt: '2024-01-15T12:00:00Z'
+                stablebonds:
+                  - symbol: 'CETES'
+                    netAmountDecimal: '1309439.053036'
+                    netValueDecimal: '1467139.953242'
+                    bondCurrency: 'MXN'
+                    tokenPriceDecimal: '1.120434'
+                    purchaseOrderAmount: '283617.373522'
+                    redeemOrderAmount: '0'
+                    blockchains:
+                      - blockchain: 'stellar'
+                        tokenIdentifier: 'CETES-GC3CW7EDYRTWQ635VDIGY6S4ZUF5L6TQ7AA4MWS7LEQDBLUSZXV7UPS4'
+                        totalSupply: '106595.334047'
+                      - blockchain: 'solana'
+                        tokenIdentifier: 'AvvetPGuuB5FD5m86fpw3LtDKyQoUFT1mG9WarNQLW4q'
+                        totalSupply: '916496.867925'
+                    solanaMintAddress: 'AvvetPGuuB5FD5m86fpw3LtDKyQoUFT1mG9WarNQLW4q'
+
+  /lookup/exchange_rate:
+    get:
+      operationId: getExchangeRates
+      tags:
+        - Lookup
+      summary: Get all exchange rates
+      description: |
+        Returns current USD exchange rates for all supported currencies.
+        This endpoint is public and does not require authentication.
+      responses:
+        '200':
+          description: Exchange rates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    rate:
+                      type: string
+                      description: The USD to currency exchange rate
+                    updated_at:
+                      type: integer
+                      description: Unix timestamp of when this rate was last updated
+                    sources:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          rate:
+                            type: string
+                          updated_at:
+                            type: integer
+                      description: Per-provider exchange rate data
+              example:
+                usd_to_mxn:
+                  rate: '17.15'
+                  updated_at: 1709510400
+                  sources:
+                    provider_1:
+                      rate: '17.15'
+                      updated_at: 1709510400
+                usd_to_brl:
+                  rate: '4.97'
+                  updated_at: 1709510400
+                  sources:
+                    provider_1:
+                      rate: '4.97'
+                      updated_at: 1709510400
+
+  /lookup/exchange_rate/usd_to_{currency}:
+    get:
+      operationId: getExchangeRateForCurrency
+      tags:
+        - Lookup
+      summary: Get specific exchange rate
+      description: |
+        Returns the current USD to specified currency exchange rate.
+        This endpoint is public and does not require authentication.
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The target currency code (e.g., "mxn", "brl", "eur")
+          example: 'mxn'
+      responses:
+        '200':
+          description: Exchange rate retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rate:
+                    type: string
+                    description: The USD to currency exchange rate
+                  updated_at:
+                    type: integer
+                    description: Unix timestamp of when this rate was last updated
+                  sources:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        rate:
+                          type: string
+                        updated_at:
+                          type: integer
+                    description: Per-provider exchange rate data
+              example:
+                rate: '17.15'
+                updated_at: 1709510400
+                sources:
+                  provider_1:
+                    rate: '17.15'
+                    updated_at: 1709510400
+        '404':
+          description: Currency not supported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /lookup/bonds/cost:
+    get:
+      operationId: getBondCosts
+      tags:
+        - Lookup
+      summary: Get all bond costs
+      description: |
+        Returns current pricing data for all stablebonds, including the bond cost in USD, fiat, and per-provider exchange rate sources.
+        Each bond entry includes a `sources` map showing the exchange rate and derived `bond_cost_in_usd` from each FX provider, enabling oracle safety checks.
+        This endpoint is public and does not require authentication.
+      parameters:
+        - name: max_age
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Maximum age of a source in seconds. Sources older than this are excluded from the `sources` map. When omitted, all sources are returned.
+          example: 3600
+      responses:
+        '200':
+          description: Bond costs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/BondCost'
+              example:
+                CETES7CKqqKQizuSN6iWQwmTeFRjbJR6Vw2XRKfEDR8f:
+                  bond_cost_in_payment_token: '1.153754'
+                  bond_cost_in_usd: '0.064785'
+                  fiat_exchange_rate_with_usd: '17.80900'
+                  bond_cost_in_fiat: '1.153754'
+                  current_basis_points: 578
+                  bond_symbol: 'CETES'
+                  currency: 'MXN'
+                  current_time: '2026-03-23T16:50:32.821673099+00:00'
+                  mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+                  symbol: 'USDC'
+                  sources:
+                    provider_1:
+                      exchange_rate: '17.81'
+                      bond_cost_in_usd: '0.064781'
+                      updated_at: 1711212632
+                    provider_2:
+                      exchange_rate: '17.79'
+                      bond_cost_in_usd: '0.064854'
+                      updated_at: 1711212630
+        '500':
+          description: Bond prices not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /lookup/bonds/cost/{identifier}:
+    get:
+      operationId: getBondCost
+      tags:
+        - Lookup
+      summary: Get bond cost by mint or symbol
+      description: |
+        Returns current pricing data for a single stablebond, including the bond cost in USD, fiat, and per-provider exchange rate sources.
+        The `identifier` can be either a Solana mint address (e.g., `CETES7CKqqKQizuSN6iWQwmTeFRjbJR6Vw2XRKfEDR8f`) or a bond symbol (e.g., `CETES`).
+        This endpoint is public and does not require authentication.
+      parameters:
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Bond mint address or symbol (e.g., "CETES", "USTRY", "CETES7CKqqKQizuSN6iWQwmTeFRjbJR6Vw2XRKfEDR8f")
+          example: 'CETES'
+        - name: max_age
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Maximum age of a source in seconds. Sources older than this are excluded from the `sources` map. When omitted, all sources are returned.
+          example: 3600
+      responses:
+        '200':
+          description: Bond cost retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BondCost'
+              example:
+                bond_cost_in_payment_token: '1.153754'
+                bond_cost_in_usd: '0.064785'
+                fiat_exchange_rate_with_usd: '17.80900'
+                bond_cost_in_fiat: '1.153754'
+                current_basis_points: 578
+                bond_symbol: 'CETES'
+                currency: 'MXN'
+                current_time: '2026-03-23T16:50:32.821673099+00:00'
+                mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+                symbol: 'USDC'
+                sources:
+                  provider_1:
+                    exchange_rate: '17.81'
+                    bond_cost_in_usd: '0.064781'
+                    updated_at: 1711212632
+                  provider_2:
+                    exchange_rate: '17.79'
+                    bond_cost_in_usd: '0.064854'
+                    updated_at: 1711212630
+        '404':
+          description: Bond not found for the given identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Bond price not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

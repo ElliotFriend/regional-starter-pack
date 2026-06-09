@@ -20,6 +20,12 @@ export interface EtherfuseConfig {
     baseUrl: string;
     /** Default blockchain for operations. Defaults to `"stellar"`. */
     defaultBlockchain?: string;
+    /**
+     * Log requests, responses, and recovery events to the console. Off by
+     * default — request bodies include PII (email, KYC identity). The API key
+     * is never logged either way.
+     */
+    debug?: boolean;
 }
 
 /**
@@ -79,6 +85,8 @@ export type EtherfuseOrderStatus =
     | 'created'
     | 'funded'
     | 'completed'
+    /** Off-ramp only: the reversal window has passed and funds cannot be returned. */
+    | 'finalized'
     | 'failed'
     | 'refunded'
     | 'canceled';
@@ -190,6 +198,18 @@ export interface EtherfuseOnRampOrder {
     deposit?: EtherfuseDeposit;
     /** Stellar tx hash once the tokens have been delivered. */
     confirmedTxSignature?: string;
+    /**
+     * Stellar claimable balance ID (hex). Present on completed Stellar on-ramp
+     * orders where the wallet required setup (no account or no trustline).
+     */
+    stellarClaimableBalanceId?: string;
+    /**
+     * Unsigned Stellar transaction XDR (base64) containing `ChangeTrust` +
+     * `ClaimClaimableBalance` operations. Present on completed Stellar on-ramp
+     * orders that used the claimable-balance flow. The user signs it to add the
+     * trustline and claim their tokens in one step.
+     */
+    stellarClaimTransaction?: string;
     /** URL to Etherfuse's hosted order-status page. */
     statusPage?: string;
     /** Optional memo for the Stellar transaction. */
@@ -229,9 +249,21 @@ export interface EtherfuseOffRampOrder {
     /**
      * Base64-XDR of the Stellar burn transaction for the user to sign and submit.
      * `undefined` immediately after order creation — poll {@link EtherfuseClient.getOffRampOrder}
-     * until Etherfuse has prepared the transaction.
+     * until Etherfuse has prepared the transaction. Always `undefined` in anchor mode.
      */
     burnTransaction?: string;
+    /** Whether this order uses anchor mode (Stellar only). */
+    isAnchorOrder?: boolean;
+    /**
+     * Anchor-mode only. Stellar account to send the withdrawal payment to. The
+     * app builds a payment to this address carrying {@link anchorMemo} as a hash
+     * memo, signs it, and submits it (instead of signing {@link burnTransaction}).
+     */
+    anchorAccount?: string;
+    /** Anchor-mode only. Base64-encoded hash memo to attach to the payment. */
+    anchorMemo?: string;
+    /** Anchor-mode only. Memo type — always `"hash"`. */
+    anchorMemoType?: string;
     /** Stellar tx hash once the burn has been confirmed. */
     confirmedTxSignature?: string;
     /** URL to Etherfuse's hosted order-status page. */
@@ -270,8 +302,14 @@ export interface EtherfuseSavedBankAccount {
 export interface CreateCustomerArgs {
     /** Stellar public key for the customer's wallet. */
     publicKey: string;
-    /** Customer email address (stored locally; Etherfuse does not echo this back). */
+    /**
+     * Customer email address. Sent to Etherfuse as `userInfo.email` so they can
+     * pre-create the user record and email status updates; also stored locally
+     * (Etherfuse does not echo it back on lookup).
+     */
     email?: string;
+    /** End-user display name, sent as `userInfo.displayName`. Defaults to `email`. */
+    displayName?: string;
     /** ISO 3166-1 alpha-2 country code (e.g. `"MX"`, `"BR"`). */
     country?: string;
 }
@@ -287,8 +325,10 @@ export interface GetQuoteArgs {
     /** Customer ID (some quote responses require it). */
     customerId?: string;
     /**
-     * Stellar address — used to resolve token symbols (e.g. `"CETES"`) to full
-     * `CODE:ISSUER` identifiers via the Etherfuse `/ramp/assets` endpoint.
+     * Stellar address — used both to resolve token symbols (e.g. `"CETES"`) to
+     * full `CODE:ISSUER` identifiers via `/ramp/assets`, and (for on-ramps) sent
+     * to the quote as `walletAddress` so the fee can cover one-time account /
+     * trustline onboarding for new Stellar wallets.
      * Required when `fromAsset` or `toAsset` is a symbol rather than `CODE:ISSUER`.
      */
     stellarAddress?: string;
@@ -320,6 +360,12 @@ export interface CreateOffRampOrderArgs {
     bankAccountId: string;
     /** Optional memo for the Stellar transaction. */
     memo?: string;
+    /**
+     * Stellar only. Request **anchor mode** — the order returns anchor payment
+     * details (`anchorAccount` / `anchorMemo` / `anchorMemoType`) instead of a
+     * `burnTransaction`, and your app builds and submits the payment itself.
+     */
+    useAnchor?: boolean;
 }
 
 /** Args for {@link EtherfuseClient.getKycUrl}. */
@@ -330,6 +376,10 @@ export interface GetKycUrlArgs {
     publicKey: string;
     /** Bank account UUID. If omitted, a fresh UUID is generated. */
     bankAccountId?: string;
+    /** End-user email, sent as `userInfo.email` when present. */
+    email?: string;
+    /** End-user display name, sent as `userInfo.displayName`. Defaults to `email`. */
+    displayName?: string;
 }
 
 /** Args for {@link EtherfuseClient.getKycStatus}. */
@@ -364,6 +414,14 @@ export interface EtherfuseOnboardingRequest {
     publicKey: string;
     /** Blockchain identifier (e.g. `"stellar"`). */
     blockchain: string;
+    /**
+     * End-user info. Recommended by Etherfuse (and slated to become required)
+     * so they pre-create the user record and can email status changes.
+     */
+    userInfo?: {
+        email: string;
+        displayName: string;
+    };
 }
 
 /** Quote asset pair with ramp direction. */
@@ -383,6 +441,14 @@ export interface EtherfuseQuoteRequest {
     blockchain: string;
     quoteAssets: EtherfuseQuoteAssets;
     sourceAmount: string;
+    /**
+     * Destination wallet public key. Optional but recommended for Stellar
+     * on-ramps: when set, the quote fee includes a one-time onboarding cost if
+     * the wallet needs an on-chain account or trustline.
+     */
+    walletAddress?: string;
+    /** Optional partner-fee override in basis points (0–500). */
+    partnerFeeBps?: number;
 }
 
 /** Request body for `POST /ramp/order` (both on-ramp and off-ramp). */
@@ -392,6 +458,14 @@ export interface EtherfuseOrderRequest {
     publicKey: string;
     quoteId: string;
     memo?: string;
+    /**
+     * Stellar off-ramp only. When `true`, the order uses **anchor mode**: instead
+     * of a pre-signed `burnTransaction`, the response returns
+     * `withdrawAnchorAccount` / `withdrawMemo` / `withdrawMemoType` and your app
+     * builds and submits the payment to the anchor account itself. Rejected on
+     * non-Stellar chains.
+     */
+    useAnchor?: boolean;
 }
 
 /** SPEI-shaped account body for Mexican (CLABE) bank-account registration. */
@@ -420,7 +494,6 @@ export interface EtherfuseBankAccountRequest {
 export interface EtherfuseKycIdentityRequest {
     pubkey: string;
     identity: {
-        id: string;
         name: {
             givenName: string;
             familyName: string;
@@ -462,15 +535,21 @@ export interface EtherfuseOnboardingResponse {
 /** Response from `POST /ramp/quote`. */
 export interface EtherfuseQuoteResponse {
     quoteId: string;
-    customerId: string;
     blockchain: string;
     quoteAssets: EtherfuseQuoteAssets;
     sourceAmount: string;
     destinationAmount: string;
+    /** Fee-inclusive exchange rate (fees already reflected). */
     exchangeRate: string;
+    /** Raw mid-market rate before fees (bond price or FX mid). */
+    etherfuseMidMarketRate?: string | null;
     feeBps: string | null;
     feeAmount: string | null;
     destinationAmountAfterFee: string | null;
+    /** Partner fee in basis points applied to this quote, if configured. */
+    partnerFeeBps?: number | null;
+    /** Partner fee amount in the source asset currency, if configured. */
+    partnerFeeAmount?: string | null;
     createdAt: string;
     updatedAt: string;
     expiresAt: string;
@@ -492,7 +571,15 @@ export interface EtherfuseCreateOnRampResponse {
         orderId: string;
         depositAmount: string;
         depositClabe?: string;
-        bankName?: string;
+        /** Bank holding the deposit CLABE (e.g. "STP"). */
+        depositBankName?: string;
+        /** Account holder name for the deposit CLABE (e.g. "Etherfuse MX"). */
+        depositAccountHolder?: string;
+        /**
+         * PIX deposit fields (Brazil). Not part of Etherfuse's documented FX API
+         * yet — Brazil/PIX support is undocumented and in progress. Kept so the
+         * speculative Brazil flow keeps working once the API ships them.
+         */
         beneficiary?: string;
         depositPixKey?: string;
         depositPixKeyType?: string;
@@ -504,25 +591,47 @@ export interface EtherfuseCreateOnRampResponse {
 export interface EtherfuseCreateOffRampResponse {
     offramp: {
         orderId: string;
+        /** Anchor-mode only (`useAnchor: true`): destination anchor account. */
+        withdrawAnchorAccount?: string | null;
+        /** Anchor-mode only: base64 hash memo to attach to the payment. */
+        withdrawMemo?: string | null;
+        /** Anchor-mode only: memo type — always `"hash"`. */
+        withdrawMemoType?: string | null;
     };
 }
 
-/** Response from `GET /ramp/order/{order_id}`. Unified shape for both on-ramp and off-ramp. */
+/**
+ * Response from `GET /ramp/order/{order_id}`. Unified shape for both on-ramp and
+ * off-ramp (also the `order_updated` webhook payload).
+ */
 export interface EtherfuseOrderResponse {
     orderId: string;
     customerId: string;
     createdAt: string;
     updatedAt: string;
-    deletedAt?: string;
-    completedAt?: string;
+    deletedAt?: string | null;
+    completedAt?: string | null;
     amountInFiat?: string;
     amountInTokens?: string;
     confirmedTxSignature?: string;
     walletId: string;
     bankAccountId: string;
     burnTransaction?: string;
+    /** Anchor-mode fields (Stellar off-ramp, `useAnchor: true`). */
+    isAnchorOrder?: boolean | null;
+    withdrawAnchorAccount?: string | null;
+    withdrawMemo?: string | null;
+    withdrawMemoType?: string | null;
     memo?: string;
     depositClabe?: string;
+    /** Bank holding the deposit CLABE (on-ramp only). */
+    depositBankName?: string | null;
+    /** Account holder name for the deposit CLABE (on-ramp only). */
+    depositAccountHolder?: string | null;
+    /**
+     * PIX deposit fields (Brazil) — undocumented/in-progress in Etherfuse's FX
+     * API. Retained for the speculative Brazil flow.
+     */
     depositPixKey?: string;
     depositPixKeyType?: string;
     depositPixCode?: string;
@@ -531,6 +640,22 @@ export interface EtherfuseOrderResponse {
     statusPage: string;
     feeBps?: number;
     feeAmountInFiat?: string;
+    /** Fee-inclusive exchange rate at order creation time. */
+    exchangeRate?: string | null;
+    /** Raw mid-market rate before fees. */
+    etherfuseMidMarketRate?: string | null;
+    /** Source asset identifier (fiat for on-ramp, `CODE:ISSUER` for off-ramp). */
+    sourceAsset?: string | null;
+    /** Target asset identifier (`CODE:ISSUER` for on-ramp, fiat for off-ramp). */
+    targetAsset?: string | null;
+    /** Stellar claimable balance ID (hex), on completed new-wallet on-ramps. */
+    stellarClaimableBalanceId?: string | null;
+    /** Unsigned claim transaction XDR, on completed new-wallet on-ramps. */
+    stellarClaimTransaction?: string | null;
+    /** Partner-fee fields, present when a partner fee was configured. */
+    partnerFeeBps?: number | null;
+    partnerFeeAmountFiat?: string | null;
+    partnerFeeStatus?: 'none' | 'pending' | 'disbursed' | null;
 }
 
 /** Response from `GET /ramp/customer/{id}`. */

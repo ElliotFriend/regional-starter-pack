@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
 import { EtherfuseClient } from '$lib/anchors/etherfuse/client';
@@ -52,11 +52,18 @@ describe('createCustomer', () => {
         server.use(
             http.post(`${BASE_URL}/ramp/onboarding-url`, async ({ request }) => {
                 const body = (await request.json()) as Record<string, unknown>;
+                // Email travels under `userInfo`, not at the top level.
                 expect(body).not.toHaveProperty('email');
                 expect(body.publicKey).toBe(STELLAR_PUBKEY);
                 expect(body.blockchain).toBe('stellar');
                 expect(body.customerId).toMatch(UUID_PATTERN);
                 expect(body.bankAccountId).toMatch(UUID_PATTERN);
+                // `userInfo` is recommended (soon required) by Etherfuse so the
+                // customer's eventual sign-in attaches to the right user record.
+                expect(body.userInfo).toEqual({
+                    email: 'alice@example.com',
+                    displayName: 'alice@example.com',
+                });
                 return HttpResponse.json({ presigned_url: 'https://onboard.test/abc' });
             }),
         );
@@ -289,6 +296,9 @@ describe('getQuote', () => {
                     targetAsset: 'CETES:GCRYUGD5',
                 });
                 expect(body.sourceAmount).toBe('1000');
+                // Stellar on-ramp quotes include the destination wallet so the
+                // quote fee can cover one-time account/trustline onboarding.
+                expect(body.walletAddress).toBe(STELLAR_PUBKEY);
                 return HttpResponse.json({
                     quoteId: 'q-1',
                     customerId: 'cust-1',
@@ -400,6 +410,9 @@ describe('getQuote', () => {
                     sourceAsset: 'CETES:GCRYUGD5',
                     targetAsset: 'MXN',
                 });
+                // walletAddress only applies to on-ramps (it funds the
+                // destination Stellar wallet); off-ramps must not send it.
+                expect(body).not.toHaveProperty('walletAddress');
                 return HttpResponse.json({
                     quoteId: 'q-off',
                     customerId: '',
@@ -533,8 +546,8 @@ describe('createOnRampOrder', () => {
                         orderId: 'order-1',
                         depositAmount: '1000',
                         depositClabe: '012180001234567890',
-                        bankName: 'BBVA',
-                        beneficiary: 'Etherfuse SPEI',
+                        depositBankName: 'BBVA',
+                        depositAccountHolder: 'Etherfuse SPEI',
                     },
                 });
             }),
@@ -652,6 +665,43 @@ describe('getOnRampOrder', () => {
         expect(deposit.pixCode).toBe('00020126...');
     });
 
+    it('maps SPEI deposit, bank metadata, and Stellar claim fields', async () => {
+        const client = createClient();
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-spei`, () =>
+                HttpResponse.json({
+                    orderId: 'order-spei',
+                    customerId: 'cust-1',
+                    createdAt: '2026-01-01T00:00:00Z',
+                    updatedAt: '2026-01-01T00:01:00Z',
+                    amountInFiat: '1000',
+                    amountInTokens: '997',
+                    walletId: '',
+                    bankAccountId: 'bank-spei',
+                    depositClabe: '012180001234567890',
+                    depositBankName: 'STP',
+                    depositAccountHolder: 'Etherfuse MX',
+                    orderType: 'onramp',
+                    status: 'completed',
+                    statusPage: 'https://etherfuse.test/orders/order-spei',
+                    // Returned on completed Stellar onramps to a new/trustline-less
+                    // wallet — the user signs this to claim their tokens.
+                    stellarClaimableBalanceId: '00000000abc123',
+                    stellarClaimTransaction: 'AAAAAgAAAACCLAIM_XDR===',
+                }),
+            ),
+        );
+
+        const order = await client.getOnRampOrder('order-spei');
+        const deposit = order!.deposit as EtherfuseSpeiDeposit;
+        expect(deposit.rail).toBe('spei');
+        expect(deposit.clabe).toBe('012180001234567890');
+        expect(deposit.bankName).toBe('STP');
+        expect(deposit.beneficiary).toBe('Etherfuse MX');
+        expect(order?.stellarClaimableBalanceId).toBe('00000000abc123');
+        expect(order?.stellarClaimTransaction).toBe('AAAAAgAAAACCLAIM_XDR===');
+    });
+
     it('returns null on 404', async () => {
         const client = createClient();
         server.use(
@@ -717,6 +767,59 @@ describe('createOffRampOrder', () => {
         expect(order.bankAccountId).toBe('bank-1');
         expect(order.burnTransaction).toBeUndefined();
     });
+
+    it('requests anchor mode and maps the anchor payment details', async () => {
+        const client = createClient();
+        server.use(
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body.useAnchor).toBe(true);
+                return HttpResponse.json({
+                    offramp: {
+                        orderId: 'order-anchor',
+                        withdrawAnchorAccount:
+                            'GABPM7AXXSE27X3NIN5IVSFCW5AWQLF3RFGUZCW3USNFRZCHLU6CC3SN',
+                        withdrawMemo: 'RkFLRU1FTU8xMjM0NTY3ODkw',
+                        withdrawMemoType: 'hash',
+                    },
+                });
+            }),
+        );
+
+        const order = await client.createOffRampOrder({
+            customerId: 'cust-1',
+            quoteId: 'q-off',
+            publicKey: STELLAR_PUBKEY,
+            bankAccountId: 'bank-1',
+            useAnchor: true,
+        });
+
+        expect(order.isAnchorOrder).toBe(true);
+        expect(order.anchorAccount).toBe(
+            'GABPM7AXXSE27X3NIN5IVSFCW5AWQLF3RFGUZCW3USNFRZCHLU6CC3SN',
+        );
+        expect(order.anchorMemo).toBe('RkFLRU1FTU8xMjM0NTY3ODkw');
+        expect(order.anchorMemoType).toBe('hash');
+        expect(order.burnTransaction).toBeUndefined();
+    });
+
+    it('omits useAnchor from the request body for the default burn flow', async () => {
+        const client = createClient();
+        server.use(
+            http.post(`${BASE_URL}/ramp/order`, async ({ request }) => {
+                const body = (await request.json()) as Record<string, unknown>;
+                expect(body).not.toHaveProperty('useAnchor');
+                return HttpResponse.json({ offramp: { orderId: 'order-burn' } });
+            }),
+        );
+        const order = await client.createOffRampOrder({
+            customerId: 'cust-1',
+            quoteId: 'q-off',
+            publicKey: STELLAR_PUBKEY,
+            bankAccountId: 'bank-1',
+        });
+        expect(order.isAnchorOrder).toBeUndefined();
+    });
 });
 
 describe('getOffRampOrder', () => {
@@ -752,6 +855,62 @@ describe('getOffRampOrder', () => {
         expect(order?.statusPage).toBe('https://etherfuse.test/orders/order-off-1');
     });
 
+    it('maps anchor-mode payment details from an order fetch', async () => {
+        const client = createClient();
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-anchor`, () =>
+                HttpResponse.json({
+                    orderId: 'order-anchor',
+                    customerId: 'cust-1',
+                    createdAt: '2026-01-01T00:00:00Z',
+                    updatedAt: '2026-01-01T00:05:00Z',
+                    amountInTokens: '50',
+                    amountInFiat: '500',
+                    walletId: '',
+                    bankAccountId: 'bank-1',
+                    isAnchorOrder: true,
+                    withdrawAnchorAccount:
+                        'GABPM7AXXSE27X3NIN5IVSFCW5AWQLF3RFGUZCW3USNFRZCHLU6CC3SN',
+                    withdrawMemo: 'RkFLRU1FTU8xMjM0NTY3ODkw',
+                    withdrawMemoType: 'hash',
+                    orderType: 'offramp',
+                    status: 'created',
+                    statusPage: '',
+                }),
+            ),
+        );
+        const order = await client.getOffRampOrder('order-anchor');
+        expect(order?.isAnchorOrder).toBe(true);
+        expect(order?.anchorAccount).toBe(
+            'GABPM7AXXSE27X3NIN5IVSFCW5AWQLF3RFGUZCW3USNFRZCHLU6CC3SN',
+        );
+        expect(order?.anchorMemo).toBe('RkFLRU1FTU8xMjM0NTY3ODkw');
+        expect(order?.anchorMemoType).toBe('hash');
+    });
+
+    it('passes through the terminal `finalized` status (reversal window elapsed)', async () => {
+        const client = createClient();
+        server.use(
+            http.get(`${BASE_URL}/ramp/order/order-final`, () =>
+                HttpResponse.json({
+                    orderId: 'order-final',
+                    customerId: 'cust-1',
+                    createdAt: '2026-01-01T00:00:00Z',
+                    updatedAt: '2026-01-01T01:00:00Z',
+                    amountInTokens: '50',
+                    amountInFiat: '500',
+                    walletId: '',
+                    bankAccountId: 'bank-1',
+                    orderType: 'offramp',
+                    status: 'finalized',
+                    statusPage: '',
+                }),
+            ),
+        );
+        const order = await client.getOffRampOrder('order-final');
+        expect(order?.status).toBe('finalized');
+    });
+
     it('returns null on 404', async () => {
         const client = createClient();
         server.use(
@@ -783,6 +942,7 @@ describe('listBankAccounts', () => {
                             createdAt: '2026-01-01T00:00:00Z',
                             updatedAt: '2026-01-01T00:00:00Z',
                             abbrClabe: '1234...5678',
+                            label: 'Alice BBVA',
                             compliant: true,
                             status: 'active',
                         },
@@ -814,6 +974,8 @@ describe('listBankAccounts', () => {
             id: 'bank-spei',
             rail: 'spei',
             accountIdentifier: '1234...5678',
+            // Account holder name comes from the `label` field on real accounts.
+            accountHolderName: 'Alice BBVA',
             compliant: true,
             status: 'active',
         });
@@ -920,7 +1082,6 @@ describe('submitKycIdentity / submitKycDocuments', () => {
         const identity: EtherfuseKycIdentityRequest = {
             pubkey: STELLAR_PUBKEY,
             identity: {
-                id: STELLAR_PUBKEY,
                 name: { givenName: 'Alice', familyName: 'Doe' },
                 dateOfBirth: '1990-01-15',
                 address: {
@@ -1153,5 +1314,80 @@ describe('request error handling', () => {
             code: 'UNKNOWN_ERROR',
             statusCode: 500,
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// debug logging
+// ---------------------------------------------------------------------------
+
+describe('debug logging', () => {
+    const customerResponse = {
+        customerId: 'cust-1',
+        publicKey: STELLAR_PUBKEY,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    it('is silent by default — request bodies and responses never hit the console', async () => {
+        const client = createClient();
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/cust-1`, () => HttpResponse.json(customerResponse)),
+        );
+        vi.mocked(console.log).mockClear();
+        await client.getCustomer('cust-1');
+        expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('is silent by default on API errors too', async () => {
+        const client = createClient();
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/err-1`, () =>
+                HttpResponse.json(
+                    { error: { code: 'NOT_FOUND', message: 'nope' } },
+                    { status: 400 },
+                ),
+            ),
+        );
+        vi.mocked(console.error).mockClear();
+        await expect(client.getCustomer('err-1')).rejects.toThrow();
+        expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it('is silent by default in simulateFiatReceived', async () => {
+        const client = createClient();
+        server.use(http.post(`${BASE_URL}/ramp/order/fiat_received`, () => HttpResponse.json({})));
+        vi.mocked(console.log).mockClear();
+        await client.simulateFiatReceived('order-1');
+        expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('logs requests and responses when debug is enabled', async () => {
+        const client = new EtherfuseClient({ apiKey: API_KEY, baseUrl: BASE_URL, debug: true });
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/cust-1`, () => HttpResponse.json(customerResponse)),
+        );
+        vi.mocked(console.log).mockClear();
+        await client.getCustomer('cust-1');
+        const logged = vi
+            .mocked(console.log)
+            .mock.calls.map((call) => call.join(' '))
+            .join('\n');
+        expect(logged).toContain(`[Etherfuse] GET ${BASE_URL}/ramp/customer/cust-1`);
+        expect(logged).toContain('cust-1');
+    });
+
+    it('never logs the API key, even with debug enabled', async () => {
+        const client = new EtherfuseClient({ apiKey: API_KEY, baseUrl: BASE_URL, debug: true });
+        server.use(
+            http.get(`${BASE_URL}/ramp/customer/cust-1`, () => HttpResponse.json(customerResponse)),
+        );
+        vi.mocked(console.log).mockClear();
+        await client.getCustomer('cust-1');
+        const logged = vi
+            .mocked(console.log)
+            .mock.calls.map((call) => call.join(' '))
+            .join('\n');
+        expect(logged).not.toContain(API_KEY);
     });
 });

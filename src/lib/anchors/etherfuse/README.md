@@ -2,14 +2,16 @@
 
 Self-contained TypeScript client for the [Etherfuse](https://etherfuse.com) anchor API. Copy these three files into any TypeScript project — the only runtime dependency outside this directory is `@stellar/stellar-sdk` (for Stellar public-key validation).
 
-Handles fiat on/off ramps in two regions:
+Handles fiat on/off ramps:
 
-- **Mexico** — MXN ↔ CETES on Stellar via the SPEI payment rail.
-- **Brazil** — BRL ↔ TESOURO on Stellar via the PIX payment rail.
+- **Mexico** — MXN ↔ CETES on Stellar via the SPEI payment rail. **This is the only region in Etherfuse's published FX API / OpenAPI spec.**
+- **Brazil** — BRL ↔ TESOURO on Stellar via the PIX payment rail. ⚠️ **Underway and undocumented.** Etherfuse's public docs and OpenAPI spec do not yet describe PIX/TESOURO/BRL; the PIX-shaped request/response code in this client is speculative and unverified against a live environment. Treat it as forward-looking until Etherfuse documents it.
 
 Both regions use the same `EtherfuseClient`; the client maps SPEI- and PIX-shaped request/response bodies based on the bank account's rail.
 
-**Server-side only.** It authenticates with an API key that must never reach the browser.
+> **Asset scope.** Etherfuse also ramps USD-denominated stablecoins on Stellar — **USDC** and **EURC** — alongside the locally denominated stablebonds. They're discoverable via `getAssets()` and usable in quotes/orders today (pass the `CODE:ISSUER` `identifier`), but this starter pack intentionally surfaces only the locally denominated stablebonds (CETES, TESOURO) in its UI to stay aligned with the curated "locally denominated asset" thesis. Note Etherfuse's USDC `identifier` uses **Circle's mainnet issuer**, which differs from the testnet `PUBLIC_USDC_ISSUER` used elsewhere in this app.
+
+**Server-side only.** It authenticates with an API key that must never reach the browser. The API key is sent in the `Authorization` header **with no `Bearer` prefix** — the raw key value.
 
 ## Files
 
@@ -33,6 +35,7 @@ const etherfuse = new EtherfuseClient({
 Optional config:
 
 - `defaultBlockchain` — defaults to `"stellar"`.
+- `debug` — log requests, responses, and recovery events to the console. **Off by default**: request bodies carry PII (email, KYC identity), so only enable it where logs are private (e.g. local development). The API key is never logged either way.
 
 ## Integration Flow
 
@@ -43,15 +46,18 @@ Every Etherfuse integration follows the same sequence. On-ramp and off-ramp shar
 3. **Quote** — request a price quote. Quotes expire after **2 minutes**.
 4. **Order creation** — create an on-ramp or off-ramp order using the quote.
 5. **Fulfillment**:
-    - **On-ramp:** user transfers fiat to the deposit instructions on the order (CLABE via SPEI in Mexico, PIX BR-Code in Brazil). Etherfuse confirms receipt and delivers tokens to the user's Stellar wallet.
-    - **Off-ramp:** Etherfuse prepares a burn transaction XDR. The user signs it with their wallet (e.g. Freighter) and submits it to Stellar. Once the burn is confirmed on-chain, Etherfuse transfers fiat to the user's linked bank account.
-6. **Status polling** — `getOnRampOrder()` / `getOffRampOrder()` to track `created → funded → completed`.
+    - **On-ramp:** user transfers fiat to the deposit instructions on the order (CLABE via SPEI in Mexico, PIX BR-Code in Brazil). Etherfuse confirms receipt and delivers tokens to the user's Stellar wallet. For a first-time Stellar wallet (no account or no trustline), Etherfuse handles setup automatically via a claimable balance — see [Stellar first-time wallets](#stellar-first-time-wallets-claimable-balance).
+    - **Off-ramp:** Etherfuse prepares a burn transaction XDR. The user signs it with their wallet (e.g. Freighter) and submits it to Stellar. Once the burn is confirmed on-chain, Etherfuse transfers fiat to the user's linked bank account. Stellar off-ramps can alternatively use [anchor mode](#anchor-mode-stellar-off-ramp).
+6. **Status polling** — `getOnRampOrder()` / `getOffRampOrder()` to track status:
+    - On-ramp: `created → funded → completed`.
+    - Off-ramp: `created → funded → completed → finalized` (`finalized` = the reversal window has elapsed and funds can no longer be returned). Other terminal states: `failed`, `refunded` (on-ramp only), `canceled`.
 
 ## Supported Assets and Currencies
 
-- **Fiat:** MXN (Mexican Peso) via SPEI; BRL (Brazilian Real) via PIX.
-- **Crypto:** CETES (Mexico) and TESOURO (Brazil) on the Stellar network — both issued by the same Etherfuse issuer account.
-- **Ramp types:** on-ramp (fiat → token) and off-ramp (token → fiat). Swaps are not currently implemented.
+- **Fiat:** MXN (Mexican Peso) via SPEI (documented). BRL (Brazilian Real) via PIX is **undocumented / in progress** — see the Brazil note above.
+- **Crypto (this client's UI):** CETES (Mexico) and TESOURO (Brazil) on the Stellar network — both issued by the same Etherfuse issuer account.
+- **Crypto (also rampable via the API):** USDC and EURC on Stellar (USD/EUR-denominated stablecoins). Not surfaced in the UI, but `getQuote()` / order creation accept their `CODE:ISSUER` identifiers.
+- **Ramp types:** on-ramp (fiat → token) and off-ramp (token → fiat). Etherfuse also supports crypto-to-crypto **swaps** (`POST /ramp/swap`), which this client does not implement.
 
 Asset codes are resolved to `CODE:ISSUER` automatically by `getQuote()` when the symbol is passed as `fromAsset` or `toAsset` (e.g. `"CETES"` → `"CETES:G..."`). Pass a `stellarAddress` on the call to enable resolution.
 
@@ -76,12 +82,15 @@ Customer creation doubles as onboarding: it registers the user with Etherfuse an
 ```typescript
 const customer = await etherfuse.createCustomer({
     publicKey: 'G...',
-    email: 'user@example.com',
+    email: 'user@example.com', // sent to Etherfuse as userInfo.email
+    displayName: 'Jane Doe', // optional; defaults to email
     country: 'MX',
 });
 // customer.id           — use this for subsequent calls
 // customer.bankAccountId — auto-generated UUID, needed for orders
 ```
+
+When `email` is provided it's forwarded to Etherfuse as `userInfo` on the onboarding-url call, so they pre-create the user record and can email status updates. Etherfuse **recommends** sending it and has signalled it will become **required** for personal customers — provide it now.
 
 If the public key is already registered (HTTP 409), the client recovers the existing customer and bank account IDs instead of throwing.
 
@@ -112,7 +121,6 @@ const url = await etherfuse.getKycUrl({
 await etherfuse.submitKycIdentity(customerId, {
     pubkey: 'G...',
     identity: {
-        id: 'G...',
         name: { givenName: 'Jane', familyName: 'Doe' },
         dateOfBirth: '1990-01-15',
         address: {
@@ -197,6 +205,25 @@ const updated = await etherfuse.getOnRampOrder(order.id);
 // updated.confirmedTxSignature — Stellar tx hash once delivered
 ```
 
+#### Stellar first-time wallets (claimable balance)
+
+When on-ramping to a Stellar wallet that has no on-chain account or no trustline for the target asset, Etherfuse handles setup automatically using a **claimable balance** — no pre-setup required from the user. Two things make this work:
+
+1. Pass the destination wallet so the quote fee covers the one-time onboarding cost. This client does it for you: `getQuote()` forwards `stellarAddress` as `walletAddress` on on-ramp quotes. (The onboarding fee cannot exceed 50% of the order, so very small orders are rejected.)
+2. After the order reaches `completed`, the order carries an unsigned claim transaction:
+
+```typescript
+const done = await etherfuse.getOnRampOrder(order.id);
+if (done?.stellarClaimTransaction) {
+    // Base64 XDR containing ChangeTrust + ClaimClaimableBalance ops.
+    // Sign with the user's wallet and submit to Horizon to add the
+    // trustline and claim the tokens in one step.
+    // done.stellarClaimableBalanceId — the claimable balance ID (hex).
+}
+```
+
+> The current UI flow establishes the trustline up-front via Freighter, so `stellarClaimTransaction` is typically absent. The fields are plumbed through the client for integrators who prefer the claimable-balance path.
+
 ### 5. Off-ramp (tokens → fiat) — deferred signing
 
 User burns tokens on Stellar; receives fiat to their linked bank account. Bank-account registration happens inside the hosted onboarding flow (see KYC); list the saved account afterwards:
@@ -229,6 +256,28 @@ while (!polled?.burnTransaction) {
 ```
 
 `order.statusPage` is a URL to Etherfuse's hosted order-status page.
+
+#### Anchor mode (Stellar off-ramp)
+
+Stellar off-ramps support an alternative to signing Etherfuse's `burnTransaction`: **anchor mode**. Pass `useAnchor: true` and, instead of a burn XDR, the order returns the destination account and memo for a payment your app builds and submits itself (useful for full control over transaction construction or SEP-24-style withdrawal flows). Only valid for Stellar off-ramps.
+
+```typescript
+const order = await etherfuse.createOffRampOrder({
+    customerId,
+    quoteId: quote.id,
+    publicKey: 'G...',
+    bankAccountId: account.id,
+    useAnchor: true,
+});
+// order.isAnchorOrder  — true
+// order.anchorAccount  — Stellar account to pay
+// order.anchorMemo     — base64 hash memo; attach as Memo.hash(decoded)
+// order.anchorMemoType — always 'hash'
+```
+
+Build a payment to `anchorAccount` for the quoted asset/amount, attach the decoded `anchorMemo` as a `Memo.hash`, sign, and submit. The rest of the flow (`funded → completed → finalized`) is identical to the burn path. Payments sent without a memo or with an unrecognized memo are auto-refunded to the sender.
+
+> This client surfaces anchor mode end-to-end; the bundled off-ramp page uses the default `burnTransaction` flow.
 
 ### 6. Bank accounts and assets
 
