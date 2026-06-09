@@ -3,6 +3,7 @@
     "private": true,
     "version": "3.0.0-dev",
     "type": "module",
+    "packageManager": "pnpm@11.5.2",
     "homepage": "https://www.regionalstarterpack.com",
     "repository": {
         "type": "git",
