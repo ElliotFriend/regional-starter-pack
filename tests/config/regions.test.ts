@@ -34,10 +34,10 @@ describe('getRegion', () => {
         expect(railIds).toContain('pix');
     });
 
-    it('Brazil has etherfuse as its anchor', () => {
+    it('Brazil has etherfuse and manteca as its anchors', () => {
         const region = getRegion('brazil');
         expect(region).toBeDefined();
-        expect(region!.anchors).toEqual(['etherfuse']);
+        expect(region!.anchors).toEqual(['etherfuse', 'manteca']);
     });
 
     it('Mexico has etherfuse as its only anchor', () => {
@@ -82,10 +82,10 @@ describe('getAnchorsForRegion', () => {
         expect(anchors[0].id).toBe('etherfuse');
     });
 
-    it('returns only Etherfuse for Brazil', () => {
+    it('returns Etherfuse and Manteca for Brazil', () => {
         const anchors = getAnchorsForRegion('brazil');
-        expect(anchors).toHaveLength(1);
-        expect(anchors[0].id).toBe('etherfuse');
+        expect(anchors).toHaveLength(2);
+        expect(anchors.map((a) => a.id)).toEqual(['etherfuse', 'manteca']);
     });
 
     it('returns only Koywe for Argentina', () => {
@@ -112,6 +112,12 @@ describe('getRegionsForAnchor', () => {
         const regions = getRegionsForAnchor('koywe');
         expect(regions).toHaveLength(1);
         expect(regions[0].id).toBe('argentina');
+    });
+
+    it('returns Brazil for manteca', () => {
+        const regions = getRegionsForAnchor('manteca');
+        expect(regions).toHaveLength(1);
+        expect(regions[0].id).toBe('brazil');
     });
 
     it('returns empty array for removed anchors', () => {

@@ -372,6 +372,108 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    manteca: {
+        id: 'manteca',
+        name: 'Manteca',
+        description:
+            'Manteca is a Buenos Aires-based B2B financial-infrastructure provider whose crypto API lets fintechs embed on/off ramps across 12 LatAm markets. In Brazil it ramps Brazilian reais (BRL) to USDC on Stellar via PIX, orchestrating fiat deposit, conversion, and crypto settlement in a single "synthetic" operation.',
+        logo: '/anchor-logos/manteca.png',
+        links: {
+            website: 'https://manteca.dev',
+            documentation: 'https://developers.manteca.dev',
+            'api reference': 'https://developers.manteca.dev/llms.txt',
+        },
+        knownIssues: [
+            {
+                text: "This integration was built entirely from Manteca's published API reference (developers.manteca.dev) and has NOT been verified against a live sandbox — sandbox API keys are not self-serve and require contacting Manteca sales. Request/response shapes, the onboarding action sequence, and the ramp lifecycle are modeled from docs and may diverge from runtime behavior.",
+                link: 'https://developers.manteca.dev/docs/authentication',
+            },
+            {
+                text: 'Competitive-rate qualification (<25 bps) is unverified: Manteca publishes no spread figures. Crypto ramp economics come from the price endpoint (nominal buy/sell vs effective buy/sell), NOT the /broker/v1 fee endpoint (that belongs to a separate Argentine securities product). The USDC_BRL effective spread must be read from a live sandbox before treating the rate criterion as met.',
+            },
+            {
+                text: 'Stellar deposit addressing is assumed to be per-user (Manteca returns a unique `STELLAR` address in the user record, with no memo/tag field documented). This needs live confirmation — if Manteca ever uses a pooled Stellar address, a memo would be required and missing it would lose funds on off-ramp.',
+            },
+            {
+                text: 'Liquidity depth is unverified — no public volume figures. The July 2025 Bybit partnership suggests meaningful scale in Argentina/Brazil but provides no per-asset liquidity numbers.',
+            },
+        ],
+        regions: {
+            brazil: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['pix'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Contact Manteca to obtain sandbox API keys (not self-serve) and an integration manager.',
+                link: 'https://developers.manteca.dev/docs/authentication',
+            },
+            {
+                text: 'Authenticate every request with the static `md-api-key` header — no OAuth, no token refresh.',
+            },
+            {
+                text: 'Onboard end-users programmatically via POST /crypto/v2/onboarding-actions/initial. Brazil auto-populates only some fields (name, birthDate, work) from national databases — you must still supply surname, phoneNumber, nationality, address.street, sex, and maritalStatus. Use the missing-personal-data endpoint to check what is pending, then poll the user until ACTIVE.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Onboard User',
+                    description:
+                        'Create the end-user and submit their CPF; Manteca runs KYC and auto-populates personal data for Brazil.',
+                },
+                {
+                    title: 'Get Quote',
+                    description: 'Read the USDC_BRL price and fee to estimate the conversion.',
+                },
+                {
+                    title: 'Create Ramp-On Synthetic',
+                    description:
+                        'Create a ramp-on synthetic with the Stellar destination; receive PIX deposit instructions.',
+                },
+                {
+                    title: 'Pay via PIX',
+                    description:
+                        'The user pays the PIX deposit (or, in sandbox, simulate the deposit) to trigger the synthetic.',
+                },
+                {
+                    title: 'Receive USDC',
+                    description:
+                        'Manteca converts BRL to USDC and settles it to the user’s Stellar address; poll until COMPLETED.',
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Onboard User',
+                    description: 'Create and KYC the end-user (CPF) if not already active.',
+                },
+                {
+                    title: 'Validate PIX Key',
+                    description:
+                        'Resolve the payout PIX key to confirm the recipient name and masked legal ID.',
+                },
+                {
+                    title: 'Create Ramp-Off Synthetic',
+                    description:
+                        'Create a ramp-off synthetic with the PIX key as destination; receive the Stellar deposit address.',
+                },
+                {
+                    title: 'Send USDC',
+                    description:
+                        'Sign and submit the USDC payment to the Manteca Stellar address with Freighter.',
+                },
+                {
+                    title: 'Receive BRL',
+                    description:
+                        'Manteca sells USDC and pays out BRL via PIX; poll the synthetic until COMPLETED.',
+                },
+            ],
+        },
+    },
 };
 
 export function getAnchor(id: string): AnchorProfile | undefined {

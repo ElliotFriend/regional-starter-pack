@@ -50,6 +50,18 @@ describe('getAnchor', () => {
         expect(anchor!.regions.argentina.tokens).toContain('USDC');
     });
 
+    it('returns Manteca profile with Brazil region (BRL/USDC via PIX)', () => {
+        const anchor = getAnchor('manteca');
+        expect(anchor).toBeDefined();
+        expect(anchor!.id).toBe('manteca');
+        expect(anchor!.name).toBe('Manteca');
+        expect(anchor!.regions.brazil).toBeDefined();
+        expect(anchor!.regions.brazil.onRamp).toBe(true);
+        expect(anchor!.regions.brazil.offRamp).toBe(true);
+        expect(anchor!.regions.brazil.paymentRails).toContain('pix');
+        expect(anchor!.regions.brazil.tokens).toContain('USDC');
+    });
+
     it('does not return removed anchors', () => {
         expect(getAnchor('alfredpay')).toBeUndefined();
         expect(getAnchor('blindpay')).toBeUndefined();
@@ -63,12 +75,13 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns the curated Etherfuse + Koywe anchors and the test anchor', () => {
+    it('returns the curated Etherfuse + Koywe + Manteca anchors and the test anchor', () => {
         const ids = getAllAnchors().map((a) => a.id);
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('koywe');
+        expect(ids).toContain('manteca');
         expect(ids).toContain('testanchor');
-        expect(ids).toHaveLength(3);
+        expect(ids).toHaveLength(4);
     });
 });
 

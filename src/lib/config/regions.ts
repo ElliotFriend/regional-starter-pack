@@ -45,7 +45,7 @@ export const REGIONS: Record<string, Region> = {
         description:
             'Brazil has a vibrant fintech ecosystem with PIX enabling instant payments 24/7. Locally denominated assets on Stellar enable low-cost on- and off-ramps with competitive FX rates.',
         paymentRails: [PAYMENT_RAILS.pix],
-        anchors: ['etherfuse'],
+        anchors: ['etherfuse', 'manteca'],
     },
     argentina: {
         id: 'argentina',

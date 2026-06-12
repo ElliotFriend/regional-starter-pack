@@ -14,8 +14,12 @@ describe('PROVIDER', () => {
         expect(PROVIDER.KOYWE).toBe('koywe');
     });
 
+    it('includes MANTECA', () => {
+        expect(PROVIDER.MANTECA).toBe('manteca');
+    });
+
     it('has the expected providers', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(3);
+        expect(Object.keys(PROVIDER)).toHaveLength(4);
     });
 });
 

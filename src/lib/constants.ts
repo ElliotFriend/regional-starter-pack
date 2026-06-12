@@ -26,6 +26,7 @@ export const PROVIDER = {
     ETHERFUSE: 'etherfuse',
     TESTANCHOR: 'testanchor',
     KOYWE: 'koywe',
+    MANTECA: 'manteca',
 } as const;
 
 // KYC statuses (internal)
