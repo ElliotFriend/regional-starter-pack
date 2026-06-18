@@ -1,6 +1,11 @@
 <script lang="ts">
-    import { QUALITY_CRITERIA, type HonorableMention } from '$lib/config/anchors';
+    import {
+        COMMERCIAL_CRITERIA,
+        DEVELOPER_CRITERIA,
+        type HonorableMention,
+    } from '$lib/config/anchors';
     import type { Region } from '$lib/config/regions';
+    import CriteriaScorecard from './CriteriaScorecard.svelte';
 
     interface Props {
         region: Region;
@@ -37,31 +42,14 @@
                         </a>
                     </div>
 
-                    <!-- Criteria checklist -->
-                    <div class="mt-4 space-y-1.5">
-                        {#each mention.criteria as criterion (criterion.id)}
-                            <div class="flex items-start gap-2 text-sm">
-                                {#if criterion.met}
-                                    <span class="mt-0.5 text-green-500">&#10003;</span>
-                                {:else}
-                                    <span class="mt-0.5 text-gray-300">&#10005;</span>
-                                {/if}
-                                <span
-                                    class:text-gray-700={criterion.met}
-                                    class:text-gray-400={!criterion.met}
-                                >
-                                    {criterion.label}
-                                </span>
-                                {#if criterion.note}
-                                    <span class="text-gray-400">&mdash; {criterion.note}</span>
-                                {/if}
-                            </div>
-                        {/each}
-                    </div>
-
                     <div class="mt-3 flex gap-4 text-sm text-gray-500">
                         <span>Tokens: {mention.tokens.join(', ')}</span>
                         <span>Rails: {mention.rails.join(', ').toUpperCase()}</span>
+                    </div>
+
+                    <!-- Criteria scorecard -->
+                    <div class="mt-4">
+                        <CriteriaScorecard scorecard={mention.scorecard} />
                     </div>
                 </div>
             {/each}
@@ -71,14 +59,30 @@
         <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
             <div class=" grid md:grid-cols-2">
                 <div>
-                    <p class="text-sm text-gray-600">
-                        We evaluate anchor providers against five quality criteria:
+                    <p class="text-sm text-gray-600 p-2">
+                        We evaluate providers against two lenses — a commercial bar (real local
+                        value for end-users) and a developer bar (can you actually build on it):
                     </p>
-                    <ul class="mt-2 list-outside list-disc space-y-1 px-4">
-                        {#each QUALITY_CRITERIA as criterion (criterion.id)}
-                            <li class="text-sm text-gray-500">{criterion.label}</li>
-                        {/each}
-                    </ul>
+                    <div class="mt-2">
+                        <h4 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                            Commercial
+                        </h4>
+                        <ul class="mt-1 list-outside list-disc space-y-1 px-4">
+                            {#each COMMERCIAL_CRITERIA as criterion (criterion.id)}
+                                <li class="text-sm text-gray-500">{criterion.label}</li>
+                            {/each}
+                        </ul>
+                    </div>
+                    <div class="mt-3">
+                        <h4 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                            Developer
+                        </h4>
+                        <ul class="mt-1 list-outside list-disc space-y-1 px-4">
+                            {#each DEVELOPER_CRITERIA as criterion (criterion.id)}
+                                <li class="text-sm text-gray-500">{criterion.label}</li>
+                            {/each}
+                        </ul>
+                    </div>
                 </div>
                 <div class="place-content-center rounded-lg bg-gray-50 p-4">
                     <p class="text-sm font-semibold text-gray-600">Looking for something else?</p>

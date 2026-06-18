@@ -2,7 +2,12 @@
 
 This is a SvelteKit application demonstrating fiat on/off ramps on the Stellar network using locally denominated assets. It ships a portable anchor integration library (one curated provider — Etherfuse — plus a reference client for the Stellar test anchor, plus a composable SEP protocol library) and a demo app that exercises every anchor.
 
-The project curates anchor integrations that meet five quality criteria: locally denominated assets on Stellar, local payment-rail support, competitive rates (<25 bps), well-documented developer access, and deep liquidity. Anchors that don't meet the bar appear as "honorable mentions" on region pages.
+The project curates anchor integrations against **two lenses**, defined in `src/lib/config/anchors.ts`:
+
+- **Commercial** (`COMMERCIAL_CRITERIA`) — the end-user-value bar: locally denominated asset on Stellar, local payment-rail support, competitive rates (<25 bps), deep liquidity. Passes unless two or more are a confirmed failure (a single failure — typically the missing local asset, since most anchors default to USDC — is tolerated). Fee + liquidity are vetted elsewhere and are often `unverified`.
+- **Developer** (`DEVELOPER_CRITERIA`) — the buildability bar: open self-service access, accurate docs (match the wire), high-fidelity sandbox (a completed test ramp lands real on-chain testnet tokens), agent-buildable. Passes unless any one is a confirmed failure.
+
+Each criterion is scored on a 4-state scale (`met` / `partial` / `failed` / `unverified`). `curationStatus(scorecard)` computes an advisory `curated` / `flagged` verdict (it does not move anchors automatically — placement in `ANCHORS` vs `HONORABLE_MENTIONS` stays a manual editorial call). Reference/test anchors are `referenceAnchor: true` and exempt from the commercial gate. Anchors that don't clear the bar appear as "honorable mentions" on region pages.
 
 ## Project Structure
 
@@ -87,7 +92,7 @@ API-key anchors (Etherfuse) never expose their key. SEP-10 tokens travel via the
 9. Add tests under `tests/anchors/<name>/`.
 10. Document in `src/lib/anchors/<name>/README.md`.
 
-If the anchor's API doesn't meet the five quality criteria, add it to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` instead — no client code needed.
+If the anchor doesn't clear the two-lens bar (commercial + developer; see the top of this guide), add it to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` instead — no client code needed. Give it a `scorecard` (via `makeCriteria`) so its gaps render.
 
 ### Sharing UI primitives
 

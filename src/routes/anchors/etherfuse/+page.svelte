@@ -3,6 +3,7 @@
     import { ANCHORS } from '$lib/config/anchors';
     import { getRegionsForAnchor, getRegion } from '$lib/config/regions';
     import { page } from '$app/state';
+    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
 
     const profile = ANCHORS.etherfuse;
     const regions = getRegionsForAnchor('etherfuse');
@@ -80,6 +81,15 @@
             </a>
         </div>
     </section>
+
+    {#if profile.scorecard}
+        <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">
+            <h2 class="text-lg font-semibold text-gray-900">How this anchor scores</h2>
+            <div class="mt-4">
+                <CriteriaScorecard scorecard={profile.scorecard} detailed />
+            </div>
+        </section>
+    {/if}
 
     {#if profile.integrationFlow}
         <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">

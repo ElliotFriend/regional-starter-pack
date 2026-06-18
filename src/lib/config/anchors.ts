@@ -51,29 +51,132 @@ export interface AnchorProfile {
     regions: Record<string, AnchorCapability>; // keyed by region ID
     devOnboarding?: DevOnboardingStep[];
     integrationFlow?: IntegrationFlow;
+    /** Two-lens criteria scores. Omitted for anchors not yet scored. */
+    scorecard?: ScoredCriterion[];
+    /**
+     * Reference/test anchor (no-value testnet) — exempt from the commercial
+     * gate when computing {@link curationStatus}.
+     */
+    referenceAnchor?: boolean;
 }
 
 // =============================================================================
 // Quality Criteria
 // =============================================================================
 
-export interface QualityCriterion {
+/** Four-state score for a single criterion (✅ 🟡 ❌ ❔). */
+export type CriterionStatus = 'met' | 'partial' | 'failed' | 'unverified';
+
+/** Which lens a criterion belongs to. */
+export type Lens = 'commercial' | 'developer';
+
+/** A lens-tagged criterion definition. */
+export interface CriterionDef {
     id: string;
+    /** Full label — used in the detailed scorecard on an anchor's own page. */
     label: string;
-    met: boolean;
+    /** Brief label — used in the compact scorecard on listing / region pages. */
+    shortLabel: string;
+    lens: Lens;
+}
+
+/** A criterion scored for a specific anchor. */
+export interface ScoredCriterion extends CriterionDef {
+    status: CriterionStatus;
     note?: string;
 }
 
-export const QUALITY_CRITERIA = [
+/**
+ * Commercial lens — the curation / end-user-value bar. Fee + liquidity are
+ * vetted elsewhere and are typically `unverified` in our data.
+ */
+export const COMMERCIAL_CRITERIA: readonly CriterionDef[] = [
     {
         id: 'local-asset',
         label: 'Locally denominated asset (stablecoin or stablebond) on Stellar',
+        shortLabel: 'Locally denominated asset',
+        lens: 'commercial',
     },
-    { id: 'local-rails', label: 'Support for local payment rails connected to Stellar' },
-    { id: 'competitive-rates', label: 'Competitive rates (wholesale <25 bps conversion)' },
-    { id: 'open-access', label: 'Well-documented open access for application developers' },
-    { id: 'deep-liquidity', label: 'Deep liquidity for low slippage (local <-> global assets)' },
+    {
+        id: 'local-rails',
+        label: 'Support for local payment rails connected to Stellar',
+        shortLabel: 'Local payment rails',
+        lens: 'commercial',
+    },
+    {
+        id: 'competitive-rates',
+        label: 'Competitive rates (wholesale <25 bps conversion)',
+        shortLabel: 'Competitive rates',
+        lens: 'commercial',
+    },
+    {
+        id: 'deep-liquidity',
+        label: 'Deep liquidity for low slippage (local ↔ global assets)',
+        shortLabel: 'Deep liquidity',
+        lens: 'commercial',
+    },
 ] as const;
+
+/**
+ * Developer lens — buildability. Distilled from the developer-friction rubric;
+ * supplements (does not replace) the commercial bar.
+ */
+export const DEVELOPER_CRITERIA: readonly CriterionDef[] = [
+    {
+        id: 'open-access',
+        label: 'Open self-service access (credentials + sandbox, no human in the loop)',
+        shortLabel: 'Open self-service access',
+        lens: 'developer',
+    },
+    {
+        id: 'accurate-docs',
+        label: 'Accurate, well-documented API (docs match the wire)',
+        shortLabel: 'Accurate docs',
+        lens: 'developer',
+    },
+    {
+        id: 'high-fidelity-sandbox',
+        label: 'High-fidelity sandbox (a completed test ramp lands real on-chain testnet tokens)',
+        shortLabel: 'High-fidelity sandbox',
+        lens: 'developer',
+    },
+    {
+        id: 'agent-buildable',
+        label: 'Agent-buildable (machine-readable docs/spec, diagnosable failures)',
+        shortLabel: 'Agent-buildable',
+        lens: 'developer',
+    },
+] as const;
+
+/** The full criteria set, commercial lens first. */
+export const QUALITY_CRITERIA: readonly CriterionDef[] = [
+    ...COMMERCIAL_CRITERIA,
+    ...DEVELOPER_CRITERIA,
+];
+
+/**
+ * Compute the advisory curation flag for a scorecard.
+ *
+ * - Commercial lens passes unless **two or more** criteria are `failed` (a
+ *   single failure — typically the missing local asset — is tolerated).
+ * - Developer lens passes unless **any** criterion is `failed`.
+ * - `partial` / `unverified` never count against either lens.
+ * - Reference anchors (`exempt`) are always curated.
+ *
+ * Advisory only — it does not move anchors between {@link ANCHORS} and
+ * {@link HONORABLE_MENTIONS}; placement stays a manual editorial decision.
+ */
+export function curationStatus(
+    scorecard: ScoredCriterion[],
+    opts: { exempt?: boolean } = {},
+): { status: 'curated' | 'flagged'; flags: ScoredCriterion[] } {
+    if (opts.exempt) return { status: 'curated', flags: [] };
+    const failed = scorecard.filter((c) => c.status === 'failed');
+    const commercialFails = failed.filter((c) => c.lens === 'commercial').length;
+    const developerFails = failed.filter((c) => c.lens === 'developer').length;
+    const status = commercialFails >= 2 || developerFails >= 1 ? 'flagged' : 'curated';
+    return { status, flags: failed };
+}
 
 // =============================================================================
 // Curated Anchors
@@ -86,6 +189,22 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         description:
             'Etherfuse bridges traditional finance and decentralized finance, making financial systems more inclusive, transparent, and efficient for everyone.',
         logo: '/anchor-logos/etherfuse.png',
+        scorecard: makeCriteria({
+            'local-asset': { status: 'met', note: 'CETES / TESOURO stablebonds on Stellar' },
+            'local-rails': { status: 'met', note: 'SPEI (MX); PIX (BR)' },
+            'competitive-rates': {
+                status: 'met',
+                note: 'Stablebond yield offsets conversion cost',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': { status: 'met', note: 'Self-serve signup; sandbox live 24/7' },
+            'accurate-docs': { status: 'met', note: 'Guides + reference match the wire (MX)' },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'Sandbox delivers on-chain CETES; off-ramp burns a real testnet tx',
+            },
+            'agent-buildable': { status: 'met', note: 'MCP docs server + OpenAPI spec' },
+        }),
         links: {
             website: 'https://www.etherfuse.com',
             documentation: 'https://docs.etherfuse.com',
@@ -186,6 +305,31 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         description:
             'Koywe is a Latin American crypto-finance infrastructure provider offering fiat on/off ramps between local currencies and stablecoins. In Argentina it ramps Argentine pesos (ARS) to USDC on Stellar via local CVU and QR bank-transfer rails.',
         logo: '/anchor-logos/koywe.png',
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USDC (USD-denominated) — no locally denominated ARS asset',
+            },
+            'local-rails': { status: 'met', note: 'WIREAR (CVU) + QRI' },
+            'competitive-rates': {
+                status: 'unverified',
+                note: 'Production ARS↔USDC spread pending',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'partial',
+                note: 'Credentials by email request (lightweight human step)',
+            },
+            'accurate-docs': { status: 'met', note: 'Authoritative OpenAPI spec' },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'On-ramp confirms fiat but never executes the on-chain delivery (sandbox-side)',
+            },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'OpenAPI good; opaque/silent sandbox failures',
+            },
+        }),
         links: {
             website: 'https://koywe.com',
             documentation: 'https://docs-crypto.koywe.com/en',
@@ -298,6 +442,18 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         description:
             'The Stellar Development Foundation reference anchor (testanchor.stellar.org). It implements the full SEP stack on testnet and is wired here as a dual-facet anchor: SEP-24 interactive (the default flow) and SEP-6 programmatic, both authenticated with SEP-10 wallet signatures.',
         logo: '/anchor-logos/testanchor.png',
+        referenceAnchor: true,
+        scorecard: makeCriteria({
+            // Reference SEP test anchor (no-value testnet) — exempt from the
+            // commercial gate; the gold standard on the developer lens.
+            'open-access': { status: 'met', note: 'No signup; open testnet' },
+            'accurate-docs': { status: 'met', note: 'SEP standard + stellar.toml' },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'Issues real testnet SRT + USDC',
+            },
+            'agent-buildable': { status: 'met', note: 'Standard SEPs' },
+        }),
         links: {
             website: 'https://testanchor.stellar.org',
             documentation:
@@ -394,16 +550,19 @@ export interface HonorableMention {
     tokens: string[];
     rails: string[];
     regions: string[];
-    criteria: QualityCriterion[];
+    scorecard: ScoredCriterion[];
 }
 
+/**
+ * Build a full two-lens scorecard. Unspecified criteria default to
+ * `unverified` (honest absence of data, rather than an implied failure).
+ */
 function makeCriteria(
-    overrides: Partial<Record<string, { met: boolean; note?: string }>>,
-): QualityCriterion[] {
+    overrides: Partial<Record<string, { status: CriterionStatus; note?: string }>> = {},
+): ScoredCriterion[] {
     return QUALITY_CRITERIA.map((c) => ({
-        id: c.id,
-        label: c.label,
-        met: overrides[c.id]?.met ?? false,
+        ...c,
+        status: overrides[c.id]?.status ?? 'unverified',
         note: overrides[c.id]?.note,
     }));
 }
@@ -418,14 +577,21 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         tokens: ['USDC'],
         rails: ['spei', 'pix'],
         regions: ['mexico', 'brazil'],
-        criteria: makeCriteria({
-            'local-asset': { met: false, note: 'USDC only — no locally denominated asset' },
-            'local-rails': { met: true },
-            'competitive-rates': { met: false, note: 'USD-intermediated conversion adds cost' },
-            'open-access': { met: true },
+        scorecard: makeCriteria({
+            'local-asset': { status: 'failed', note: 'USDC only — no locally denominated asset' },
+            'local-rails': { status: 'met' },
+            'competitive-rates': {
+                status: 'failed',
+                note: 'USD-intermediated conversion adds cost',
+            },
             'deep-liquidity': {
-                met: false,
+                status: 'failed',
                 note: 'USDC has global liquidity but no local-currency depth',
+            },
+            'open-access': { status: 'partial', note: 'Sandbox exists' },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'Sandbox does not submit testnet transactions (documented)',
             },
         }),
     },
@@ -438,12 +604,16 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         tokens: ['USDB'],
         rails: ['spei'],
         regions: ['mexico'],
-        criteria: makeCriteria({
-            'local-asset': { met: false, note: 'USDB is a USD-pegged test token' },
-            'local-rails': { met: true },
-            'competitive-rates': { met: false },
-            'open-access': { met: true },
-            'deep-liquidity': { met: false, note: 'USDB has minimal on-chain liquidity' },
+        scorecard: makeCriteria({
+            'local-asset': { status: 'failed', note: 'USDB is a USD-pegged test token' },
+            'local-rails': { status: 'met' },
+            'competitive-rates': { status: 'failed' },
+            'deep-liquidity': { status: 'failed', note: 'USDB has minimal on-chain liquidity' },
+            'open-access': { status: 'met', note: 'Self-serve signup + rich sandbox' },
+            'high-fidelity-sandbox': {
+                status: 'partial',
+                note: 'Off-ramp lands real testnet tokens; on-ramp blocked by a wrong USDB issuer',
+            },
         }),
     },
     abroad: {
@@ -455,15 +625,22 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         tokens: ['USDC'],
         rails: ['pix'],
         regions: ['brazil'],
-        criteria: makeCriteria({
-            'local-asset': { met: false, note: 'USDC only — no locally denominated asset' },
-            'local-rails': { met: true },
-            'competitive-rates': { met: false, note: 'USD-intermediated conversion adds cost' },
-            'open-access': { met: true },
+        scorecard: makeCriteria({
+            'local-asset': { status: 'failed', note: 'USDC only — no locally denominated asset' },
+            'local-rails': { status: 'met' },
+            'competitive-rates': {
+                status: 'failed',
+                note: 'USD-intermediated conversion adds cost',
+            },
             'deep-liquidity': {
-                met: false,
+                status: 'failed',
                 note: 'USDC has global liquidity but no local-currency depth',
             },
+            'open-access': {
+                status: 'failed',
+                note: 'No sandbox at all — test with small live amounts',
+            },
+            'high-fidelity-sandbox': { status: 'failed', note: 'No testnet environment' },
         }),
     },
     transfero: {
@@ -475,18 +652,24 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         tokens: ['USDC', 'BRZ'],
         rails: ['pix'],
         regions: ['brazil'],
-        criteria: makeCriteria({
+        scorecard: makeCriteria({
+            // BRZ is a genuine BRL-pegged Stellar asset (Transfero is the issuer);
+            // it's an honorable mention for access + rates/liquidity, not asset absence.
             'local-asset': {
-                met: false,
-                note: 'BRZ is locally denominated but does not meet all criteria',
+                status: 'met',
+                note: 'BRZ — BRL-pegged Stellar asset, Transfero-issued',
             },
-            'local-rails': { met: true },
-            'competitive-rates': { met: false },
+            'local-rails': { status: 'met' },
+            'competitive-rates': { status: 'failed' },
+            'deep-liquidity': { status: 'failed', note: 'Limited on-chain BRZ liquidity' },
             'open-access': {
-                met: false,
+                status: 'failed',
                 note: 'Sandbox requires contacting support for credentials',
             },
-            'deep-liquidity': { met: false, note: 'Limited on-chain BRZ liquidity' },
+            'high-fidelity-sandbox': {
+                status: 'unverified',
+                note: 'Real Stellar asset but mainnet; testnet sandbox unconfirmed',
+            },
         }),
     },
 };

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import { QUALITY_CRITERIA } from '$lib/config/anchors';
+    import { COMMERCIAL_CRITERIA, DEVELOPER_CRITERIA } from '$lib/config/anchors';
     import DevBox from '$lib/components/ui/DevBox.svelte';
 </script>
 
@@ -59,14 +59,32 @@
             <div class="place-content-center rounded-lg bg-gray-50 p-4">
                 <h2 class="font-semibold text-gray-900">What We Look For</h2>
                 <p class="mt-2 text-gray-600">
-                    Not every anchor is the same. We curate integrations that meet five criteria
-                    designed to ensure a great experience for developers and end-users alike.
+                    Not every anchor is the same. We curate against two lenses — a <strong
+                        >commercial</strong
+                    >
+                    bar (does it deliver real local value to end-users) and a
+                    <strong>developer</strong> bar (can you actually build on it).
                 </p>
-                <ul class="mt-2 list-outside list-disc p-6 text-gray-600">
-                    {#each QUALITY_CRITERIA as criterion (criterion.id)}
-                        <li class="mt-1">{criterion.label}</li>
-                    {/each}
-                </ul>
+                <div class="mt-4">
+                    <h3 class="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                        Commercial
+                    </h3>
+                    <ul class="mt-1 list-outside list-disc px-6 text-gray-600">
+                        {#each COMMERCIAL_CRITERIA as criterion (criterion.id)}
+                            <li class="mt-1">{criterion.label}</li>
+                        {/each}
+                    </ul>
+                </div>
+                <div class="mt-4">
+                    <h3 class="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                        Developer
+                    </h3>
+                    <ul class="mt-1 list-outside list-disc px-6 text-gray-600">
+                        {#each DEVELOPER_CRITERIA as criterion (criterion.id)}
+                            <li class="mt-1">{criterion.label}</li>
+                        {/each}
+                    </ul>
+                </div>
             </div>
         </div>
     </div>

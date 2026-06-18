@@ -2,6 +2,7 @@
     import { resolve } from '$app/paths';
     import { ANCHORS } from '$lib/config/anchors';
     import { getRegionsForAnchor } from '$lib/config/regions';
+    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
 
     const profile = ANCHORS.testanchor;
     const regions = getRegionsForAnchor('testanchor');
@@ -92,6 +93,15 @@
                     <span class="text-gray-500">Tokens</span>
                     <p class="font-medium">SRT, USDC (testnet)</p>
                 </div>
+            </div>
+        </section>
+    {/if}
+
+    {#if profile.scorecard}
+        <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">
+            <h2 class="text-lg font-semibold text-gray-900">How this anchor scores</h2>
+            <div class="mt-4">
+                <CriteriaScorecard scorecard={profile.scorecard} detailed />
             </div>
         </section>
     {/if}

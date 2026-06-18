@@ -1,6 +1,7 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import { QUALITY_CRITERIA } from '$lib/config/anchors';
+    import { COMMERCIAL_CRITERIA, DEVELOPER_CRITERIA } from '$lib/config/anchors';
+    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
     import type { PageProps } from './$types';
     const { data }: PageProps = $props();
 </script>
@@ -19,13 +20,32 @@
         <h2 class="text-sm font-semibold tracking-wide text-gray-500 uppercase">
             What We Look For
         </h2>
-        <ul
-            class="mt-3 grid list-outside list-disc gap-2 gap-x-6 px-6 sm:grid-cols-2 lg:grid-cols-3"
-        >
-            {#each QUALITY_CRITERIA as criterion (criterion.id)}
-                <li class="text-sm text-gray-600">{criterion.label}</li>
-            {/each}
-        </ul>
+        <p class="mt-2 text-sm text-gray-600">
+            We curate against two lenses — a commercial bar (real local value for end-users) and a
+            developer bar (can you actually build on it).
+        </p>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+                <h3 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    Commercial
+                </h3>
+                <ul class="mt-2 list-outside list-disc space-y-1 px-6">
+                    {#each COMMERCIAL_CRITERIA as criterion (criterion.id)}
+                        <li class="text-sm text-gray-600">{criterion.label}</li>
+                    {/each}
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    Developer
+                </h3>
+                <ul class="mt-2 list-outside list-disc space-y-1 px-6">
+                    {#each DEVELOPER_CRITERIA as criterion (criterion.id)}
+                        <li class="text-sm text-gray-600">{criterion.label}</li>
+                    {/each}
+                </ul>
+            </div>
+        </div>
         <p class="mt-3 text-sm text-gray-500">
             Providers that don't yet meet these criteria appear as alternatives on individual
             <a href={resolve('/regions')} class="text-indigo-600 hover:text-indigo-800"
@@ -55,6 +75,11 @@
                         </span>
                     {/each}
                 </div>
+                {#if anchor.scorecard}
+                    <div class="mt-4">
+                        <CriteriaScorecard scorecard={anchor.scorecard} />
+                    </div>
+                {/if}
                 <div class="mt-4 flex gap-3">
                     <a
                         href={`/anchors/${anchor.id}`}
