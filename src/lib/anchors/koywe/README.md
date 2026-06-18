@@ -82,7 +82,9 @@ Request/response shapes are confirmed against `koywe.openapi.yaml` (in this dire
 
 ## Sandbox quirks
 
-There is no on-ramp fiat-received simulation API (the spec only simulates the off-ramp bank leg once the testnet crypto payment is confirmed). In the live sandbox only **Khipu** reaches `DELIVERED` for on-ramp (pay `1234` / `123456` on the Khipu test page); WIREAR and QRI orders stay in `WAITING`. The unit tests still exercise the full `WAITING → DELIVERED` progression via mocks.
+There is no on-ramp fiat-received simulation API (the spec only simulates the off-ramp bank leg once the testnet crypto payment is confirmed). **No on-ramp rail reaches `DELIVERED` in the sandbox.** Khipu gets the furthest: paying `1234` / `123456` on the Khipu test page confirms the fiat (the order's `dates.paymentDate` is stamped and it advances to `EXECUTING`), but Koywe's sandbox **never executes the crypto-delivery leg** — `dates.executionDate` stays null, no `txHash` is ever produced, and Horizon shows no incoming payment to the destination. The order then loops between `EXECUTING` and `PENDING` until `dates.expiredByRetriesDate` is stamped. WIREAR and QRI orders never get that far (they stay in `WAITING`). This was confirmed by forensics on a live KHIPU order with `canOperate: true` and a valid USDC trustline to the configured issuer — i.e. it is a Koywe sandbox-side limitation, not an integration defect. `getOrder` surfaces `dates`, `txHash`, `statusDetails`, and `isDeliveryExpired` so the on-ramp page can show where an order stalls and stop polling on retry-expiry. The unit tests still exercise the full `WAITING → DELIVERED` progression via mocks.
+
+A note on the issuer: Koywe returns no Stellar issuer for `USDC Stellar` (see `token-currencies`), and we inject `PUBLIC_USDC_ISSUER`. It is unconfirmed whether Koywe's sandbox would pay from that same issuer; an issuer the destination has no trustline for could also cause a delivery that silently fails during `EXECUTING`. Resolving this needs Koywe to state their sandbox testnet USDC issuer (or one observed successful delivery tx).
 
 **Off-ramp bank-account registration is blocked in sandbox (Koywe-side).** `POST /rest/bank-accounts` runs an ownership check ("the bank account holder matches the user who is operating the account"). The docs publish whitelisted DNI↔CVU test pairs:
 
@@ -100,11 +102,12 @@ A second, compounding wrinkle: a DNI is **single-use** — once any account has 
 
 ## TODO — remaining Koywe work (integration paused 2026-06-01)
 
-The integration is **paused** here. On-ramp works end-to-end via Khipu; the off-ramp is blocked at bank-account registration. Remaining work, none of which is a code-shape bug on our side:
+The integration is **paused** here. Neither ramp reaches `DELIVERED` in the sandbox; both blockers are Koywe-side. Remaining work, none of which is a code-shape bug on our side:
 
-1. **[Koywe team] Off-ramp bank-account ownership validation** — `POST /rest/bank-accounts` rejects Koywe's own documented DNI↔CVU test pairs (see above). Blocks the entire off-ramp. Needs Koywe to fix the sandbox validation backend (or tell us what the request is missing).
-2. **[Koywe team] Single-use whitelisted DNIs** — the five test DNIs are consumed after first use; ask Koywe for either a larger pool or a sandbox reset so the off-ramp can be re-tested.
-3. **[us, once #1/#2 unblock] Document upload** — `POST /upload-delegated-kyc-files` (multipart `pdf`/`video`/`image`) is **not implemented**; it is likely required before an account reaches `canOperate: true`. Wire it only after `checkAccount`'s `missing[]` confirms documents are the gap (read the amber banner in the flow pages).
-4. **[us] Confirm off-ramp to `DELIVERED`** — never verified end-to-end; do this once #1–#3 are resolved.
+1. **[Koywe team] On-ramp crypto delivery never executes** — Khipu orders confirm the fiat (`dates.paymentDate` set) and advance to `EXECUTING`, but Koywe never broadcasts the Stellar payment (`dates.executionDate` null, no `txHash`, nothing on-chain), looping `EXECUTING`↔`PENDING` until `expiredByRetriesDate`. Verified with `canOperate: true` and a valid trustline to the configured issuer. Needs Koywe to fix sandbox on-ramp execution — and, while at it, to state the sandbox testnet USDC issuer so we can rule out an issuer/trustline mismatch as a contributing cause.
+2. **[Koywe team] Off-ramp bank-account ownership validation** — `POST /rest/bank-accounts` rejects Koywe's own documented DNI↔CVU test pairs (see above). Blocks the entire off-ramp. Needs Koywe to fix the sandbox validation backend (or tell us what the request is missing).
+3. **[Koywe team / us] Whitelisted DNIs are org-scoped & single-use per user** — each whitelisted DNI can back one approved user in our org. Koywe confirmed a DNI can't be removed from a user, but a user's DNI can be changed (`PUT /rest/accounts`, `updateDocumentNumber`/`updateDocumentType`) to free it, then re-attached to a fresh user. `updateAccount` is **not implemented** yet.
+4. **[us, once #1/#2 unblock] Document upload** — `POST /upload-delegated-kyc-files` (multipart `pdf`/`video`/`image`) is **not implemented**; it is likely required before an account reaches `canOperate: true`. Wire it only after `checkAccount`'s `missing[]` confirms documents are the gap (read the amber banner in the flow pages).
+5. **[us] Confirm both ramps to `DELIVERED`** — neither verified end-to-end; do this once the Koywe-side blockers are resolved.
 
 These are tracked as `knownIssues` on `ANCHORS.koywe` (rendered on the anchor page) and as a `TODO(koywe)` in `routes/anchors/koywe/offramp/+page.svelte`.

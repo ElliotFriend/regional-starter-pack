@@ -198,7 +198,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'The hosted KYC widget URL endpoint is unconfirmed in the sandbox — the client surfaces a clear "not implemented" state until it is wired up. Complete KYC for the test user via the Koywe dashboard.',
             },
             {
-                text: 'In the sandbox only the Khipu rail reaches DELIVERED (via its test pay page); WIREAR and QRI orders stay in WAITING because there is no fiat-received simulation API.',
+                text: 'No on-ramp rail reaches DELIVERED in the sandbox. Khipu (via its test pay page) confirms the fiat payment and the order advances to EXECUTING, but Koywe never executes the crypto-delivery leg — no on-chain payment is broadcast, so it loops between EXECUTING and PENDING until it expires by retries. WIREAR and QRI orders stay in WAITING (no fiat-received simulation). Appears to be a sandbox-side limitation; awaiting the Koywe team.',
             },
             {
                 text: 'The off-ramp order field name and the submit-tx-hash REST path follow the documented OpenAPI spec but have not been verified end-to-end against the live sandbox.',

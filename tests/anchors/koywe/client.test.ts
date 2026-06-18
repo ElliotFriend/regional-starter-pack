@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
-import { KoyweClient, KoyweError } from '$lib/anchors/koywe';
+import { KoyweClient, KoyweError, resolveFiatLimits } from '$lib/anchors/koywe';
+import type { KoyweTokenCurrency } from '$lib/anchors/koywe';
 
 const BASE_URL = 'http://koywe.test';
 const CLIENT_ID = 'test-client-id';
@@ -154,6 +155,63 @@ describe('getTokenCurrencies', () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveFiatLimits (pure helper — validate pair + read min/max)
+// ---------------------------------------------------------------------------
+
+describe('resolveFiatLimits', () => {
+    const tokens: KoyweTokenCurrency[] = [
+        {
+            _id: 't1',
+            name: 'USD Coin Stellar',
+            symbol: 'USDC Stellar',
+            decimals: 6,
+            currencies: [
+                {
+                    _id: 'c1',
+                    symbol: 'ARS',
+                    name: 'Peso Argentino',
+                    decimals: 2,
+                    minimum: 1000,
+                    maximum: 5000000,
+                },
+                {
+                    _id: 'c2',
+                    symbol: 'CLP',
+                    name: 'Peso Chileno',
+                    decimals: 0,
+                    minimum: 500,
+                    maximum: 8500000,
+                },
+            ],
+        },
+        {
+            _id: 't2',
+            name: 'USD Coin Polygon',
+            symbol: 'USDC Polygon',
+            decimals: 6,
+            currencies: [{ _id: 'c3', symbol: 'MXN', name: 'Peso Mexicano', decimals: 2 }],
+        },
+    ];
+
+    it('returns the min/max for a supported token↔fiat pair', () => {
+        expect(resolveFiatLimits(tokens, 'ARS')).toEqual({ min: 1000, max: 5000000 });
+    });
+
+    it('returns null when the fiat is not offered for the token (unsupported pair)', () => {
+        // MXN exists, but not under USDC Stellar.
+        expect(resolveFiatLimits(tokens, 'MXN')).toBeNull();
+    });
+
+    it('returns null when the token symbol is absent', () => {
+        expect(resolveFiatLimits(tokens, 'ARS', 'USDC Ethereum')).toBeNull();
+    });
+
+    it('omits limits that the API did not provide', () => {
+        expect(resolveFiatLimits(tokens, 'MXN', 'USDC Polygon')).toEqual({});
+    });
+});
+
+// ---------------------------------------------------------------------------
 // getPaymentProviders
 // ---------------------------------------------------------------------------
 
@@ -169,8 +227,9 @@ describe('getPaymentProviders', () => {
         expect(byName.WIREAR.rail).toBe('wirear');
         expect(byName['QRI-AR'].label).toBe('QR transfer');
         expect(byName['QRI-AR'].rail).toBe('qri');
-        // Khipu is surfaced (it is the only rail that reaches DELIVERED in sandbox)
-        // but has no shared local rail id.
+        // Khipu is surfaced (the furthest-progressing rail in sandbox — it
+        // confirms fiat, though no rail actually reaches DELIVERED there) but
+        // has no shared local rail id.
         expect(byName.KHIPU.label).toBe('Khipu');
         expect(byName.KHIPU.rail).toBeUndefined();
     });
@@ -538,6 +597,69 @@ describe('getOrder', () => {
             ),
         );
         expect(await client.getOrder('missing')).toBeNull();
+    });
+
+    it('surfaces lifecycle diagnostics (dates, txHash, statusDetails)', async () => {
+        const client = createClient();
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/orders/o-diag`, () =>
+                HttpResponse.json({
+                    orderId: 'o-diag',
+                    status: 'EXECUTING',
+                    amountIn: 10000,
+                    amountOut: 5.49,
+                    symbolIn: 'ARS',
+                    symbolOut: 'USDC Stellar',
+                    statusDetails: '',
+                    txHash: null,
+                    dates: {
+                        confirmationDate: '2026-06-18T15:31:31.466Z',
+                        paymentDate: '2026-06-18T15:33:45.127Z',
+                        executionDate: null,
+                        deliveryDate: null,
+                        expiredByRetriesDate: null,
+                    },
+                }),
+            ),
+        );
+        const order = await client.getOrder('o-diag');
+        // The crypto-delivery leg is the diagnostic surface: payment confirmed,
+        // execution never ran. These fields locate exactly where an order stalls.
+        expect(order!.txHash).toBeNull();
+        expect(order!.statusDetails).toBe('');
+        expect(order!.dates?.paymentDate).toBe('2026-06-18T15:33:45.127Z');
+        expect(order!.dates?.executionDate).toBeNull();
+        expect(order!.dates?.deliveryDate).toBeNull();
+        expect(order!.dates?.expiredByRetriesDate).toBeNull();
+    });
+
+    it('reports retry-expiry as a delivery failure once Koywe stops retrying', async () => {
+        const client = createClient();
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/orders/o-expired`, () =>
+                HttpResponse.json({
+                    orderId: 'o-expired',
+                    status: 'EXECUTING',
+                    amountIn: 10000,
+                    amountOut: 5.49,
+                    symbolIn: 'ARS',
+                    symbolOut: 'USDC Stellar',
+                    dates: {
+                        paymentDate: '2026-06-18T15:33:45.127Z',
+                        executionDate: null,
+                        deliveryDate: null,
+                        expiredByRetriesDate: '2026-06-18T16:00:00.000Z',
+                    },
+                }),
+            ),
+        );
+        const order = await client.getOrder('o-expired');
+        // A stamped expiredByRetriesDate is terminal even though the raw status
+        // is still EXECUTING — the page polls on this to stop and warn.
+        expect(order!.dates?.expiredByRetriesDate).toBe('2026-06-18T16:00:00.000Z');
+        expect(order!.isDeliveryExpired).toBe(true);
     });
 });
 

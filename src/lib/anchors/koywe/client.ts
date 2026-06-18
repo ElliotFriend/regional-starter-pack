@@ -400,6 +400,10 @@ export class KoyweClient {
                 deposit: parseDepositInstructions(response.providedAddress),
                 depositAddress: response.providedAddress,
                 interactiveUrl: response.providedAction,
+                dates: response.dates,
+                txHash: response.txHash,
+                statusDetails: response.statusDetails,
+                isDeliveryExpired: Boolean(response.dates?.expiredByRetriesDate),
             };
         } catch (error) {
             if (error instanceof KoyweError && error.statusCode === 404) {
@@ -588,6 +592,34 @@ export class KoyweClient {
         if (!text) return undefined as T;
         return JSON.parse(text) as T;
     }
+}
+
+// ===========================================================================
+// Exported helpers
+// ===========================================================================
+
+/**
+ * Resolve a ramp's transaction limits from a {@link KoyweClient.getTokenCurrencies}
+ * catalogue (Koywe's `GET /rest/token-currencies` — the documented "currency
+ * tokens" discovery step).
+ *
+ * Returns the `{ min, max }` figures for the `fiatCurrency` under the given
+ * crypto `tokenSymbol` (default `"USDC Stellar"`), or `null` when the pair is
+ * not offered — i.e. the token is absent, or the fiat is not listed under it.
+ * `min`/`max` are omitted individually when the API did not provide them.
+ */
+export function resolveFiatLimits(
+    tokens: KoyweTokenCurrency[],
+    fiatCurrency: string,
+    tokenSymbol: string = USDC_STELLAR_SYMBOL,
+): { min?: number; max?: number } | null {
+    const token = tokens.find((t) => t.symbol === tokenSymbol);
+    const fiat = token?.currencies.find((c) => c.symbol === fiatCurrency);
+    if (!fiat) return null;
+    const limits: { min?: number; max?: number } = {};
+    if (fiat.minimum !== undefined) limits.min = fiat.minimum;
+    if (fiat.maximum !== undefined) limits.max = fiat.maximum;
+    return limits;
 }
 
 // ===========================================================================
