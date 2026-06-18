@@ -1,3 +1,7 @@
 onlyBuiltDependencies:
   - esbuild
 minimumReleaseAge: 4320
+strictDepBuilds: true
+allowBuilds:
+  esbuild: true
+  msw: false
