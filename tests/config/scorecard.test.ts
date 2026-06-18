@@ -5,10 +5,32 @@ describe('buildReadiness', () => {
     const entries = buildReadiness();
     const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
 
-    it('covers the on-main scored anchors and excludes the reference (test) anchor', () => {
+    it('covers curated, honorable-mention, and in-vetting anchors; excludes the reference anchor', () => {
         const ids = entries.map((e) => e.id);
-        expect(ids).toEqual(['etherfuse', 'koywe', 'alfredpay', 'blindpay', 'abroad', 'transfero']);
+        expect(ids).toEqual([
+            'etherfuse',
+            'koywe',
+            'alfredpay',
+            'blindpay',
+            'abroad',
+            'transfero',
+            'manteca',
+            'pdax',
+            'coinsph',
+        ]);
         expect(ids).not.toContain('testanchor');
+    });
+
+    it('flags in-vetting anchors (and only those)', () => {
+        for (const id of ['pdax', 'manteca', 'coinsph']) {
+            expect(byId[id].vetting, id).toBe(true);
+        }
+        for (const id of ['etherfuse', 'koywe', 'alfredpay', 'blindpay', 'abroad', 'transfero']) {
+            expect(byId[id].vetting, id).toBe(false);
+        }
+        // Markets carry through for the dashboard join.
+        expect(byId.manteca.regions).toEqual(['brazil']);
+        expect(byId.pdax.regions).toEqual(['philippines']);
     });
 
     it('exposes the 5 buildability signals, required-first, each tagged with its severity', () => {
@@ -51,6 +73,7 @@ describe('buildReadiness', () => {
                 'regions',
                 'signals',
                 'verdict',
+                'vetting',
             ].sort(),
         );
     });
@@ -117,6 +140,12 @@ describe('toMarkdown', () => {
         expect(md).toContain('never executes the on-chain delivery');
         // A caveat note too.
         expect(md.toLowerCase()).toMatch(/blocker|caveat/);
+    });
+
+    it('marks in-vetting anchors as under evaluation', () => {
+        expect(md).toContain('Manteca');
+        // The report explains the vetting marker and flags the rows.
+        expect(md.toLowerCase()).toContain('evaluation');
     });
 });
 

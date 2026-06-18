@@ -27,9 +27,18 @@
                 <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                     <div class="flex items-start justify-between">
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900">
-                                {mention.name}
-                            </h3>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-semibold text-gray-900">
+                                    {mention.name}
+                                </h3>
+                                {#if mention.vetting}
+                                    <span
+                                        class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-amber-700 uppercase"
+                                    >
+                                        Under evaluation
+                                    </span>
+                                {/if}
+                            </div>
                             <p class="mt-1 text-sm text-gray-500">{mention.description}</p>
                         </div>
                         <a

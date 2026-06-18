@@ -175,9 +175,9 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 4 entries', () => {
+    it('has 7 entries (4 vetted + 3 in-vetting)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(4);
+        expect(mentions).toHaveLength(7);
     });
 
     it('includes alfredpay', () => {
@@ -210,6 +210,23 @@ describe('HONORABLE_MENTIONS', () => {
         expect(mention.regions).toContain('brazil');
     });
 
+    it('includes the in-vetting branch anchors, flagged vetting', () => {
+        for (const id of ['pdax', 'manteca', 'coinsph']) {
+            expect(HONORABLE_MENTIONS[id], id).toBeDefined();
+            expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
+            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(8);
+        }
+        expect(HONORABLE_MENTIONS['manteca'].regions).toContain('brazil');
+        expect(HONORABLE_MENTIONS['pdax'].regions).toContain('philippines');
+        expect(HONORABLE_MENTIONS['coinsph'].regions).toContain('philippines');
+    });
+
+    it('does not flag the vetted mentions', () => {
+        for (const id of ['alfredpay', 'blindpay', 'abroad', 'transfero']) {
+            expect(HONORABLE_MENTIONS[id].vetting, id).toBeFalsy();
+        }
+    });
+
     it('each mention has a scorecard scoring all 8 two-lens criteria', () => {
         for (const mention of Object.values(HONORABLE_MENTIONS)) {
             expect(mention.scorecard).toHaveLength(8);
@@ -232,13 +249,20 @@ describe('getHonorableMentionsForRegion', () => {
         expect(ids).toContain('blindpay');
     });
 
-    it('returns alfredpay, abroad, and transfero for brazil', () => {
+    it('returns alfredpay, abroad, transfero, and manteca for brazil', () => {
         const mentions = getHonorableMentionsForRegion('brazil');
-        expect(mentions).toHaveLength(3);
+        expect(mentions).toHaveLength(4);
         const ids = mentions.map((m) => m.id);
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('abroad');
         expect(ids).toContain('transfero');
+        expect(ids).toContain('manteca');
+    });
+
+    it('returns the in-vetting PH anchors for philippines', () => {
+        const ids = getHonorableMentionsForRegion('philippines').map((m) => m.id);
+        expect(ids).toContain('pdax');
+        expect(ids).toContain('coinsph');
     });
 
     it('returns empty array for nonexistent region', () => {
@@ -247,8 +271,8 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 4 honorable mentions', () => {
+    it('returns all 7 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(4);
+        expect(mentions).toHaveLength(7);
     });
 });

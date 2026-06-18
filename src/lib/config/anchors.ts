@@ -550,6 +550,13 @@ export interface HonorableMention {
     rails: string[];
     regions: string[];
     scorecard: ScoredCriterion[];
+    /**
+     * `true` for a branch/candidate anchor we are still actively evaluating —
+     * its scorecard is hand-authored from preliminary investigation notes, not
+     * a verified live integration. Consumers should label these "under
+     * evaluation".
+     */
+    vetting?: boolean;
 }
 
 /**
@@ -661,6 +668,104 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 note: 'Sandbox requires contacting support for credentials',
             },
             'high-fidelity-sandbox': { status: 'unverified' },
+        }),
+    },
+    // --- In-vetting branch candidates (BD actively engaging; assessments are
+    // preliminary, hand-authored from investigation notes). ---
+    manteca: {
+        id: 'manteca',
+        name: 'Manteca',
+        description:
+            'Latin American fiat infrastructure with PIX on/off ramps on Stellar. Client built from docs; never run against a live sandbox.',
+        website: 'https://manteca.dev',
+        tokens: ['USDC', 'USDT'],
+        rails: ['pix'],
+        regions: ['brazil'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': { status: 'failed', note: 'USDC/USDT — no locally denominated asset' },
+            'local-rails': { status: 'met', note: 'PIX' },
+            'competitive-rates': { status: 'failed', note: '50–60 bps (above the <25 bps target)' },
+            'deep-liquidity': { status: 'met', note: '~$10M/day per survey' },
+            'open-access': {
+                status: 'failed',
+                note: 'Sandbox keys are sales-gated — no self-serve',
+            },
+            'accurate-docs': { status: 'unverified', note: 'Built from docs; never verified live' },
+            'high-fidelity-sandbox': { status: 'unverified', note: 'Never run' },
+            'agent-buildable': {
+                status: 'met',
+                note: 'Markdown docs + llms.txt; built a full client from them',
+            },
+        }),
+    },
+    pdax: {
+        id: 'pdax',
+        name: 'PDAX',
+        description:
+            'Philippine licensed exchange explored as a PHP ramp. Best PH option commercially, but the most integration-hostile of the candidates.',
+        website: 'https://pdax.ph',
+        tokens: ['USDC'],
+        rails: ['instapay', 'pesonet'],
+        regions: ['philippines'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USDCXLM (= USDC) — no locally denominated asset',
+            },
+            'local-rails': {
+                status: 'unverified',
+                note: 'PHP bank rails; never confirmed end-to-end',
+            },
+            'competitive-rates': { status: 'unverified' },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'failed',
+                note: 'Password-gated docs + Telegram-gated credentials — no self-serve',
+            },
+            'accurate-docs': {
+                status: 'failed',
+                note: 'No first-party spec; reverse-engineered and drifts from the wire',
+            },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'No crypto tx ever completed; sandbox appears to use an internal ledger, not real testnet',
+            },
+            'agent-buildable': {
+                status: 'failed',
+                note: 'Gated, no machine-readable spec, opaque NOT_FOUND errors',
+            },
+        }),
+    },
+    coinsph: {
+        id: 'coinsph',
+        name: 'Coins.ph',
+        description:
+            'Philippine wallet/exchange explored as a launch-only on-ramp. Stellar + USDC support itself is unconfirmed.',
+        website: 'https://coins.ph',
+        tokens: ['USDC'],
+        rails: ['instapay', 'pesonet'],
+        regions: ['philippines'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': { status: 'failed', note: 'USDC — no locally denominated asset' },
+            'local-rails': { status: 'unverified', note: 'PHP rails; unconfirmed' },
+            'competitive-rates': { status: 'unverified' },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': { status: 'failed', note: 'Blocked on credentials — not self-serve' },
+            'accurate-docs': {
+                status: 'failed',
+                note: 'Docs list only EVM/Solana; do not reflect any Stellar capability',
+            },
+            'high-fidelity-sandbox': {
+                status: 'unverified',
+                note: 'Blocked; Stellar support unconfirmed',
+            },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'Docs + HMAC signing exist, but core capability is unconfirmable',
+            },
         }),
     },
 };

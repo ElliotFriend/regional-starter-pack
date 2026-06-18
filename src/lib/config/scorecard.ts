@@ -43,6 +43,11 @@ export interface ReadinessEntry {
     name: string;
     /** Region/market ids the anchor serves — the join key for market-organized consumers. */
     regions: string[];
+    /**
+     * `true` for a candidate anchor still under active evaluation — its scores
+     * are preliminary. Consumers should label these "under evaluation".
+     */
+    vetting: boolean;
     /** Dev-readiness verdict, from the 5 buildability signals. */
     verdict: ReadinessVerdict;
     /** The 5 buildability signals, required-first. */
@@ -78,6 +83,7 @@ interface Source {
     id: string;
     name: string;
     regions: string[];
+    vetting: boolean;
     scorecard?: ScoredCriterion[];
     referenceAnchor?: boolean;
 }
@@ -87,13 +93,20 @@ function fromProfile(p: AnchorProfile): Source {
         id: p.id,
         name: p.name,
         regions: Object.keys(p.regions),
+        vetting: false,
         scorecard: p.scorecard,
         referenceAnchor: p.referenceAnchor,
     };
 }
 
 function fromMention(m: HonorableMention): Source {
-    return { id: m.id, name: m.name, regions: m.regions, scorecard: m.scorecard };
+    return {
+        id: m.id,
+        name: m.name,
+        regions: m.regions,
+        vetting: m.vetting ?? false,
+        scorecard: m.scorecard,
+    };
 }
 
 function entryFor(src: Source): ReadinessEntry | null {
@@ -122,6 +135,7 @@ function entryFor(src: Source): ReadinessEntry | null {
         id: src.id,
         name: src.name,
         regions: src.regions,
+        vetting: src.vetting,
         verdict,
         signals,
         blockers,
@@ -157,8 +171,8 @@ export function toMarkdown(entries: ReadinessEntry[]): string {
     const out: string[] = [
         '# Anchor developer-readiness',
         '',
-        '_Derived live from on-main config. Fees and liquidity are owned by BD and omitted;' +
-            ' branch candidates and the reference test anchor are excluded._',
+        '_Derived live from anchor config. Fees and liquidity are owned by BD and omitted;' +
+            ' the reference test anchor is excluded._',
         '',
         '## How to read this',
         '',
@@ -170,6 +184,10 @@ export function toMarkdown(entries: ReadinessEntry[]): string {
         ...SIGNALS.map((s) => `- **${s.shortLabel}** _(${s.severity})_ — ${s.label}`),
         '',
         'Status: ✓ met · ~ partial · ✕ failed · ? unverified',
+        '',
+        'Rows marked **†** are candidates **under active evaluation** — their scores are' +
+            ' preliminary, hand-authored from investigation notes rather than a verified' +
+            ' live integration.',
         '',
         '## Summary',
         '',
@@ -186,14 +204,15 @@ export function toMarkdown(entries: ReadinessEntry[]): string {
     out.push(`|${'---|'.repeat(headers.length)}`);
     for (const e of entries) {
         const cells = e.signals.map((s) => MD_SYMBOL[s.status]).join(' | ');
+        const name = e.vetting ? `${e.name} †` : e.name;
         out.push(
-            `| ${e.name} | ${e.regions.join(', ')} | ${e.verdict} | ${cells} | ${MD_SYMBOL[e.localAsset.status]} |`,
+            `| ${name} | ${e.regions.join(', ')} | ${e.verdict} | ${cells} | ${MD_SYMBOL[e.localAsset.status]} |`,
         );
     }
 
     out.push('', '## Details', '');
     for (const e of entries) {
-        out.push(`### ${e.name} — ${e.verdict}`);
+        out.push(`### ${e.name}${e.vetting ? ' † (under evaluation)' : ''} — ${e.verdict}`);
         const line = (s: ReadinessSignal, kind: string) =>
             `- ${MD_SYMBOL[s.status]} **${s.label}** (${kind})${s.note ? ` — ${s.note}` : ''}`;
         if (e.blockers.length === 0 && e.caveats.length === 0) {
