@@ -41,6 +41,8 @@ export interface ReadinessSignal {
 export interface ReadinessEntry {
     id: string;
     name: string;
+    /** Region/market ids the anchor serves — the join key for market-organized consumers. */
+    regions: string[];
     /** Dev-readiness verdict, from the 5 buildability signals. */
     verdict: ReadinessVerdict;
     /** The 5 buildability signals, required-first. */
@@ -75,16 +77,23 @@ const SIGNALS = (
 interface Source {
     id: string;
     name: string;
+    regions: string[];
     scorecard?: ScoredCriterion[];
     referenceAnchor?: boolean;
 }
 
 function fromProfile(p: AnchorProfile): Source {
-    return { id: p.id, name: p.name, scorecard: p.scorecard, referenceAnchor: p.referenceAnchor };
+    return {
+        id: p.id,
+        name: p.name,
+        regions: Object.keys(p.regions),
+        scorecard: p.scorecard,
+        referenceAnchor: p.referenceAnchor,
+    };
 }
 
 function fromMention(m: HonorableMention): Source {
-    return { id: m.id, name: m.name, scorecard: m.scorecard };
+    return { id: m.id, name: m.name, regions: m.regions, scorecard: m.scorecard };
 }
 
 function entryFor(src: Source): ReadinessEntry | null {
@@ -112,6 +121,7 @@ function entryFor(src: Source): ReadinessEntry | null {
     return {
         id: src.id,
         name: src.name,
+        regions: src.regions,
         verdict,
         signals,
         blockers,
@@ -165,12 +175,20 @@ export function toMarkdown(entries: ReadinessEntry[]): string {
         '',
     ];
 
-    const headers = ['Anchor', 'Verdict', ...SIGNALS.map((s) => s.shortLabel), 'Local asset'];
+    const headers = [
+        'Anchor',
+        'Region',
+        'Verdict',
+        ...SIGNALS.map((s) => s.shortLabel),
+        'Local asset',
+    ];
     out.push(`| ${headers.join(' | ')} |`);
     out.push(`|${'---|'.repeat(headers.length)}`);
     for (const e of entries) {
         const cells = e.signals.map((s) => MD_SYMBOL[s.status]).join(' | ');
-        out.push(`| ${e.name} | ${e.verdict} | ${cells} | ${MD_SYMBOL[e.localAsset.status]} |`);
+        out.push(
+            `| ${e.name} | ${e.regions.join(', ')} | ${e.verdict} | ${cells} | ${MD_SYMBOL[e.localAsset.status]} |`,
+        );
     }
 
     out.push('', '## Details', '');

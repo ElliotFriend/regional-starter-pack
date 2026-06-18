@@ -30,16 +30,28 @@ describe('buildReadiness', () => {
         }
     });
 
-    it('omits catalogue metadata (regions/tokens/rails/links) — noise for a readiness read', () => {
+    it('keeps region (the dashboard join key) but drops other catalogue noise', () => {
         const e = byId.etherfuse;
-        expect(e).not.toHaveProperty('regions');
+        // Region is the market a consumer dashboard joins on.
+        expect(e.regions).toEqual(['mexico', 'brazil']);
+        expect(byId.koywe.regions).toEqual(['argentina']);
+        expect(byId.transfero.regions).toEqual(['brazil']);
+        // The rest of the catalogue metadata stays out.
         expect(e).not.toHaveProperty('tokens');
         expect(e).not.toHaveProperty('rails');
         expect(e).not.toHaveProperty('links');
         expect(e).not.toHaveProperty('curated');
-        // It keeps just the assessment-relevant fields.
         expect(Object.keys(e).sort()).toEqual(
-            ['blockers', 'caveats', 'id', 'localAsset', 'name', 'signals', 'verdict'].sort(),
+            [
+                'blockers',
+                'caveats',
+                'id',
+                'localAsset',
+                'name',
+                'regions',
+                'signals',
+                'verdict',
+            ].sort(),
         );
     });
 
