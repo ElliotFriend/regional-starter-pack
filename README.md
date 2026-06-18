@@ -260,6 +260,8 @@ All anchor operations are proxied through SvelteKit API routes. There is no dyna
 /api/anchor/testanchor/price         - POST (SEP-38)
 /api/anchor/testanchor/sep6          - POST ?action=deposit|withdraw, GET by ?transactionId=
 /api/anchor/testanchor/sep24         - POST ?action=deposit|withdraw, GET by ?transactionId=
+
+/api/scorecard                       - GET developer-readiness data (JSON default; ?format=md or Accept: text/markdown for Markdown)
 ```
 
 For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoints handle CORS:
@@ -293,10 +295,43 @@ For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoint
 /anchors/testanchor/interactive/offramp                 - SEP-24 withdraw
 /anchors/testanchor/programmatic/onramp                 - SEP-6 deposit
 /anchors/testanchor/programmatic/offramp                - SEP-6 withdraw
+/anchors/scorecard                                      - Developer-readiness scorecard (human view)
 /regions                                                - Region listing
 /regions/[region]                                       - Region detail with curated anchors + honorable mentions
 /testanchor                                             - Standalone SEP protocol demo (uses TestAnchorClient playground)
 ```
+
+---
+
+## Anchor Readiness Scorecard
+
+A self-updating, machine-readable view of how build-ready each anchor is for developers. It is derived live from the anchor config (`src/lib/config/anchors.ts`) via `src/lib/config/scorecard.ts`, so it never drifts from reality. Built for agents to ingest, and viewable by humans.
+
+- **Humans:** [`/anchors/scorecard`](/anchors/scorecard) — verdicts and signals rendered with status icons.
+- **Agents:** `/api/scorecard` — always serves data. JSON by default; Markdown via `?format=md` or an `Accept: text/markdown` header (an explicit `?format=` wins over the header).
+
+```bash
+# JSON — what any standard HTTP client (curl, fetch, requests, …) gets by default
+curl https://<host>/api/scorecard
+
+# Markdown — a self-describing report (signal meanings + per-anchor detail)
+curl 'https://<host>/api/scorecard?format=md'
+curl -H 'Accept: text/markdown' https://<host>/api/scorecard
+```
+
+**Each entry:**
+
+| Field        | Meaning                                                                                                                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verdict`    | `ready` · `partial` · `blocked`                                                                                                                     |
+| `signals[]`  | the five buildability signals, each with `severity` (`required` / `friction`), `status` (`met` / `partial` / `failed` / `unverified`), and a `note` |
+| `blockers[]` | failed **required** signals — the reasons a verdict is `blocked`                                                                                    |
+| `caveats[]`  | other not-met signals (friction failures + any partial/unverified)                                                                                  |
+| `localAsset` | informational only — **not** part of the verdict                                                                                                    |
+
+The verdict rule: a failed **required** signal → `blocked`; a failed **friction** signal (or any partial/unverified) → `partial`; all five met → `ready`.
+
+**Scope:** reflects anchors in the production config only (curated + honorable mentions). Fees and liquidity are assessed separately by the BD team and intentionally omitted; the reference test anchor is excluded.
 
 ---
 
