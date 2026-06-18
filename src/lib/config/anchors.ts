@@ -196,12 +196,12 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 status: 'met',
                 note: 'Stablebond yield offsets conversion cost',
             },
-            'deep-liquidity': { status: 'unverified' },
+            'deep-liquidity': { status: 'met' },
             'open-access': { status: 'met', note: 'Self-serve signup; sandbox live 24/7' },
             'accurate-docs': { status: 'met', note: 'Guides + reference match the wire (MX)' },
             'high-fidelity-sandbox': {
                 status: 'met',
-                note: 'Sandbox delivers on-chain CETES; off-ramp burns a real testnet tx',
+                note: 'Sandbox delivers on-chain tokens; off-ramp burns tokens',
             },
             'agent-buildable': { status: 'met', note: 'MCP docs server + OpenAPI spec' },
         }),
@@ -308,12 +308,11 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         scorecard: makeCriteria({
             'local-asset': {
                 status: 'failed',
-                note: 'USDC (USD-denominated) — no locally denominated ARS asset',
+                note: 'USDC only',
             },
             'local-rails': { status: 'met', note: 'WIREAR (CVU) + QRI' },
             'competitive-rates': {
-                status: 'unverified',
-                note: 'Production ARS↔USDC spread pending',
+                status: 'partial',
             },
             'deep-liquidity': { status: 'unverified' },
             'open-access': {
@@ -578,20 +577,18 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         rails: ['spei', 'pix'],
         regions: ['mexico', 'brazil'],
         scorecard: makeCriteria({
-            'local-asset': { status: 'failed', note: 'USDC only — no locally denominated asset' },
+            'local-asset': { status: 'failed', note: 'USDC only' },
             'local-rails': { status: 'met' },
             'competitive-rates': {
-                status: 'failed',
-                note: 'USD-intermediated conversion adds cost',
+                status: 'partial',
             },
             'deep-liquidity': {
-                status: 'failed',
-                note: 'USDC has global liquidity but no local-currency depth',
+                status: 'partial',
             },
-            'open-access': { status: 'partial', note: 'Sandbox exists' },
+            'open-access': { status: 'met', note: 'Sandbox exists; use example API keys' },
             'high-fidelity-sandbox': {
                 status: 'failed',
-                note: 'Sandbox does not submit testnet transactions (documented)',
+                note: 'Sandbox does not submit testnet transactions',
             },
         }),
     },
@@ -605,14 +602,14 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         rails: ['spei'],
         regions: ['mexico'],
         scorecard: makeCriteria({
-            'local-asset': { status: 'failed', note: 'USDB is a USD-pegged test token' },
+            'local-asset': { status: 'failed', note: 'USDC only' },
             'local-rails': { status: 'met' },
-            'competitive-rates': { status: 'failed' },
-            'deep-liquidity': { status: 'failed', note: 'USDB has minimal on-chain liquidity' },
+            'competitive-rates': { status: 'unverified' },
+            'deep-liquidity': { status: 'unverified' },
             'open-access': { status: 'met', note: 'Self-serve signup + rich sandbox' },
             'high-fidelity-sandbox': {
                 status: 'partial',
-                note: 'Off-ramp lands real testnet tokens; on-ramp blocked by a wrong USDB issuer',
+                note: 'Off-ramp sends tokens; on-ramp blocked by a wrong USDB issuer',
             },
         }),
     },
@@ -626,15 +623,13 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         rails: ['pix'],
         regions: ['brazil'],
         scorecard: makeCriteria({
-            'local-asset': { status: 'failed', note: 'USDC only — no locally denominated asset' },
-            'local-rails': { status: 'met' },
+            'local-asset': { status: 'failed', note: 'USDC only' },
+            'local-rails': { status: 'partial', note: 'Off-ramp only' },
             'competitive-rates': {
                 status: 'failed',
-                note: 'USD-intermediated conversion adds cost',
             },
             'deep-liquidity': {
                 status: 'failed',
-                note: 'USDC has global liquidity but no local-currency depth',
             },
             'open-access': {
                 status: 'failed',
@@ -654,22 +649,18 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         regions: ['brazil'],
         scorecard: makeCriteria({
             // BRZ is a genuine BRL-pegged Stellar asset (Transfero is the issuer);
-            // it's an honorable mention for access + rates/liquidity, not asset absence.
             'local-asset': {
-                status: 'met',
-                note: 'BRZ — BRL-pegged Stellar asset, Transfero-issued',
+                status: 'partial',
+                note: 'BRZ is Transfero-issued, but availability/activity is unclear',
             },
             'local-rails': { status: 'met' },
-            'competitive-rates': { status: 'failed' },
-            'deep-liquidity': { status: 'failed', note: 'Limited on-chain BRZ liquidity' },
+            'competitive-rates': { status: 'unverified' },
+            'deep-liquidity': { status: 'unverified' },
             'open-access': {
                 status: 'failed',
                 note: 'Sandbox requires contacting support for credentials',
             },
-            'high-fidelity-sandbox': {
-                status: 'unverified',
-                note: 'Real Stellar asset but mainnet; testnet sandbox unconfirmed',
-            },
+            'high-fidelity-sandbox': { status: 'unverified' },
         }),
     },
 };
