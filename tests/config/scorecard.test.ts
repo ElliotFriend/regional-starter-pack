@@ -17,20 +17,37 @@ describe('buildReadiness', () => {
             'manteca',
             'pdax',
             'coinsph',
+            'bitso',
+            'yellowcard',
+            'fonbnk',
+            'bilira',
+            'onafriq',
+            'flutterwave',
         ]);
         expect(ids).not.toContain('testanchor');
     });
 
     it('flags in-vetting anchors (and only those)', () => {
-        for (const id of ['pdax', 'manteca', 'coinsph']) {
+        for (const id of [
+            'pdax',
+            'manteca',
+            'coinsph',
+            'bitso',
+            'yellowcard',
+            'fonbnk',
+            'bilira',
+            'onafriq',
+            'flutterwave',
+        ]) {
             expect(byId[id].vetting, id).toBe(true);
         }
         for (const id of ['etherfuse', 'koywe', 'alfredpay', 'blindpay', 'abroad', 'transfero']) {
             expect(byId[id].vetting, id).toBe(false);
         }
         // Markets carry through for the dashboard join.
-        expect(byId.manteca.regions).toEqual(['brazil']);
-        expect(byId.pdax.regions).toEqual(['philippines']);
+        expect(byId.manteca.regions).toEqual(['brazil', 'argentina', 'colombia']);
+        expect(byId.bitso.regions).toEqual(['mexico', 'brazil', 'argentina', 'colombia']);
+        expect(byId.fonbnk.regions).toEqual(['kenya', 'ghana']);
     });
 
     it('exposes the 5 buildability signals, required-first, each tagged with its severity', () => {

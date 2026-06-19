@@ -335,6 +335,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
+                text: 'Regional expansion (BD pipeline): Colombia is live (PSE rails) and is a near-term expansion candidate; Brazil (PIX) is announced as "coming soon" but not yet live. The same Stellar USDC leg applies once those fiat rails are confirmed.',
+            },
+            {
                 text: 'Koywe does not return a Stellar issuer for USDC (it is network-dependent), so the integration injects PUBLIC_USDC_ISSUER for the active network.',
             },
             {
@@ -676,23 +679,35 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         id: 'manteca',
         name: 'Manteca',
         description:
-            'Latin American fiat infrastructure with PIX on/off ramps on Stellar. Client built from docs; never run against a live sandbox.',
+            'Latin American fiat infrastructure with USDC/USDT/XLM on Stellar and PIX/CBU/BRE-B ramps across BR, AR, CO. Client built from docs; never run against a live sandbox.',
         website: 'https://manteca.dev',
-        tokens: ['USDC', 'USDT'],
+        tokens: ['USDC', 'USDT', 'XLM'],
         rails: ['pix'],
-        regions: ['brazil'],
+        regions: ['brazil', 'argentina', 'colombia'],
         vetting: true,
         scorecard: makeCriteria({
-            'local-asset': { status: 'failed', note: 'USDC/USDT — no locally denominated asset' },
-            'local-rails': { status: 'met', note: 'PIX' },
+            'local-asset': {
+                status: 'failed',
+                note: 'USDC/USDT/XLM — no locally denominated asset',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'PIX (BR) + CBU/CVU (AR) live; Colombia via BRE-B (partial)',
+            },
             'competitive-rates': { status: 'failed', note: '50–60 bps (above the <25 bps target)' },
-            'deep-liquidity': { status: 'met', note: '~$10M/day per survey' },
+            'deep-liquidity': { status: 'met', note: '~$10M/day per survey; Bybit partnership' },
             'open-access': {
                 status: 'failed',
                 note: 'Sandbox keys are sales-gated — no self-serve',
             },
-            'accurate-docs': { status: 'unverified', note: 'Built from docs; never verified live' },
-            'high-fidelity-sandbox': { status: 'unverified', note: 'Never run' },
+            'accurate-docs': {
+                status: 'partial',
+                note: 'Good docs, but Stellar asset list is inconsistent (USDT vs XLM); unverified live',
+            },
+            'high-fidelity-sandbox': {
+                status: 'unverified',
+                note: 'Sandbox + testnet faucet exist; real on-chain Stellar testnet delivery unconfirmed',
+            },
             'agent-buildable': {
                 status: 'met',
                 note: 'Markdown docs + llms.txt; built a full client from them',
@@ -766,6 +781,230 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 status: 'partial',
                 note: 'Docs + HMAC signing exist, but core capability is unconfirmable',
             },
+        }),
+    },
+    // --- BD priority-pipeline candidates (actively engaged; assessments are
+    // preliminary, hand-authored from research). ---
+    bitso: {
+        id: 'bitso',
+        name: 'Bitso',
+        description:
+            'Major LATAM exchange. Bitso Business supports USDC on Stellar (production) with SPEI/PIX/PSE fiat rails; local stablecoins (MXNB, BRL1) are on EVM chains, not Stellar.',
+        website: 'https://bitso.com/business',
+        tokens: ['USDC'],
+        rails: ['spei', 'pix', 'pse'],
+        regions: ['mexico', 'brazil', 'argentina', 'colombia'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USDC on Stellar; MXNB/BRL1 local tokens are on Arbitrum/Polygon, not Stellar',
+            },
+            'local-rails': { status: 'met', note: 'SPEI/PIX/PSE; ARS rails partial' },
+            'competitive-rates': { status: 'unverified', note: 'Spreads not published' },
+            'deep-liquidity': { status: 'met', note: 'One of LATAM’s largest exchanges' },
+            'open-access': {
+                status: 'partial',
+                note: 'Self-serve API keys + sandbox, but cross-border (Stellar-fiat) product appears sales-gated',
+            },
+            'accurate-docs': { status: 'met', note: 'Comprehensive public docs portal' },
+            'high-fidelity-sandbox': {
+                status: 'unverified',
+                note: 'Sandbox mocks fiat; real Stellar testnet settlement unconfirmed',
+            },
+            'agent-buildable': {
+                status: 'met',
+                note: 'OpenAPI + llms.txt (explicit AI-agent index)',
+            },
+        }),
+    },
+    yellowcard: {
+        id: 'yellowcard',
+        name: 'Yellow Card',
+        description:
+            'Pan-African ramp. USDC on Stellar is live in its B2B API (custodial REST + hosted MCP, not a SEP anchor). Kenya served via M-Pesa; Ghana not yet served.',
+        website: 'https://yellowcard.io',
+        tokens: ['USDC', 'USDT'],
+        rails: ['mpesa', 'mobile-money'],
+        regions: ['kenya', 'ghana'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USD stablecoins only; no KES/GHS token on Stellar',
+            },
+            'local-rails': {
+                status: 'partial',
+                note: 'Kenya (M-Pesa) live; Ghana/GHS not yet served',
+            },
+            'competitive-rates': { status: 'unverified' },
+            'deep-liquidity': {
+                status: 'partial',
+                note: 'Licensed pan-African ramp; depth not disclosed',
+            },
+            'open-access': {
+                status: 'failed',
+                note: 'Discovery call + KYB + signed legal agreement required before API keys',
+            },
+            'accurate-docs': { status: 'met', note: 'Public docs + OpenAPI + llms.txt' },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'Sandbox is mocked; Stellar excluded from sim addresses, no real testnet result',
+            },
+            'agent-buildable': {
+                status: 'met',
+                note: 'Hosted MCP server + llms.txt + OpenAPI + error codes',
+            },
+        }),
+    },
+    fonbnk: {
+        id: 'fonbnk',
+        name: 'Fonbnk',
+        description:
+            'African airtime/mobile-money ⇄ crypto ramp. USDC on Stellar is live (on/off-ramp) with self-serve API access and mobile-money rails in Kenya and Ghana. Proprietary REST/widget, not a SEP anchor.',
+        website: 'https://fonbnk.com',
+        tokens: ['USDC'],
+        rails: ['mpesa', 'mobile-money', 'airtime'],
+        regions: ['kenya', 'ghana'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'Stellar asset is USDC; cKES/cGHS local stablecoins are on Celo, not Stellar',
+            },
+            'local-rails': { status: 'met', note: 'Mobile money + airtime, Kenya and Ghana' },
+            'competitive-rates': {
+                status: 'unverified',
+                note: 'Mobile-money ramps typically 1–4%; API rate unconfirmed',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'met',
+                note: 'Self-serve sandbox registration; clientId/secret from dashboard',
+            },
+            'accurate-docs': {
+                status: 'met',
+                note: 'Public versioned GitBook docs + HMAC signing guide',
+            },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'Sandbox mocks settlement ("won’t receive real top-ups"); no real testnet delivery',
+            },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'llms.txt + REST docs, but no OpenAPI/MCP and not SEP-standard',
+            },
+        }),
+    },
+    bilira: {
+        id: 'bilira',
+        name: 'BiLira',
+        description:
+            'Issuer of TRYB, a TRY-pegged stablecoin (the rare genuine local asset). TRYB is live on EVM/Solana but NOT on Stellar yet — Stellar support is "in the works" per BD, unconfirmed publicly.',
+        website: 'https://bilira.co',
+        tokens: ['TRYB'],
+        rails: ['bank-transfer'],
+        regions: ['turkiye'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'TRYB is TRY-pegged but not on Stellar (EVM/Solana); Stellar issuance in the works, unconfirmed',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'TRY↔TRYB via Turkish bank accounts; BiLira Direct ramp',
+            },
+            'competitive-rates': { status: 'unverified' },
+            'deep-liquidity': {
+                status: 'partial',
+                note: 'TRYB liquidity thin/fragmented; none on Stellar',
+            },
+            'open-access': {
+                status: 'failed',
+                note: 'Partner/contact-only; no public self-serve ramp API',
+            },
+            'accurate-docs': {
+                status: 'failed',
+                note: 'No public developer docs/API reference found',
+            },
+            'high-fidelity-sandbox': { status: 'failed', note: 'No sandbox found' },
+            'agent-buildable': {
+                status: 'failed',
+                note: 'No OpenAPI/SEP; token issuer + exchange, not an anchor',
+            },
+        }),
+    },
+    onafriq: {
+        id: 'onafriq',
+        name: 'Onafriq',
+        description:
+            'Pan-African mobile-money aggregator (ex-MFS Africa) with deep KES/GHS rails. No Stellar support today — USDC pilots (Circle/Conduit) are backend settlement on unnamed chains. Access is enterprise/contract-only.',
+        website: 'https://onafriq.com',
+        tokens: ['USDC'],
+        rails: ['mpesa', 'mobile-money'],
+        regions: ['kenya', 'ghana'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'No KES/GHS token on Stellar; USDC pilots not Stellar-confirmed',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'Mobile money + bank across KE/GH; very deep reach',
+            },
+            'competitive-rates': { status: 'unverified', note: 'Per-contract pricing' },
+            'deep-liquidity': { status: 'met', note: 'Largest African payments network' },
+            'open-access': {
+                status: 'failed',
+                note: 'Enterprise/contract-led onboarding; no self-serve',
+            },
+            'accurate-docs': {
+                status: 'partial',
+                note: 'Developer portal exists but credential-gated',
+            },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'No Stellar integration; no on-chain testnet path',
+            },
+            'agent-buildable': { status: 'unverified', note: 'No public OpenAPI/SEP found' },
+        }),
+    },
+    flutterwave: {
+        id: 'flutterwave',
+        name: 'Flutterwave',
+        description:
+            'Major African PSP with excellent self-serve fiat developer DX and strong M-Pesa/Ghana MoMo rails — but no Stellar leg (used Stellar in 2021, pivoted to Polygon in 2025). A fiat-rail partner, not a Stellar ramp.',
+        website: 'https://flutterwave.com',
+        tokens: ['USDC'],
+        rails: ['mpesa', 'mobile-money'],
+        regions: ['kenya', 'ghana'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'No KES/GHS token on Stellar; stablecoin roadmap is Polygon',
+            },
+            'local-rails': { status: 'met', note: 'M-Pesa (KE) + Ghana mobile money, first-class' },
+            'competitive-rates': {
+                status: 'failed',
+                note: '%-level PSP fees (2–3%), far above the <25 bps bar',
+            },
+            'deep-liquidity': {
+                status: 'partial',
+                note: 'Large fiat float; not Stellar on-chain liquidity',
+            },
+            'open-access': {
+                status: 'met',
+                note: 'Self-serve signup + instant test/live API keys',
+            },
+            'accurate-docs': { status: 'met', note: 'Public, well-maintained docs (v3/v4)' },
+            'high-fidelity-sandbox': {
+                status: 'failed',
+                note: 'Rich fiat sandbox but no Stellar leg — no on-chain testnet result possible',
+            },
+            'agent-buildable': { status: 'met', note: 'OpenAPI + llms.txt; diagnosable errors' },
         }),
     },
 };

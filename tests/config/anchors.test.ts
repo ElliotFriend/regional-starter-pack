@@ -175,9 +175,9 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 7 entries (4 vetted + 3 in-vetting)', () => {
+    it('has 13 entries (4 vetted + 9 in-vetting pipeline)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(7);
+        expect(mentions).toHaveLength(13);
     });
 
     it('includes alfredpay', () => {
@@ -221,6 +221,23 @@ describe('HONORABLE_MENTIONS', () => {
         expect(HONORABLE_MENTIONS['coinsph'].regions).toContain('philippines');
     });
 
+    it('includes the BD pipeline anchors as vetting, with their markets', () => {
+        for (const id of ['bitso', 'yellowcard', 'fonbnk', 'bilira', 'onafriq', 'flutterwave']) {
+            expect(HONORABLE_MENTIONS[id], id).toBeDefined();
+            expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
+            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(8);
+        }
+        expect(HONORABLE_MENTIONS['bitso'].regions).toEqual([
+            'mexico',
+            'brazil',
+            'argentina',
+            'colombia',
+        ]);
+        expect(HONORABLE_MENTIONS['manteca'].regions).toEqual(['brazil', 'argentina', 'colombia']);
+        expect(HONORABLE_MENTIONS['fonbnk'].regions).toEqual(['kenya', 'ghana']);
+        expect(HONORABLE_MENTIONS['bilira'].regions).toEqual(['turkiye']);
+    });
+
     it('does not flag the vetted mentions', () => {
         for (const id of ['alfredpay', 'blindpay', 'abroad', 'transfero']) {
             expect(HONORABLE_MENTIONS[id].vetting, id).toBeFalsy();
@@ -241,22 +258,18 @@ describe('HONORABLE_MENTIONS', () => {
 });
 
 describe('getHonorableMentionsForRegion', () => {
-    it('returns alfredpay and blindpay for mexico', () => {
-        const mentions = getHonorableMentionsForRegion('mexico');
-        expect(mentions).toHaveLength(2);
-        const ids = mentions.map((m) => m.id);
+    it('returns alfredpay, blindpay, and bitso for mexico', () => {
+        const ids = getHonorableMentionsForRegion('mexico').map((m) => m.id);
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('blindpay');
+        expect(ids).toContain('bitso');
     });
 
-    it('returns alfredpay, abroad, transfero, and manteca for brazil', () => {
-        const mentions = getHonorableMentionsForRegion('brazil');
-        expect(mentions).toHaveLength(4);
-        const ids = mentions.map((m) => m.id);
-        expect(ids).toContain('alfredpay');
-        expect(ids).toContain('abroad');
-        expect(ids).toContain('transfero');
-        expect(ids).toContain('manteca');
+    it('returns the brazil mentions (incl. manteca + bitso)', () => {
+        const ids = getHonorableMentionsForRegion('brazil').map((m) => m.id);
+        expect(ids).toEqual(
+            expect.arrayContaining(['alfredpay', 'abroad', 'transfero', 'manteca', 'bitso']),
+        );
     });
 
     it('returns the in-vetting PH anchors for philippines', () => {
@@ -265,14 +278,21 @@ describe('getHonorableMentionsForRegion', () => {
         expect(ids).toContain('coinsph');
     });
 
+    it('returns the Africa pipeline anchors for kenya', () => {
+        const ids = getHonorableMentionsForRegion('kenya').map((m) => m.id);
+        expect(ids).toEqual(
+            expect.arrayContaining(['fonbnk', 'yellowcard', 'onafriq', 'flutterwave']),
+        );
+    });
+
     it('returns empty array for nonexistent region', () => {
         expect(getHonorableMentionsForRegion('nonexistent')).toEqual([]);
     });
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 7 honorable mentions', () => {
+    it('returns all 13 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(7);
+        expect(mentions).toHaveLength(13);
     });
 });
