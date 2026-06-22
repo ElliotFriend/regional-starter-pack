@@ -789,7 +789,7 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         id: 'bitso',
         name: 'Bitso',
         description:
-            'Major LATAM exchange. Bitso Business supports USDC on Stellar (production) with SPEI/PIX/PSE fiat rails; local stablecoins (MXNB, BRL1) are on EVM chains, not Stellar.',
+            'Major LATAM exchange. Bitso Business supports USDC on Stellar (production) with SPEI/PIX/PSE fiat rails; local stablecoins (MXNB, BRL1) are on EVM chains, not Stellar. It is a treasury/exchange API, not a SEP anchor: fiat settles in your own Bitso account and you convert + withdraw USDC to the customer, so the integrator is the principal/fund-holder (B2B2C) rather than plugging into an anchor that custodies and transmits directly to the end-user wallet — which carries the attendant money-transmission, KYC, and (in Brazil) Bacen-reporting obligations.',
         website: 'https://bitso.com/business',
         tokens: ['USDC'],
         rails: ['spei', 'pix', 'pse'],
@@ -805,12 +805,12 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             'deep-liquidity': { status: 'met', note: 'One of LATAM’s largest exchanges' },
             'open-access': {
                 status: 'partial',
-                note: 'Self-serve API keys + sandbox, but cross-border (Stellar-fiat) product appears sales-gated',
+                note: 'Self-serve API keys + staging confirmed live (conversions + USDC-on-Stellar withdrawal work); fiat pay-in (CLABE/SPEI/PIX) is permission-gated per market (403 until activated)',
             },
             'accurate-docs': { status: 'met', note: 'Comprehensive public docs portal' },
             'high-fidelity-sandbox': {
-                status: 'unverified',
-                note: 'Sandbox mocks fiat; real Stellar testnet settlement unconfirmed',
+                status: 'met',
+                note: 'Confirmed live: a staging USDC withdrawal (xlm_sac) delivers real Stellar testnet USDC on-chain',
             },
             'agent-buildable': {
                 status: 'met',
