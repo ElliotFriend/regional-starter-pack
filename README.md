@@ -1,8 +1,8 @@
 # Stellar Regional Starter Pack
 
-A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network using locally denominated assets. It includes one curated anchor provider (Etherfuse), a reference client for the Stellar test anchor, and a composable SEP protocol library for building against any SEP-compliant anchor.
+A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network using locally denominated assets. It includes two curated anchor providers (Etherfuse, Koywe), a reference client for the Stellar test anchor, and a composable SEP protocol library for building against any SEP-compliant anchor.
 
-The project curates anchor integrations that meet five quality criteria: locally denominated assets on Stellar, local payment-rail support, competitive rates (<25 bps), well-documented developer access, and deep liquidity. Anchors that exist in a region but don't clear the bar appear as **honorable mentions** on the region pages rather than as integrations.
+The project curates anchor integrations against **two lenses** — a **commercial** bar (locally denominated asset on Stellar, local payment rails, competitive rates, deep liquidity) and a **developer** bar (open self-service access, accurate docs, high-fidelity sandbox, agent-buildable). Anchors that don't clear the bar appear as **honorable mentions** on the region pages; candidates still being evaluated are flagged as in-vetting. See the [Anchor Readiness Scorecard](#anchor-readiness-scorecard) for the live, machine-readable view.
 
 ## TL;DR: The Most Important Thing
 
@@ -21,6 +21,12 @@ src/lib/anchors/          <- PORTABLE: Copy what you need into any TypeScript pr
     types.ts              <- Etherfuse-native types + EtherfuseError
     index.ts
     README.md             <- Paste-target documentation
+  koywe/                  <- Koywe integration (Argentina; USDC on Stellar)
+    client.ts             <- KoyweClient class
+    types.ts              <- Koywe-native types + KoyweError
+    index.ts
+    koywe.openapi.yaml    <- Authoritative API spec
+    README.md
   testanchor/             <- Reference clients for testanchor.stellar.org
     ramp.ts               <- TestAnchorRampClient (curated SEP wrapper)
     client.ts             <- TestAnchorClient (SEP playground, used by /testanchor)
@@ -37,15 +43,17 @@ src/lib/wallet/           <- PORTABLE: Freighter wallet + Stellar helpers
 
 src/lib/server/           <- SvelteKit-specific (reads $env)
   etherfuseInstance.ts    <- Lazily-instantiated EtherfuseClient singleton
+  koyweInstance.ts        <- Lazily-instantiated KoyweClient singleton
   testanchorInstance.ts   <- Lazily-instantiated TestAnchorRampClient singleton + requireBearer helper
 
 src/lib/api/              <- Browser-side fetch wrappers per provider
   etherfuse.ts            <- Wraps /api/anchor/etherfuse/*
+  koywe.ts                <- Wraps /api/anchor/koywe/*
   testanchor.ts           <- Wraps /api/anchor/testanchor/*
 
 src/lib/components/       <- Shared UI primitives (provider-agnostic)
 src/lib/stores/           <- wallet.svelte.ts (Freighter), auth.ts (SEP-10 token cache)
-src/lib/config/           <- Anchors, regions, and payment-rail configuration
+src/lib/config/           <- anchors.ts (+ two-lens criteria), scorecard.ts (dev-readiness), regions.ts, rails.ts
 src/routes/               <- SvelteKit pages and API routes
 ```
 
@@ -67,14 +75,15 @@ The `/src/lib/anchors/` directory is **framework-agnostic** and designed to be c
 
 ### Anchor Providers
 
-| Provider        | Region         | Fiat     | Token          | Rail      | Authentication |
-| --------------- | -------------- | -------- | -------------- | --------- | -------------- |
-| **Etherfuse**   | Mexico, Brazil | MXN, BRL | CETES, TESOURO | SPEI, PIX | API key        |
-| **Test Anchor** | Testnet        | (test)   | SRT, USDC      | bank      | SEP-10         |
+| Provider        | Region         | Fiat     | Token          | Rail        | Authentication  |
+| --------------- | -------------- | -------- | -------------- | ----------- | --------------- |
+| **Etherfuse**   | Mexico, Brazil | MXN, BRL | CETES, TESOURO | SPEI, PIX   | API key         |
+| **Koywe**       | Argentina      | ARS      | USDC           | WIREAR, QRI | clientId/secret |
+| **Test Anchor** | Testnet        | (test)   | SRT, USDC      | bank        | SEP-10          |
 
-Etherfuse is the curated provider for production-shaped fiat ramps. The test anchor (`testanchor.stellar.org`) is a reference for SEP-compliant integrations.
+Etherfuse and Koywe are the curated providers for production-shaped fiat ramps. The test anchor (`testanchor.stellar.org`) is a reference for SEP-compliant integrations.
 
-> **Honorable mentions** — anchors that exist in a region but don't meet all five quality criteria (e.g. AlfredPay, BlindPay, Abroad Finance, Transfero) are surfaced on the region pages with a per-criterion assessment. They have no client code; they live in `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts`.
+> **Honorable mentions** — anchors that don't clear the two-lens bar (e.g. AlfredPay, BlindPay, Abroad Finance, Transfero), plus in-vetting BD-pipeline candidates flagged `vetting: true` (e.g. Bitso, Fonbnk, Yellow Card, Manteca), are surfaced on the region pages and in the [scorecard](#anchor-readiness-scorecard) with a per-criterion assessment. They have no client code; they live in `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts`.
 
 ### Example: Etherfuse
 
@@ -255,11 +264,22 @@ All anchor operations are proxied through SvelteKit API routes. There is no dyna
 /api/anchor/etherfuse/sandbox        - POST { action: 'simulateFiatReceived', orderId }
 /api/anchor/etherfuse/assets         - GET by ?currency=&wallet=
 
+/api/anchor/koywe/quotes             - POST get quote
+/api/anchor/koywe/onramp             - POST create on-ramp order
+/api/anchor/koywe/offramp            - POST create off-ramp order
+/api/anchor/koywe/order              - GET by ?orderId=
+/api/anchor/koywe/kyc                - GET/POST delegated KYC (accounts)
+/api/anchor/koywe/bank-accounts      - GET/POST off-ramp payout accounts
+/api/anchor/koywe/payment-methods    - GET rails for ?symbol=
+/api/anchor/koywe/token-currencies   - GET supported pairs + limits
+
 /api/anchor/testanchor/auth          - POST ?action=challenge|token
 /api/anchor/testanchor/customer      - GET / PUT (SEP-12, Bearer required)
 /api/anchor/testanchor/price         - POST (SEP-38)
 /api/anchor/testanchor/sep6          - POST ?action=deposit|withdraw, GET by ?transactionId=
 /api/anchor/testanchor/sep24         - POST ?action=deposit|withdraw, GET by ?transactionId=
+
+/api/scorecard                       - GET developer-readiness data (JSON default; ?format=md or Accept: text/markdown for Markdown)
 ```
 
 For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoints handle CORS:
@@ -276,6 +296,7 @@ For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoint
 - `WalletConnect.svelte` — Freighter connect/disconnect.
 - `QuoteDisplay.svelte` — takes a structural quote shape, renders an exchange-rate summary with countdown.
 - `KycIframe.svelte` — embeds a hosted KYC URL, listens for completion messages.
+- `CriteriaScorecard.svelte` — renders a two-lens scorecard (compact + `detailed` modes, Lucide status icons); used by the listing, region, anchor, and scorecard pages.
 - `ramp/AmountInput.svelte` — amount entry with trustline + wallet-connected guards.
 - `ramp/TrustlineStatus.svelte` — self-contained trustline check + "Add trustline" CTA.
 - `ui/`: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`.
@@ -288,15 +309,51 @@ For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoint
 /anchors/etherfuse                                      - Etherfuse landing page
 /anchors/etherfuse/onramp                               - Etherfuse on-ramp
 /anchors/etherfuse/offramp                              - Etherfuse off-ramp
+/anchors/koywe                                          - Koywe landing page
+/anchors/koywe/onramp                                   - Koywe on-ramp
+/anchors/koywe/offramp                                  - Koywe off-ramp
 /anchors/testanchor                                     - Test anchor landing page (links to both archetypes)
 /anchors/testanchor/interactive/onramp                  - SEP-24 deposit
 /anchors/testanchor/interactive/offramp                 - SEP-24 withdraw
 /anchors/testanchor/programmatic/onramp                 - SEP-6 deposit
 /anchors/testanchor/programmatic/offramp                - SEP-6 withdraw
+/anchors/scorecard                                      - Developer-readiness scorecard (human view)
 /regions                                                - Region listing
 /regions/[region]                                       - Region detail with curated anchors + honorable mentions
 /testanchor                                             - Standalone SEP protocol demo (uses TestAnchorClient playground)
 ```
+
+---
+
+## Anchor Readiness Scorecard
+
+A self-updating, machine-readable view of how build-ready each anchor is for developers. It is derived live from the anchor config (`src/lib/config/anchors.ts`) via `src/lib/config/scorecard.ts`, so it never drifts from reality. Built for agents to ingest, and viewable by humans.
+
+- **Humans:** [`/anchors/scorecard`](/anchors/scorecard) — verdicts and signals rendered with status icons.
+- **Agents:** `/api/scorecard` — always serves data. JSON by default; Markdown via `?format=md` or an `Accept: text/markdown` header (an explicit `?format=` wins over the header).
+
+```bash
+# JSON — what any standard HTTP client (curl, fetch, requests, …) gets by default
+curl https://<host>/api/scorecard
+
+# Markdown — a self-describing report (signal meanings + per-anchor detail)
+curl 'https://<host>/api/scorecard?format=md'
+curl -H 'Accept: text/markdown' https://<host>/api/scorecard
+```
+
+**Each entry:**
+
+| Field        | Meaning                                                                                                                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verdict`    | `ready` · `partial` · `blocked`                                                                                                                     |
+| `signals[]`  | the five buildability signals, each with `severity` (`required` / `friction`), `status` (`met` / `partial` / `failed` / `unverified`), and a `note` |
+| `blockers[]` | failed **required** signals — the reasons a verdict is `blocked`                                                                                    |
+| `caveats[]`  | other not-met signals (friction failures + any partial/unverified)                                                                                  |
+| `localAsset` | informational only — **not** part of the verdict                                                                                                    |
+
+The verdict rule: a failed **required** signal → `blocked`; a failed **friction** signal (or any partial/unverified) → `partial`; all five met → `ready`.
+
+**Scope:** reflects anchors in the production config only (curated + honorable mentions). Fees and liquidity are assessed separately by the BD team and intentionally omitted; the reference test anchor is excluded.
 
 ---
 
@@ -338,10 +395,11 @@ PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 - **Tailwind CSS** - Styling
 - **@stellar/stellar-sdk** - Stellar blockchain interaction
 - **@stellar/freighter-api** - Wallet connection (Freighter browser extension)
+- **@lucide/svelte** - UI icons (per-icon deep imports, tree-shakeable)
 
 ## Adding a New Anchor
 
-New anchors must meet the five quality criteria in `QUALITY_CRITERIA` (`src/lib/config/anchors.ts`). If they don't, add them to `HONORABLE_MENTIONS` instead (no client code needed).
+Curated anchors should clear the two-lens bar (`COMMERCIAL_CRITERIA` + `DEVELOPER_CRITERIA` in `src/lib/config/anchors.ts`). If they don't — or are still being evaluated — add them to `HONORABLE_MENTIONS` instead (no client code needed), with a `scorecard` and, for pipeline candidates, `vetting: true`.
 
 1. Create `/src/lib/anchors/[anchor-name]/{client.ts,types.ts,index.ts}` shaped however the anchor's API works.
 2. Create `/src/lib/server/[anchor-name]Instance.ts` — singleton getter.

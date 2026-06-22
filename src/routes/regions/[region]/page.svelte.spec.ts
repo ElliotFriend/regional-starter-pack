@@ -2,6 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import Page from './+page.svelte';
+import type { ScoredCriterion } from '$lib/config/anchors';
 
 const mockData = {
     regions: [],
@@ -58,18 +59,65 @@ const mockData = {
             tokens: ['USDC'],
             rails: ['spei'],
             regions: ['mexico'],
-            criteria: [
+            scorecard: [
                 {
                     id: 'local-asset',
                     label: 'Locally denominated asset',
-                    met: false,
+                    shortLabel: 'Locally denominated asset',
+                    lens: 'commercial',
+                    status: 'failed',
                     note: 'USDC only',
                 },
-                { id: 'local-rails', label: 'Local payment rails', met: true },
-                { id: 'competitive-rates', label: 'Competitive rates', met: false },
-                { id: 'open-access', label: 'Open access', met: true },
-                { id: 'deep-liquidity', label: 'Deep liquidity', met: false },
-            ],
+                {
+                    id: 'local-rails',
+                    label: 'Local payment rails',
+                    shortLabel: 'Local payment rails',
+                    lens: 'commercial',
+                    status: 'met',
+                },
+                {
+                    id: 'competitive-rates',
+                    label: 'Competitive rates',
+                    shortLabel: 'Competitive rates',
+                    lens: 'commercial',
+                    status: 'failed',
+                },
+                {
+                    id: 'deep-liquidity',
+                    label: 'Deep liquidity',
+                    shortLabel: 'Deep liquidity',
+                    lens: 'commercial',
+                    status: 'failed',
+                },
+                {
+                    id: 'open-access',
+                    label: 'Open access',
+                    shortLabel: 'Open access',
+                    lens: 'developer',
+                    status: 'met',
+                },
+                {
+                    id: 'accurate-docs',
+                    label: 'Accurate docs',
+                    shortLabel: 'Accurate docs',
+                    lens: 'developer',
+                    status: 'unverified',
+                },
+                {
+                    id: 'high-fidelity-sandbox',
+                    label: 'High-fidelity sandbox',
+                    shortLabel: 'High-fidelity sandbox',
+                    lens: 'developer',
+                    status: 'failed',
+                },
+                {
+                    id: 'agent-buildable',
+                    label: 'Agent-buildable',
+                    shortLabel: 'Agent-buildable',
+                    lens: 'developer',
+                    status: 'unverified',
+                },
+            ] satisfies ScoredCriterion[],
         },
     ],
 };

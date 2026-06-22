@@ -2,6 +2,7 @@
     import { resolve } from '$app/paths';
     import { ANCHORS } from '$lib/config/anchors';
     import { getRegionsForAnchor, getRegion } from '$lib/config/regions';
+    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
 
     const profile = ANCHORS.koywe;
     const regions = getRegionsForAnchor('koywe');
@@ -74,6 +75,15 @@
             </a>
         </div>
     </section>
+
+    {#if profile.scorecard}
+        <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">
+            <h2 class="text-lg font-semibold text-gray-900">How this anchor scores</h2>
+            <div class="mt-4">
+                <CriteriaScorecard scorecard={profile.scorecard} detailed />
+            </div>
+        </section>
+    {/if}
 
     {#if profile.integrationFlow}
         <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">

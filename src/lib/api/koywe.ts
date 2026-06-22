@@ -24,6 +24,7 @@ import type {
     CreateBankAccountArgs,
     GetBankAccountsArgs,
     KoyweBankAccount,
+    KoyweTokenCurrency,
 } from '$lib/anchors/koywe';
 import { createApiRequester, type Fetch } from './http';
 
@@ -54,6 +55,14 @@ export async function getPaymentProviders(
         fetch,
         `/api/anchor/koywe/payment-methods?symbol=${encodeURIComponent(fiatCurrency)}`,
     );
+}
+
+// ---------------------------------------------------------------------------
+// Currency tokens (supported crypto↔fiat pairs + limits)
+// ---------------------------------------------------------------------------
+
+export async function getTokenCurrencies(fetch: Fetch): Promise<KoyweTokenCurrency[]> {
+    return apiRequest<KoyweTokenCurrency[]>(fetch, '/api/anchor/koywe/token-currencies');
 }
 
 // ---------------------------------------------------------------------------

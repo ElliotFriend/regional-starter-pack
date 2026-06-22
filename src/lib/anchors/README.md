@@ -29,7 +29,7 @@ Each provider directory ships:
 - An `index.ts` that re-exports the public surface.
 - A `README.md` with paste-target documentation.
 
-Anchors that exist in a curated region but don't meet the project's quality criteria are tracked as **honorable mentions** in `src/lib/config/anchors.ts` (no client code).
+Anchors that exist in a curated region but don't clear the project's two-lens bar — **commercial** (local value for end-users) and **developer** (buildability) — are tracked as **honorable mentions** in `src/lib/config/anchors.ts` (no client code), each with a scored `scorecard`.
 
 ---
 

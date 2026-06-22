@@ -3,9 +3,13 @@ import {
     getAnchor,
     getAllAnchors,
     QUALITY_CRITERIA,
+    COMMERCIAL_CRITERIA,
+    DEVELOPER_CRITERIA,
+    curationStatus,
     HONORABLE_MENTIONS,
     getHonorableMentionsForRegion,
     getAllHonorableMentions,
+    type ScoredCriterion,
 } from '$lib/config/anchors';
 
 describe('getAnchor', () => {
@@ -85,32 +89,109 @@ describe('getAllAnchors', () => {
     });
 });
 
-describe('QUALITY_CRITERIA', () => {
-    it('has 5 criteria', () => {
-        expect(QUALITY_CRITERIA).toHaveLength(5);
+describe('two-lens criteria', () => {
+    it('commercial lens has the four commercial criteria, all tagged commercial', () => {
+        const ids = COMMERCIAL_CRITERIA.map((c) => c.id);
+        expect(ids).toEqual(['local-asset', 'local-rails', 'competitive-rates', 'deep-liquidity']);
+        expect(COMMERCIAL_CRITERIA.every((c) => c.lens === 'commercial')).toBe(true);
     });
 
-    it('has expected criteria IDs', () => {
-        const ids = QUALITY_CRITERIA.map((c) => c.id);
-        expect(ids).toContain('local-asset');
-        expect(ids).toContain('local-rails');
-        expect(ids).toContain('competitive-rates');
-        expect(ids).toContain('open-access');
-        expect(ids).toContain('deep-liquidity');
+    it('developer lens has the five developer criteria, all tagged developer', () => {
+        const ids = DEVELOPER_CRITERIA.map((c) => c.id);
+        expect(ids).toEqual([
+            'open-access',
+            'accurate-docs',
+            'high-fidelity-sandbox',
+            'agent-buildable',
+            'fee-discoverability',
+        ]);
+        expect(DEVELOPER_CRITERIA.every((c) => c.lens === 'developer')).toBe(true);
     });
 
-    it('each criterion has id and label', () => {
+    it('QUALITY_CRITERIA is the combined nine (commercial then developer)', () => {
+        expect(QUALITY_CRITERIA).toHaveLength(9);
+        expect(QUALITY_CRITERIA).toEqual([...COMMERCIAL_CRITERIA, ...DEVELOPER_CRITERIA]);
+    });
+
+    it('each criterion has id, full label, brief shortLabel, and lens', () => {
         for (const criterion of QUALITY_CRITERIA) {
             expect(criterion.id).toBeTruthy();
             expect(criterion.label).toBeTruthy();
+            expect(criterion.shortLabel).toBeTruthy();
+            // The short label is the compact list form: briefer than the full
+            // label and with no parenthetical detail.
+            expect(criterion.shortLabel.length).toBeLessThanOrEqual(criterion.label.length);
+            expect(criterion.shortLabel).not.toContain('(');
+            expect(['commercial', 'developer']).toContain(criterion.lens);
         }
     });
 });
 
+describe('curationStatus', () => {
+    // Build a full 9-criterion scorecard, overriding specific statuses.
+    function scorecard(
+        overrides: Record<string, ScoredCriterion['status']> = {},
+    ): ScoredCriterion[] {
+        return QUALITY_CRITERIA.map((c) => ({
+            ...c,
+            status: overrides[c.id] ?? 'met',
+        }));
+    }
+
+    it('is curated when everything is met', () => {
+        const result = curationStatus(scorecard());
+        expect(result.status).toBe('curated');
+        expect(result.flags).toEqual([]);
+    });
+
+    it('tolerates a single commercial failure (e.g. no local asset)', () => {
+        const result = curationStatus(scorecard({ 'local-asset': 'failed' }));
+        expect(result.status).toBe('curated');
+        // The failure is still surfaced for display even though it does not demote.
+        expect(result.flags.map((f) => f.id)).toEqual(['local-asset']);
+    });
+
+    it('flags when two or more commercial criteria fail', () => {
+        const result = curationStatus(
+            scorecard({ 'local-asset': 'failed', 'deep-liquidity': 'failed' }),
+        );
+        expect(result.status).toBe('flagged');
+        expect(result.flags.map((f) => f.id)).toEqual(['local-asset', 'deep-liquidity']);
+    });
+
+    it('flags when any single developer criterion fails', () => {
+        const result = curationStatus(scorecard({ 'high-fidelity-sandbox': 'failed' }));
+        expect(result.status).toBe('flagged');
+        expect(result.flags.map((f) => f.id)).toContain('high-fidelity-sandbox');
+    });
+
+    it('never counts partial or unverified against either lens', () => {
+        const result = curationStatus(
+            scorecard({
+                'competitive-rates': 'unverified',
+                'deep-liquidity': 'unverified',
+                'open-access': 'partial',
+                'agent-buildable': 'partial',
+            }),
+        );
+        expect(result.status).toBe('curated');
+        expect(result.flags).toEqual([]);
+    });
+
+    it('treats a reference (exempt) anchor as curated without evaluating commercial', () => {
+        const result = curationStatus(
+            scorecard({ 'local-asset': 'failed', 'competitive-rates': 'failed' }),
+            { exempt: true },
+        );
+        expect(result.status).toBe('curated');
+        expect(result.flags).toEqual([]);
+    });
+});
+
 describe('HONORABLE_MENTIONS', () => {
-    it('has 4 entries', () => {
+    it('has 13 entries (4 vetted + 9 in-vetting pipeline)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(4);
+        expect(mentions).toHaveLength(13);
     });
 
     it('includes alfredpay', () => {
@@ -143,34 +224,79 @@ describe('HONORABLE_MENTIONS', () => {
         expect(mention.regions).toContain('brazil');
     });
 
-    it('each mention has criteria array with 5 items', () => {
+    it('includes the in-vetting branch anchors, flagged vetting', () => {
+        for (const id of ['pdax', 'manteca', 'coinsph']) {
+            expect(HONORABLE_MENTIONS[id], id).toBeDefined();
+            expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
+            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(9);
+        }
+        expect(HONORABLE_MENTIONS['manteca'].regions).toContain('brazil');
+        expect(HONORABLE_MENTIONS['pdax'].regions).toContain('philippines');
+        expect(HONORABLE_MENTIONS['coinsph'].regions).toContain('philippines');
+    });
+
+    it('includes the BD pipeline anchors as vetting, with their markets', () => {
+        for (const id of ['bitso', 'yellowcard', 'fonbnk', 'bilira', 'onafriq', 'flutterwave']) {
+            expect(HONORABLE_MENTIONS[id], id).toBeDefined();
+            expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
+            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(9);
+        }
+        expect(HONORABLE_MENTIONS['bitso'].regions).toEqual([
+            'mexico',
+            'brazil',
+            'argentina',
+            'colombia',
+        ]);
+        expect(HONORABLE_MENTIONS['manteca'].regions).toEqual(['brazil', 'argentina', 'colombia']);
+        expect(HONORABLE_MENTIONS['fonbnk'].regions).toEqual(['kenya', 'ghana']);
+        expect(HONORABLE_MENTIONS['bilira'].regions).toEqual(['turkiye']);
+    });
+
+    it('does not flag the vetted mentions', () => {
+        for (const id of ['alfredpay', 'blindpay', 'abroad', 'transfero']) {
+            expect(HONORABLE_MENTIONS[id].vetting, id).toBeFalsy();
+        }
+    });
+
+    it('each mention has a scorecard scoring all 8 two-lens criteria', () => {
         for (const mention of Object.values(HONORABLE_MENTIONS)) {
-            expect(mention.criteria).toHaveLength(5);
-            for (const criterion of mention.criteria) {
+            expect(mention.scorecard).toHaveLength(9);
+            for (const criterion of mention.scorecard) {
                 expect(criterion.id).toBeTruthy();
                 expect(criterion.label).toBeTruthy();
-                expect(typeof criterion.met).toBe('boolean');
+                expect(['commercial', 'developer']).toContain(criterion.lens);
+                expect(['met', 'partial', 'failed', 'unverified']).toContain(criterion.status);
             }
         }
     });
 });
 
 describe('getHonorableMentionsForRegion', () => {
-    it('returns alfredpay and blindpay for mexico', () => {
-        const mentions = getHonorableMentionsForRegion('mexico');
-        expect(mentions).toHaveLength(2);
-        const ids = mentions.map((m) => m.id);
+    it('returns alfredpay, blindpay, and bitso for mexico', () => {
+        const ids = getHonorableMentionsForRegion('mexico').map((m) => m.id);
         expect(ids).toContain('alfredpay');
         expect(ids).toContain('blindpay');
+        expect(ids).toContain('bitso');
     });
 
-    it('returns alfredpay, abroad, and transfero for brazil', () => {
-        const mentions = getHonorableMentionsForRegion('brazil');
-        expect(mentions).toHaveLength(3);
-        const ids = mentions.map((m) => m.id);
-        expect(ids).toContain('alfredpay');
-        expect(ids).toContain('abroad');
-        expect(ids).toContain('transfero');
+    it('returns the brazil mentions (incl. manteca + bitso)', () => {
+        const ids = getHonorableMentionsForRegion('brazil').map((m) => m.id);
+        expect(ids).toEqual(
+            expect.arrayContaining(['alfredpay', 'abroad', 'transfero', 'manteca', 'bitso']),
+        );
+    });
+
+    it('returns the in-vetting PH anchors for philippines', () => {
+        const ids = getHonorableMentionsForRegion('philippines').map((m) => m.id);
+        expect(ids).toContain('pdax');
+        expect(ids).toContain('coinsph');
+    });
+
+    it('returns the Africa pipeline anchors for kenya', () => {
+        const ids = getHonorableMentionsForRegion('kenya').map((m) => m.id);
+        expect(ids).toEqual(
+            expect.arrayContaining(['fonbnk', 'yellowcard', 'onafriq', 'flutterwave']),
+        );
     });
 
     it('returns empty array for nonexistent region', () => {
@@ -179,8 +305,8 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 4 honorable mentions', () => {
+    it('returns all 13 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(4);
+        expect(mentions).toHaveLength(13);
     });
 });

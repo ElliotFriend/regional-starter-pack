@@ -1,8 +1,15 @@
 # Stellar Regional Starter Pack — LLM Guide
 
-This is a SvelteKit application demonstrating fiat on/off ramps on the Stellar network using locally denominated assets. It ships a portable anchor integration library (one curated provider — Etherfuse — plus a reference client for the Stellar test anchor, plus a composable SEP protocol library) and a demo app that exercises every anchor.
+This is a SvelteKit application demonstrating fiat on/off ramps on the Stellar network using locally denominated assets. It ships a portable anchor integration library (two curated providers — Etherfuse and Koywe — plus a reference client for the Stellar test anchor, plus a composable SEP protocol library) and a demo app that exercises every anchor.
 
-The project curates anchor integrations that meet five quality criteria: locally denominated assets on Stellar, local payment-rail support, competitive rates (<25 bps), well-documented developer access, and deep liquidity. Anchors that don't meet the bar appear as "honorable mentions" on region pages.
+The project curates anchor integrations against **two lenses**, defined in `src/lib/config/anchors.ts`:
+
+- **Commercial** (`COMMERCIAL_CRITERIA`) — the end-user-value bar: locally denominated asset on Stellar, local payment-rail support, competitive rates (<25 bps), deep liquidity. Passes unless two or more are a confirmed failure (a single failure — typically the missing local asset, since most anchors default to USDC — is tolerated). Fee + liquidity are vetted elsewhere and are often `unverified`.
+- **Developer** (`DEVELOPER_CRITERIA`) — the buildability bar: open self-service access, accurate docs (match the wire), high-fidelity sandbox (a completed test ramp lands real on-chain testnet tokens), agent-buildable. Passes unless any one is a confirmed failure.
+
+Each criterion is scored on a 4-state scale (`met` / `partial` / `failed` / `unverified`), via `makeCriteria()`. `curationStatus(scorecard)` computes an advisory `curated` / `flagged` verdict (it does not move anchors automatically — placement in `ANCHORS` vs `HONORABLE_MENTIONS` stays a manual editorial call). Reference/test anchors are `referenceAnchor: true` and exempt from the commercial gate. Anchors that don't clear the bar appear as "honorable mentions" on region pages.
+
+Honorable mentions can carry `vetting: true` — a candidate we are still actively evaluating (its scorecard is preliminary, hand-authored from research, not a verified live integration). Vetting candidates render an "Under evaluation" badge and are how the BD partner pipeline is tracked. See **Developer-readiness scorecard** below and the **Assessing a potential anchor** task.
 
 ## Project Structure
 
@@ -14,25 +21,30 @@ Each curated anchor owns its own client, its own server-side instance singleton,
     - `sep/` — Composable SEP modules (`sep1`, `sep6`, `sep10`, `sep12`, `sep24`, `sep31`, `sep38`).
 - `src/lib/server/` — Server-only singletons that read `$env/static/private`:
     - `etherfuseInstance.ts` — lazily-instantiated `EtherfuseClient`.
+    - `koyweInstance.ts` — lazily-instantiated `KoyweClient`.
     - `testanchorInstance.ts` — lazily-instantiated `TestAnchorRampClient` + a `requireBearer(request)` helper for the `Authorization: Bearer <SEP-10 token>` pattern.
 - `src/lib/api/` — Client-side fetch wrappers per provider:
     - `etherfuse.ts` — typed wrappers around `/api/anchor/etherfuse/*`.
+    - `koywe.ts` — typed wrappers around `/api/anchor/koywe/*`.
     - `testanchor.ts` — typed wrappers around `/api/anchor/testanchor/*`.
 - `src/lib/wallet/` — Freighter wallet API + Stellar helpers (Horizon, transactions, trustlines).
 - `src/lib/components/` — Shared UI primitives. None of them encode anchor-specific logic; each bespoke flow page composes them.
-    - Top-level: `WalletConnect`, `QuoteDisplay`, `KycIframe`.
+    - Top-level: `WalletConnect`, `QuoteDisplay`, `KycIframe`, `CriteriaScorecard` (two-lens scorecard renderer; compact + `detailed` modes; Lucide status icons), `HonorableMentionAnchors`.
     - `ramp/`: `AmountInput`, `TrustlineStatus`.
     - `ui/`: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`.
 - `src/lib/stores/` — `wallet.svelte.ts` (Freighter connection state) and `auth.ts` (SEP-10 JWT cache, keyed by provider + public key).
-- `src/lib/config/` — Three files (no barrel): `anchors.ts` (`AnchorProfile`, `ANCHORS`, `QUALITY_CRITERIA`, `HONORABLE_MENTIONS`), `regions.ts`, `rails.ts`.
+- `src/lib/config/` — Four files (no barrel): `anchors.ts` (`AnchorProfile`, `ANCHORS`, `HONORABLE_MENTIONS`, `COMMERCIAL_CRITERIA`/`DEVELOPER_CRITERIA`/`QUALITY_CRITERIA`, `ScoredCriterion`, `curationStatus`, `makeCriteria`), `scorecard.ts` (the developer-readiness view: `buildReadiness`/`toMarkdown`/`resolveFormat`), `regions.ts`, `rails.ts`.
 - `src/lib/utils/` — `status.ts`, `currency.ts`, `quote.ts`, `stellar-asset.ts`.
 - `src/lib/constants.ts` — `PROVIDER`, `TX_STATUS`.
 - `src/routes/` —
-    - `anchors/` listing + `anchors/etherfuse/{,onramp,offramp}/` + `anchors/testanchor/{,interactive/{onramp,offramp},programmatic/{onramp,offramp}}/`. Each flow page is a self-contained state machine.
+    - `anchors/` listing + `anchors/etherfuse/{,onramp,offramp}/` + `anchors/koywe/{,onramp,offramp}/` + `anchors/testanchor/{,interactive/{onramp,offramp},programmatic/{onramp,offramp}}/`. Each flow page is a self-contained state machine.
+    - `anchors/scorecard/` — human-facing developer-readiness page (`+page.svelte` + `+page.ts` load `buildReadiness()`).
     - `regions/` + `regions/[region]/`. Region pages are config-driven.
     - `testanchor/` — the standalone SEP playground demo.
     - `api/anchor/etherfuse/{customers,quotes,onramp,offramp,bank-accounts,kyc,sandbox,assets}/+server.ts` — CORS proxy routes per Etherfuse operation.
+    - `api/anchor/koywe/{quotes,onramp,offramp,order,kyc,bank-accounts,payment-methods,token-currencies}/+server.ts` — CORS proxy routes per Koywe operation.
     - `api/anchor/testanchor/{auth,customer,price,sep6,sep24}/+server.ts` — CORS proxy routes per SEP for the test anchor.
+    - `api/scorecard/+server.ts` — developer-readiness data (JSON default; Markdown via `?format=md` or `Accept: text/markdown`; CORS `*`).
     - `api/testanchor/` — separate proxy for the `/testanchor` playground demo.
 
 ## Key Concepts
@@ -72,6 +84,14 @@ Browser → SvelteKit route → anchor API:
 
 API-key anchors (Etherfuse) never expose their key. SEP-10 tokens travel via the browser's `Authorization: Bearer ...` header; the test anchor route handlers use `requireBearer(request)`.
 
+### Developer-readiness scorecard
+
+A self-updating, machine-readable view of how build-ready each anchor is, derived from config so it never drifts. Reframes the two-lens data around one question — _can a developer build on this anchor today?_ — for consumers like the BD team's agents.
+
+- `src/lib/config/scorecard.ts` (pure, framework-agnostic): `buildReadiness()` projects `ANCHORS` + `HONORABLE_MENTIONS` (skipping `referenceAnchor`s) into per-anchor entries — a `ready`/`partial`/`blocked` verdict from 5 buildability signals (`local-rails`, `open-access`, `high-fidelity-sandbox` = **required**; `accurate-docs`, `agent-buildable` = **friction**), via a severity split: a failed _required_ signal → `blocked`; a failed _friction_ signal or any partial/unverified → `partial`; all met → `ready`. Each entry carries `signals[]` (with `severity`), `blockers[]`, `caveats[]`, informational `localAsset`, `regions` (the market join key), and `vetting`. The BD-owned commercial criteria (`competitive-rates`, `deep-liquidity`) are intentionally omitted.
+- `/api/scorecard` serves it (JSON default; Markdown via `?format=md` or `Accept: text/markdown`, query wins; CORS `*`). `/anchors/scorecard` renders the human page.
+- The drop-in prompt for BD's agent + the latest pipeline assessment live in `docs/` (untracked).
+
 ## Common Tasks
 
 ### Adding a new curated anchor
@@ -87,7 +107,18 @@ API-key anchors (Etherfuse) never expose their key. SEP-10 tokens travel via the
 9. Add tests under `tests/anchors/<name>/`.
 10. Document in `src/lib/anchors/<name>/README.md`.
 
-If the anchor's API doesn't meet the five quality criteria, add it to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` instead — no client code needed.
+If the anchor doesn't clear the two-lens bar (commercial + developer; see the top of this guide), add it to `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts` instead — no client code needed. Give it a `scorecard` (via `makeCriteria`) so its gaps render.
+
+### Assessing a potential anchor (vetting)
+
+For a candidate not yet integrated — typically a BD pipeline partner — assess it without writing client code:
+
+1. **Research against the 8 scorecard signals.** Establish the gating fact first — _does it support Stellar at all_ (anchor / SEP / USDC-on-Stellar / via a partner)? Then score each signal `met`/`partial`/`failed`/`unverified` with evidence. A USD-denominated token (USDC) does **not** satisfy `local-asset`; only a local-currency token on Stellar does. Parallel research subagents (one per anchor) work well; demand sources and `unverified` over guessing.
+2. **Add it as an in-vetting honorable mention** in `HONORABLE_MENTIONS` with `vetting: true` and a `scorecard` (via `makeCriteria`) from the research. It then flows automatically into `/api/scorecard` and the page (with the "Under evaluation" badge) for BD tracking.
+3. **New markets** not in `regions.ts` (e.g. colombia, türkiye, kenya, ghana) are fine — they're free-form strings on `regions[]` and render in the scorecard only (no region page), like the Philippines precedent.
+4. **Cover with config tests** (`tests/config/anchors.test.ts` counts/membership, `tests/config/scorecard.test.ts` verdict/vetting). Update the entry's scorecard as the partner makes progress.
+
+Curated vs honorable-mention placement is a manual editorial call (`curationStatus` is advisory). An anchor that can genuinely ramp on Stellar self-serve, end-to-end, is a curated candidate; everything else stays an honorable mention.
 
 ### Sharing UI primitives
 
@@ -132,6 +163,7 @@ PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 - **Tailwind CSS** for styling.
 - **@stellar/stellar-sdk** for Stellar blockchain.
 - **@stellar/freighter-api** for wallet connection.
+- **@lucide/svelte** for UI icons (per-icon deep imports, e.g. `@lucide/svelte/icons/circle-check`, to stay tree-shakeable).
 
 ---
 

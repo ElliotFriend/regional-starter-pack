@@ -1,5 +1,6 @@
 <script lang="ts">
     import HonorableMentionAnchors from '$lib/components/HonorableMentionAnchors.svelte';
+    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
 
     import { resolve } from '$app/paths';
     import type { PageProps } from './$types';
@@ -143,6 +144,12 @@
                                             >{capability.tokens.join(', ')}</span
                                         >
                                     </div>
+                                </div>
+                            {/if}
+
+                            {#if anchor.scorecard}
+                                <div class="mt-4">
+                                    <CriteriaScorecard scorecard={anchor.scorecard} />
                                 </div>
                             {/if}
                         </div>

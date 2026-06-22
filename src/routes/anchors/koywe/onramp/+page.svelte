@@ -14,12 +14,14 @@
     import { getUsdcAsset } from '$lib/wallet/stellar';
     import { createPoller } from '$lib/utils/poll.svelte';
     import * as koywe from '$lib/api/koywe';
+    import { resolveFiatLimits } from '$lib/anchors/koywe';
     import type { StellarNetwork } from '$lib/wallet/types';
     import type {
         KoywePaymentMethod,
         KoyweQuote,
         KoyweOnRampOrder,
         KoyweAccountCheck,
+        KoyweOrder,
     } from '$lib/anchors/koywe';
 
     // ------------------------------------------------------------------
@@ -76,6 +78,10 @@
     let amount = $state('');
     let quote = $state<KoyweQuote | null>(null);
     let order = $state<KoyweOnRampOrder | null>(null);
+    // Latest polled order, carrying lifecycle diagnostics (dates, txHash, statusDetails).
+    let lifecycle = $state<KoyweOrder | null>(null);
+    // Koywe per-currency transaction limits for ARS → USDC Stellar (step 3).
+    let limits = $state<{ min?: number; max?: number } | null>(null);
     let hasTrustline = $state(false);
 
     // UI flags
@@ -87,6 +93,14 @@
     const selectedMethod = $derived(paymentMethods.find((m) => m.id === selectedMethodId) ?? null);
 
     const emailValid = $derived(email.trim().length > 0 && email.includes('@'));
+
+    const amountOutOfRange = $derived.by(() => {
+        if (!amount || !limits) return false;
+        const n = parseFloat(amount);
+        if (limits.min !== undefined && n < limits.min) return true;
+        if (limits.max !== undefined && n > limits.max) return true;
+        return false;
+    });
 
     // Adapt KoyweQuote to the QuoteDisplay structural shape.
     const displayQuote = $derived(
@@ -112,6 +126,13 @@
     async function loadPaymentMethods() {
         paymentMethods = await koywe.getPaymentProviders(fetch, fiatCurrency);
         selectedMethodId = paymentMethods.find((m) => m.rail)?.id ?? paymentMethods[0]?.id ?? null;
+        // Step 3 (GetCurrencyTokens): confirm the pair is supported and read its limits.
+        const tokens = await koywe.getTokenCurrencies(fetch);
+        const resolved = resolveFiatLimits(tokens, fiatCurrency);
+        if (!resolved) {
+            throw new Error(`Koywe does not support ${fiatCurrency} → ${tokenSymbol}.`);
+        }
+        limits = resolved;
     }
 
     async function checkKyc() {
@@ -261,10 +282,16 @@
         if (!order) return;
         const updated = await koywe.getOrder(fetch, order.id, email);
         if (!updated) return;
-        // Merge the polled status onto the order, preserving deposit instructions.
+        // Keep the full polled order for lifecycle diagnostics, and merge its
+        // status onto our order (preserving the deposit instructions).
+        lifecycle = updated;
         order = { ...order, status: updated.status };
         if (updated.status === 'DELIVERED') {
             step = 'complete';
+            stop();
+        } else if (updated.isDeliveryExpired) {
+            error =
+                'Koywe stopped retrying the on-chain delivery, so this order will not complete. The fiat payment was received but the USDC was never sent.';
             stop();
         } else if (
             updated.status === 'REJECTED' ||
@@ -283,6 +310,7 @@
         amount = '';
         quote = null;
         order = null;
+        lifecycle = null;
         error = null;
         step = 'method';
         orderPoller.stop();
@@ -624,8 +652,21 @@
                 isWalletConnected={walletStore.isConnected}
                 {hasTrustline}
                 isGettingQuote={isWorking}
+                additionalDisabled={amountOutOfRange}
                 onSubmit={getQuote}
-            />
+            >
+                {#if limits}
+                    <p class="mt-1 text-sm text-gray-500">
+                        Koywe limits: min ${limits.min?.toLocaleString() ?? '—'} · max ${limits.max?.toLocaleString() ??
+                            '—'}
+                    </p>
+                    {#if amountOutOfRange}
+                        <p class="mt-1 text-sm text-red-600">
+                            Enter an amount within Koywe's {fiatCurrency} limits.
+                        </p>
+                    {/if}
+                {/if}
+            </AmountInput>
         </div>
     {/if}
 
@@ -745,6 +786,30 @@
                     </p>
                 {/if}
             </div>
+
+            {#if lifecycle?.dates}
+                {@const d = lifecycle.dates}
+                <div class="mt-6 rounded-md border border-gray-200 bg-gray-50 p-4 text-xs">
+                    <p class="font-medium text-gray-700">Order lifecycle</p>
+                    <ul class="mt-2 space-y-1 text-gray-600">
+                        <li>{d.confirmationDate ? '✓' : '○'} Order confirmed</li>
+                        <li>{d.paymentDate ? '✓' : '○'} Fiat payment received</li>
+                        <li>{d.executionDate ? '✓' : '○'} On-chain delivery started</li>
+                        <li>{d.deliveryDate ? '✓' : '○'} USDC delivered</li>
+                        {#if d.expiredByRetriesDate}
+                            <li class="text-red-600">✗ Delivery expired after retries</li>
+                        {/if}
+                    </ul>
+                    {#if lifecycle.txHash}
+                        <p class="mt-2 text-gray-500">
+                            Tx: <span class="font-mono break-all">{lifecycle.txHash}</span>
+                        </p>
+                    {/if}
+                    {#if lifecycle.statusDetails}
+                        <p class="mt-1 text-gray-500">Detail: {lifecycle.statusDetails}</p>
+                    {/if}
+                </div>
+            {/if}
         </div>
     {/if}
 

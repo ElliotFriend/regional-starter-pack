@@ -246,6 +246,25 @@ export interface KoyweBankAccount {
 }
 
 /** Unified order shape returned by {@link KoyweClient.getOrder}. */
+/**
+ * Order lifecycle timestamps from Koywe (`Order.dates`). Each stamp is set as
+ * the order advances; a `null` field marks a stage not yet reached. These
+ * pinpoint where an order stalls — e.g. `paymentDate` set but `executionDate`
+ * null means the fiat was received but the crypto-delivery leg never ran.
+ */
+export interface KoyweOrderDates {
+    /** Order confirmed/accepted. */
+    confirmationDate?: string | null;
+    /** Fiat payment received (on-ramp) / crypto received (off-ramp). */
+    paymentDate?: string | null;
+    /** Delivery leg began executing. */
+    executionDate?: string | null;
+    /** Delivery completed (terminal success). */
+    deliveryDate?: string | null;
+    /** Set when Koywe gives up retrying the delivery leg (terminal failure). */
+    expiredByRetriesDate?: string | null;
+}
+
 export interface KoyweOrder {
     id: string;
     status: KoyweOrderStatus;
@@ -261,6 +280,18 @@ export interface KoyweOrder {
     depositAddress?: string;
     /** Koywe-hosted redirect / tracking URL. */
     interactiveUrl?: string;
+    /** Lifecycle timestamps; locate where an order stalls. */
+    dates?: KoyweOrderDates;
+    /** Settlement transaction hash, once the delivery leg broadcasts. */
+    txHash?: string | null;
+    /** Koywe's own free-text status detail (often empty). */
+    statusDetails?: string | null;
+    /**
+     * True once Koywe has stopped retrying the delivery leg
+     * (`dates.expiredByRetriesDate` is set) — a terminal failure even while the
+     * raw {@link status} still reads `EXECUTING`/`PENDING`.
+     */
+    isDeliveryExpired: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +534,12 @@ export interface KoyweOrderResponse {
     providedAction?: string;
     email?: string;
     documentNumber?: string;
+    /** Lifecycle timestamps (`Order.dates`). */
+    dates?: KoyweOrderDates;
+    /** Settlement transaction hash. */
+    txHash?: string | null;
+    /** Free-text status detail. */
+    statusDetails?: string | null;
 }
 
 /** Request body for `POST /rest/orders/{orderId}/txHash`. */
