@@ -146,6 +146,12 @@ export const DEVELOPER_CRITERIA: readonly CriterionDef[] = [
         shortLabel: 'Agent-buildable',
         lens: 'developer',
     },
+    {
+        id: 'fee-discoverability',
+        label: 'Fee/rate discoverability (costs findable via pricing docs or a quote/fee API)',
+        shortLabel: 'Fee discoverability',
+        lens: 'developer',
+    },
 ] as const;
 
 /** The full criteria set, commercial lens first. */
@@ -204,6 +210,10 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 note: 'Sandbox delivers on-chain tokens; off-ramp burns tokens',
             },
             'agent-buildable': { status: 'met', note: 'MCP docs server + OpenAPI spec' },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Quote API returns fee + rate per transaction; public pricing docs',
+            },
         }),
         links: {
             website: 'https://www.etherfuse.com',
@@ -327,6 +337,10 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             'agent-buildable': {
                 status: 'partial',
                 note: 'OpenAPI good; opaque/silent sandbox failures',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Quote API returns fee per transaction',
             },
         }),
         links: {
@@ -455,6 +469,10 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 note: 'Issues real testnet SRT + USDC',
             },
             'agent-buildable': { status: 'met', note: 'Standard SEPs' },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'SEP-38 firm quotes + SEP-6 fee fields',
+            },
         }),
         links: {
             website: 'https://testanchor.stellar.org',
@@ -816,6 +834,10 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 status: 'met',
                 note: 'OpenAPI + llms.txt (explicit AI-agent index)',
             },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Conversion quote returns fee_amount/fee_percentage; withdrawal_methods lists per-method fees (confirmed live)',
+            },
         }),
     },
     yellowcard: {
@@ -893,6 +915,10 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             'agent-buildable': {
                 status: 'partial',
                 note: 'llms.txt + REST docs, but no OpenAPI/MCP and not SEP-standard',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'v2 price/quote API returns fees',
             },
         }),
     },

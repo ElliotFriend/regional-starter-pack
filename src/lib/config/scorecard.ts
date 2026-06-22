@@ -48,9 +48,9 @@ export interface ReadinessEntry {
      * are preliminary. Consumers should label these "under evaluation".
      */
     vetting: boolean;
-    /** Dev-readiness verdict, from the 5 buildability signals. */
+    /** Dev-readiness verdict, from the 6 buildability signals. */
     verdict: ReadinessVerdict;
-    /** The 5 buildability signals, required-first. */
+    /** The 6 buildability signals, required-first. */
     signals: ReadinessSignal[];
     /** Failed required signals — the reasons a verdict is `blocked`. */
     blockers: ReadinessSignal[];
@@ -62,7 +62,7 @@ export interface ReadinessEntry {
 
 const CRITERION = new Map([...COMMERCIAL_CRITERIA, ...DEVELOPER_CRITERIA].map((c) => [c.id, c]));
 
-/** The 5 buildability signals, required-first, with severity + labels. */
+/** The 6 buildability signals, required-first, with severity + labels. */
 const SIGNALS = (
     [
         ['local-rails', 'required'],
@@ -70,6 +70,7 @@ const SIGNALS = (
         ['high-fidelity-sandbox', 'required'],
         ['accurate-docs', 'friction'],
         ['agent-buildable', 'friction'],
+        ['fee-discoverability', 'friction'],
     ] as const
 ).map(([id, severity]) => ({
     id,
@@ -176,7 +177,7 @@ export function toMarkdown(entries: ReadinessEntry[]): string {
         '',
         '## How to read this',
         '',
-        'Each anchor is scored on five buildability signals. A failed **required** signal makes' +
+        'Each anchor is scored on six buildability signals. A failed **required** signal makes' +
             ' an anchor `blocked`; a failed **friction** signal (or any `partial`/`unverified`)' +
             ' makes it `partial`; all signals met is `ready`. **Local asset** is shown for' +
             ' reference only and does not affect the verdict.',

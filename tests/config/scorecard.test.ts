@@ -50,7 +50,7 @@ describe('buildReadiness', () => {
         expect(byId.fonbnk.regions).toEqual(['kenya', 'ghana']);
     });
 
-    it('exposes the 5 buildability signals, required-first, each tagged with its severity', () => {
+    it('exposes the 6 buildability signals, required-first, each tagged with its severity', () => {
         for (const e of entries) {
             expect(e.signals.map((s) => s.id)).toEqual([
                 'local-rails',
@@ -58,11 +58,13 @@ describe('buildReadiness', () => {
                 'high-fidelity-sandbox',
                 'accurate-docs',
                 'agent-buildable',
+                'fee-discoverability',
             ]);
             expect(e.signals.map((s) => s.severity)).toEqual([
                 'required',
                 'required',
                 'required',
+                'friction',
                 'friction',
                 'friction',
             ]);
@@ -105,7 +107,7 @@ describe('buildReadiness', () => {
     });
 
     it('verdicts follow the severity split', () => {
-        expect(byId.etherfuse.verdict).toBe('ready'); // all 5 met
+        expect(byId.etherfuse.verdict).toBe('ready'); // all 6 met
         expect(byId.koywe.verdict).toBe('blocked'); // required: high-fidelity-sandbox failed
         expect(byId.alfredpay.verdict).toBe('blocked');
         expect(byId.blindpay.verdict).toBe('partial'); // no required fail; partial/unverified

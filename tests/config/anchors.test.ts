@@ -83,19 +83,20 @@ describe('two-lens criteria', () => {
         expect(COMMERCIAL_CRITERIA.every((c) => c.lens === 'commercial')).toBe(true);
     });
 
-    it('developer lens has the four developer criteria, all tagged developer', () => {
+    it('developer lens has the five developer criteria, all tagged developer', () => {
         const ids = DEVELOPER_CRITERIA.map((c) => c.id);
         expect(ids).toEqual([
             'open-access',
             'accurate-docs',
             'high-fidelity-sandbox',
             'agent-buildable',
+            'fee-discoverability',
         ]);
         expect(DEVELOPER_CRITERIA.every((c) => c.lens === 'developer')).toBe(true);
     });
 
-    it('QUALITY_CRITERIA is the combined eight (commercial then developer)', () => {
-        expect(QUALITY_CRITERIA).toHaveLength(8);
+    it('QUALITY_CRITERIA is the combined nine (commercial then developer)', () => {
+        expect(QUALITY_CRITERIA).toHaveLength(9);
         expect(QUALITY_CRITERIA).toEqual([...COMMERCIAL_CRITERIA, ...DEVELOPER_CRITERIA]);
     });
 
@@ -114,7 +115,7 @@ describe('two-lens criteria', () => {
 });
 
 describe('curationStatus', () => {
-    // Build a full 8-criterion scorecard, overriding specific statuses.
+    // Build a full 9-criterion scorecard, overriding specific statuses.
     function scorecard(
         overrides: Record<string, ScoredCriterion['status']> = {},
     ): ScoredCriterion[] {
@@ -214,7 +215,7 @@ describe('HONORABLE_MENTIONS', () => {
         for (const id of ['pdax', 'manteca', 'coinsph']) {
             expect(HONORABLE_MENTIONS[id], id).toBeDefined();
             expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
-            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(8);
+            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(9);
         }
         expect(HONORABLE_MENTIONS['manteca'].regions).toContain('brazil');
         expect(HONORABLE_MENTIONS['pdax'].regions).toContain('philippines');
@@ -225,7 +226,7 @@ describe('HONORABLE_MENTIONS', () => {
         for (const id of ['bitso', 'yellowcard', 'fonbnk', 'bilira', 'onafriq', 'flutterwave']) {
             expect(HONORABLE_MENTIONS[id], id).toBeDefined();
             expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
-            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(8);
+            expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(9);
         }
         expect(HONORABLE_MENTIONS['bitso'].regions).toEqual([
             'mexico',
@@ -246,7 +247,7 @@ describe('HONORABLE_MENTIONS', () => {
 
     it('each mention has a scorecard scoring all 8 two-lens criteria', () => {
         for (const mention of Object.values(HONORABLE_MENTIONS)) {
-            expect(mention.scorecard).toHaveLength(8);
+            expect(mention.scorecard).toHaveLength(9);
             for (const criterion of mention.scorecard) {
                 expect(criterion.id).toBeTruthy();
                 expect(criterion.label).toBeTruthy();
