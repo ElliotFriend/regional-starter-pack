@@ -58,6 +58,6 @@
     "dependencies": {
         "@lucide/svelte": "^1.18.0",
         "@stellar/freighter-api": "^6.0.1",
-        "@stellar/stellar-sdk": "^15.1.0"
+        "@stellar/stellar-sdk": "^16.0.1"
     }
 }
