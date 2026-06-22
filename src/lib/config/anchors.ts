@@ -888,7 +888,7 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             },
             'high-fidelity-sandbox': {
                 status: 'failed',
-                note: 'Sandbox mocks settlement ("won’t receive real top-ups"); no real testnet delivery',
+                note: 'Pay Widget sandbox rejects STELLAR/USDC ("blockchain asset not available"); USDC works on other chains (e.g. Ethereum), so no Stellar on-ramp today',
             },
             'agent-buildable': {
                 status: 'partial',
