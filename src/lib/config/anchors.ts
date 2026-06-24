@@ -332,7 +332,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             'accurate-docs': { status: 'met', note: 'Authoritative OpenAPI spec' },
             'high-fidelity-sandbox': {
                 status: 'failed',
-                note: 'On-ramp confirms fiat but never executes the on-chain delivery (sandbox-side)',
+                note: 'Sandbox cannot settle the Stellar USDC leg; end-to-end delivery only verifiable on an EVM testnet (Sepolia or Amoy) with a Koywe mock token, not canonical USDC',
             },
             'agent-buildable': {
                 status: 'partial',
@@ -358,7 +358,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'The hosted KYC widget URL endpoint is unconfirmed in the sandbox — the client surfaces a clear "not implemented" state until it is wired up. Complete KYC for the test user via the Koywe dashboard.',
             },
             {
-                text: 'No on-ramp rail reaches DELIVERED in the sandbox. Khipu (via its test pay page) confirms the fiat payment and the order advances to EXECUTING, but Koywe never executes the crypto-delivery leg — no on-chain payment is broadcast, so it loops between EXECUTING and PENDING until it expires by retries. WIREAR and QRI orders stay in WAITING (no fiat-received simulation). Appears to be a sandbox-side limitation; awaiting the Koywe team.',
+                text: 'The sandbox cannot settle the Stellar USDC leg: an on-ramp order to a Stellar address confirms the fiat payment and advances to EXECUTING, but Koywe never broadcasts the on-chain delivery, so it loops between EXECUTING and PENDING until it expires by retries. Koywe confirmed USDC-on-Stellar is unsupported in the sandbox and pointed us at an EVM testnet instead — Sepolia (plain "USDC" symbol) or Amoy/Polygon ("USDC Polygon"). Driven over Sepolia, the same Khipu flow does complete end-to-end to DELIVERED with a real on-chain tx — but it credits a Koywe-issued mock token (name "Koywe USDC", 18 decimals) rather than canonical Circle USDC. So the sandbox proves the full ramp pipeline, just not on the target chain or asset. WIREAR and QRI orders stay in WAITING (only Khipu has a test pay page).',
             },
             {
                 text: 'The off-ramp order field name and the submit-tx-hash REST path follow the documented OpenAPI spec but have not been verified end-to-end against the live sandbox.',

@@ -156,7 +156,7 @@ describe('toMarkdown', () => {
 
     it('surfaces blocker and caveat notes in a per-anchor detail section', () => {
         // Koywe's sandbox blocker note must appear (the "why").
-        expect(md).toContain('never executes the on-chain delivery');
+        expect(md).toContain('cannot settle the Stellar USDC leg');
         // A caveat note too.
         expect(md.toLowerCase()).toMatch(/blocker|caveat/);
     });
