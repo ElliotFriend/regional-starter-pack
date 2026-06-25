@@ -118,7 +118,7 @@
         phoneNumber = '11999999999';
         nationality = 'Brasil';
         sex = 'F';
-        maritalStatus = 'Solteiro';
+        maritalStatus = 'Soltero';
         street = 'Av Paulista 1000';
     }
 
@@ -396,12 +396,17 @@
 
             <label class="mt-4 block">
                 <span class="text-sm font-medium text-gray-700">Marital status</span>
-                <input
-                    type="text"
+                <select
                     bind:value={maritalStatus}
-                    placeholder="Solteiro"
                     class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
+                >
+                    <option value="" disabled>Select…</option>
+                    <option value="Soltero">Soltero</option>
+                    <option value="Casado">Casado</option>
+                    <option value="Divorciado">Divorciado</option>
+                    <option value="Viudo">Viudo</option>
+                    <option value="Otros">Otros</option>
+                </select>
             </label>
 
             <label class="mt-4 block">
