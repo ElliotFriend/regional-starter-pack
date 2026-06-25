@@ -559,6 +559,41 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             documentation: 'https://developers.manteca.dev',
             'api reference': 'https://developers.manteca.dev/llms.txt',
         },
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USDC/USDT/XLM — no locally denominated asset',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'PIX (BR) + CVU/CBU/alias (AR) + BRE-B (CO)',
+            },
+            'competitive-rates': {
+                status: 'failed',
+                note: 'Sandbox spread ~0 (not representative); production ~50–60 bps per survey, above the <25 bps target',
+            },
+            'deep-liquidity': { status: 'met', note: '~$10M/day per survey; Bybit partnership' },
+            'open-access': {
+                status: 'failed',
+                note: 'Sandbox keys are sales-gated — obtained one via sales, still no self-serve',
+            },
+            'accurate-docs': {
+                status: 'partial',
+                note: 'Verified live: several wire shapes diverge from the published reference — nested effectivePrice (not flat), {user,person} onboarding envelope, PIX deposit object (no scalar address), sex F/M/X enum',
+            },
+            'high-fidelity-sandbox': {
+                status: 'partial',
+                note: "Partial — the full ramp pipeline is proven (EVM/Base Sepolia round trip completes both directions with real on-chain settlement + deposit detection); only Manteca's sandbox STELLAR leg is broken, with a vendor-side fix pending (reported June 2026). Onboarding works, the PIX deposit auto-detects (~15s) and auto-converts BRL→USDC, but the Stellar WITHDRAW leg FAILS (stages[3].errors: [\"Withdraw FAILED\"]) with no on-chain broadcast — even to a funded, USDC-trustlined testnet account. Issuer mismatch is RULED OUT: Manteca's pooled sandbox Stellar account trustlines the same Circle testnet USDC (GBBD47IF…) and holds ~30k, so the asset/trust is right. Neither crypto leg works in sandbox: the on-ramp outbound withdraw fails with no broadcast, and the off-ramp ignores a real on-chain USDC deposit (10 USDC sent to the user's muxed address, tx confirmed — synthetic never advanced past DEPOSIT). Fiat legs auto-mock. Failure is Stellar-specific: a full EVM (Base Sepolia) round trip COMPLETED — on-ramp delivered real testnet USDC on-chain AND off-ramp detected a real on-chain deposit and settled — so the whole pipeline works; only Manteca's sandbox Stellar leg is broken.",
+            },
+            'agent-buildable': {
+                status: 'met',
+                note: 'Markdown docs + llms.txt; built a full client from them and onboarded a sandbox user end-to-end',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Confirmed live: per-quote fee on the ramp synthetic (withdrawCostInAsset/withdrawCostInAgainst + effectivePrice)',
+            },
+        }),
         knownIssues: [
             {
                 text: "Sandbox-verified (June 2026): onboarding, ramp-on creation, automatic PIX-deposit detection (~15s) and BRL→USDC conversion all work — no deposit-simulation call is needed (the sandbox auto-settles the fiat leg). BUT the ramp does NOT complete: the Stellar WITHDRAW leg fails (stages[3].errors: [\"Withdraw FAILED\"]) with no on-chain broadcast, even to a funded, USDC-trustlined testnet account. Issuer mismatch is RULED OUT — Manteca's pooled sandbox Stellar account (base GCVQ3XR5…) trustlines the same Circle testnet USDC (GBBD47IF…) and holds ~30k USDC. The sandbox does not bridge to real testnet on EITHER crypto leg: on-ramp outbound withdraw fails with no broadcast, and the off-ramp ignores a real, correctly-addressed on-chain USDC deposit (sent 10 USDC to the user's muxed deposit address, tx confirmed on testnet — synthetic stayed at DEPOSIT, never detected). Fiat legs are auto-mocked. The failure is STELLAR-SPECIFIC: a full EVM (Base Sepolia) round trip on the same user COMPLETED — on-ramp delivered real testnet USDC on-chain (tx 0x057b16d4…, token 0x8431ebc6…) AND a subsequent off-ramp detected a real on-chain USDC deposit and settled (both reached COMPLETED). So the entire ramp pipeline — including inbound deposit detection — is real and works; ONLY Manteca's sandbox Stellar leg is broken. Ask Manteca to enable/fix the sandbox Stellar leg.",
@@ -818,52 +853,6 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
     },
     // --- In-vetting branch candidates (BD actively engaging; assessments are
     // preliminary, hand-authored from investigation notes). ---
-    manteca: {
-        id: 'manteca',
-        name: 'Manteca',
-        description:
-            'Latin American fiat infrastructure with USDC/USDT/XLM on Stellar and PIX/CBU/BRE-B ramps across BR, AR, CO. Client built from docs; never run against a live sandbox.',
-        website: 'https://manteca.dev',
-        tokens: ['USDC', 'USDT', 'XLM'],
-        rails: ['pix'],
-        regions: ['brazil', 'argentina', 'colombia'],
-        vetting: true,
-        scorecard: makeCriteria({
-            'local-asset': {
-                status: 'failed',
-                note: 'USDC/USDT/XLM — no locally denominated asset',
-            },
-            'local-rails': {
-                status: 'met',
-                note: 'PIX (BR) + CBU/CVU (AR) live; Colombia via BRE-B (partial)',
-            },
-            'competitive-rates': {
-                status: 'failed',
-                note: 'Sandbox spread ~0 (not representative); production ~50–60 bps per survey, above the <25 bps target',
-            },
-            'deep-liquidity': { status: 'met', note: '~$10M/day per survey; Bybit partnership' },
-            'open-access': {
-                status: 'failed',
-                note: 'Sandbox keys are sales-gated — obtained one via sales, still no self-serve',
-            },
-            'accurate-docs': {
-                status: 'partial',
-                note: 'Verified live: several wire shapes diverge from the published reference — nested effectivePrice (not flat), {user,person} onboarding envelope, PIX deposit object (no scalar address), sex F/M/X enum',
-            },
-            'high-fidelity-sandbox': {
-                status: 'partial',
-                note: "Partial — the full ramp pipeline is proven (EVM/Base Sepolia round trip completes both directions with real on-chain settlement + deposit detection); only Manteca's sandbox STELLAR leg is broken, with a vendor-side fix pending (reported June 2026). Onboarding works, the PIX deposit auto-detects (~15s) and auto-converts BRL→USDC, but the Stellar WITHDRAW leg FAILS (stages[3].errors: [\"Withdraw FAILED\"]) with no on-chain broadcast — even to a funded, USDC-trustlined testnet account. Issuer mismatch is RULED OUT: Manteca's pooled sandbox Stellar account trustlines the same Circle testnet USDC (GBBD47IF…) and holds ~30k, so the asset/trust is right. Neither crypto leg works in sandbox: the on-ramp outbound withdraw fails with no broadcast, and the off-ramp ignores a real on-chain USDC deposit (10 USDC sent to the user's muxed address, tx confirmed — synthetic never advanced past DEPOSIT). Fiat legs auto-mock. Failure is Stellar-specific: a full EVM (Base Sepolia) round trip COMPLETED — on-ramp delivered real testnet USDC on-chain AND off-ramp detected a real on-chain deposit and settled — so the whole pipeline works; only Manteca's sandbox Stellar leg is broken.",
-            },
-            'agent-buildable': {
-                status: 'met',
-                note: 'Markdown docs + llms.txt; built a full client from them and onboarded a sandbox user end-to-end',
-            },
-            'fee-discoverability': {
-                status: 'met',
-                note: 'Confirmed live: per-quote fee on the ramp synthetic (withdrawCostInAsset/withdrawCostInAgainst + effectivePrice)',
-            },
-        }),
-    },
     pdax: {
         id: 'pdax',
         name: 'PDAX',

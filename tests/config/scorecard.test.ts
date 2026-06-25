@@ -10,11 +10,11 @@ describe('buildReadiness', () => {
         expect(ids).toEqual([
             'etherfuse',
             'koywe',
+            'manteca',
             'alfredpay',
             'blindpay',
             'abroad',
             'transfero',
-            'manteca',
             'pdax',
             'coinsph',
             'bitso',
@@ -30,7 +30,6 @@ describe('buildReadiness', () => {
     it('flags in-vetting anchors (and only those)', () => {
         for (const id of [
             'pdax',
-            'manteca',
             'coinsph',
             'bitso',
             'yellowcard',
@@ -41,7 +40,16 @@ describe('buildReadiness', () => {
         ]) {
             expect(byId[id].vetting, id).toBe(true);
         }
-        for (const id of ['etherfuse', 'koywe', 'alfredpay', 'blindpay', 'abroad', 'transfero']) {
+        // Manteca is now fully curated (no longer an in-vetting honorable mention).
+        for (const id of [
+            'etherfuse',
+            'koywe',
+            'manteca',
+            'alfredpay',
+            'blindpay',
+            'abroad',
+            'transfero',
+        ]) {
             expect(byId[id].vetting, id).toBe(false);
         }
         // Markets carry through for the dashboard join.
@@ -177,7 +185,7 @@ describe('toMarkdown', () => {
     });
 
     it('marks in-vetting anchors as under evaluation', () => {
-        expect(md).toContain('Manteca');
+        expect(md).toContain('PDAX'); // a still-in-vetting honorable mention
         // The report explains the vetting marker and flags the rows.
         expect(md.toLowerCase()).toContain('evaluation');
     });

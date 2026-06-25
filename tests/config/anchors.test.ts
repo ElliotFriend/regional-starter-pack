@@ -201,9 +201,10 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 13 entries (4 vetted + 9 in-vetting pipeline)', () => {
+    it('has 12 entries (4 vetted + 8 in-vetting pipeline; Manteca graduated to curated)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(13);
+        expect(mentions).toHaveLength(12);
+        expect(mentions).not.toContain('manteca');
     });
 
     it('includes alfredpay', () => {
@@ -237,12 +238,12 @@ describe('HONORABLE_MENTIONS', () => {
     });
 
     it('includes the in-vetting branch anchors, flagged vetting', () => {
-        for (const id of ['pdax', 'manteca', 'coinsph']) {
+        for (const id of ['pdax', 'coinsph']) {
             expect(HONORABLE_MENTIONS[id], id).toBeDefined();
             expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);
             expect(HONORABLE_MENTIONS[id].scorecard).toHaveLength(9);
         }
-        expect(HONORABLE_MENTIONS['manteca'].regions).toContain('brazil');
+        expect(HONORABLE_MENTIONS['manteca']).toBeUndefined(); // now curated
         expect(HONORABLE_MENTIONS['pdax'].regions).toContain('philippines');
         expect(HONORABLE_MENTIONS['coinsph'].regions).toContain('philippines');
     });
@@ -259,7 +260,6 @@ describe('HONORABLE_MENTIONS', () => {
             'argentina',
             'colombia',
         ]);
-        expect(HONORABLE_MENTIONS['manteca'].regions).toEqual(['brazil', 'argentina', 'colombia']);
         expect(HONORABLE_MENTIONS['fonbnk'].regions).toEqual(['kenya', 'ghana']);
         expect(HONORABLE_MENTIONS['bilira'].regions).toEqual(['turkiye']);
     });
@@ -291,11 +291,10 @@ describe('getHonorableMentionsForRegion', () => {
         expect(ids).toContain('bitso');
     });
 
-    it('returns the brazil mentions (incl. manteca + bitso)', () => {
+    it('returns the brazil mentions (bitso etc.; manteca is curated, not a mention)', () => {
         const ids = getHonorableMentionsForRegion('brazil').map((m) => m.id);
-        expect(ids).toEqual(
-            expect.arrayContaining(['alfredpay', 'abroad', 'transfero', 'manteca', 'bitso']),
-        );
+        expect(ids).toEqual(expect.arrayContaining(['alfredpay', 'abroad', 'transfero', 'bitso']));
+        expect(ids).not.toContain('manteca');
     });
 
     it('returns the in-vetting PH anchors for philippines', () => {
@@ -317,8 +316,8 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 13 honorable mentions', () => {
+    it('returns all 12 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(13);
+        expect(mentions).toHaveLength(12);
     });
 });
