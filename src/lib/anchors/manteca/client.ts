@@ -565,15 +565,19 @@ function mapUser(raw: MantecaUserResponse): MantecaUser {
 /** Map a raw Manteca synthetic to the client-facing {@link MantecaSynthetic}. */
 function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
     const details = response.details ?? {};
-    // Brazil on-ramp deposit instructions arrive as a PIX QR under
-    // `depositAddresses.PIX` (no scalar depositAddress).
-    const pixRaw = details.depositAddresses?.PIX as
-        | { code?: string; url?: string; expiresAt?: string }
-        | undefined;
-    const pix =
-        pixRaw?.code && pixRaw?.url
-            ? { code: pixRaw.code, url: pixRaw.url, expiresAt: pixRaw.expiresAt }
-            : undefined;
+    // On-ramp QR deposit (PIX in BR, BRE-B in CO): the first per-network entry
+    // that carries a code+url. (AR uses a scalar bank address instead — see
+    // depositAddress below.)
+    const qrEntry = Object.values(details.depositAddresses ?? {}).find(
+        (e): e is { code: string; url: string; expiresAt?: string } =>
+            !!e &&
+            typeof e === 'object' &&
+            typeof (e as { code?: unknown }).code === 'string' &&
+            typeof (e as { url?: unknown }).url === 'string',
+    );
+    const depositQr = qrEntry
+        ? { code: qrEntry.code, url: qrEntry.url, expiresAt: qrEntry.expiresAt }
+        : undefined;
     // Any stage carrying errors (e.g. a failed Stellar withdraw) marks the whole
     // synthetic as failed even while its status is still non-terminal.
     const failedStage = Object.values(response.stages ?? {}).find(
@@ -592,7 +596,7 @@ function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
             depositAddress: details.depositAddress,
             depositAlias: details.depositAlias,
             depositAddresses: details.depositAddresses,
-            pix,
+            depositQr,
             depositAvailableNetworks: details.depositAvailableNetworks,
             withdrawCostInAsset: details.withdrawCostInAsset,
             withdrawCostInAgainst: details.withdrawCostInAgainst,

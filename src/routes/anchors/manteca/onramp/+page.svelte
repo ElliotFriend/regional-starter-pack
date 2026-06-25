@@ -768,23 +768,24 @@
                 </span>
             </div>
 
-            {#if synthetic.details.pix || synthetic.details.depositAddress || synthetic.details.depositAlias}
+            {#if synthetic.details.depositQr || synthetic.details.depositAddress || synthetic.details.depositAlias}
                 <div class="mt-4 space-y-3 rounded-md bg-gray-50 p-4 text-sm">
-                    {#if synthetic.details.pix}
+                    {#if synthetic.details.depositQr}
                         <div>
-                            <span class="text-gray-500">PIX code (copy &amp; paste)</span>
+                            <span class="text-gray-500">{fr.railLabel} code (copy &amp; paste)</span
+                            >
                             <p class="font-medium">
-                                <CopyableField value={synthetic.details.pix.code} mono />
+                                <CopyableField value={synthetic.details.depositQr.code} mono />
                             </p>
                         </div>
                         <div>
                             <span class="text-gray-500">QR</span>
                             <p class="font-medium">
                                 <a
-                                    href={synthetic.details.pix.url}
+                                    href={synthetic.details.depositQr.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="text-indigo-600 underline">Open PIX QR</a
+                                    class="text-indigo-600 underline">Open {fr.railLabel} QR</a
                                 >
                             </p>
                         </div>

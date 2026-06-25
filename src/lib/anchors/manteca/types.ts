@@ -237,13 +237,13 @@ export interface MantecaSyntheticStage {
     [key: string]: unknown;
 }
 
-/** A PIX deposit instruction (the QR the on-ramp user pays). */
-export interface MantecaPixDeposit {
-    /** The PIX EMV "copy-and-paste" code. */
+/** A QR-style on-ramp deposit instruction (PIX in BR, BRE-B in CO). */
+export interface MantecaQrDeposit {
+    /** The copy-and-paste code (PIX EMV string / BRE-B key). */
     code: string;
     /** Hosted QR widget URL. */
     url: string;
-    /** ISO expiry of the PIX charge. */
+    /** ISO expiry of the charge. */
     expiresAt?: string;
 }
 
@@ -255,8 +255,11 @@ export interface MantecaSyntheticDetails {
     depositAlias?: string;
     /** Per-network deposit addresses, when the API returns the keyed form. */
     depositAddresses?: Partial<Record<string, unknown>>;
-    /** PIX deposit instruction (Brazil on-ramp) — from `depositAddresses.PIX`. */
-    pix?: MantecaPixDeposit;
+    /**
+     * QR on-ramp deposit instruction — the first `depositAddresses` entry that
+     * carries a `code`+`url` (PIX in Brazil, BRE-B in Colombia).
+     */
+    depositQr?: MantecaQrDeposit;
     /** Rails the user may deposit through, e.g. `['PIX']`. */
     depositAvailableNetworks?: string[];
     /** Manteca's withdraw (network) cost, in the crypto asset. */

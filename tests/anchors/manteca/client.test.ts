@@ -576,14 +576,15 @@ describe('MantecaClient', () => {
             expect(synthetic.numberId).toBe('43190');
             expect(synthetic.status).toBe('STARTING');
             expect(synthetic.isTerminal).toBe(false);
-            // PIX deposit instructions live under depositAddresses.PIX, not a scalar.
-            expect(synthetic.details.pix?.code).toBe(
+            // QR deposit instructions live under depositAddresses.<RAIL> (PIX
+            // here), surfaced generically as details.depositQr — not a scalar.
+            expect(synthetic.details.depositQr?.code).toBe(
                 '00020126580014br.gov.bcb.pix0136afc6a1303e314550af0d2eb2063044275A',
             );
-            expect(synthetic.details.pix?.url).toBe(
+            expect(synthetic.details.depositQr?.url).toBe(
                 'https://widget-qa.manteca.dev/qr?code=00020126580014br.gov.bcb.pix',
             );
-            expect(synthetic.details.pix?.expiresAt).toBe('2026-06-26T11:10:21.649-03:00');
+            expect(synthetic.details.depositQr?.expiresAt).toBe('2026-06-26T11:10:21.649-03:00');
             // Fee + net-amount economics surfaced from the synthetic.
             expect(synthetic.details.withdrawCostInAsset).toBe('0.000003');
             expect(synthetic.details.withdrawCostInAgainst).toBe('0.00');
@@ -715,6 +716,29 @@ describe('MantecaClient', () => {
             const s = await createClient().getSynthetic('clean');
             expect(s?.failed).toBe(false);
             expect(s?.failureReason).toBeUndefined();
+        });
+
+        it('surfaces a BRE-B (Colombia) QR deposit as depositQr', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/co1`, () =>
+                    HttpResponse.json({
+                        ...RAMP_ON_RESPONSE,
+                        details: {
+                            depositAddresses: {
+                                BREB: {
+                                    type: 'QR',
+                                    code: '@MOCK12345',
+                                    url: 'https://widget-qa.manteca.dev/qr?code=%40MOCK12345',
+                                    expiresAt: '2026-06-27T00:00:00Z',
+                                },
+                            },
+                        },
+                    }),
+                ),
+            );
+            const s = await createClient().getSynthetic('co1');
+            expect(s?.details.depositQr?.code).toBe('@MOCK12345');
+            expect(s?.details.depositQr?.url).toContain('widget-qa');
         });
     });
 
