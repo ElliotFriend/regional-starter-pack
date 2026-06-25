@@ -500,38 +500,32 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         }),
         knownIssues: [
             {
-                text: "Sandbox-verified (June 2026): onboarding, ramp-on creation, automatic PIX-deposit detection (~15s) and BRL→USDC conversion all work — no deposit-simulation call is needed (the sandbox auto-settles the fiat leg). BUT the ramp does NOT complete: the Stellar WITHDRAW leg fails (stages[3].errors: [\"Withdraw FAILED\"]) with no on-chain broadcast, even to a funded, USDC-trustlined testnet account. Issuer mismatch is RULED OUT — Manteca's pooled sandbox Stellar account (base GCVQ3XR5…) trustlines the same Circle testnet USDC (GBBD47IF…) and holds ~30k USDC. The sandbox does not bridge to real testnet on EITHER crypto leg: on-ramp outbound withdraw fails with no broadcast, and the off-ramp ignores a real, correctly-addressed on-chain USDC deposit (sent 10 USDC to the user's muxed deposit address, tx confirmed on testnet — synthetic stayed at DEPOSIT, never detected). Fiat legs are auto-mocked. The failure is STELLAR-SPECIFIC: a full EVM (Base Sepolia) round trip on the same user COMPLETED — on-ramp delivered real testnet USDC on-chain (tx 0x057b16d4…, token 0x8431ebc6…) AND a subsequent off-ramp detected a real on-chain USDC deposit and settled (both reached COMPLETED). So the entire ramp pipeline — including inbound deposit detection — is real and works; ONLY Manteca's sandbox Stellar leg is broken. Ask Manteca to enable/fix the sandbox Stellar leg.",
+                text: 'The sandbox never settles the Stellar leg — withdraws fail and deposits go undetected — though a full EVM round trip completes, so the gap is Manteca-side and was reported. Fiat legs auto-settle.',
                 link: 'https://developers.manteca.dev/recipes/ramp-on-synthetic',
             },
             {
-                text: 'The broker test-deposit endpoint (/broker/v1/api/banking/deposit) is NOT used — it belongs to a separate Broker-as-a-Service product, credits ARS/USD only (no BRL), and returns 401 INVALID_API_KEY for the crypto sandbox key. The on-ramp does not need it (the deposit auto-settles).',
+                text: 'Sandbox onboarding only accepts a fixed set of seeded test identities per market; arbitrary valid IDs are rejected and each seeded ID is single-use. Repeatable testing needs Manteca’s seeded list.',
             },
             {
-                text: 'The sandbox ramp-on POST (/crypto/v2/synthetics/ramp-on) is intermittently flaky — observed 3 consecutive "fetch failed" connection errors before a retry succeeded. Client callers should retry transient network failures.',
+                text: 'Argentina onboarding requires an extra identity-document upload before the account can operate; the app handles it with an upload step and a sample-document helper. Brazil and Colombia need no upload.',
             },
             {
-                text: 'Multi-region: Brazil (PIX/BRL) is sandbox-verified, but Argentina (CVU/CBU/alias, ARS) and Colombia (BRE-B, COP) are built (flow pages parameterized by ?region=) yet NOT fully sandbox-verified. The CVU/BRE-B on-ramp deposit-instruction and off-ramp destination wire shapes are unconfirmed (the deposit renderer falls back to generic fields). See docs/manteca-multiregion-plan.md Phase 4.',
+                text: 'Colombia off-ramp uses a structured bank destination (account number, bank, account type), wired as a bank-account form. Names are missing for 5 of the 16 accepted bank codes, so those show the code.',
             },
             {
-                text: 'Argentina probed (June 2026): price/quote/onboarding work (resolving sandbox CUIT 20123456786). BUT AR requires an IDENTITY_VALIDATION onboarding step (required:true for AR, false for BR) that does NOT auto-complete in sandbox — it needs identity-document upload via POST /crypto/v2/onboarding-actions/upload-identity-image (returns a presigned S3 URL; FRONT+BACK), with no confirmed sandbox auto-approve. So AR users never reach ACTIVE and ramp-on/off 409 USER_STATUS. The demo KYC form has no document-upload step, so AR (and likely CO) stall at the "account not operational" notice. AR off-ramp destination must be a CBU (22-digit, not starting 000), CVU (22-digit, starts 000, 9th digit 0), or alias (6–20 chars, letters/./-).',
+                text: 'Several request/response shapes were corrected against the live sandbox after building from the docs (pricing, onboarding, deposit instructions, and field enums).',
             },
             {
-                text: "Colombia probed (June 2026): price/quote/onboarding work (CC as legalIdType NATIONAL_ID, not literal 'CC' — the wire enum is NATIONAL_ID/FOREIGN_ID/PPT/TAX_ID; sandbox CC 31250162). CO does NOT require IDENTITY_VALIDATION (canOperate immediately — no document upload needed, unlike AR). On-ramp deposit is a BRE-B QR (details.depositAddresses.BREB {code,url}) — rendered generically via details.depositQr. CO off-ramp uses a STRUCTURED destination — destination.{address (account number), network (BANK_TRANSFER|TRANSFIYA|BREB), bankCode (16 ACH codes), accountType (CHECKING|SAVINGS)} — now wired (bank-account form on the offramp page; verified via BANK_TRANSFER). Caveats: 5 of the 16 bank codes (1070/1292/1801/1804/1809) aren't confidently name-mapped (shown by code); TRANSFIYA/BREB off-ramp destination shapes are unverified (UI fixes network=BANK_TRANSFER); getWithdrawDestinationInfo is unreliable for CO (returns canned ARGENTINA data) so CO skips the resolve step.",
+                text: 'Competitive rates are unverified — the sandbox shows ~0 spread. Per-quote cost is visible on each order, but the production spread (~50–60 bps per survey) needs a live account.',
             },
             {
-                text: "Sandbox onboarding validates legalId against a FIXED set of seeded test identities (appears Manteca-wide, across markets): Brazil CPF, Argentina CUIT, Colombia CC, etc. Arbitrary checksum-valid IDs return DATA_PROVIDER_NF or map to non-onboardable personas (e.g. IS_UNDER_AGE, IS_DEAD), and each seeded ID is single-use (dedup by legalId → 409 on reuse). A valid CUIT generator (src/lib/utils/cuit.ts) covers FORMAT validity for production/inline validation, but does NOT yield onboardable sandbox identities. Repeatable sandbox onboarding needs Manteca's seeded test-ID list per market.",
+                text: 'The broker test-deposit endpoint is a separate product and is not used (the on-ramp deposit auto-settles). The ramp-on call is also intermittently flaky in sandbox, so clients should retry.',
             },
             {
-                text: 'Several wire shapes were corrected against the live sandbox after building from docs: the price endpoint nests effectivePrice/price/spread (not flat effectiveBuy/Sell); /onboarding-actions/initial returns a {user, person} envelope; the ramp-on PIX deposit is a {code, url} QR object under details.depositAddresses.PIX (no scalar address); and personalData.sex must be F/M/X. The off-ramp wire (ramp-off synthetic, payout) is still unverified — no sandbox identity reached an off-ramp.',
+                text: 'Each user gets a per-user muxed Stellar deposit address with no separate memo.',
             },
             {
-                text: 'Competitive-rate qualification (<25 bps) remains unverified: the sandbox shows ~0 spread (not representative). Per-quote cost IS discoverable on the ramp synthetic (withdrawCostInAsset/withdrawCostInAgainst + effectivePrice); production BRL spread (~50–60 bps per survey) must be confirmed on a live account.',
-            },
-            {
-                text: 'Stellar deposit addressing is per-user and confirmed muxed (the user record returns a SEP-23 `M…` STELLAR address, no separate memo) — verified in sandbox.',
-            },
-            {
-                text: 'Liquidity depth is unverified — no public volume figures. The July 2025 Bybit partnership suggests meaningful scale in Argentina/Brazil but provides no per-asset liquidity numbers.',
+                text: 'Liquidity depth is unverified — no public volume figures, though the July 2025 Bybit partnership suggests meaningful scale.',
             },
         ],
         regions: {
