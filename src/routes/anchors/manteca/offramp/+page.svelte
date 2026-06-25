@@ -111,18 +111,13 @@
     // Identity + KYC
     // ------------------------------------------------------------------
 
-    async function createIdentity() {
+    function createIdentity() {
+        // No API call here: POST /onboarding-actions/initial (submitKyc) is the
+        // canonical create — it creates the user AND submits KYC in one call.
+        // (A separate POST /users is redundant and 500s on a duplicate email.)
         if (!emailValid) return;
-        isWorking = true;
         error = null;
-        try {
-            user = await manteca.createUser(fetch, { email });
-            step = 'kyc';
-        } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to create Manteca user';
-        } finally {
-            isWorking = false;
-        }
+        step = 'kyc';
     }
 
     function fillTestData() {
@@ -142,7 +137,8 @@
         try {
             // Brazil auto-populates only name/birthDate/work from the CPF; the rest of
             // personalData must be supplied for the user to reach ACTIVE.
-            await manteca.submitOnboarding(fetch, {
+            // submitOnboarding IS the create — it returns the user (with numberId).
+            user = await manteca.submitOnboarding(fetch, {
                 email,
                 legalId: cpf,
                 personalData: {
