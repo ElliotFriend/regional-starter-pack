@@ -57,7 +57,9 @@ import {
     type GetQuoteArgs,
     type CreateRampOnArgs,
     type CreateRampOffArgs,
+    type FindUserQuery,
     type MantecaUserResponse,
+    type MantecaUserListResponse,
     type MantecaSyntheticResponse,
     type MantecaPriceResponse,
     type MantecaWithdrawDestinationResponse,
@@ -154,6 +156,27 @@ export class MantecaClient {
             if (error instanceof MantecaError && error.statusCode === 404) return null;
             throw error;
         }
+    }
+
+    /**
+     * Find an existing user by `email`, `legalId`, or `externalId`
+     * (`GET /crypto/v2/users?<filter>`). Use this to detect an in-flight
+     * onboarding and resume it rather than re-creating (a duplicate create
+     * 409s, or 500s for a duplicate email). Returns the first match, or `null`.
+     *
+     * @throws {MantecaError} On API failure.
+     */
+    async findUser(query: FindUserQuery): Promise<MantecaUser | null> {
+        const params = new URLSearchParams();
+        if (query.email) params.set('email', query.email);
+        if (query.legalId) params.set('legalId', query.legalId);
+        if (query.externalId) params.set('externalId', query.externalId);
+        const response = await this.request<MantecaUserListResponse>(
+            'GET',
+            `/crypto/v2/users?${params.toString()}`,
+        );
+        const first = response.data?.[0];
+        return first ? mapUser(first) : null;
     }
 
     /**

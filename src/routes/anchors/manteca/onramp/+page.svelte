@@ -100,13 +100,34 @@
     // Identity + KYC
     // ------------------------------------------------------------------
 
-    function createIdentity() {
-        // No API call here: POST /onboarding-actions/initial (submitKyc) is the
-        // canonical create — it creates the user AND submits KYC in one call.
-        // (A separate POST /users is redundant and 500s on a duplicate email.)
+    async function createIdentity() {
         if (!emailValid) return;
+        isWorking = true;
         error = null;
-        step = 'kyc';
+        try {
+            // Detect an in-flight onboarding for this email and resume it rather
+            // than re-creating (a duplicate create 409s / 500s). Creation itself
+            // happens at the KYC step via submitOnboarding.
+            const existing = await manteca.findUser(fetch, { email });
+            if (existing) {
+                user = existing;
+                if (existing.canOperate) {
+                    step = 'amount';
+                } else {
+                    missingPersonalData = await manteca.getMissingPersonalData(
+                        fetch,
+                        existing.numberId,
+                    );
+                    step = 'kyc';
+                }
+            } else {
+                step = 'kyc';
+            }
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to look up Manteca user';
+        } finally {
+            isWorking = false;
+        }
     }
 
     function fillTestData() {
@@ -128,19 +149,32 @@
             // Brazil auto-populates only name/birthDate/work from the CPF; the rest of
             // personalData must be supplied for the user to reach ACTIVE.
             // submitOnboarding IS the create — it returns the user (with numberId).
-            user = await manteca.submitOnboarding(fetch, {
-                email,
-                legalId: cpf,
-                personalData: {
-                    surname,
-                    phoneNumber,
-                    nationality,
-                    sex,
-                    maritalStatus,
-                    birthDate,
-                    address: { street },
-                },
-            });
+            try {
+                user = await manteca.submitOnboarding(fetch, {
+                    email,
+                    legalId: cpf,
+                    personalData: {
+                        surname,
+                        phoneNumber,
+                        nationality,
+                        sex,
+                        maritalStatus,
+                        birthDate,
+                        address: { street },
+                    },
+                });
+            } catch (err) {
+                // Already exists (dup email or CPF, 409) — recover the in-flight
+                // user and continue rather than failing.
+                if (err instanceof manteca.MantecaApiError && err.statusCode === 409) {
+                    user =
+                        (await manteca.findUser(fetch, { legalId: cpf })) ??
+                        (await manteca.findUser(fetch, { email }));
+                    if (!user) throw err;
+                } else {
+                    throw err;
+                }
+            }
             // Re-read the user to pick up canOperate; KYC may not be synchronous.
             const refreshed = user ? await manteca.getUser(fetch, user.numberId) : null;
             if (refreshed) user = refreshed;

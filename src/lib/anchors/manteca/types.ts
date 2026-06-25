@@ -466,6 +466,23 @@ export interface MantecaUserResponse {
     updatedAt?: string;
 }
 
+/** Raw paginated user list (`GET /crypto/v2/users` with filters). */
+export interface MantecaUserListResponse {
+    totalCount?: number;
+    pageCount?: number;
+    pageSize?: number;
+    page?: number;
+    lastPage?: number;
+    data?: MantecaUserResponse[];
+}
+
+/** Lookup query for {@link MantecaClient.findUser}. */
+export interface FindUserQuery {
+    email?: string;
+    legalId?: string;
+    externalId?: string;
+}
+
 /** Raw synthetic object (ramp-on/ramp-off create, get-synthetic). */
 export interface MantecaSyntheticResponse {
     id: string;

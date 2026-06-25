@@ -164,6 +164,51 @@ describe('MantecaClient', () => {
         });
     });
 
+    describe('findUser', () => {
+        it('GETs /crypto/v2/users?email= and maps the first match', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/users`, ({ request }) => {
+                    expectAuth(request);
+                    const url = new URL(request.url);
+                    expect(url.searchParams.get('email')).toBe('maria@example.com');
+                    return HttpResponse.json({
+                        totalCount: 1,
+                        pageCount: 1,
+                        pageSize: 20,
+                        page: 1,
+                        lastPage: 1,
+                        data: [{ ...USER_RESPONSE, status: 'ACTIVE' }],
+                    });
+                }),
+            );
+            const user = await createClient().findUser({ email: 'maria@example.com' });
+            expect(user?.numberId).toBe('10001');
+            expect(user?.canOperate).toBe(true);
+        });
+
+        it('queries by legalId', async () => {
+            let capturedLegalId: string | null = null;
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/users`, ({ request }) => {
+                    capturedLegalId = new URL(request.url).searchParams.get('legalId');
+                    return HttpResponse.json({ data: [USER_RESPONSE] });
+                }),
+            );
+            const user = await createClient().findUser({ legalId: '11144477735' });
+            expect(capturedLegalId).toBe('11144477735');
+            expect(user?.id).toBe('6762a062183af03b822f7a71');
+        });
+
+        it('returns null when no user matches', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/users`, () =>
+                    HttpResponse.json({ totalCount: 0, data: [] }),
+                ),
+            );
+            expect(await createClient().findUser({ email: 'nobody@example.com' })).toBeNull();
+        });
+    });
+
     describe('getUser', () => {
         it('GETs /crypto/v2/users/{anyId} and reports canOperate=true when ACTIVE', async () => {
             server.use(

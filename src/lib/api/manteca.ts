@@ -18,6 +18,7 @@ import type {
     GetQuoteArgs,
     CreateRampOnArgs,
     CreateRampOffArgs,
+    FindUserQuery,
 } from '$lib/anchors/manteca';
 
 /** Error thrown by the client-side Manteca API wrappers. */
@@ -53,6 +54,15 @@ export async function getUser(fetch: Fetch, userAnyId: string): Promise<MantecaU
         if (err instanceof MantecaApiError && err.statusCode === 404) return null;
         throw err;
     }
+}
+
+/** Find an existing user by email / legalId / externalId (returns null if none). */
+export async function findUser(fetch: Fetch, query: FindUserQuery): Promise<MantecaUser | null> {
+    const params = new URLSearchParams();
+    if (query.email) params.set('email', query.email);
+    if (query.legalId) params.set('legalId', query.legalId);
+    if (query.externalId) params.set('externalId', query.externalId);
+    return apiRequest<MantecaUser | null>(fetch, `${BASE}/users?${params.toString()}`);
 }
 
 export async function submitOnboarding(
