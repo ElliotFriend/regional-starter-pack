@@ -4,6 +4,7 @@
     import { resolve } from '$app/paths';
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
     import { getMantecaFlowRegion } from '$lib/config/manteca-regions';
+    import { isValidCuit } from '$lib/utils/cuit';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -103,10 +104,14 @@
     function showField(key: string): boolean {
         return !completing || missingFieldKeys.has(key);
     }
+    // Argentina's legalId is a CUIT — validate its checksum client-side.
+    const legalIdIsCuit = $derived(fr.exchange === 'ARGENTINA');
+    const legalIdInvalid = $derived(legalIdIsCuit && cpf.trim().length > 0 && !isValidCuit(cpf));
     const kycValid = $derived.by(() => {
         const ok = (filled: boolean, key: string) => !showField(key) || filled;
+        const legalIdOk = cpf.trim().length > 0 && (!legalIdIsCuit || isValidCuit(cpf));
         return (
-            (completing || cpf.trim().length > 0) &&
+            (completing || legalIdOk) &&
             ok(surname.trim().length > 0, 'surname') &&
             ok(phoneNumber.trim().length > 0, 'phoneNumber') &&
             ok(nationality.trim().length > 0, 'nationality') &&
@@ -538,8 +543,13 @@
                         type="text"
                         bind:value={cpf}
                         placeholder={fr.legalIdPlaceholder}
-                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        class="mt-1 block w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-indigo-500 {legalIdInvalid
+                            ? 'border-red-400 focus:border-red-500'
+                            : 'border-gray-300 focus:border-indigo-500'}"
                     />
+                    {#if legalIdInvalid}
+                        <span class="mt-1 block text-xs text-red-600">Invalid CUIT checksum.</span>
+                    {/if}
                 </label>
             {/if}
 
