@@ -52,18 +52,15 @@ import {
     type MantecaQuote,
     type MantecaSynthetic,
     type MantecaWithdrawDestination,
-    type MantecaTestDeposit,
     type CreateUserArgs,
     type SubmitOnboardingArgs,
     type GetQuoteArgs,
     type CreateRampOnArgs,
     type CreateRampOffArgs,
-    type SimulateTestDepositArgs,
     type MantecaUserResponse,
     type MantecaSyntheticResponse,
     type MantecaPriceResponse,
     type MantecaWithdrawDestinationResponse,
-    type MantecaTestDepositResponse,
     type MantecaErrorResponse,
 } from './types';
 
@@ -226,8 +223,10 @@ export class MantecaClient {
             ticker: response.ticker,
             buy: response.buy,
             sell: response.sell,
-            effectiveBuy: response.effectiveBuy ?? response.buy,
-            effectiveSell: response.effectiveSell ?? response.sell,
+            // Live wire nests the fee-inclusive price under `effectivePrice`;
+            // fall back to the flat field, then to nominal.
+            effectiveBuy: response.effectivePrice?.buy ?? response.effectiveBuy ?? response.buy,
+            effectiveSell: response.effectivePrice?.sell ?? response.effectiveSell ?? response.sell,
             timestamp: response.timestamp,
         };
     }
@@ -379,10 +378,12 @@ export class MantecaClient {
                 `/crypto/v2/info/withdraw-destination/${encodeURIComponent(destination)}?country=${encodeURIComponent(country)}`,
             );
             return {
-                address: response.address ?? destination,
-                name: response.name,
-                legalId: response.legalId,
+                address: response.destination ?? response.address ?? destination,
+                name: response.recipientName ?? response.name,
+                legalId: response.recipientLegalId ?? response.legalId,
                 accountType: response.accountType,
+                exchange: response.exchange,
+                asset: response.asset,
                 valid: true,
             };
         } catch (error) {
@@ -391,42 +392,6 @@ export class MantecaClient {
             }
             throw error;
         }
-    }
-
-    // =========================================================================
-    // Sandbox
-    // =========================================================================
-
-    /**
-     * Simulate an inbound fiat deposit in the sandbox
-     * (`POST /broker/v1/api/banking/deposit`) — the affordance that advances an
-     * on-ramp synthetic past its `DEPOSIT` stage without moving real money. Takes
-     * the Manteca `userId` (not `userAnyId`).
-     *
-     * Sandbox only — has no effect (and will error) in production.
-     *
-     * @throws {MantecaError} On API failure.
-     */
-    async simulateTestDeposit(args: SimulateTestDepositArgs): Promise<MantecaTestDeposit> {
-        const response = await this.request<MantecaTestDepositResponse>(
-            'POST',
-            '/broker/v1/api/banking/deposit',
-            {
-                userId: args.userId,
-                coin: args.coin,
-                amount: args.amount,
-                ...(args.externalId ? { externalId: args.externalId } : {}),
-            },
-        );
-        return {
-            id: response.id,
-            userId: response.userId,
-            numberId: response.numberId,
-            status: response.status,
-            coin: response.coin,
-            amount: response.amount,
-            externalId: response.externalId,
-        };
     }
 
     // =========================================================================
@@ -502,7 +467,10 @@ export class MantecaClient {
 // ===========================================================================
 
 /** Map a raw Manteca user to the client-facing {@link MantecaUser}. */
-function mapUser(response: MantecaUserResponse): MantecaUser {
+function mapUser(raw: MantecaUserResponse): MantecaUser {
+    // `/onboarding-actions/initial` wraps the user in a `{ user, person }`
+    // envelope; the plain user endpoints return the user fields at top level.
+    const response = ((raw as { user?: MantecaUserResponse }).user ?? raw) as MantecaUserResponse;
     const depositAddresses = (response.addresses?.depositAddresses ??
         {}) as MantecaUser['depositAddresses'];
     return {
@@ -522,6 +490,15 @@ function mapUser(response: MantecaUserResponse): MantecaUser {
 /** Map a raw Manteca synthetic to the client-facing {@link MantecaSynthetic}. */
 function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
     const details = response.details ?? {};
+    // Brazil on-ramp deposit instructions arrive as a PIX QR under
+    // `depositAddresses.PIX` (no scalar depositAddress).
+    const pixRaw = details.depositAddresses?.PIX as
+        | { code?: string; url?: string; expiresAt?: string }
+        | undefined;
+    const pix =
+        pixRaw?.code && pixRaw?.url
+            ? { code: pixRaw.code, url: pixRaw.url, expiresAt: pixRaw.expiresAt }
+            : undefined;
     return {
         id: response.id,
         numberId: response.numberId,
@@ -535,7 +512,13 @@ function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
             depositAddress: details.depositAddress,
             depositAlias: details.depositAlias,
             depositAddresses: details.depositAddresses,
+            pix,
+            depositAvailableNetworks: details.depositAvailableNetworks,
+            withdrawCostInAsset: details.withdrawCostInAsset,
+            withdrawCostInAgainst: details.withdrawCostInAgainst,
+            effectiveWithdrawAmount: details.effectiveWithdrawAmount,
             price: details.price,
+            effectivePrice: details.effectivePrice,
             priceExpireAt: details.priceExpireAt,
         },
         creationTime: response.creationTime,

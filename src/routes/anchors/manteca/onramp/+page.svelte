@@ -220,23 +220,6 @@
         }
     }
 
-    async function simulateDeposit() {
-        if (!user) return;
-        isWorking = true;
-        error = null;
-        try {
-            await manteca.simulateTestDeposit(fetch, {
-                userId: user.id,
-                coin: fiatCurrency,
-                amount: parseFloat(amount),
-            });
-        } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to simulate PIX deposit';
-        } finally {
-            isWorking = false;
-        }
-    }
-
     async function pollSynthetic({ stop }: { stop: () => void }) {
         if (!synthetic) return;
         const updated = await manteca.getSynthetic(fetch, synthetic.id);
@@ -532,8 +515,27 @@
                 </span>
             </div>
 
-            {#if synthetic.details.depositAddress || synthetic.details.depositAlias}
+            {#if synthetic.details.pix || synthetic.details.depositAddress || synthetic.details.depositAlias}
                 <div class="mt-4 space-y-3 rounded-md bg-gray-50 p-4 text-sm">
+                    {#if synthetic.details.pix}
+                        <div>
+                            <span class="text-gray-500">PIX code (copy &amp; paste)</span>
+                            <p class="font-medium">
+                                <CopyableField value={synthetic.details.pix.code} mono />
+                            </p>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">QR</span>
+                            <p class="font-medium">
+                                <a
+                                    href={synthetic.details.pix.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-indigo-600 underline">Open PIX QR</a
+                                >
+                            </p>
+                        </div>
+                    {/if}
                     {#if synthetic.details.depositAddress}
                         <div>
                             <span class="text-gray-500">PIX key</span>
@@ -564,14 +566,18 @@
                 </div>
             {/if}
 
-            <!-- Sandbox-only: this app is sandbox-only, so always offer the sim. -->
-            <button
-                onclick={simulateDeposit}
-                disabled={isWorking}
-                class="mt-4 w-full rounded-md border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
-            >
-                {isWorking ? 'Simulating…' : 'Simulate PIX deposit received (sandbox)'}
-            </button>
+            <!--
+                No deposit-sim button: the sandbox auto-detects the PIX deposit
+                (~15s) and auto-converts BRL→USDC, advancing the synthetic to its
+                WITHDRAW stage on its own — just poll. The broker test-deposit
+                endpoint is a separate product (Broker-as-a-Service) and is not
+                used. NOTE: in sandbox the Stellar WITHDRAW leg currently fails
+                ("Withdraw FAILED") with no on-chain broadcast, so USDC does not
+                land on testnet — not an issuer issue (Manteca's pooled sandbox
+                account trusts the same Circle testnet USDC); the sandbox just
+                doesn't execute Stellar withdrawals. The poller below reflects
+                real synthetic status.
+            -->
 
             <div class="mt-6">
                 {#if syntheticPoller.timedOut}

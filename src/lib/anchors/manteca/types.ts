@@ -235,6 +235,16 @@ export interface MantecaSyntheticStage {
     [key: string]: unknown;
 }
 
+/** A PIX deposit instruction (the QR the on-ramp user pays). */
+export interface MantecaPixDeposit {
+    /** The PIX EMV "copy-and-paste" code. */
+    code: string;
+    /** Hosted QR widget URL. */
+    url: string;
+    /** ISO expiry of the PIX charge. */
+    expiresAt?: string;
+}
+
 /** Deposit instructions surfaced on a ramp synthetic's `details`. */
 export interface MantecaSyntheticDetails {
     /** Fiat (on-ramp) or crypto (off-ramp) deposit address the user funds. */
@@ -242,11 +252,21 @@ export interface MantecaSyntheticDetails {
     /** Alias for the deposit address (e.g. a PIX/CVU alias). */
     depositAlias?: string;
     /** Per-network deposit addresses, when the API returns the keyed form. */
-    depositAddresses?: Partial<
-        Record<string, { address?: string; alias?: string; network?: string }>
-    >;
+    depositAddresses?: Partial<Record<string, unknown>>;
+    /** PIX deposit instruction (Brazil on-ramp) — from `depositAddresses.PIX`. */
+    pix?: MantecaPixDeposit;
+    /** Rails the user may deposit through, e.g. `['PIX']`. */
+    depositAvailableNetworks?: string[];
+    /** Manteca's withdraw (network) cost, in the crypto asset. */
+    withdrawCostInAsset?: string;
+    /** Withdraw cost expressed in the fiat `against` currency. */
+    withdrawCostInAgainst?: string;
+    /** Net crypto amount the user receives after costs. */
+    effectiveWithdrawAmount?: string;
     /** Locked price for the order leg. */
     price?: string;
+    /** Fee-inclusive effective price for the order leg. */
+    effectivePrice?: string;
     /** ISO expiry of the locked price. */
     priceExpireAt?: string;
 }
@@ -288,21 +308,14 @@ export interface MantecaWithdrawDestination {
     name?: string;
     /** Masked legal ID of the recipient. */
     legalId?: string;
-    /** Rail/account type, e.g. `PIX`, `CVU`. */
+    /** Rail/account type, e.g. `PIX`, `CVU`, `ALIAS`. */
     accountType?: string;
+    /** Exchange/country that resolved the destination. */
+    exchange?: MantecaExchange;
+    /** Asset the destination pays out in (e.g. `BRL`, `ARS`). */
+    asset?: string;
     /** `true` when the destination resolved successfully. */
     valid: boolean;
-}
-
-/** Result of a sandbox test deposit (`POST /broker/v1/api/banking/deposit`). */
-export interface MantecaTestDeposit {
-    id: string;
-    userId: string;
-    numberId?: string;
-    status: string;
-    coin: string;
-    amount: number;
-    externalId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -419,16 +432,6 @@ export interface CreateRampOffArgs {
     sessionId?: string;
 }
 
-/** Args for {@link MantecaClient.simulateTestDeposit} (sandbox only). */
-export interface SimulateTestDepositArgs {
-    /** The Manteca user id (note: `userId`, not `userAnyId`). */
-    userId: string;
-    /** Fiat currency to credit, e.g. `BRL`. */
-    coin: string;
-    amount: number;
-    externalId?: string;
-}
-
 // ---------------------------------------------------------------------------
 // Raw API shapes (request/response bodies as the Manteca API speaks them)
 // ---------------------------------------------------------------------------
@@ -475,8 +478,13 @@ export interface MantecaSyntheticResponse {
     details?: {
         depositAddress?: string;
         depositAlias?: string;
-        depositAddresses?: Record<string, { address?: string; alias?: string; network?: string }>;
+        depositAddresses?: Record<string, unknown>;
+        depositAvailableNetworks?: string[];
+        withdrawCostInAsset?: string;
+        withdrawCostInAgainst?: string;
+        effectiveWithdrawAmount?: string;
         price?: string;
+        effectivePrice?: string;
         priceExpireAt?: string;
         [key: string]: unknown;
     };
@@ -491,7 +499,14 @@ export interface MantecaPriceResponse {
     ticker: string;
     buy: string;
     sell: string;
-    /** Spread/fee-inclusive prices; may be absent on older responses. */
+    /**
+     * Fee/spread-inclusive prices. The live wire nests these under
+     * `effectivePrice` (with sibling `price` and `spread` objects); the flat
+     * `effectiveBuy`/`effectiveSell` form is a tolerated fallback.
+     */
+    effectivePrice?: { buy?: string; sell?: string };
+    price?: { buy?: string; sell?: string };
+    spread?: { buy?: string; sell?: string };
     effectiveBuy?: string;
     effectiveSell?: string;
     timestamp: string;
@@ -506,24 +521,17 @@ export interface MantecaSupportedAssetsResponse {
 
 /** Raw withdraw-destination resolution. */
 export interface MantecaWithdrawDestinationResponse {
+    /** Live wire keys the recipient as recipientName/recipientLegalId. */
+    recipientName?: string;
+    recipientLegalId?: string;
+    /** Resolving exchange + asset of the destination. */
+    exchange?: MantecaExchange;
+    asset?: string;
+    destination?: string;
+    /** Legacy/flat aliases, tolerated. */
     name?: string;
     legalId?: string;
     accountType?: string;
     address?: string;
     [key: string]: unknown;
-}
-
-/** Raw sandbox test-deposit response. */
-export interface MantecaTestDepositResponse {
-    id: string;
-    companyId?: string;
-    userId: string;
-    numberId?: string;
-    legalId?: string;
-    status: string;
-    coin: string;
-    amount: number;
-    externalId?: string;
-    creationTime?: string;
-    updatedAt?: string;
 }

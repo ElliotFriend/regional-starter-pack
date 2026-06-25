@@ -5,15 +5,35 @@ crypto fiat on/off-ramp API. Copy `client.ts`, `types.ts`, and `index.ts`
 together into any TypeScript project — the only external dependency is
 `@stellar/stellar-sdk` (used to validate Stellar public keys).
 
-> **Status: built from docs, not yet sandbox-verified.** Every shape here is
-> modeled from Manteca's published API reference
-> ([developers.manteca.dev](https://developers.manteca.dev), markdown mirror +
-> `llms.txt` index) — **not** from a live environment. Sandbox API keys are not
-> self-serve; you must contact Manteca to get them. Treat request/response
-> shapes, the onboarding action sequence, and fee/liquidity assumptions as
-> provisional until confirmed against the sandbox. Unverified specifics are
-> flagged with `TODO` in `client.ts` and as `knownIssues` in
-> `src/lib/config/anchors.ts`.
+> **Status: sandbox-verified (on-ramp path), June 2026.** Built from Manteca's
+> published API reference ([developers.manteca.dev](https://developers.manteca.dev),
+> markdown mirror + `llms.txt` index), then verified against the live sandbox.
+> Confirmed working: price/quote, onboarding (`{user, person}` envelope; sandbox
+> test CPF `40360893821`, name-mocked KYC), user fetch (per-user muxed Stellar
+> address, no memo), ramp-on synthetic + PIX QR deposit instructions. The sandbox
+> **auto-detects the PIX deposit (~15s) and auto-converts BRL→USDC** — no deposit
+> simulation call is needed (the broker test-deposit endpoint is a separate
+> product and is not used). **But the ramp does not complete:** the Stellar
+> WITHDRAW leg fails (`stages[3].errors: ["Withdraw FAILED"]`) with no on-chain
+> broadcast, even to a funded, USDC-trustlined testnet account. Issuer mismatch is
+> ruled out — Manteca's pooled sandbox Stellar account trustlines the same Circle
+> testnet USDC (`GBBD47IF…`) and holds ~30k; the sandbox just doesn't execute
+> Stellar withdrawals. The **off-ramp** was also tested end-to-end: a real on-chain
+> USDC payment (10 USDC to the user's muxed deposit address, tx confirmed on
+> testnet) was **never detected** — the synthetic stayed at DEPOSIT. So neither
+> crypto leg bridges to real testnet in sandbox (outbound withdraw fails; inbound
+> deposit ignored); only the fiat legs auto-mock. The failure is **Stellar-specific**:
+> a full EVM (Base Sepolia) round trip on the same user COMPLETED — on-ramp
+> delivered real testnet USDC on-chain (Transfer of the exact
+> `effectiveWithdrawAmount`) AND a subsequent off-ramp detected a real on-chain
+> USDC deposit and settled (both `COMPLETED`). So the entire pipeline, including
+> inbound deposit detection, is real — only Manteca's sandbox Stellar leg is
+> broken. Several wire shapes were
+> corrected against the sandbox (nested `effectivePrice`, the onboarding envelope,
+> the PIX deposit object, `sex` F/M/X). Off-ramp wire: ramp-off → per-network
+> `details.depositAddresses.{NETWORK}.address` — for Stellar use the `STELLAR`
+> entry (muxed `M…`), NOT the `depositAddress` scalar (Manteca fills it with the
+> EVM address). See `knownIssues` in `src/lib/config/anchors.ts`.
 
 ## What it does
 
@@ -63,7 +83,6 @@ const manteca = new MantecaClient({
 | `createRampOff`              | `POST /crypto/v2/synthetics/ramp-off`                           | USDC-on-Stellar → fiat synthetic                              |
 | `getSynthetic`               | `GET /crypto/v2/synthetics/{anyId}`                             | Poll ramp progress (`isTerminal`)                             |
 | `getWithdrawDestinationInfo` | `GET /crypto/v2/info/withdraw-destination/{dest}`               | Validate a PIX key / CBU / CVU                                |
-| `simulateTestDeposit`        | `POST /broker/v1/api/banking/deposit`                           | **Sandbox only** — simulate the fiat deposit                  |
 
 ### Synthetics
 
@@ -102,16 +121,23 @@ The client maps these to `MantecaError` with `code` = `internalStatus` and
 
 ## Quality-criteria assessment (curated bar)
 
-| Criterion                            | Status                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------ |
-| Locally denominated asset on Stellar | **USDC on Stellar** confirmed in docs (no BRL-denominated Stellar token) |
-| Local payment rails                  | **PIX** (Brazil) confirmed; CVU/SPEI/BRE-B for other markets             |
-| Competitive rates (<25 bps)          | **Unverified** — no public fee/spread; needs sandbox                     |
-| Well-documented developer access     | **Strong** docs; sandbox keys sales-gated                                |
-| Deep liquidity                       | **Unverified** — no public volume figures                                |
+| Criterion                            | Status                                                                                                   |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Locally denominated asset on Stellar | **USDC on Stellar** (no BRL-denominated Stellar token)                                                   |
+| Local payment rails                  | **PIX** (Brazil) confirmed; CVU/SPEI/BRE-B for other markets                                             |
+| Competitive rates (<25 bps)          | **Unverified** — sandbox spread ~0 (not representative); per-quote cost is on the synthetic              |
+| Well-documented developer access     | **Strong** docs; sandbox keys sales-gated (not self-serve)                                               |
+| High-fidelity sandbox                | **Partial** — full ramp pipeline proven on EVM; Manteca's sandbox Stellar leg broken, vendor fix pending |
+| Deep liquidity                       | **Unverified** — no public volume figures                                                                |
 
-Provisionally curated, pending sandbox confirmation of rates and liquidity (see
-`knownIssues`). If those don't clear the bar, move to `HONORABLE_MENTIONS`.
+High-fidelity-sandbox is scored **partial**: the ramp pipeline is proven
+end-to-end (an EVM/Base Sepolia round trip completes both directions with real
+on-chain settlement and deposit detection), and only Manteca's sandbox Stellar
+leg is currently broken — a vendor-side fix is pending (reported June 2026), so
+this is not treated as a confirmed failure. Manteca stays **curated**. (Note: the
+developer-readiness scorecard still computes a `blocked` verdict, but on
+`open-access` — sandbox keys are sales-gated, not self-serve — which is
+independent of the Stellar issue.)
 
 ## Tests
 

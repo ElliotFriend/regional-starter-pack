@@ -50,38 +50,66 @@ const USER_RESPONSE = {
     updatedAt: '2024-12-13T12:26:34.911-03:00',
 };
 
+// Shape mirrors the live sandbox ramp-on response (PIX deposit): no scalar
+// depositAddress — the PIX QR lives under details.depositAddresses.PIX, and the
+// fee/amount fields live on details, not in a separate quote.
 const RAMP_ON_RESPONSE = {
     id: '67859d6471d5a50fd3592381',
-    numberId: '10001',
+    numberId: '43190',
     externalId: 'ramp-op-1',
     userId: '6762f8c7767750522c90b55f',
+    userNumberId: '10001',
+    platform: 'CRIPTO',
     status: 'STARTING',
     type: 'RAMP_OPERATION',
     details: {
-        depositAddress: '0000633600000000000086',
-        depositAlias: 'MARIA.PIX',
-        price: '5.85',
-        priceExpireAt: '2025-07-28T12:36:23.024-03:00',
+        depositAddresses: {
+            PIX: {
+                type: 'QR',
+                code: '00020126580014br.gov.bcb.pix0136afc6a1303e314550af0d2eb2063044275A',
+                url: 'https://widget-qa.manteca.dev/qr?code=00020126580014br.gov.bcb.pix',
+                bankId: 'afc6a130-3e31-4550-af0d-2eb202d47c69',
+                expiresAt: '2026-06-26T11:10:21.649-03:00',
+            },
+        },
+        depositAvailableNetworks: ['PIX'],
+        withdrawCostInAgainst: '0.00',
+        withdrawCostInAsset: '0.000003',
+        effectiveWithdrawAmount: '19.04761605',
+        price: '5.250',
+        effectivePrice: '5.25000',
+        priceExpireAt: '2026-06-25T11:31:19.916-03:00',
     },
     currentStage: 1,
     stages: {
         '1': {
             stageType: 'DEPOSIT',
+            legalEntity: 'CRYPTO_GLOBAL',
             asset: 'BRL',
-            thresholdAmount: '58.50',
-            expiresAt: '2025-07-28T15:45:23.550Z',
+            thresholdAmount: '100.00',
+            useOverflow: true,
+            expireAt: '2026-06-25T14:40:21.653Z',
         },
-        '2': { stageType: 'ORDER', side: 'BUY', asset: 'USDC', against: 'BRL' },
+        '2': {
+            stageType: 'ORDER',
+            legalEntity: 'CRYPTO_GLOBAL',
+            side: 'BUY',
+            type: 'MARKET',
+            asset: 'USDC',
+            against: 'BRL',
+            assetAmount: '19.04761905',
+            price: '5.250',
+        },
         '3': {
             stageType: 'WITHDRAW',
-            network: 'STELLAR',
+            legalEntity: 'CRYPTO_GLOBAL',
             asset: 'USDC',
-            amount: '10.00',
-            to: STELLAR_PUBKEY,
+            amount: '19.04761905',
+            destination: { network: 'STELLAR', address: STELLAR_PUBKEY },
         },
     },
-    creationTime: '2024-12-13T10:41:56.513-03:00',
-    updatedAt: '2024-12-13T10:41:56.513-03:00',
+    creationTime: '2026-06-25T11:10:21.750-03:00',
+    updatedAt: '2026-06-25T11:10:21.750-03:00',
 };
 
 describe('MantecaClient', () => {
@@ -219,10 +247,36 @@ describe('MantecaClient', () => {
                 },
             });
         });
+
+        it('unwraps the {user, person} envelope the onboarding endpoint returns', async () => {
+            // /onboarding-actions/initial wraps the user fields in a `user`
+            // envelope (alongside `person`); the plain user endpoints are flat.
+            server.use(
+                http.post(`${BASE_URL}/crypto/v2/onboarding-actions/initial`, () =>
+                    HttpResponse.json({
+                        user: { ...USER_RESPONSE, status: 'ONBOARDING' },
+                        person: { legalId: '11144477735', personalData: { name: 'Maria' } },
+                        causedConflict: false,
+                    }),
+                ),
+            );
+            const user = await createClient().submitOnboarding({
+                email: 'maria@example.com',
+                legalId: '11144477735',
+            });
+            expect(user.id).toBe('6762a062183af03b822f7a71');
+            expect(user.numberId).toBe('10001');
+            expect(user.status).toBe('ONBOARDING');
+            expect(user.stellarAddress).toBe(
+                'GBZH3KFIFNEHIMQP264NKZKML3QODDAOTBEPJA6MLUAEJBRGHRJOYSQ',
+            );
+        });
     });
 
     describe('getPrice', () => {
-        it('GETs /crypto/v2/prices/direct/{ticker} and maps nominal + effective prices', async () => {
+        it('GETs /crypto/v2/prices/direct/{ticker} and reads the nested effectivePrice', async () => {
+            // Live wire nests the fee-inclusive price under `effectivePrice`
+            // (plus `price`/`spread` objects) — there are NO flat effectiveBuy/Sell.
             server.use(
                 http.get(`${BASE_URL}/crypto/v2/prices/direct/USDC_BRL`, ({ request }) => {
                     expectAuth(request);
@@ -230,8 +284,9 @@ describe('MantecaClient', () => {
                         ticker: 'USDC_BRL',
                         buy: '5.85',
                         sell: '5.75',
-                        effectiveBuy: '5.90',
-                        effectiveSell: '5.70',
+                        spread: { buy: '0.05', sell: '0.05' },
+                        price: { buy: '5.85', sell: '5.75' },
+                        effectivePrice: { buy: '5.90', sell: '5.70' },
                         timestamp: '2025-12-22T21:34:06.898-03:00',
                     });
                 }),
@@ -388,10 +443,23 @@ describe('MantecaClient', () => {
                 destination: { address: STELLAR_PUBKEY, network: 'STELLAR' },
             });
             expect(synthetic.id).toBe('67859d6471d5a50fd3592381');
+            expect(synthetic.numberId).toBe('43190');
             expect(synthetic.status).toBe('STARTING');
             expect(synthetic.isTerminal).toBe(false);
-            expect(synthetic.details.depositAddress).toBe('0000633600000000000086');
-            expect(synthetic.details.depositAlias).toBe('MARIA.PIX');
+            // PIX deposit instructions live under depositAddresses.PIX, not a scalar.
+            expect(synthetic.details.pix?.code).toBe(
+                '00020126580014br.gov.bcb.pix0136afc6a1303e314550af0d2eb2063044275A',
+            );
+            expect(synthetic.details.pix?.url).toBe(
+                'https://widget-qa.manteca.dev/qr?code=00020126580014br.gov.bcb.pix',
+            );
+            expect(synthetic.details.pix?.expiresAt).toBe('2026-06-26T11:10:21.649-03:00');
+            // Fee + net-amount economics surfaced from the synthetic.
+            expect(synthetic.details.withdrawCostInAsset).toBe('0.000003');
+            expect(synthetic.details.withdrawCostInAgainst).toBe('0.00');
+            expect(synthetic.details.effectiveWithdrawAmount).toBe('19.04761605');
+            expect(synthetic.details.effectivePrice).toBe('5.25000');
+            expect(synthetic.details.depositAvailableNetworks).toEqual(['PIX']);
         });
 
         it('rejects an invalid Stellar address before calling the API', async () => {
@@ -490,7 +558,9 @@ describe('MantecaClient', () => {
     });
 
     describe('getWithdrawDestinationInfo', () => {
-        it('resolves a PIX key and reports valid + recipient name', async () => {
+        it('resolves a destination from the live wire (recipientName/recipientLegalId/exchange/asset)', async () => {
+            // Live wire keys recipient fields as recipientName/recipientLegalId and
+            // also returns the resolving exchange + asset.
             server.use(
                 http.get(
                     `${BASE_URL}/crypto/v2/info/withdraw-destination/maria%40example.com`,
@@ -498,8 +568,11 @@ describe('MantecaClient', () => {
                         const url = new URL(request.url);
                         expect(url.searchParams.get('country')).toBe('BRAZIL');
                         return HttpResponse.json({
-                            name: 'MARIA SILVA',
-                            legalId: '***447***',
+                            exchange: 'BRAZIL',
+                            asset: 'BRL',
+                            destination: 'maria@example.com',
+                            recipientName: 'MARIA SILVA',
+                            recipientLegalId: '***447***',
                             accountType: 'PIX',
                         });
                     },
@@ -511,33 +584,10 @@ describe('MantecaClient', () => {
             );
             expect(dest.valid).toBe(true);
             expect(dest.name).toBe('MARIA SILVA');
+            expect(dest.legalId).toBe('***447***');
             expect(dest.accountType).toBe('PIX');
-        });
-    });
-
-    describe('simulateTestDeposit', () => {
-        it('POSTs to /broker/v1/api/banking/deposit (sandbox fiat simulation)', async () => {
-            let captured: Record<string, unknown> | undefined;
-            server.use(
-                http.post(`${BASE_URL}/broker/v1/api/banking/deposit`, async ({ request }) => {
-                    expectAuth(request);
-                    captured = (await request.json()) as Record<string, unknown>;
-                    return HttpResponse.json({
-                        id: 'dep-1',
-                        userId: 'u-1',
-                        status: 'ASSIGNED',
-                        coin: 'BRL',
-                        amount: 58.5,
-                    });
-                }),
-            );
-            const deposit = await createClient().simulateTestDeposit({
-                userId: 'u-1',
-                coin: 'BRL',
-                amount: 58.5,
-            });
-            expect(captured).toMatchObject({ userId: 'u-1', coin: 'BRL', amount: 58.5 });
-            expect(deposit.status).toBe('ASSIGNED');
+            expect(dest.exchange).toBe('BRAZIL');
+            expect(dest.asset).toBe('BRL');
         });
     });
 

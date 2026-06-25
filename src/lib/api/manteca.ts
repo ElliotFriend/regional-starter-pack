@@ -12,14 +12,12 @@ import type {
     MantecaQuote,
     MantecaSynthetic,
     MantecaWithdrawDestination,
-    MantecaTestDeposit,
     MantecaExchange,
     CreateUserArgs,
     SubmitOnboardingArgs,
     GetQuoteArgs,
     CreateRampOnArgs,
     CreateRampOffArgs,
-    SimulateTestDepositArgs,
 } from '$lib/anchors/manteca';
 
 /** Error thrown by the client-side Manteca API wrappers. */
@@ -119,16 +117,4 @@ export async function getWithdrawDestinationInfo(
 ): Promise<MantecaWithdrawDestination> {
     const params = new URLSearchParams({ destination, country });
     return apiRequest<MantecaWithdrawDestination>(fetch, `${BASE}/withdraw-destination?${params}`);
-}
-
-// --- Sandbox ---
-
-export async function simulateTestDeposit(
-    fetch: Fetch,
-    args: SimulateTestDepositArgs,
-): Promise<MantecaTestDeposit> {
-    return postJson<MantecaTestDeposit>(fetch, `${BASE}/sandbox`, {
-        action: 'simulateDeposit',
-        ...args,
-    });
 }

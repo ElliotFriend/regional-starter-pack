@@ -106,6 +106,21 @@ describe('buildReadiness', () => {
         expect(allSignalIds).not.toContain('deep-liquidity');
     });
 
+    it('reflects the live Manteca sandbox findings', () => {
+        const sig = (id: string) => byId.manteca.signals.find((s) => s.id === id);
+        // Stellar leg is broken in Manteca's sandbox (withdraw no-broadcast, deposit
+        // undetected) but the full ramp pipeline completes on EVM and a vendor-side
+        // fix is pending → high-fidelity-sandbox is PARTIAL, not a confirmed failure.
+        expect(sig('high-fidelity-sandbox')?.status).toBe('partial');
+        // Per-quote fee is discoverable on the synthetic (withdrawCost*, effectivePrice).
+        expect(sig('fee-discoverability')?.status).toBe('met');
+        // Still blocked — but on open-access (sandbox keys sales-gated, no self-serve),
+        // a failed REQUIRED signal independent of the Stellar sandbox issue.
+        expect(byId.manteca.verdict).toBe('blocked');
+        expect(byId.manteca.blockers.map((s) => s.id)).toContain('open-access');
+        expect(byId.manteca.blockers.map((s) => s.id)).not.toContain('high-fidelity-sandbox');
+    });
+
     it('verdicts follow the severity split', () => {
         expect(byId.etherfuse.verdict).toBe('ready'); // all 6 met
         expect(byId.koywe.verdict).toBe('blocked'); // required: high-fidelity-sandbox failed

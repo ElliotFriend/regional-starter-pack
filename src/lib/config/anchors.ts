@@ -561,14 +561,23 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
-                text: "This integration was built entirely from Manteca's published API reference (developers.manteca.dev) and has NOT been verified against a live sandbox — sandbox API keys are not self-serve and require contacting Manteca sales. Request/response shapes, the onboarding action sequence, and the ramp lifecycle are modeled from docs and may diverge from runtime behavior.",
-                link: 'https://developers.manteca.dev/docs/authentication',
+                text: "Sandbox-verified (June 2026): onboarding, ramp-on creation, automatic PIX-deposit detection (~15s) and BRL→USDC conversion all work — no deposit-simulation call is needed (the sandbox auto-settles the fiat leg). BUT the ramp does NOT complete: the Stellar WITHDRAW leg fails (stages[3].errors: [\"Withdraw FAILED\"]) with no on-chain broadcast, even to a funded, USDC-trustlined testnet account. Issuer mismatch is RULED OUT — Manteca's pooled sandbox Stellar account (base GCVQ3XR5…) trustlines the same Circle testnet USDC (GBBD47IF…) and holds ~30k USDC. The sandbox does not bridge to real testnet on EITHER crypto leg: on-ramp outbound withdraw fails with no broadcast, and the off-ramp ignores a real, correctly-addressed on-chain USDC deposit (sent 10 USDC to the user's muxed deposit address, tx confirmed on testnet — synthetic stayed at DEPOSIT, never detected). Fiat legs are auto-mocked. The failure is STELLAR-SPECIFIC: a full EVM (Base Sepolia) round trip on the same user COMPLETED — on-ramp delivered real testnet USDC on-chain (tx 0x057b16d4…, token 0x8431ebc6…) AND a subsequent off-ramp detected a real on-chain USDC deposit and settled (both reached COMPLETED). So the entire ramp pipeline — including inbound deposit detection — is real and works; ONLY Manteca's sandbox Stellar leg is broken. Ask Manteca to enable/fix the sandbox Stellar leg.",
+                link: 'https://developers.manteca.dev/recipes/ramp-on-synthetic',
             },
             {
-                text: 'Competitive-rate qualification (<25 bps) is unverified: Manteca publishes no spread figures. Crypto ramp economics come from the price endpoint (nominal buy/sell vs effective buy/sell), NOT the /broker/v1 fee endpoint (that belongs to a separate Argentine securities product). The USDC_BRL effective spread must be read from a live sandbox before treating the rate criterion as met.',
+                text: 'The broker test-deposit endpoint (/broker/v1/api/banking/deposit) is NOT used — it belongs to a separate Broker-as-a-Service product, credits ARS/USD only (no BRL), and returns 401 INVALID_API_KEY for the crypto sandbox key. The on-ramp does not need it (the deposit auto-settles).',
             },
             {
-                text: 'Stellar deposit addressing is assumed to be per-user (Manteca returns a unique `STELLAR` address in the user record, with no memo/tag field documented). This needs live confirmation — if Manteca ever uses a pooled Stellar address, a memo would be required and missing it would lose funds on off-ramp.',
+                text: 'The sandbox ramp-on POST (/crypto/v2/synthetics/ramp-on) is intermittently flaky — observed 3 consecutive "fetch failed" connection errors before a retry succeeded. Client callers should retry transient network failures.',
+            },
+            {
+                text: 'Several wire shapes were corrected against the live sandbox after building from docs: the price endpoint nests effectivePrice/price/spread (not flat effectiveBuy/Sell); /onboarding-actions/initial returns a {user, person} envelope; the ramp-on PIX deposit is a {code, url} QR object under details.depositAddresses.PIX (no scalar address); and personalData.sex must be F/M/X. The off-ramp wire (ramp-off synthetic, payout) is still unverified — no sandbox identity reached an off-ramp.',
+            },
+            {
+                text: 'Competitive-rate qualification (<25 bps) remains unverified: the sandbox shows ~0 spread (not representative). Per-quote cost IS discoverable on the ramp synthetic (withdrawCostInAsset/withdrawCostInAgainst + effectivePrice); production BRL spread (~50–60 bps per survey) must be confirmed on a live account.',
+            },
+            {
+                text: 'Stellar deposit addressing is per-user and confirmed muxed (the user record returns a SEP-23 `M…` STELLAR address, no separate memo) — verified in sandbox.',
             },
             {
                 text: 'Liquidity depth is unverified — no public volume figures. The July 2025 Bybit partnership suggests meaningful scale in Argentina/Brazil but provides no per-asset liquidity numbers.',
@@ -814,23 +823,30 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 status: 'met',
                 note: 'PIX (BR) + CBU/CVU (AR) live; Colombia via BRE-B (partial)',
             },
-            'competitive-rates': { status: 'failed', note: '50–60 bps (above the <25 bps target)' },
+            'competitive-rates': {
+                status: 'failed',
+                note: 'Sandbox spread ~0 (not representative); production ~50–60 bps per survey, above the <25 bps target',
+            },
             'deep-liquidity': { status: 'met', note: '~$10M/day per survey; Bybit partnership' },
             'open-access': {
                 status: 'failed',
-                note: 'Sandbox keys are sales-gated — no self-serve',
+                note: 'Sandbox keys are sales-gated — obtained one via sales, still no self-serve',
             },
             'accurate-docs': {
                 status: 'partial',
-                note: 'Good docs, but Stellar asset list is inconsistent (USDT vs XLM); unverified live',
+                note: 'Verified live: several wire shapes diverge from the published reference — nested effectivePrice (not flat), {user,person} onboarding envelope, PIX deposit object (no scalar address), sex F/M/X enum',
             },
             'high-fidelity-sandbox': {
-                status: 'unverified',
-                note: 'Sandbox + testnet faucet exist; real on-chain Stellar testnet delivery unconfirmed',
+                status: 'partial',
+                note: "Partial — the full ramp pipeline is proven (EVM/Base Sepolia round trip completes both directions with real on-chain settlement + deposit detection); only Manteca's sandbox STELLAR leg is broken, with a vendor-side fix pending (reported June 2026). Onboarding works, the PIX deposit auto-detects (~15s) and auto-converts BRL→USDC, but the Stellar WITHDRAW leg FAILS (stages[3].errors: [\"Withdraw FAILED\"]) with no on-chain broadcast — even to a funded, USDC-trustlined testnet account. Issuer mismatch is RULED OUT: Manteca's pooled sandbox Stellar account trustlines the same Circle testnet USDC (GBBD47IF…) and holds ~30k, so the asset/trust is right. Neither crypto leg works in sandbox: the on-ramp outbound withdraw fails with no broadcast, and the off-ramp ignores a real on-chain USDC deposit (10 USDC sent to the user's muxed address, tx confirmed — synthetic never advanced past DEPOSIT). Fiat legs auto-mock. Failure is Stellar-specific: a full EVM (Base Sepolia) round trip COMPLETED — on-ramp delivered real testnet USDC on-chain AND off-ramp detected a real on-chain deposit and settled — so the whole pipeline works; only Manteca's sandbox Stellar leg is broken.",
             },
             'agent-buildable': {
                 status: 'met',
-                note: 'Markdown docs + llms.txt; built a full client from them',
+                note: 'Markdown docs + llms.txt; built a full client from them and onboarded a sandbox user end-to-end',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Confirmed live: per-quote fee on the ramp synthetic (withdrawCostInAsset/withdrawCostInAgainst + effectivePrice)',
             },
         }),
     },
