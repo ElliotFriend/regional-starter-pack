@@ -1,7 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { page } from '$app/state';
     import { resolve } from '$app/paths';
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
+    import { getMantecaFlowRegion } from '$lib/config/manteca-regions';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -24,11 +26,12 @@
     } from '$lib/anchors/manteca';
 
     // ------------------------------------------------------------------
-    // Region & token derivation (Manteca Brazil — USDC on Stellar → BRL)
+    // Region & token derivation (Manteca — BR/AR/CO, USDC on Stellar → fiat)
     // ------------------------------------------------------------------
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
-    const fiatCurrency = 'BRL';
+    const fr = $derived(getMantecaFlowRegion(page.url.searchParams.get('region')));
+    const fiatCurrency = $derived(fr.currency);
     const tokenSymbol = 'USDC';
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
 
@@ -169,10 +172,10 @@
     }
 
     function fillTestData() {
-        cpf = '12345678909';
+        cpf = fr.testLegalId;
         surname = 'SILVA';
         phoneNumber = '11999999999';
-        nationality = 'Brasil';
+        nationality = fr.nationalityDefault;
         sex = 'F';
         maritalStatus = 'Soltero';
         birthDate = '1990-01-01';
@@ -205,6 +208,7 @@
                     user = await manteca.submitOnboarding(fetch, {
                         email,
                         legalId: cpf,
+                        exchange: fr.exchange,
                         personalData,
                     });
                 } catch (err) {
@@ -244,12 +248,12 @@
         isWorking = true;
         error = null;
         try {
-            destination = await manteca.getWithdrawDestinationInfo(fetch, key, 'BRAZIL');
+            destination = await manteca.getWithdrawDestinationInfo(fetch, key, fr.exchange);
             if (!destination.valid) {
-                error = 'Manteca could not resolve this PIX key. Check it and try again.';
+                error = `Manteca could not resolve this ${fr.destinationLabel}. Check it and try again.`;
             }
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to resolve PIX key';
+            error = err instanceof Error ? err.message : `Failed to resolve ${fr.destinationLabel}`;
         } finally {
             isWorking = false;
         }
@@ -400,7 +404,7 @@
                 Off-Ramp ({tokenSymbol} → {fiatCurrency})
             </h1>
             <p class="mt-1 text-sm text-gray-500">
-                Sell {tokenSymbol} on Stellar for {fiatCurrency} via Manteca's PIX rail.
+                Sell {tokenSymbol} on Stellar for {fiatCurrency} via Manteca's {fr.railLabel} rail.
             </p>
         </div>
         <WalletConnect />
@@ -464,8 +468,8 @@
                 <div>
                     <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
                     <p class="mt-1 text-sm text-gray-500">
-                        Enter your CPF and personal details. Manteca auto-populates only your name,
-                        birth date, and work from the CPF for Brazil — the rest is required.
+                        Enter your {fr.legalIdLabel} and personal details. Manteca auto-populates some
+                        fields (name, birth date, work) from the {fr.legalIdLabel} — the rest is required.
                     </p>
                 </div>
                 <button
@@ -478,11 +482,11 @@
 
             {#if !completing}
                 <label class="mt-6 block">
-                    <span class="text-sm font-medium text-gray-700">CPF</span>
+                    <span class="text-sm font-medium text-gray-700">{fr.legalIdLabel}</span>
                     <input
                         type="text"
                         bind:value={cpf}
-                        placeholder="000.000.000-00"
+                        placeholder={fr.legalIdPlaceholder}
                         class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:ring-indigo-500"
                     />
                 </label>
@@ -620,27 +624,27 @@
                 </div>
             {/if}
 
-            <h2 class="text-lg font-semibold text-gray-900">Payout PIX key</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Payout {fr.destinationLabel}</h2>
             <p class="mt-1 text-sm text-gray-500">
-                Enter the PIX key that will receive your {fiatCurrency}. We'll resolve it with
-                Manteca to confirm the recipient.
+                Enter the {fr.destinationLabel} that will receive your {fiatCurrency}. We'll resolve
+                it with Manteca to confirm the recipient.
             </p>
 
             <label class="mt-4 block text-sm font-medium text-gray-700" for="pixKey">
-                PIX key
+                {fr.destinationLabel}
             </label>
             <input
                 id="pixKey"
                 type="text"
                 bind:value={pixKey}
-                placeholder="email, phone, CPF, or random key"
+                placeholder={fr.destinationPlaceholder}
                 class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
             />
 
             {#if destination}
                 <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
                     {#if destination.valid}
-                        <p class="font-medium text-green-700">PIX key resolved</p>
+                        <p class="font-medium text-green-700">{fr.destinationLabel} resolved</p>
                         {#if destination.name}
                             <p class="mt-1">
                                 <span class="text-gray-500">Recipient:</span>
@@ -661,7 +665,7 @@
                         {/if}
                     {:else}
                         <p class="font-medium text-red-600">
-                            Manteca could not resolve this PIX key.
+                            Manteca could not resolve this {fr.destinationLabel}.
                         </p>
                     {/if}
                 </div>
@@ -673,7 +677,7 @@
                     disabled={!pixKey.trim() || isWorking}
                     class="flex-1 rounded-md border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
                 >
-                    {isWorking ? 'Resolving…' : 'Resolve PIX key'}
+                    {isWorking ? 'Resolving…' : `Resolve ${fr.destinationLabel}`}
                 </button>
                 <button
                     onclick={() => (step = 'amount')}
@@ -765,8 +769,8 @@
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 class="text-lg font-semibold text-gray-900">Awaiting fiat payout</h2>
             <p class="mt-1 text-sm text-gray-500">
-                Your {tokenSymbol} payment is on its way. Manteca is sending {fiatCurrency} to your PIX
-                key.
+                Your {tokenSymbol} payment is on its way. Manteca is sending {fiatCurrency} to your
+                {fr.destinationLabel}.
             </p>
             <div class="mt-4 space-y-1 text-sm text-gray-600">
                 {#if stellarTxHash}
@@ -819,7 +823,7 @@
             : []}
         <CompletionStep
             title="{fiatCurrency} sent"
-            message="Manteca paid out {fiatCurrency} to your PIX key."
+            message="Manteca paid out {fiatCurrency} to your {fr.destinationLabel}."
             details={completionDetails}
             links={completionLinks}
             onReset={reset}

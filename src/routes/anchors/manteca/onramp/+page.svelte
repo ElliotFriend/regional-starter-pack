@@ -1,7 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { page } from '$app/state';
     import { resolve } from '$app/paths';
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
+    import { getMantecaFlowRegion } from '$lib/config/manteca-regions';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -18,11 +20,14 @@
     import type { MantecaUser, MantecaQuote, MantecaSynthetic } from '$lib/anchors/manteca';
 
     // ------------------------------------------------------------------
-    // Region & token derivation (Manteca Brazil — BRL → USDC on Stellar)
+    // Region & token derivation (Manteca — BR/AR/CO, fiat → USDC on Stellar)
     // ------------------------------------------------------------------
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
-    const fiatCurrency = 'BRL';
+    // `?region=` selects the market (defaults to Brazil); everything fiat/rail/
+    // KYC-specific derives from the region table.
+    const fr = $derived(getMantecaFlowRegion(page.url.searchParams.get('region')));
+    const fiatCurrency = $derived(fr.currency);
     const tokenSymbol = 'USDC';
     // Manteca returns no Stellar issuer; inject the network-correct USDC issuer.
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
@@ -156,10 +161,10 @@
     }
 
     function fillTestData() {
-        cpf = '12345678909';
+        cpf = fr.testLegalId;
         surname = 'SILVA';
         phoneNumber = '11999999999';
-        nationality = 'Brasil';
+        nationality = fr.nationalityDefault;
         sex = 'F';
         maritalStatus = 'Soltero';
         birthDate = '1990-01-01';
@@ -192,6 +197,7 @@
                     user = await manteca.submitOnboarding(fetch, {
                         email,
                         legalId: cpf,
+                        exchange: fr.exchange,
                         personalData,
                     });
                 } catch (err) {
@@ -334,7 +340,7 @@
                 On-Ramp ({fiatCurrency} → {tokenSymbol})
             </h1>
             <p class="mt-1 text-sm text-gray-500">
-                Buy {tokenSymbol} on Stellar with {fiatCurrency} via Manteca's PIX rail.
+                Buy {tokenSymbol} on Stellar with {fiatCurrency} via Manteca's {fr.railLabel} rail.
             </p>
         </div>
         <WalletConnect />
@@ -398,8 +404,8 @@
                 <div>
                     <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
                     <p class="mt-1 text-sm text-gray-500">
-                        Enter your CPF and personal details. Manteca auto-populates only your name,
-                        birth date, and work from the CPF for Brazil — the rest is required.
+                        Enter your {fr.legalIdLabel} and personal details. Manteca auto-populates some
+                        fields (name, birth date, work) from the {fr.legalIdLabel} — the rest is required.
                     </p>
                 </div>
                 <button
@@ -412,11 +418,11 @@
 
             {#if !completing}
                 <label class="mt-6 block">
-                    <span class="text-sm font-medium text-gray-700">CPF</span>
+                    <span class="text-sm font-medium text-gray-700">{fr.legalIdLabel}</span>
                     <input
                         type="text"
                         bind:value={cpf}
-                        placeholder="000.000.000-00"
+                        placeholder={fr.legalIdPlaceholder}
                         class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:ring-indigo-500"
                     />
                 </label>
@@ -570,7 +576,7 @@
                 bind:amount
                 label="Amount ({fiatCurrency})"
                 placeholder="100"
-                inputPrefix="R$"
+                inputPrefix={fr.currencySymbol}
                 isWalletConnected={walletStore.isConnected}
                 {hasTrustline}
                 isGettingQuote={isWorking}
@@ -595,7 +601,7 @@
                     disabled={isWorking}
                     class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    {isWorking ? 'Creating order…' : 'Confirm & get PIX details'}
+                    {isWorking ? 'Creating order…' : `Confirm & get ${fr.railLabel} details`}
                 </button>
             </div>
         </div>
@@ -605,7 +611,7 @@
     {#if step === 'payment' && synthetic}
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900">Pay via PIX</h2>
+                <h2 class="text-lg font-semibold text-gray-900">Pay via {fr.railLabel}</h2>
                 <span
                     class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
                 >
@@ -636,7 +642,7 @@
                     {/if}
                     {#if synthetic.details.depositAddress}
                         <div>
-                            <span class="text-gray-500">PIX key</span>
+                            <span class="text-gray-500">{fr.railLabel} deposit</span>
                             <p class="font-medium">
                                 <CopyableField value={synthetic.details.depositAddress} mono />
                             </p>
@@ -653,13 +659,15 @@
                     <div class="border-t border-gray-200 pt-3">
                         <span class="text-gray-500">Amount</span>
                         <p class="text-xl font-bold text-indigo-600">
-                            <CopyableField value="R$ {parseFloat(amount).toLocaleString()}" />
+                            <CopyableField
+                                value="{fr.currencySymbol} {parseFloat(amount).toLocaleString()}"
+                            />
                         </p>
                     </div>
                 </div>
             {:else}
                 <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
-                    No PIX instructions were returned for this synthetic. Synthetic ID:
+                    No {fr.railLabel} instructions were returned for this synthetic. Synthetic ID:
                     <CopyableField value={synthetic.id} mono />
                 </div>
             {/if}

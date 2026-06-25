@@ -1,15 +1,20 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
+    import { page } from '$app/state';
     import { ANCHORS } from '$lib/config/anchors';
     import { getRegionsForAnchor, getRegion } from '$lib/config/regions';
 
     const profile = ANCHORS.manteca;
     const regions = getRegionsForAnchor('manteca');
 
-    // Manteca currently serves a single region here (Brazil).
-    const activeRegionId = 'brazil';
-    const activeRegion = getRegion(activeRegionId);
-    const activeCapability = profile.regions[activeRegionId];
+    // `?region=` selects the active market (Brazil/Argentina/Colombia); the flow
+    // links forward it so the on/off-ramp pages open in the right region.
+    const activeRegionId = $derived.by(() => {
+        const req = page.url.searchParams.get('region');
+        return req && profile.regions[req] ? req : 'brazil';
+    });
+    const activeRegion = $derived(getRegion(activeRegionId));
+    const activeCapability = $derived(profile.regions[activeRegionId]);
 </script>
 
 <div class="mx-auto max-w-3xl px-4 py-8">
@@ -27,12 +32,15 @@
         <h2 class="text-lg font-semibold text-gray-900">Region</h2>
         <div class="mt-3 flex flex-wrap gap-2">
             {#each regions as r (r.id)}
-                <span
-                    class="rounded-md border border-indigo-500 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700"
+                <a
+                    href={`?region=${r.id}`}
+                    class="rounded-md border px-3 py-1.5 text-sm {r.id === activeRegionId
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'}"
                 >
                     {r.flag}
                     {r.name}
-                </span>
+                </a>
             {/each}
         </div>
 
@@ -61,13 +69,13 @@
 
         <div class="mt-6 flex gap-3">
             <a
-                href={resolve('/anchors/manteca/onramp')}
+                href={`${resolve('/anchors/manteca/onramp')}?region=${activeRegionId}`}
                 class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-indigo-700"
             >
                 On-Ramp ({activeRegion?.currency} → {activeCapability?.tokens[0]})
             </a>
             <a
-                href={resolve('/anchors/manteca/offramp')}
+                href={`${resolve('/anchors/manteca/offramp')}?region=${activeRegionId}`}
                 class="flex-1 rounded-md border border-indigo-600 px-4 py-2 text-center text-sm font-medium text-indigo-600 hover:bg-indigo-50"
             >
                 Off-Ramp ({activeCapability?.tokens[0]} → {activeRegion?.currency})
