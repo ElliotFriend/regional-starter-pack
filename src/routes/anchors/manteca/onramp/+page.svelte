@@ -5,6 +5,7 @@
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
     import { getMantecaFlowRegion } from '$lib/config/manteca-regions';
     import { isValidCuit } from '$lib/utils/cuit';
+    import { isValidCpf } from '$lib/utils/cpf';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -98,12 +99,16 @@
     function showField(key: string): boolean {
         return !completing || missingFieldKeys.has(key);
     }
-    // Argentina's legalId is a CUIT — validate its checksum client-side.
-    const legalIdIsCuit = $derived(fr.exchange === 'ARGENTINA');
-    const legalIdInvalid = $derived(legalIdIsCuit && cpf.trim().length > 0 && !isValidCuit(cpf));
+    // Validate the legalId checksum client-side per market (CPF for BR, CUIT for AR).
+    function legalIdChecksumValid(v: string): boolean {
+        if (fr.exchange === 'BRAZIL') return isValidCpf(v);
+        if (fr.exchange === 'ARGENTINA') return isValidCuit(v);
+        return true; // other markets: no client-side checksum
+    }
+    const legalIdInvalid = $derived(cpf.trim().length > 0 && !legalIdChecksumValid(cpf));
     const kycValid = $derived.by(() => {
         const ok = (filled: boolean, key: string) => !showField(key) || filled;
-        const legalIdOk = cpf.trim().length > 0 && (!legalIdIsCuit || isValidCuit(cpf));
+        const legalIdOk = cpf.trim().length > 0 && legalIdChecksumValid(cpf);
         return (
             (completing || legalIdOk) &&
             ok(surname.trim().length > 0, 'surname') &&
@@ -289,6 +294,20 @@
             error = err instanceof Error ? err.message : 'Failed to upload identity document';
         } finally {
             isWorking = false;
+        }
+    }
+
+    // "Fill test data" equivalent for the identity step: load the bundled sample
+    // document so the sandbox flow can be exercised without a real ID.
+    async function fillSampleId() {
+        error = null;
+        try {
+            const res = await fetch('/sample-dni.jpg');
+            const blob = await res.blob();
+            idFront = new File([blob], 'sample-dni.jpg', { type: blob.type || 'image/jpeg' });
+            idBack = null;
+        } catch {
+            error = 'Could not load the sample document.';
         }
     }
 
@@ -492,7 +511,9 @@
                             : 'border-gray-300 focus:border-indigo-500'}"
                     />
                     {#if legalIdInvalid}
-                        <span class="mt-1 block text-xs text-red-600">Invalid CUIT checksum.</span>
+                        <span class="mt-1 block text-xs text-red-600"
+                            >Invalid {fr.legalIdLabel}.</span
+                        >
                     {/if}
                 </label>
             {/if}
@@ -618,11 +639,28 @@
     <!-- =================== IDENTITY UPLOAD ======================= -->
     {#if step === 'idupload'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
-            <p class="mt-1 text-sm text-gray-500">
-                {fr.exchange} requires a photo of your identity document ({fr.legalIdLabel}). Upload
-                the front and back — Manteca verifies it before your account can operate.
-            </p>
+            <div class="flex items-start justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        {fr.exchange} requires a photo of your identity document ({fr.legalIdLabel}).
+                        Upload the front and back — Manteca verifies it before your account can
+                        operate.
+                    </p>
+                </div>
+                <button
+                    onclick={fillSampleId}
+                    class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Use sample document
+                </button>
+            </div>
+
+            {#if idFront}
+                <p class="mt-3 text-xs text-gray-500">
+                    Selected: <span class="font-mono">{idFront.name}</span>
+                </p>
+            {/if}
 
             <label class="mt-4 block">
                 <span class="text-sm font-medium text-gray-700">Document — front</span>
