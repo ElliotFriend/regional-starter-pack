@@ -19,6 +19,7 @@ import type {
     CreateRampOnArgs,
     CreateRampOffArgs,
     FindUserQuery,
+    MantecaPersonalData,
 } from '$lib/anchors/manteca';
 
 /** Error thrown by the client-side Manteca API wrappers. */
@@ -74,6 +75,15 @@ export async function submitOnboarding(
 
 export async function getMissingPersonalData(fetch: Fetch, userAnyId: string): Promise<string[]> {
     return apiRequest<string[]>(fetch, `${BASE}/kyc?userAnyId=${encodeURIComponent(userAnyId)}`);
+}
+
+/** Submit/update personalData for an existing user (fills missing KYC fields). */
+export async function definePersonalData(
+    fetch: Fetch,
+    userAnyId: string,
+    personalData: MantecaPersonalData,
+): Promise<void> {
+    await postJson<{ ok: boolean }>(fetch, `${BASE}/personal-data`, { userAnyId, personalData });
 }
 
 // --- Pricing ---

@@ -79,16 +79,35 @@
     const payoutPoller = createPoller({ intervalMs: 5000, maxAttempts: 60, onTick: pollPayout });
 
     const emailValid = $derived(email.trim().length > 0 && email.includes('@'));
-    const kycValid = $derived(
-        cpf.trim().length > 0 &&
-            surname.trim().length > 0 &&
-            phoneNumber.trim().length > 0 &&
-            nationality.trim().length > 0 &&
-            sex.trim().length > 0 &&
-            maritalStatus.trim().length > 0 &&
-            birthDate.trim().length > 0 &&
-            street.trim().length > 0,
+
+    // "Completing" mode: resuming a user that already has identity on file and a
+    // known set of still-missing fields — show/require only those (submit via
+    // define-personal-data). Otherwise it's a fresh create (full form).
+    const completing = $derived(missingPersonalData.length > 0);
+    const missingFieldKeys = $derived(
+        new Set(
+            missingPersonalData.map((p) => {
+                const s = p.startsWith('personalData.') ? p.slice('personalData.'.length) : p;
+                return s === 'address.street' ? 'street' : s;
+            }),
+        ),
     );
+    function showField(key: string): boolean {
+        return !completing || missingFieldKeys.has(key);
+    }
+    const kycValid = $derived.by(() => {
+        const ok = (filled: boolean, key: string) => !showField(key) || filled;
+        return (
+            (completing || cpf.trim().length > 0) &&
+            ok(surname.trim().length > 0, 'surname') &&
+            ok(phoneNumber.trim().length > 0, 'phoneNumber') &&
+            ok(nationality.trim().length > 0, 'nationality') &&
+            ok(sex.trim().length > 0, 'sex') &&
+            ok(maritalStatus.trim().length > 0, 'maritalStatus') &&
+            ok(birthDate.trim().length > 0, 'birthDate') &&
+            ok(street.trim().length > 0, 'street')
+        );
+    });
 
     // Adapt MantecaQuote → QuoteDisplay structural shape. Off-ramp: USDC in, BRL out.
     const displayQuote = $derived.by(() => {
@@ -165,33 +184,39 @@
         isWorking = true;
         error = null;
         try {
-            // Brazil auto-populates only name/birthDate/work from the CPF; the rest of
-            // personalData must be supplied for the user to reach ACTIVE.
-            // submitOnboarding IS the create — it returns the user (with numberId).
-            try {
-                user = await manteca.submitOnboarding(fetch, {
-                    email,
-                    legalId: cpf,
-                    personalData: {
-                        surname,
-                        phoneNumber,
-                        nationality,
-                        sex,
-                        maritalStatus,
-                        birthDate,
-                        address: { street },
-                    },
-                });
-            } catch (err) {
-                // Already exists (dup email or CPF, 409) — recover the in-flight
-                // user and continue rather than failing.
-                if (err instanceof manteca.MantecaApiError && err.statusCode === 409) {
-                    user =
-                        (await manteca.findUser(fetch, { legalId: cpf })) ??
-                        (await manteca.findUser(fetch, { email }));
-                    if (!user) throw err;
-                } else {
-                    throw err;
+            // Only send non-empty fields (in completing mode just the missing ones
+            // are shown/filled).
+            const personalData = {
+                ...(surname.trim() ? { surname } : {}),
+                ...(phoneNumber.trim() ? { phoneNumber } : {}),
+                ...(nationality.trim() ? { nationality } : {}),
+                ...(sex.trim() ? { sex } : {}),
+                ...(maritalStatus.trim() ? { maritalStatus } : {}),
+                ...(birthDate.trim() ? { birthDate } : {}),
+                ...(street.trim() ? { address: { street } } : {}),
+            };
+            if (user) {
+                // Completing an existing user — submit only personalData (a fresh
+                // submitOnboarding would 409 on the duplicate email/CPF).
+                await manteca.definePersonalData(fetch, user.numberId, personalData);
+            } else {
+                // Fresh create — submitOnboarding creates the user AND runs KYC.
+                try {
+                    user = await manteca.submitOnboarding(fetch, {
+                        email,
+                        legalId: cpf,
+                        personalData,
+                    });
+                } catch (err) {
+                    // Already exists (dup email or CPF, 409) — recover and continue.
+                    if (err instanceof manteca.MantecaApiError && err.statusCode === 409) {
+                        user =
+                            (await manteca.findUser(fetch, { legalId: cpf })) ??
+                            (await manteca.findUser(fetch, { email }));
+                        if (!user) throw err;
+                    } else {
+                        throw err;
+                    }
                 }
             }
             const refreshed = user ? await manteca.getUser(fetch, user.numberId) : null;
@@ -448,91 +473,107 @@
                 </button>
             </div>
 
-            <label class="mt-6 block">
-                <span class="text-sm font-medium text-gray-700">CPF</span>
-                <input
-                    type="text"
-                    bind:value={cpf}
-                    placeholder="000.000.000-00"
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-            </label>
+            {#if !completing}
+                <label class="mt-6 block">
+                    <span class="text-sm font-medium text-gray-700">CPF</span>
+                    <input
+                        type="text"
+                        bind:value={cpf}
+                        placeholder="000.000.000-00"
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Surname</span>
-                <input
-                    type="text"
-                    bind:value={surname}
-                    placeholder="SILVA"
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-            </label>
+            {#if showField('surname')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Surname</span>
+                    <input
+                        type="text"
+                        bind:value={surname}
+                        placeholder="SILVA"
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Phone number</span>
-                <input
-                    type="text"
-                    bind:value={phoneNumber}
-                    placeholder="11999999999"
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-            </label>
+            {#if showField('phoneNumber')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Phone number</span>
+                    <input
+                        type="text"
+                        bind:value={phoneNumber}
+                        placeholder="11999999999"
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Nationality</span>
-                <input
-                    type="text"
-                    bind:value={nationality}
-                    placeholder="Brasil"
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-            </label>
+            {#if showField('nationality')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Nationality</span>
+                    <input
+                        type="text"
+                        bind:value={nationality}
+                        placeholder="Brasil"
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Sex</span>
-                <select
-                    bind:value={sex}
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                >
-                    <option value="" disabled>Select…</option>
-                    <option value="M">M</option>
-                    <option value="F">F</option>
-                </select>
-            </label>
+            {#if showField('sex')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Sex</span>
+                    <select
+                        bind:value={sex}
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        <option value="" disabled>Select…</option>
+                        <option value="M">M</option>
+                        <option value="F">F</option>
+                    </select>
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Marital status</span>
-                <select
-                    bind:value={maritalStatus}
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                >
-                    <option value="" disabled>Select…</option>
-                    <option value="Soltero">Soltero</option>
-                    <option value="Casado">Casado</option>
-                    <option value="Divorciado">Divorciado</option>
-                    <option value="Viudo">Viudo</option>
-                    <option value="Otros">Otros</option>
-                </select>
-            </label>
+            {#if showField('maritalStatus')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Marital status</span>
+                    <select
+                        bind:value={maritalStatus}
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        <option value="" disabled>Select…</option>
+                        <option value="Soltero">Soltero</option>
+                        <option value="Casado">Casado</option>
+                        <option value="Divorciado">Divorciado</option>
+                        <option value="Viudo">Viudo</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Date of birth</span>
-                <input
-                    type="date"
-                    bind:value={birthDate}
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-            </label>
+            {#if showField('birthDate')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Date of birth</span>
+                    <input
+                        type="date"
+                        bind:value={birthDate}
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
+            {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Address street</span>
-                <input
-                    type="text"
-                    bind:value={street}
-                    placeholder="Av Paulista 1000"
-                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-            </label>
+            {#if showField('street')}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Address street</span>
+                    <input
+                        type="text"
+                        bind:value={street}
+                        placeholder="Av Paulista 1000"
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
+            {/if}
 
             {#if missingPersonalData.length > 0}
                 <div class="mt-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">

@@ -54,6 +54,7 @@ import {
     type MantecaWithdrawDestination,
     type CreateUserArgs,
     type SubmitOnboardingArgs,
+    type MantecaPersonalData,
     type GetQuoteArgs,
     type CreateRampOnArgs,
     type CreateRampOffArgs,
@@ -226,6 +227,22 @@ export class MantecaClient {
         );
         if (Array.isArray(response)) return response;
         return response.missingData ?? [];
+    }
+
+    /**
+     * Submit or update an existing user's `personalData`
+     * (`POST /crypto/v2/onboarding-actions/define-personal-data`). Use this to
+     * fill the fields reported by {@link getMissingPersonalData} for a user who
+     * already exists — `submitOnboarding` would 409 on the duplicate email/CPF.
+     * Only the provided fields are stored. Returns nothing (204).
+     *
+     * @throws {MantecaError} On API failure.
+     */
+    async definePersonalData(userAnyId: string, personalData: MantecaPersonalData): Promise<void> {
+        await this.request<void>('POST', '/crypto/v2/onboarding-actions/define-personal-data', {
+            userAnyId,
+            personalData,
+        });
     }
 
     // =========================================================================

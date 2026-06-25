@@ -437,6 +437,27 @@ describe('MantecaClient', () => {
         });
     });
 
+    describe('definePersonalData', () => {
+        it('POSTs userAnyId + personalData to /onboarding-actions/define-personal-data (204)', async () => {
+            let captured: Record<string, unknown> | undefined;
+            server.use(
+                http.post(
+                    `${BASE_URL}/crypto/v2/onboarding-actions/define-personal-data`,
+                    async ({ request }) => {
+                        expectAuth(request);
+                        captured = (await request.json()) as Record<string, unknown>;
+                        return new HttpResponse(null, { status: 204 });
+                    },
+                ),
+            );
+            await createClient().definePersonalData('10001', { birthDate: '1990-01-01' });
+            expect(captured).toMatchObject({
+                userAnyId: '10001',
+                personalData: { birthDate: '1990-01-01' },
+            });
+        });
+    });
+
     describe('getMissingPersonalData', () => {
         it('GETs /crypto/v2/stats/onboarding/missing-personal-data/{anyId}', async () => {
             server.use(
