@@ -606,6 +606,9 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'The sandbox ramp-on POST (/crypto/v2/synthetics/ramp-on) is intermittently flaky — observed 3 consecutive "fetch failed" connection errors before a retry succeeded. Client callers should retry transient network failures.',
             },
             {
+                text: 'Multi-region: Brazil (PIX/BRL) is sandbox-verified, but Argentina (CVU/CBU/alias, ARS) and Colombia (BRE-B, COP) are built (flow pages parameterized by ?region=) yet NOT sandbox-verified. The CVU/BRE-B on-ramp deposit-instruction and off-ramp destination wire shapes are unconfirmed (the deposit renderer falls back to generic fields), and we lack AR (CUIT) / CO (CC) sandbox test identities. See docs/manteca-multiregion-plan.md Phase 4.',
+            },
+            {
                 text: 'Several wire shapes were corrected against the live sandbox after building from docs: the price endpoint nests effectivePrice/price/spread (not flat effectiveBuy/Sell); /onboarding-actions/initial returns a {user, person} envelope; the ramp-on PIX deposit is a {code, url} QR object under details.depositAddresses.PIX (no scalar address); and personalData.sex must be F/M/X. The off-ramp wire (ramp-off synthetic, payout) is still unverified — no sandbox identity reached an off-ramp.',
             },
             {

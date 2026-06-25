@@ -5,9 +5,12 @@ crypto fiat on/off-ramp API. Copy `client.ts`, `types.ts`, and `index.ts`
 together into any TypeScript project — the only external dependency is
 `@stellar/stellar-sdk` (used to validate Stellar public keys).
 
-> **Status: sandbox-verified (on-ramp path), June 2026.** Built from Manteca's
-> published API reference ([developers.manteca.dev](https://developers.manteca.dev),
-> markdown mirror + `llms.txt` index), then verified against the live sandbox.
+> **Status: Brazil sandbox-verified (on-ramp path); Argentina + Colombia built,
+> unverified — June 2026.** Built from Manteca's published API reference
+> ([developers.manteca.dev](https://developers.manteca.dev), markdown mirror +
+> `llms.txt` index), then verified against the live sandbox (Brazil). The notes
+> below are Brazil-specific unless stated; see **What it does** for the
+> multi-region status.
 > Confirmed working: price/quote, onboarding (`{user, person}` envelope; sandbox
 > test CPF `40360893821`, name-mocked KYC), user fetch (per-user muxed Stellar
 > address, no memo), ramp-on synthetic + PIX QR deposit instructions. The sandbox
@@ -37,18 +40,35 @@ together into any TypeScript project — the only external dependency is
 
 ## What it does
 
-Targets **Brazil first**: BRL ⇆ USDC on Stellar via **PIX**.
+Local fiat ⇆ USDC on Stellar across **three wired markets**, selected by the
+`?region=` query param on the flow pages (default Brazil):
 
-- **On-ramp** (BRL → USDC): onboard user → create a ramp-on _synthetic_ →
-  Manteca returns PIX deposit instructions → user pays PIX → Manteca converts
-  and settles USDC to the user's Stellar address.
-- **Off-ramp** (USDC → BRL): onboard user → validate the payout PIX key →
-  create a ramp-off _synthetic_ → user sends USDC to Manteca's Stellar deposit
-  address → Manteca sells and pays out BRL via PIX.
+| Region       | `exchange`  | Fiat  | Rail          | Legal ID    |
+| ------------ | ----------- | ----- | ------------- | ----------- |
+| 🇧🇷 Brazil    | `BRAZIL`    | `BRL` | PIX           | CPF         |
+| 🇦🇷 Argentina | `ARGENTINA` | `ARS` | CVU/CBU/alias | CUIT / DNI  |
+| 🇨🇴 Colombia  | `COLOMBIA`  | `COP` | BRE-B         | Cédula (CC) |
 
-Manteca also serves 11 other markets (Argentina CVU/CVU/alias, Mexico SPEI,
-Colombia BRE-B, etc.); this client's `against` currency and destination shape
-generalize, but only Brazil is wired into the demo app.
+- **On-ramp** (fiat → USDC): onboard user → create a ramp-on _synthetic_ →
+  Manteca returns local deposit instructions (a PIX QR in Brazil; account/alias
+  for AR/CO) → user pays → Manteca converts and settles USDC to the user's
+  Stellar address.
+- **Off-ramp** (USDC → fiat): onboard user → validate the payout destination
+  (PIX key / CVU / Bre-B key) → create a ramp-off _synthetic_ → user sends USDC
+  to Manteca's Stellar deposit address → Manteca sells and pays out fiat.
+
+The per-region presentation + onboarding metadata lives in one table,
+`src/lib/config/manteca-regions.ts` (consumed by both flow pages). Manteca also
+serves ~9 other markets (Mexico SPEI, Chile, Peru, Philippines InstaPay, etc.)
+that the client's `against`-currency + destination shape generalize to but the
+demo app does not yet wire.
+
+> **Verification status:** Brazil is sandbox-verified end-to-end (modulo the
+> Stellar-leg gap above). **Argentina + Colombia are built but NOT
+> sandbox-verified** — the CVU/BRE-B deposit-instruction and destination wire
+> shapes are unconfirmed (the on-ramp deposit renderer falls back to generic
+> fields), and we lack AR (CUIT) / CO (CC) sandbox test identities. See
+> `docs/manteca-multiregion-plan.md`, Phase 4.
 
 ## Auth model
 
@@ -124,7 +144,7 @@ The client maps these to `MantecaError` with `code` = `internalStatus` and
 | Criterion                            | Status                                                                                                   |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
 | Locally denominated asset on Stellar | **USDC on Stellar** (no BRL-denominated Stellar token)                                                   |
-| Local payment rails                  | **PIX** (Brazil) confirmed; CVU/SPEI/BRE-B for other markets                                             |
+| Local payment rails                  | **PIX** (BR) confirmed; **CVU/CBU/alias** (AR) + **BRE-B** (CO) wired, unverified                        |
 | Competitive rates (<25 bps)          | **Unverified** — sandbox spread ~0 (not representative); per-quote cost is on the synthetic              |
 | Well-documented developer access     | **Strong** docs; sandbox keys sales-gated (not self-serve)                                               |
 | High-fidelity sandbox                | **Partial** — full ramp pipeline proven on EVM; Manteca's sandbox Stellar leg broken, vendor fix pending |
