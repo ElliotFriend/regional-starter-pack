@@ -553,7 +553,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         name: 'Manteca',
         description:
             'Manteca is a Buenos Aires-based B2B financial-infrastructure provider whose crypto API lets fintechs embed on/off ramps across 12 LatAm markets. In Brazil it ramps Brazilian reais (BRL) to USDC on Stellar via PIX, orchestrating fiat deposit, conversion, and crypto settlement in a single "synthetic" operation.',
-        logo: '/anchor-logos/manteca.png',
+        logo: '/anchor-logos/manteca.svg',
         links: {
             website: 'https://manteca.dev',
             documentation: 'https://developers.manteca.dev',
