@@ -147,6 +147,8 @@ describe('MantecaClient', () => {
                 email: 'maria@example.com',
                 exchange: 'BRAZIL',
                 externalId: 'user-9821',
+                // The wire rejects a create without `type` ("type is missing.").
+                type: 'INDIVIDUAL',
             });
             expect(user.id).toBe('6762a062183af03b822f7a71');
             expect(user.numberId).toBe('10001');

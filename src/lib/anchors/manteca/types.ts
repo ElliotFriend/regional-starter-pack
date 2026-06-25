@@ -327,6 +327,8 @@ export interface CreateUserArgs {
     email: string;
     /** Country; defaults to `config.defaultExchange`. */
     exchange?: MantecaExchange;
+    /** Entity type; the wire requires it. Defaults to `INDIVIDUAL`. */
+    type?: 'INDIVIDUAL' | 'BUSINESS';
     externalId?: string;
     sessionId?: string;
 }

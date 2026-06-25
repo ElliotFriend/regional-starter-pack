@@ -129,6 +129,7 @@ export class MantecaClient {
         const response = await this.request<MantecaUserResponse>('POST', '/crypto/v2/users', {
             email: args.email,
             exchange: args.exchange ?? this.exchange,
+            type: args.type ?? 'INDIVIDUAL',
             ...(args.externalId ? { externalId: args.externalId } : {}),
             ...(args.sessionId ? { sessionId: args.sessionId } : {}),
         });
