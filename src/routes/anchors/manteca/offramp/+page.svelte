@@ -122,19 +122,25 @@
             // than re-creating (a duplicate create 409s / 500s). Creation itself
             // happens at the KYC step via submitOnboarding.
             const existing = await manteca.findUser(fetch, { email });
-            if (existing) {
-                user = existing;
-                if (existing.canOperate) {
-                    step = 'destination';
-                } else {
-                    missingPersonalData = await manteca.getMissingPersonalData(
-                        fetch,
-                        existing.numberId,
-                    );
-                    step = 'kyc';
-                }
-            } else {
+            if (!existing) {
                 step = 'kyc';
+            } else if (existing.canOperate) {
+                user = existing;
+                step = 'destination';
+            } else if (existing.onboarding?.['IDENTITY_DECLARATION']?.status === 'COMPLETED') {
+                // Identity is on file — resume KYC to finish any missing fields.
+                user = existing;
+                missingPersonalData = await manteca.getMissingPersonalData(
+                    fetch,
+                    existing.numberId,
+                );
+                step = 'kyc';
+            } else {
+                // A user exists for this email but has no identity/CPF on file (a bare
+                // account). Manteca won't let us attach identity to an existing email,
+                // so it can't be completed — surface that instead of looping.
+                error =
+                    'An incomplete account already exists for this email (no identity on file). Use a different email to onboard in the sandbox.';
             }
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to look up Manteca user';
