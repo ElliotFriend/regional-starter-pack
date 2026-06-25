@@ -77,6 +77,29 @@ export async function getMissingPersonalData(fetch: Fetch, userAnyId: string): P
     return apiRequest<string[]>(fetch, `${BASE}/kyc?userAnyId=${encodeURIComponent(userAnyId)}`);
 }
 
+/** Upload one side of a user's identity document (KYC IDENTITY_VALIDATION). */
+export async function uploadIdentityImage(
+    fetch: Fetch,
+    args: { userAnyId: string; side: 'FRONT' | 'BACK'; fileName: string; file: Blob },
+): Promise<void> {
+    const form = new FormData();
+    form.set('userAnyId', args.userAnyId);
+    form.set('side', args.side);
+    form.set('fileName', args.fileName);
+    form.set('file', args.file, args.fileName);
+    // No explicit Content-Type — the runtime sets the multipart boundary.
+    const res = await fetch(`${BASE}/identity-image`, { method: 'POST', body: form });
+    if (!res.ok) {
+        let message = `Identity image upload failed (${res.status})`;
+        try {
+            message = ((await res.json()) as { message?: string }).message ?? message;
+        } catch {
+            // non-JSON error body
+        }
+        throw new MantecaApiError(res.status, message);
+    }
+}
+
 /** Submit/update personalData for an existing user (fills missing KYC fields). */
 export async function definePersonalData(
     fetch: Fetch,

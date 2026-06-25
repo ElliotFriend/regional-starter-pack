@@ -43,6 +43,7 @@
         | 'connect'
         | 'identity'
         | 'kyc'
+        | 'idupload'
         | 'destination'
         | 'amount'
         | 'quote'
@@ -63,6 +64,10 @@
     let street = $state('');
     let missingPersonalData = $state<string[]>([]);
     let user = $state<MantecaUser | null>(null);
+
+    // Identity-document upload (regions where IDENTITY_VALIDATION is required, e.g. AR)
+    let idFront = $state<File | null>(null);
+    let idBack = $state<File | null>(null);
 
     // Payout destination (PIX key)
     let pixKey = $state('');
@@ -150,13 +155,16 @@
                 user = existing;
                 step = 'destination';
             } else if (existing.onboarding?.['IDENTITY_DECLARATION']?.status === 'COMPLETED') {
-                // Identity is on file — resume KYC to finish any missing fields.
+                // Identity is on file — resume where they left off.
                 user = existing;
                 missingPersonalData = await manteca.getMissingPersonalData(
                     fetch,
                     existing.numberId,
                 );
-                step = 'kyc';
+                step =
+                    missingPersonalData.length === 0 && needsIdUpload(existing)
+                        ? 'idupload'
+                        : 'kyc';
             } else {
                 // A user exists for this email but has no identity/CPF on file (a bare
                 // account). Manteca won't let us attach identity to an existing email,
@@ -230,9 +238,52 @@
                 ? await manteca.getMissingPersonalData(fetch, user.numberId)
                 : [];
             if (missingPersonalData.length > 0) return; // stay on kyc so the user can correct
-            step = 'destination';
+            step = user && needsIdUpload(user) ? 'idupload' : 'destination';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to submit Manteca KYC';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    // True when the user still owes an identity-document upload to become operational.
+    function needsIdUpload(u: MantecaUser): boolean {
+        const s = u.onboarding?.['IDENTITY_VALIDATION'];
+        return !u.canOperate && !!s?.required && s.status !== 'COMPLETED';
+    }
+
+    async function uploadIdentity() {
+        if (!user || !idFront) return;
+        isWorking = true;
+        error = null;
+        try {
+            // Both FRONT and BACK are required; reuse the front for the back if the
+            // user only has a single-sided document.
+            const back = idBack ?? idFront;
+            await manteca.uploadIdentityImage(fetch, {
+                userAnyId: user.numberId,
+                side: 'FRONT',
+                fileName: idFront.name,
+                file: idFront,
+            });
+            await manteca.uploadIdentityImage(fetch, {
+                userAnyId: user.numberId,
+                side: 'BACK',
+                fileName: back.name,
+                file: back,
+            });
+            for (let i = 0; i < 15; i++) {
+                await new Promise((r) => setTimeout(r, 4000));
+                const u = await manteca.getUser(fetch, user.numberId);
+                if (u) user = u;
+                if (u?.canOperate) {
+                    step = 'destination';
+                    return;
+                }
+            }
+            error = 'Identity uploaded — still awaiting verification. Try again shortly.';
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to upload identity document';
         } finally {
             isWorking = false;
         }
@@ -606,6 +657,48 @@
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
                 {isWorking ? 'Submitting…' : 'Submit KYC'}
+            </button>
+        </div>
+    {/if}
+
+    <!-- =================== IDENTITY UPLOAD ======================= -->
+    {#if step === 'idupload'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                {fr.exchange} requires a photo of your identity document ({fr.legalIdLabel}). Upload
+                the front and back — Manteca verifies it before your account can operate.
+            </p>
+
+            <label class="mt-4 block">
+                <span class="text-sm font-medium text-gray-700">Document — front</span>
+                <input
+                    type="file"
+                    accept="image/*"
+                    onchange={(e) => (idFront = e.currentTarget.files?.[0] ?? null)}
+                    class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
+                />
+            </label>
+
+            <label class="mt-4 block">
+                <span class="text-sm font-medium text-gray-700">Document — back (optional)</span>
+                <input
+                    type="file"
+                    accept="image/*"
+                    onchange={(e) => (idBack = e.currentTarget.files?.[0] ?? null)}
+                    class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
+                />
+                <span class="mt-1 block text-xs text-gray-400">
+                    Leave empty to reuse the front image for both sides.
+                </span>
+            </label>
+
+            <button
+                onclick={uploadIdentity}
+                disabled={!idFront || isWorking}
+                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+                {isWorking ? 'Uploading & verifying…' : 'Upload identity document'}
             </button>
         </div>
     {/if}

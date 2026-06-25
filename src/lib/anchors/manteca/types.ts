@@ -444,6 +444,21 @@ export interface CreateRampOffArgs {
     sessionId?: string;
 }
 
+/**
+ * Args for {@link MantecaClient.uploadIdentityImage}. Used to satisfy the
+ * `IDENTITY_VALIDATION` onboarding step (required in some markets, e.g.
+ * Argentina). Upload both `FRONT` and `BACK`.
+ */
+export interface UploadIdentityImageArgs {
+    /** Any valid id for the user (numberId / id / externalId). */
+    userAnyId: string;
+    side: 'FRONT' | 'BACK';
+    /** File name (the extension matters — e.g. `dni.jpg`). */
+    fileName: string;
+    /** The image bytes (a browser `File`/`Blob`, or raw bytes server-side). */
+    file: Blob | ArrayBuffer | Uint8Array;
+}
+
 // ---------------------------------------------------------------------------
 // Raw API shapes (request/response bodies as the Manteca API speaks them)
 // ---------------------------------------------------------------------------

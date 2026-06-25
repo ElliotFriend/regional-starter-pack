@@ -55,6 +55,7 @@ import {
     type CreateUserArgs,
     type SubmitOnboardingArgs,
     type MantecaPersonalData,
+    type UploadIdentityImageArgs,
     type GetQuoteArgs,
     type CreateRampOnArgs,
     type CreateRampOffArgs,
@@ -243,6 +244,39 @@ export class MantecaClient {
             userAnyId,
             personalData,
         });
+    }
+
+    /**
+     * Upload one side of a user's identity document to satisfy the
+     * `IDENTITY_VALIDATION` onboarding step (required in some markets, e.g.
+     * Argentina). Two steps: mint a presigned upload URL
+     * (`POST /crypto/v2/onboarding-actions/upload-identity-image`), then PUT the
+     * image bytes straight to that URL with its signed `Content-Type` (the PUT
+     * does NOT carry the Manteca API key). Call once for `FRONT` and once for
+     * `BACK`.
+     *
+     * @throws {MantecaError} If minting the URL or the upload PUT fails.
+     */
+    async uploadIdentityImage(args: UploadIdentityImageArgs): Promise<void> {
+        const { url } = await this.request<{ url: string }>(
+            'POST',
+            '/crypto/v2/onboarding-actions/upload-identity-image',
+            { userAnyId: args.userAnyId, side: args.side, fileName: args.fileName },
+        );
+        const contentType =
+            new URL(url).searchParams.get('Content-Type') ?? 'application/octet-stream';
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: args.file as BodyInit,
+        });
+        if (!res.ok) {
+            throw new MantecaError(
+                `Identity image upload failed (${res.status})`,
+                'UPLOAD_FAILED',
+                res.status,
+            );
+        }
     }
 
     // =========================================================================

@@ -458,6 +458,68 @@ describe('MantecaClient', () => {
         });
     });
 
+    describe('uploadIdentityImage', () => {
+        it('mints a presigned URL then PUTs the bytes with the signed content-type', async () => {
+            let postBody: Record<string, unknown> | undefined;
+            let putContentType: string | null = null;
+            let putBytes: Uint8Array | undefined;
+            server.use(
+                http.post(
+                    `${BASE_URL}/crypto/v2/onboarding-actions/upload-identity-image`,
+                    async ({ request }) => {
+                        expectAuth(request);
+                        postBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            url: 'https://s3.example.test/doc/front?Content-Type=image%2Fjpeg&X-Amz-Signature=abc',
+                        });
+                    },
+                ),
+                http.put('https://s3.example.test/doc/front', async ({ request }) => {
+                    putContentType = request.headers.get('content-type');
+                    putBytes = new Uint8Array(await request.arrayBuffer());
+                    // The presigned PUT must NOT carry the Manteca API key.
+                    expect(request.headers.get('md-api-key')).toBeNull();
+                    return new HttpResponse(null, { status: 200 });
+                }),
+            );
+            await createClient().uploadIdentityImage({
+                userAnyId: '10001',
+                side: 'FRONT',
+                fileName: 'dni.jpg',
+                file: new Uint8Array([1, 2, 3]),
+            });
+            expect(postBody).toMatchObject({
+                userAnyId: '10001',
+                side: 'FRONT',
+                fileName: 'dni.jpg',
+            });
+            expect(putContentType).toBe('image/jpeg');
+            expect(putBytes).toEqual(new Uint8Array([1, 2, 3]));
+        });
+
+        it('throws when the presigned PUT fails', async () => {
+            server.use(
+                http.post(`${BASE_URL}/crypto/v2/onboarding-actions/upload-identity-image`, () =>
+                    HttpResponse.json({
+                        url: 'https://s3.example.test/doc/back?Content-Type=image%2Fjpeg',
+                    }),
+                ),
+                http.put(
+                    'https://s3.example.test/doc/back',
+                    () => new HttpResponse('denied', { status: 403 }),
+                ),
+            );
+            await expect(
+                createClient().uploadIdentityImage({
+                    userAnyId: '10001',
+                    side: 'BACK',
+                    fileName: 'dni.jpg',
+                    file: new Uint8Array([9]),
+                }),
+            ).rejects.toBeInstanceOf(MantecaError);
+        });
+    });
+
     describe('getMissingPersonalData', () => {
         it('GETs /crypto/v2/stats/onboarding/missing-personal-data/{anyId}', async () => {
             server.use(
