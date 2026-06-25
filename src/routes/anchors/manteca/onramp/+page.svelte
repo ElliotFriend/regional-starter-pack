@@ -42,6 +42,7 @@
     let nationality = $state('');
     let sex = $state('');
     let maritalStatus = $state('');
+    let birthDate = $state('');
     let street = $state('');
     let missingPersonalData = $state<string[]>([]);
     let user = $state<MantecaUser | null>(null);
@@ -70,6 +71,7 @@
             nationality.trim().length > 0 &&
             sex.trim().length > 0 &&
             maritalStatus.trim().length > 0 &&
+            birthDate.trim().length > 0 &&
             street.trim().length > 0,
     );
 
@@ -114,6 +116,7 @@
         nationality = 'Brasil';
         sex = 'F';
         maritalStatus = 'Soltero';
+        birthDate = '1990-01-01';
         street = 'Av Paulista 1000';
     }
 
@@ -134,6 +137,7 @@
                     nationality,
                     sex,
                     maritalStatus,
+                    birthDate,
                     address: { street },
                 },
             });
@@ -403,6 +407,15 @@
                     <option value="Viudo">Viudo</option>
                     <option value="Otros">Otros</option>
                 </select>
+            </label>
+
+            <label class="mt-4 block">
+                <span class="text-sm font-medium text-gray-700">Date of birth</span>
+                <input
+                    type="date"
+                    bind:value={birthDate}
+                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
             </label>
 
             <label class="mt-4 block">
