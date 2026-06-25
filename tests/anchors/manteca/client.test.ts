@@ -623,6 +623,37 @@ describe('MantecaClient', () => {
             );
             expect(await createClient().getSynthetic('missing')).toBeNull();
         });
+
+        it('flags a failed (non-terminal) synthetic when a stage reports errors', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/wfail`, () =>
+                    HttpResponse.json({
+                        ...RAMP_ON_RESPONSE,
+                        status: 'ACTIVE',
+                        currentStage: 3,
+                        stages: {
+                            ...RAMP_ON_RESPONSE.stages,
+                            '3': { ...RAMP_ON_RESPONSE.stages['3'], errors: ['Withdraw FAILED'] },
+                        },
+                    }),
+                ),
+            );
+            const s = await createClient().getSynthetic('wfail');
+            expect(s?.isTerminal).toBe(false); // still ACTIVE, not COMPLETED/CANCELLED
+            expect(s?.failed).toBe(true);
+            expect(s?.failureReason).toBe('Withdraw FAILED');
+        });
+
+        it('is not flagged failed for a clean synthetic', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/clean`, () =>
+                    HttpResponse.json({ ...RAMP_ON_RESPONSE, status: 'ACTIVE' }),
+                ),
+            );
+            const s = await createClient().getSynthetic('clean');
+            expect(s?.failed).toBe(false);
+            expect(s?.failureReason).toBeUndefined();
+        });
     });
 
     describe('getWithdrawDestinationInfo', () => {

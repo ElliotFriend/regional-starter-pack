@@ -540,6 +540,11 @@ function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
         pixRaw?.code && pixRaw?.url
             ? { code: pixRaw.code, url: pixRaw.url, expiresAt: pixRaw.expiresAt }
             : undefined;
+    // Any stage carrying errors (e.g. a failed Stellar withdraw) marks the whole
+    // synthetic as failed even while its status is still non-terminal.
+    const failedStage = Object.values(response.stages ?? {}).find(
+        (s) => Array.isArray(s?.errors) && s.errors.length > 0,
+    );
     return {
         id: response.id,
         numberId: response.numberId,
@@ -565,6 +570,8 @@ function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
         creationTime: response.creationTime,
         updatedAt: response.updatedAt,
         isTerminal: MANTECA_TERMINAL_SYNTHETIC_STATUSES.includes(response.status),
+        failed: failedStage !== undefined,
+        failureReason: failedStage?.errors?.[0],
     };
 }
 

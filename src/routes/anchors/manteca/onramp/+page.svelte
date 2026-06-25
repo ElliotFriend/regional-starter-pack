@@ -290,7 +290,10 @@
         const updated = await manteca.getSynthetic(fetch, synthetic.id);
         if (!updated) return;
         synthetic = updated;
-        if (updated.isTerminal && updated.status === 'COMPLETED') {
+        if (updated.failed) {
+            error = `Manteca could not complete this on-ramp: ${updated.failureReason ?? 'a stage failed'}.`;
+            stop();
+        } else if (updated.isTerminal && updated.status === 'COMPLETED') {
             step = 'complete';
             stop();
         } else if (updated.status === 'CANCELLED') {

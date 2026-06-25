@@ -232,6 +232,8 @@ export interface MantecaSyntheticStage {
     price?: string;
     to?: string;
     expiresAt?: string;
+    /** Non-empty when this stage failed (e.g. `["Withdraw FAILED"]`). */
+    errors?: string[];
     [key: string]: unknown;
 }
 
@@ -288,6 +290,14 @@ export interface MantecaSynthetic {
     updatedAt?: string;
     /** `true` when status is terminal (`COMPLETED`/`CANCELLED`). */
     isTerminal: boolean;
+    /**
+     * `true` when a stage reported errors (e.g. a failed Stellar withdraw). The
+     * synthetic may still be non-terminal (`ACTIVE`), so callers should stop
+     * polling on this as well as on {@link isTerminal}.
+     */
+    failed: boolean;
+    /** First stage error message, when {@link failed}. */
+    failureReason?: string;
 }
 
 /** Deposit info for an asset (`GET /crypto/v2/info/deposit-info/{coin}`). */
