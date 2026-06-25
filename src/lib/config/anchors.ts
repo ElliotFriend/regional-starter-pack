@@ -591,6 +591,20 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 tokens: ['USDC'],
                 kycRequired: true,
             },
+            argentina: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['cvu'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+            colombia: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['breb'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
         },
         devOnboarding: [
             {

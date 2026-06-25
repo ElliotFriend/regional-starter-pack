@@ -54,10 +54,22 @@ describe('getRegion', () => {
         expect(region!.currency).toBe('ARS');
         expect(region!.code).toBe('AR');
         expect(region!.flag).toBe('🇦🇷');
-        expect(region!.anchors).toEqual(['koywe']);
+        expect(region!.anchors).toEqual(['koywe', 'manteca']);
         const railIds = region!.paymentRails.map((r) => r.id);
         expect(railIds).toContain('wirear');
         expect(railIds).toContain('qri');
+    });
+
+    it('returns Colombia region with COP and Manteca anchor (BRE-B)', () => {
+        const region = getRegion('colombia');
+        expect(region).toBeDefined();
+        expect(region!.id).toBe('colombia');
+        expect(region!.name).toBe('Colombia');
+        expect(region!.currency).toBe('COP');
+        expect(region!.code).toBe('CO');
+        expect(region!.flag).toBe('🇨🇴');
+        expect(region!.anchors).toContain('manteca');
+        expect(region!.paymentRails.map((r) => r.id)).toContain('breb');
     });
 
     it('returns undefined for nonexistent region', () => {
@@ -88,10 +100,15 @@ describe('getAnchorsForRegion', () => {
         expect(anchors.map((a) => a.id)).toEqual(['etherfuse', 'manteca']);
     });
 
-    it('returns only Koywe for Argentina', () => {
+    it('returns Koywe and Manteca for Argentina', () => {
         const anchors = getAnchorsForRegion('argentina');
-        expect(anchors).toHaveLength(1);
-        expect(anchors[0].id).toBe('koywe');
+        expect(anchors).toHaveLength(2);
+        expect(anchors.map((a) => a.id)).toEqual(['koywe', 'manteca']);
+    });
+
+    it('returns Manteca for Colombia', () => {
+        const anchors = getAnchorsForRegion('colombia');
+        expect(anchors.map((a) => a.id)).toContain('manteca');
     });
 
     it('returns empty array for nonexistent region', () => {
@@ -114,10 +131,13 @@ describe('getRegionsForAnchor', () => {
         expect(regions[0].id).toBe('argentina');
     });
 
-    it('returns Brazil for manteca', () => {
+    it('returns Brazil, Argentina, and Colombia for manteca', () => {
         const regions = getRegionsForAnchor('manteca');
-        expect(regions).toHaveLength(1);
-        expect(regions[0].id).toBe('brazil');
+        expect(regions).toHaveLength(3);
+        const ids = regions.map((r) => r.id);
+        expect(ids).toContain('brazil');
+        expect(ids).toContain('argentina');
+        expect(ids).toContain('colombia');
     });
 
     it('returns empty array for removed anchors', () => {

@@ -66,6 +66,18 @@ describe('getAnchor', () => {
         expect(anchor!.regions.brazil.tokens).toContain('USDC');
     });
 
+    it('Manteca also serves Argentina (CVU) and Colombia (BRE-B) with USDC', () => {
+        const anchor = getAnchor('manteca');
+        expect(anchor!.regions.argentina).toBeDefined();
+        expect(anchor!.regions.argentina.onRamp).toBe(true);
+        expect(anchor!.regions.argentina.offRamp).toBe(true);
+        expect(anchor!.regions.argentina.paymentRails).toContain('cvu');
+        expect(anchor!.regions.argentina.tokens).toContain('USDC');
+        expect(anchor!.regions.colombia).toBeDefined();
+        expect(anchor!.regions.colombia.paymentRails).toContain('breb');
+        expect(anchor!.regions.colombia.tokens).toContain('USDC');
+    });
+
     it('does not return removed anchors', () => {
         expect(getAnchor('alfredpay')).toBeUndefined();
         expect(getAnchor('blindpay')).toBeUndefined();

@@ -33,6 +33,22 @@ describe('getPaymentRail', () => {
         expect(rail!.id).toBe('qri');
     });
 
+    it('returns CVU rail (Argentina — Manteca CVU/CBU/alias)', () => {
+        const rail = getPaymentRail('cvu');
+        expect(rail).toBeDefined();
+        expect(rail!.id).toBe('cvu');
+        expect(rail!.type).toBe('bank_transfer');
+        expect(rail!.description).toBeDefined();
+    });
+
+    it('returns BRE-B rail (Colombia)', () => {
+        const rail = getPaymentRail('breb');
+        expect(rail).toBeDefined();
+        expect(rail!.id).toBe('breb');
+        expect(rail!.type).toBe('bank_transfer');
+        expect(rail!.description).toBeDefined();
+    });
+
     it('returns undefined for nonexistent rail', () => {
         expect(getPaymentRail('nonexistent')).toBeUndefined();
     });

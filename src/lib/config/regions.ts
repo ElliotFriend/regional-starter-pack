@@ -55,9 +55,21 @@ export const REGIONS: Record<string, Region> = {
         currencySymbol: '$',
         flag: '🇦🇷',
         description:
-            'Argentina pairs high stablecoin demand with instant CVU bank transfers. Koywe ramps Argentine pesos to USDC on Stellar with local payment rails (WIREAR, QR) and competitive FX.',
-        paymentRails: [PAYMENT_RAILS.wirear, PAYMENT_RAILS.qri],
-        anchors: ['koywe'],
+            'Argentina pairs high stablecoin demand with instant CVU bank transfers. Koywe and Manteca ramp Argentine pesos to USDC on Stellar with local payment rails (CVU/CBU/alias, QR) and competitive FX.',
+        paymentRails: [PAYMENT_RAILS.cvu, PAYMENT_RAILS.wirear, PAYMENT_RAILS.qri],
+        anchors: ['koywe', 'manteca'],
+    },
+    colombia: {
+        id: 'colombia',
+        name: 'Colombia',
+        code: 'CO',
+        currency: 'COP',
+        currencySymbol: '$',
+        flag: '🇨🇴',
+        description:
+            'Colombia is rolling out Bre-B, the central bank’s instant payment system. Manteca ramps Colombian pesos to USDC on Stellar over BRE-B with competitive FX.',
+        paymentRails: [PAYMENT_RAILS.breb],
+        anchors: ['manteca'],
     },
     testnet: {
         id: 'testnet',

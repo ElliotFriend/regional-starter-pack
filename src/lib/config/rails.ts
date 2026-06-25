@@ -47,6 +47,20 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             'QR-code based interbank transfer in Argentina, completed in the user’s banking app.',
         type: 'other',
     },
+    cvu: {
+        id: 'cvu',
+        name: 'CVU / CBU / alias',
+        description:
+            'Argentine immediate bank transfer addressed by CVU, CBU, or alias — Manteca’s ARS rail.',
+        type: 'bank_transfer',
+    },
+    breb: {
+        id: 'breb',
+        name: 'BRE-B',
+        description:
+            "Colombia's instant interbank payment system (Bre-B) for real-time COP transfers.",
+        type: 'bank_transfer',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {
