@@ -452,102 +452,6 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
-    testanchor: {
-        id: 'testanchor',
-        name: 'Test Anchor',
-        description:
-            'The Stellar Development Foundation reference anchor (testanchor.stellar.org). It implements the full SEP stack on testnet and is wired here as a dual-facet anchor: SEP-24 interactive (the default flow) and SEP-6 programmatic, both authenticated with SEP-10 wallet signatures.',
-        logo: '/anchor-logos/testanchor.png',
-        referenceAnchor: true,
-        scorecard: makeCriteria({
-            // Reference SEP test anchor (no-value testnet) — exempt from the
-            // commercial gate; the gold standard on the developer lens.
-            'open-access': { status: 'met', note: 'No signup; open testnet' },
-            'accurate-docs': { status: 'met', note: 'SEP standard + stellar.toml' },
-            'high-fidelity-sandbox': {
-                status: 'met',
-                note: 'Issues real testnet SRT + USDC',
-            },
-            'agent-buildable': { status: 'met', note: 'Standard SEPs' },
-            'fee-discoverability': {
-                status: 'met',
-                note: 'SEP-38 firm quotes + SEP-6 fee fields',
-            },
-        }),
-        links: {
-            website: 'https://testanchor.stellar.org',
-            documentation:
-                'https://developers.stellar.org/docs/learn/fundamentals/stellar-ecosystem-proposals',
-            'stellar.toml': 'https://testanchor.stellar.org/.well-known/stellar.toml',
-        },
-        knownIssues: [
-            {
-                text: 'The test anchor issues no-value testnet assets (SRT and testnet USDC) and exists only for integration testing — it is not a curated production provider and does not offer locally denominated assets.',
-            },
-        ],
-        regions: {
-            testnet: {
-                onRamp: true,
-                offRamp: true,
-                paymentRails: ['bank'],
-                tokens: ['SRT', 'USDC'],
-                kycRequired: true,
-            },
-        },
-        devOnboarding: [
-            {
-                text: 'No signup required — the test anchor is open on Stellar testnet.',
-                link: 'https://testanchor.stellar.org/.well-known/stellar.toml',
-            },
-            {
-                text: 'Fund a testnet wallet and add a trustline to the asset you want to ramp.',
-            },
-        ],
-        integrationFlow: {
-            onRamp: [
-                {
-                    title: 'Authenticate (SEP-10)',
-                    description:
-                        'Sign a challenge transaction with the wallet to obtain a session token.',
-                },
-                {
-                    title: 'Start Interactive Deposit (SEP-24)',
-                    description: 'Request a hosted deposit session and receive an interactive URL.',
-                },
-                {
-                    title: 'Complete in Hosted UI',
-                    description:
-                        'The user finishes KYC, amount entry, and payment in the anchor-hosted popup.',
-                },
-                {
-                    title: 'Poll Until Complete',
-                    description:
-                        "Poll the transaction status until the anchor delivers the asset to the user's wallet.",
-                },
-            ],
-            offRamp: [
-                {
-                    title: 'Authenticate (SEP-10)',
-                    description:
-                        'Sign a challenge transaction with the wallet to obtain a session token.',
-                },
-                {
-                    title: 'Start Interactive Withdrawal (SEP-24)',
-                    description:
-                        'Request a hosted withdrawal session and receive an interactive URL.',
-                },
-                {
-                    title: 'Complete in Hosted UI',
-                    description:
-                        'The user provides payout details and sends the asset from the hosted flow.',
-                },
-                {
-                    title: 'Poll Until Complete',
-                    description: 'Poll the transaction status until the payout is confirmed.',
-                },
-            ],
-        },
-    },
     manteca: {
         id: 'manteca',
         name: 'Manteca',
@@ -716,6 +620,102 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                     title: 'Receive BRL',
                     description:
                         'Manteca sells USDC and pays out BRL via PIX; poll the synthetic until COMPLETED.',
+                },
+            ],
+        },
+    },
+    testanchor: {
+        id: 'testanchor',
+        name: 'Test Anchor',
+        description:
+            'The Stellar Development Foundation reference anchor (testanchor.stellar.org). It implements the full SEP stack on testnet and is wired here as a dual-facet anchor: SEP-24 interactive (the default flow) and SEP-6 programmatic, both authenticated with SEP-10 wallet signatures.',
+        logo: '/anchor-logos/testanchor.png',
+        referenceAnchor: true,
+        scorecard: makeCriteria({
+            // Reference SEP test anchor (no-value testnet) — exempt from the
+            // commercial gate; the gold standard on the developer lens.
+            'open-access': { status: 'met', note: 'No signup; open testnet' },
+            'accurate-docs': { status: 'met', note: 'SEP standard + stellar.toml' },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'Issues real testnet SRT + USDC',
+            },
+            'agent-buildable': { status: 'met', note: 'Standard SEPs' },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'SEP-38 firm quotes + SEP-6 fee fields',
+            },
+        }),
+        links: {
+            website: 'https://testanchor.stellar.org',
+            documentation:
+                'https://developers.stellar.org/docs/learn/fundamentals/stellar-ecosystem-proposals',
+            'stellar.toml': 'https://testanchor.stellar.org/.well-known/stellar.toml',
+        },
+        knownIssues: [
+            {
+                text: 'The test anchor issues no-value testnet assets (SRT and testnet USDC) and exists only for integration testing — it is not a curated production provider and does not offer locally denominated assets.',
+            },
+        ],
+        regions: {
+            testnet: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['bank'],
+                tokens: ['SRT', 'USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'No signup required — the test anchor is open on Stellar testnet.',
+                link: 'https://testanchor.stellar.org/.well-known/stellar.toml',
+            },
+            {
+                text: 'Fund a testnet wallet and add a trustline to the asset you want to ramp.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Authenticate (SEP-10)',
+                    description:
+                        'Sign a challenge transaction with the wallet to obtain a session token.',
+                },
+                {
+                    title: 'Start Interactive Deposit (SEP-24)',
+                    description: 'Request a hosted deposit session and receive an interactive URL.',
+                },
+                {
+                    title: 'Complete in Hosted UI',
+                    description:
+                        'The user finishes KYC, amount entry, and payment in the anchor-hosted popup.',
+                },
+                {
+                    title: 'Poll Until Complete',
+                    description:
+                        "Poll the transaction status until the anchor delivers the asset to the user's wallet.",
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Authenticate (SEP-10)',
+                    description:
+                        'Sign a challenge transaction with the wallet to obtain a session token.',
+                },
+                {
+                    title: 'Start Interactive Withdrawal (SEP-24)',
+                    description:
+                        'Request a hosted withdrawal session and receive an interactive URL.',
+                },
+                {
+                    title: 'Complete in Hosted UI',
+                    description:
+                        'The user provides payout details and sends the asset from the hosted flow.',
+                },
+                {
+                    title: 'Poll Until Complete',
+                    description: 'Poll the transaction status until the payout is confirmed.',
                 },
             ],
         },
