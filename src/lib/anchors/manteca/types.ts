@@ -434,12 +434,17 @@ export interface CreateRampOffArgs {
     asset: string;
     /** Fiat to receive, e.g. `BRL`. */
     against: string;
-    /** Fiat payout destination — a PIX key in Brazil, CBU/CVU/alias in Argentina. */
+    /**
+     * Fiat payout destination — a PIX key (Brazil), CBU/CVU/alias (Argentina),
+     * or a bank account number (Colombia, with `network`/`bankCode`/`accountType`).
+     */
     destinationAddress: string;
     /** Provide exactly one of assetAmount / againstAmount. */
     assetAmount?: number;
     againstAmount?: number;
-    /** Optional bank/account hints for the destination. */
+    /** Destination rail (Colombia): `BANK_TRANSFER` | `TRANSFIYA` | `BREB`. */
+    network?: string;
+    /** Bank code + account type for a structured (Colombia) destination. */
     bankCode?: string;
     accountType?: string;
     priceCode?: string;

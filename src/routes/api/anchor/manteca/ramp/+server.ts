@@ -2,7 +2,7 @@
  * Manteca ramp endpoint (synthetics).
  * POST: create a ramp-on or ramp-off synthetic.
  *   on-ramp  body: { action: 'onramp', userAnyId, asset, against, stellarAddress, assetAmount?|againstAmount?, priceCode?, externalId? }
- *   off-ramp body: { action: 'offramp', userAnyId, asset, against, destinationAddress, assetAmount?|againstAmount?, bankCode?, accountType?, priceCode?, externalId? }
+ *   off-ramp body: { action: 'offramp', userAnyId, asset, against, destinationAddress, assetAmount?|againstAmount?, network?, bankCode?, accountType?, priceCode?, externalId? }
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -48,6 +48,7 @@ export const POST: RequestHandler = async ({ request }) => {
                 destinationAddress: body.destinationAddress,
                 assetAmount: body.assetAmount,
                 againstAmount: body.againstAmount,
+                network: body.network,
                 bankCode: body.bankCode,
                 accountType: body.accountType,
                 priceCode: body.priceCode,

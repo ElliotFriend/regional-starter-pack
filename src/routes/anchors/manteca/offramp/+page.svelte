@@ -3,7 +3,7 @@
     import { page } from '$app/state';
     import { resolve } from '$app/paths';
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { getMantecaFlowRegion } from '$lib/config/manteca-regions';
+    import { getMantecaFlowRegion, CO_BANKS, CO_ACCOUNT_TYPES } from '$lib/config/manteca-regions';
     import { isValidCuit } from '$lib/utils/cuit';
     import { isValidCpf } from '$lib/utils/cpf';
     import { walletStore } from '$lib/stores/wallet.svelte';
@@ -71,9 +71,16 @@
     let idFront = $state<File | null>(null);
     let idBack = $state<File | null>(null);
 
-    // Payout destination (PIX key)
+    // Payout destination — a single key (BR/AR) or a structured bank account (CO).
     let pixKey = $state('');
     let destination = $state<MantecaWithdrawDestination | null>(null);
+    // Colombia structured destination (BANK_TRANSFER).
+    let coAccount = $state('');
+    let coBankCode = $state('');
+    let coAccountType = $state('SAVINGS');
+    const bankDestReady = $derived(
+        coAccount.trim().length > 0 && coBankCode.length > 0 && coAccountType.length > 0,
+    );
 
     // Ramp state
     let amount = $state('');
@@ -386,7 +393,16 @@
                 asset: tokenSymbol,
                 against: fiatCurrency,
                 assetAmount: parseFloat(amount),
-                destinationAddress: pixKey.trim(),
+                // Colombia uses a structured bank-account destination; BR/AR use a
+                // single key (PIX key / CVU / alias).
+                ...(fr.destinationKind === 'bank'
+                    ? {
+                          destinationAddress: coAccount.trim(),
+                          network: 'BANK_TRANSFER',
+                          bankCode: coBankCode,
+                          accountType: coAccountType,
+                      }
+                    : { destinationAddress: pixKey.trim() }),
             });
             // Pick the STELLAR deposit address specifically — the `depositAddress`
             // scalar is the EVM address; the per-network map holds the Stellar
@@ -765,69 +781,119 @@
                 </div>
             {/if}
 
-            <h2 class="text-lg font-semibold text-gray-900">Payout {fr.destinationLabel}</h2>
-            <p class="mt-1 text-sm text-gray-500">
-                Enter the {fr.destinationLabel} that will receive your {fiatCurrency}. We'll resolve
-                it with Manteca to confirm the recipient.
-            </p>
+            {#if fr.destinationKind === 'bank'}
+                <h2 class="text-lg font-semibold text-gray-900">Payout {fr.destinationLabel}</h2>
+                <p class="mt-1 text-sm text-gray-500">
+                    Enter the bank account that will receive your {fiatCurrency}.
+                </p>
 
-            <label class="mt-4 block text-sm font-medium text-gray-700" for="pixKey">
-                {fr.destinationLabel}
-            </label>
-            <input
-                id="pixKey"
-                type="text"
-                bind:value={pixKey}
-                placeholder={fr.destinationPlaceholder}
-                class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Account number</span>
+                    <input
+                        type="text"
+                        bind:value={coAccount}
+                        placeholder={fr.destinationPlaceholder}
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </label>
 
-            {#if destination}
-                <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
-                    {#if destination.valid}
-                        <p class="font-medium text-green-700">{fr.destinationLabel} resolved</p>
-                        {#if destination.name}
-                            <p class="mt-1">
-                                <span class="text-gray-500">Recipient:</span>
-                                <span class="font-medium">{destination.name}</span>
-                            </p>
-                        {/if}
-                        {#if destination.accountType}
-                            <p class="mt-0.5">
-                                <span class="text-gray-500">Account type:</span>
-                                <span class="font-medium">{destination.accountType}</span>
-                            </p>
-                        {/if}
-                        {#if destination.legalId}
-                            <p class="mt-0.5">
-                                <span class="text-gray-500">Legal ID:</span>
-                                <span class="font-mono">{destination.legalId}</span>
-                            </p>
-                        {/if}
-                    {:else}
-                        <p class="font-medium text-red-600">
-                            Manteca could not resolve this {fr.destinationLabel}.
-                        </p>
-                    {/if}
-                </div>
-            {/if}
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Bank</span>
+                    <select
+                        bind:value={coBankCode}
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        <option value="" disabled>Select…</option>
+                        {#each CO_BANKS as b (b.code)}
+                            <option value={b.code}>{b.name ?? `Banco (${b.code})`}</option>
+                        {/each}
+                    </select>
+                </label>
 
-            <div class="mt-6 flex gap-3">
-                <button
-                    onclick={resolveDestination}
-                    disabled={!pixKey.trim() || isWorking}
-                    class="flex-1 rounded-md border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
-                >
-                    {isWorking ? 'Resolving…' : `Resolve ${fr.destinationLabel}`}
-                </button>
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Account type</span>
+                    <select
+                        bind:value={coAccountType}
+                        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        {#each CO_ACCOUNT_TYPES as t (t)}
+                            <option value={t}>{t}</option>
+                        {/each}
+                    </select>
+                </label>
+
                 <button
                     onclick={() => (step = 'amount')}
-                    disabled={!destination?.valid}
-                    class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    disabled={!bankDestReady}
+                    class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                     Continue
                 </button>
-            </div>
+            {:else}
+                <h2 class="text-lg font-semibold text-gray-900">Payout {fr.destinationLabel}</h2>
+                <p class="mt-1 text-sm text-gray-500">
+                    Enter the {fr.destinationLabel} that will receive your {fiatCurrency}. We'll
+                    resolve it with Manteca to confirm the recipient.
+                </p>
+
+                <label class="mt-4 block text-sm font-medium text-gray-700" for="pixKey">
+                    {fr.destinationLabel}
+                </label>
+                <input
+                    id="pixKey"
+                    type="text"
+                    bind:value={pixKey}
+                    placeholder={fr.destinationPlaceholder}
+                    class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+
+                {#if destination}
+                    <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+                        {#if destination.valid}
+                            <p class="font-medium text-green-700">{fr.destinationLabel} resolved</p>
+                            {#if destination.name}
+                                <p class="mt-1">
+                                    <span class="text-gray-500">Recipient:</span>
+                                    <span class="font-medium">{destination.name}</span>
+                                </p>
+                            {/if}
+                            {#if destination.accountType}
+                                <p class="mt-0.5">
+                                    <span class="text-gray-500">Account type:</span>
+                                    <span class="font-medium">{destination.accountType}</span>
+                                </p>
+                            {/if}
+                            {#if destination.legalId}
+                                <p class="mt-0.5">
+                                    <span class="text-gray-500">Legal ID:</span>
+                                    <span class="font-mono">{destination.legalId}</span>
+                                </p>
+                            {/if}
+                        {:else}
+                            <p class="font-medium text-red-600">
+                                Manteca could not resolve this {fr.destinationLabel}.
+                            </p>
+                        {/if}
+                    </div>
+                {/if}
+
+                <div class="mt-6 flex gap-3">
+                    <button
+                        onclick={resolveDestination}
+                        disabled={!pixKey.trim() || isWorking}
+                        class="flex-1 rounded-md border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                    >
+                        {isWorking ? 'Resolving…' : `Resolve ${fr.destinationLabel}`}
+                    </button>
+                    <button
+                        onclick={() => (step = 'amount')}
+                        disabled={!destination?.valid}
+                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        Continue
+                    </button>
+                </div>
+            {/if}
         </div>
     {/if}
 
@@ -865,9 +931,16 @@
             <QuoteDisplay quote={displayQuote} onRefresh={refreshQuote} isRefreshing={isWorking} />
             <div class="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
                 <span class="text-gray-500">Payout to</span>
-                <span class="ml-1 font-mono text-gray-600">{pixKey}</span>
-                {#if destination?.name}
-                    <span class="ml-1 text-gray-500">({destination.name})</span>
+                {#if fr.destinationKind === 'bank'}
+                    <span class="ml-1 font-mono text-gray-600">{coAccount}</span>
+                    <span class="ml-1 text-gray-500">
+                        ({CO_BANKS.find((b) => b.code === coBankCode)?.name ?? coBankCode}, {coAccountType})
+                    </span>
+                {:else}
+                    <span class="ml-1 font-mono text-gray-600">{pixKey}</span>
+                    {#if destination?.name}
+                        <span class="ml-1 text-gray-500">({destination.name})</span>
+                    {/if}
                 {/if}
             </div>
             <div class="flex gap-3">

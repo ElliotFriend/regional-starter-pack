@@ -397,6 +397,7 @@ export class MantecaClient {
                 ...amountBody(args),
                 destination: {
                     address: args.destinationAddress,
+                    ...(args.network ? { network: args.network } : {}),
                     ...(args.bankCode ? { bankCode: args.bankCode } : {}),
                     ...(args.accountType ? { accountType: args.accountType } : {}),
                 },

@@ -29,9 +29,39 @@ export interface MantecaFlowRegion {
     /** Off-ramp payout destination label + placeholder. */
     destinationLabel: string;
     destinationPlaceholder: string;
+    /**
+     * Off-ramp destination shape: `'key'` = a single string (PIX key / CVU /
+     * alias, resolved via withdraw-destination); `'bank'` = a structured bank
+     * account (Colombia: account number + bankCode + accountType).
+     */
+    destinationKind: 'key' | 'bank';
     /** Sandbox test legal ID for "Fill test data" (empty where unknown). */
     testLegalId: string;
 }
+
+/** Colombian banks accepted by Manteca's off-ramp (ACH `1000+`-style codes). */
+export const CO_BANKS: { code: string; name?: string }[] = [
+    { code: '1007', name: 'Bancolombia' },
+    { code: '1001', name: 'Banco de Bogotá' },
+    { code: '1002', name: 'Banco Popular' },
+    { code: '1013', name: 'BBVA Colombia' },
+    { code: '1019', name: 'Scotiabank Colpatria' },
+    { code: '1032', name: 'Banco Caja Social' },
+    { code: '1051', name: 'Davivienda' },
+    { code: '1052', name: 'Banco AV Villas' },
+    { code: '1062', name: 'Banco Falabella' },
+    { code: '1507', name: 'Nequi' },
+    { code: '1551', name: 'Daviplata' },
+    // Codes Manteca accepts but whose names aren't confidently mapped yet.
+    { code: '1070' },
+    { code: '1292' },
+    { code: '1801' },
+    { code: '1804' },
+    { code: '1809' },
+];
+
+/** Colombian account types accepted by the off-ramp. */
+export const CO_ACCOUNT_TYPES = ['SAVINGS', 'CHECKING'] as const;
 
 export const MANTECA_REGIONS: Record<string, MantecaFlowRegion> = {
     brazil: {
@@ -45,6 +75,7 @@ export const MANTECA_REGIONS: Record<string, MantecaFlowRegion> = {
         nationalityDefault: 'Brasil',
         destinationLabel: 'PIX key',
         destinationPlaceholder: 'email, phone, CPF, or random key',
+        destinationKind: 'key',
         testLegalId: '12345678909',
     },
     argentina: {
@@ -58,6 +89,7 @@ export const MANTECA_REGIONS: Record<string, MantecaFlowRegion> = {
         nationalityDefault: 'Argentina',
         destinationLabel: 'CVU / CBU / alias',
         destinationPlaceholder: 'CVU, CBU, or alias',
+        destinationKind: 'key',
         testLegalId: '',
     },
     colombia: {
@@ -69,8 +101,9 @@ export const MANTECA_REGIONS: Record<string, MantecaFlowRegion> = {
         legalIdLabel: 'Cédula (CC)',
         legalIdPlaceholder: '0.000.000.000',
         nationalityDefault: 'Colombia',
-        destinationLabel: 'Bre-B key',
-        destinationPlaceholder: 'Bre-B key / account',
+        destinationLabel: 'bank account',
+        destinationPlaceholder: 'account number',
+        destinationKind: 'bank',
         testLegalId: '',
     },
 };

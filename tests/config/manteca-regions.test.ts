@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { MANTECA_REGIONS, getMantecaFlowRegion } from '$lib/config/manteca-regions';
+import {
+    MANTECA_REGIONS,
+    getMantecaFlowRegion,
+    CO_BANKS,
+    CO_ACCOUNT_TYPES,
+} from '$lib/config/manteca-regions';
 
 describe('MANTECA_REGIONS', () => {
     it('covers brazil, argentina, colombia with the right exchange + currency', () => {
@@ -19,6 +24,22 @@ describe('MANTECA_REGIONS', () => {
             expect(r.currencySymbol).toBeTruthy();
             expect(r.destinationLabel).toBeTruthy();
         }
+    });
+});
+
+describe('destination kind + Colombia bank list', () => {
+    it('marks BR/AR as key destinations and CO as a bank destination', () => {
+        expect(MANTECA_REGIONS.brazil.destinationKind).toBe('key');
+        expect(MANTECA_REGIONS.argentina.destinationKind).toBe('key');
+        expect(MANTECA_REGIONS.colombia.destinationKind).toBe('bank');
+    });
+
+    it('exposes the Colombian bank codes (incl. Bancolombia 1007) + account types', () => {
+        const codes = CO_BANKS.map((b) => b.code);
+        expect(codes).toContain('1007');
+        expect(CO_BANKS.find((b) => b.code === '1007')?.name).toBe('Bancolombia');
+        expect(CO_BANKS.length).toBe(16);
+        expect(CO_ACCOUNT_TYPES).toEqual(['SAVINGS', 'CHECKING']);
     });
 });
 

@@ -657,6 +657,35 @@ describe('MantecaClient', () => {
             // The crypto deposit address the user funds (USDC on Stellar).
             expect(synthetic.details.depositAddress).toBe(STELLAR_PUBKEY);
         });
+
+        it('sends a structured destination (network/bankCode/accountType) for Colombia', async () => {
+            let captured: Record<string, unknown> | undefined;
+            server.use(
+                http.post(`${BASE_URL}/crypto/v2/synthetics/ramp-off`, async ({ request }) => {
+                    captured = (await request.json()) as Record<string, unknown>;
+                    return HttpResponse.json({ ...RAMP_ON_RESPONSE }, { status: 201 });
+                }),
+            );
+            await createClient().createRampOff({
+                userAnyId: '10001',
+                asset: 'USDC',
+                against: 'COP',
+                assetAmount: 5,
+                destinationAddress: '12345678901',
+                network: 'BANK_TRANSFER',
+                bankCode: '1007',
+                accountType: 'SAVINGS',
+            });
+            expect(captured).toMatchObject({
+                against: 'COP',
+                destination: {
+                    address: '12345678901',
+                    network: 'BANK_TRANSFER',
+                    bankCode: '1007',
+                    accountType: 'SAVINGS',
+                },
+            });
+        });
     });
 
     describe('getSynthetic', () => {
