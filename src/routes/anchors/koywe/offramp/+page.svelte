@@ -1,7 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
+    import { page } from '$app/state';
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
+    import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -19,12 +21,15 @@
     import type { KoyweQuote, KoyweOffRampOrder, KoyweAccountCheck } from '$lib/anchors/koywe';
 
     // ------------------------------------------------------------------
-    // Region & token derivation (Koywe Argentina — USDC on Stellar → ARS)
+    // Region & token derivation (Koywe — region from ?region= query param)
     // ------------------------------------------------------------------
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
-    const fiatCurrency = 'ARS';
-    const fiatCountry = 'ARG';
+
+    const requestedRegion = $derived(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION);
+    const market = $derived(getKoyweMarket(requestedRegion) ?? KOYWE_MARKETS[DEFAULT_KOYWE_REGION]);
+    const fiatCurrency = $derived(market.currency);
+    const fiatCountry = $derived(market.countryCode);
     const tokenSymbol = 'USDC';
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
 
@@ -47,16 +52,19 @@
     // Identity + KYC
     let email = $state('');
     let accountCheck = $state<KoyweAccountCheck | null>(null);
+    const initialMarket =
+        getKoyweMarket(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION) ??
+        KOYWE_MARKETS[DEFAULT_KOYWE_REGION];
     let kycForm = $state({
         documentNumber: '',
-        documentType: 'DNI',
-        documentCountry: 'ARG',
+        documentType: initialMarket.documentType,
+        documentCountry: initialMarket.countryCode,
         names: '',
         firstLastname: '',
         dob: '',
         phoneNumber: '',
         activity: '',
-        nationality: 'ARG',
+        nationality: initialMarket.countryCode,
         gender: '' as '' | 'H' | 'M' | 'O',
         street: '',
         city: '',
@@ -68,13 +76,6 @@
     // Payout account: the user enters a CVU/account number, which we register
     // with Koywe (POST /rest/bank-accounts) to obtain the bank-account id the
     // off-ramp order references as its destinationAddress.
-    //
-    // TODO(koywe): off-ramp is BLOCKED here (integration paused 2026-06-01).
-    // POST /rest/bank-accounts rejects even Koywe's own documented DNI↔CVU test
-    // pairs with a 400 ownership-validation error, and the whitelisted DNIs are
-    // single-use. Both are Koywe sandbox-side; document upload
-    // (POST /upload-delegated-kyc-files) is also not yet built. See the koywe
-    // README "TODO — remaining Koywe work" section for the full list.
     let accountNumber = $state('');
     let bankAccountId = $state('');
 
@@ -128,28 +129,8 @@
     }
 
     function fillTestData() {
-        // Sandbox: off-ramp bank accounts are ownership-validated, so the document
-        // number must be one of Koywe's whitelisted DNIs and the CVU must be its
-        // paired value. This uses the pair (34770518 ↔ 0000242600000000009120).
-        // Use a *fresh email* — an existing account is locked to its first DNI.
-        kycForm = {
-            documentNumber: '34770518',
-            documentType: 'DNI',
-            documentCountry: 'ARG',
-            names: 'Test',
-            firstLastname: 'User',
-            dob: '1990-01-01',
-            phoneNumber: '+5491155551234',
-            activity: 'Software Engineer',
-            nationality: 'ARG',
-            gender: 'O',
-            street: 'Av. 9 de Julio 1000',
-            city: 'Buenos Aires',
-            state: 'CABA',
-            zipCode: 'C1043',
-            neighborhood: 'Centro',
-        };
-        accountNumber = '0000242600000000009120';
+        kycForm = { ...market.testData };
+        accountNumber = market.testAccountNumber ?? '';
     }
 
     async function submitKyc() {
@@ -217,6 +198,7 @@
                     countryCode: fiatCountry,
                     currencySymbol: fiatCurrency,
                     documentNumber: kycForm.documentNumber || undefined,
+                    accountType: market.accountType,
                 }));
             bankAccountId = account.id;
             step = 'amount';
@@ -608,27 +590,35 @@
 
             <h2 class="text-lg font-semibold text-gray-900">Payout account</h2>
             <p class="mt-1 text-sm text-gray-500">
-                Enter the CVU (account number) that will receive your {fiatCurrency}. We'll register
-                it with Koywe as your payout account.
+                Enter the {market.accountLabel} that will receive your {fiatCurrency}. We'll
+                register it with Koywe as your payout account.
             </p>
             <label class="mt-4 block text-sm font-medium text-gray-700" for="accountNumber">
-                CVU / account number
+                {market.accountLabel}
             </label>
             <input
                 id="accountNumber"
                 type="text"
                 bind:value={accountNumber}
-                placeholder="0000242600000000009120"
+                placeholder={market.accountPlaceholder}
                 class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
             />
-            <p class="mt-2 text-xs text-amber-700">
-                Heads up: Koywe's sandbox currently rejects bank-account registration with a
-                validation error even for its own documented DNI↔CVU test pairs (e.g. DNI
-                <span class="font-mono">34770518</span> ↔ CVU
-                <span class="font-mono">0000242600000000009120</span>, which "Fill test data" uses).
-                This is a known Koywe-side limitation — the off-ramp can't complete past this step
-                until it's resolved.
-            </p>
+            {#if market.region === 'argentina'}
+                <p class="mt-2 text-xs text-amber-700">
+                    Heads up: Koywe's sandbox currently rejects bank-account registration with a
+                    validation error even for its own documented DNI↔CVU test pairs (e.g. DNI
+                    <span class="font-mono">34770518</span> ↔ CVU
+                    <span class="font-mono">0000242600000000009120</span>, which "Fill test data"
+                    uses). This is a known Koywe-side limitation — the off-ramp can't complete past
+                    this step until it's resolved.
+                </p>
+            {:else}
+                <p class="mt-2 text-xs text-amber-700">
+                    Heads up: Koywe's sandbox has no published test identities for {market.name},
+                    and its bank-account ownership validation can't be satisfied without them, so
+                    the off-ramp may not complete past this step in the sandbox.
+                </p>
+            {/if}
             <button
                 onclick={registerBankAccount}
                 disabled={!accountNumber.trim() || isWorking}
