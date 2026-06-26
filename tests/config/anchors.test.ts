@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     getAnchor,
     getAllAnchors,
+    ANCHORS,
     QUALITY_CRITERIA,
     COMMERCIAL_CRITERIA,
     DEVELOPER_CRITERIA,
@@ -319,5 +320,19 @@ describe('getAllHonorableMentions', () => {
     it('returns all 12 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
         expect(mentions).toHaveLength(12);
+    });
+});
+
+describe('Koywe multi-country', () => {
+    it('serves Argentina, Mexico, and Colombia', () => {
+        expect(Object.keys(ANCHORS.koywe.regions).sort()).toEqual([
+            'argentina',
+            'colombia',
+            'mexico',
+        ]);
+    });
+    it('uses SPEI in Mexico and PSE in Colombia', () => {
+        expect(ANCHORS.koywe.regions.mexico.paymentRails).toContain('spei');
+        expect(ANCHORS.koywe.regions.colombia.paymentRails).toContain('pse');
     });
 });

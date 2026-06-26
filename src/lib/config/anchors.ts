@@ -313,14 +313,14 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         id: 'koywe',
         name: 'Koywe',
         description:
-            'Koywe is a Latin American crypto-finance infrastructure provider offering fiat on/off ramps between local currencies and stablecoins. In Argentina it ramps Argentine pesos (ARS) to USDC on Stellar via local CVU and QR bank-transfer rails.',
+            'Koywe is a Latin American crypto-finance infrastructure provider offering fiat on/off ramps between local currencies and stablecoins. It ramps Argentine pesos (ARS), Mexican pesos (MXN), and Colombian pesos (COP) to USDC on Stellar via local rails — CVU/QR in Argentina, SPEI in Mexico, and PSE in Colombia.',
         logo: '/anchor-logos/koywe.png',
         scorecard: makeCriteria({
             'local-asset': {
                 status: 'failed',
                 note: 'USDC only',
             },
-            'local-rails': { status: 'met', note: 'WIREAR (CVU) + QRI' },
+            'local-rails': { status: 'met', note: 'WIREAR/QRI (AR) + SPEI (MX) + PSE (CO)' },
             'competitive-rates': {
                 status: 'partial',
             },
@@ -349,7 +349,10 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
-                text: 'Regional coverage: Colombia is live (PSE rails); Brazil (PIX) is announced as "coming soon" but not yet live. The same Stellar USDC leg applies once those fiat rails are confirmed.',
+                text: "Regional coverage wired here: Argentina (CVU/QR), Mexico (SPEI), Colombia (PSE) — all to USDC on Stellar. Chile (CLP) and Peru (PEN) are also supported by Koywe but not yet wired into this app. Brazil (BRL) on-ramps via PIX, but its off-ramp is not in Koywe's bank-account currency enum, so Brazil is intentionally excluded for now.",
+            },
+            {
+                text: 'Off-ramp payout-account registration is only sandbox-verifiable for Argentina (which has documented whitelisted test pairs, and is itself currently Koywe-side broken). Mexico and Colombia off-ramps are wired to spec but have no published sandbox test identities, so they cannot be verified end-to-end in the sandbox.',
             },
             {
                 text: 'Koywe does not return a Stellar issuer for USDC (it is network-dependent), so the integration injects PUBLIC_USDC_ISSUER for the active network.',
@@ -375,6 +378,20 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 onRamp: true,
                 offRamp: true,
                 paymentRails: ['wirear', 'qri'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+            mexico: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['spei'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+            colombia: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['pse'],
                 tokens: ['USDC'],
                 kycRequired: true,
             },

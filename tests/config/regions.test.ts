@@ -125,10 +125,13 @@ describe('getRegionsForAnchor', () => {
         expect(ids).toContain('brazil');
     });
 
-    it('returns Argentina for koywe', () => {
+    it('returns Argentina, Mexico, and Colombia for koywe', () => {
         const regions = getRegionsForAnchor('koywe');
-        expect(regions).toHaveLength(1);
-        expect(regions[0].id).toBe('argentina');
+        expect(regions).toHaveLength(3);
+        const ids = regions.map((r) => r.id);
+        expect(ids).toContain('argentina');
+        expect(ids).toContain('mexico');
+        expect(ids).toContain('colombia');
     });
 
     it('returns Brazil, Argentina, and Colombia for manteca', () => {

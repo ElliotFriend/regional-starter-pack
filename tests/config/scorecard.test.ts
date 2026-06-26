@@ -83,7 +83,7 @@ describe('buildReadiness', () => {
         const e = byId.etherfuse;
         // Region is the market a consumer dashboard joins on.
         expect(e.regions).toEqual(['mexico', 'brazil']);
-        expect(byId.koywe.regions).toEqual(['argentina']);
+        expect(byId.koywe.regions).toEqual(['argentina', 'mexico', 'colombia']);
         expect(byId.transfero.regions).toEqual(['brazil']);
         // The rest of the catalogue metadata stays out.
         expect(e).not.toHaveProperty('tokens');
@@ -150,6 +150,12 @@ describe('buildReadiness', () => {
         expect(byId.abroad.caveats.map((s) => s.id)).toContain('local-rails');
         expect(byId.etherfuse.blockers).toEqual([]);
         expect(byId.etherfuse.caveats).toEqual([]);
+    });
+
+    it('reports Koywe across its three markets', () => {
+        const readiness = buildReadiness();
+        const koywe = readiness.find((e) => e.id === 'koywe');
+        expect(koywe?.regions.sort()).toEqual(['argentina', 'colombia', 'mexico']);
     });
 });
 
