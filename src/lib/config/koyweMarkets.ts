@@ -11,10 +11,10 @@
  * `countryCode` is Koywe's ISO-3166 alpha-3 code used by `POST /rest/accounts`
  * and `POST /rest/bank-accounts`. `documentType` defaults to a value present in
  * the documented `documentType` enum (the field stays user-editable in the UI).
- * `offRamp` is true only where Koywe's bank-account `currencySymbol` enum
- * accepts the currency ([CLP, COP, MXN, PEN]) — Brazil/Argentina off-ramp run a
- * different path and are out of scope here (Argentina off-ramp ships with its
- * documented sandbox blocker).
+ * `offRamp` is true for the markets wired here; Argentina retains its
+ * pre-existing ARS off-ramp path (handled separately), which is why ARS is
+ * `true` even though it is not in Koywe's bank-account `currencySymbol` enum
+ * ([CLP, COP, MXN, PEN]) that gates Mexico/Colombia.
  */
 
 export interface KoyweKycTestData {

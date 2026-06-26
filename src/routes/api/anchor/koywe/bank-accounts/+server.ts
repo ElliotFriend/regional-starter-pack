@@ -3,7 +3,7 @@
  *
  * GET ?email=&countryCode=&currencySymbol=: list a user's registered accounts.
  * POST: register a bank account.
- *   body: CreateBankAccountArgs ({ email, accountNumber, currencySymbol, countryCode, documentNumber? }).
+ *   body: CreateBankAccountArgs ({ email, accountNumber, currencySymbol, countryCode, documentNumber?, accountType? }).
  *
  * The returned account's `id` is what an off-ramp order passes as its
  * `destinationAddress` (via `bankAccountId`).

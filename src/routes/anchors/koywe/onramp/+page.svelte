@@ -90,7 +90,7 @@
     let order = $state<KoyweOnRampOrder | null>(null);
     // Latest polled order, carrying lifecycle diagnostics (dates, txHash, statusDetails).
     let lifecycle = $state<KoyweOrder | null>(null);
-    // Koywe per-currency transaction limits for ARS → USDC Stellar (step 3).
+    // Koywe per-currency transaction limits for the selected fiat → USDC Stellar (step 3).
     let limits = $state<{ min?: number; max?: number } | null>(null);
     let hasTrustline = $state(false);
 

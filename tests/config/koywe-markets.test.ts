@@ -30,6 +30,7 @@ describe('KOYWE_MARKETS', () => {
     it('marks all three markets as off-ramp capable (MEX/COL/ARG)', () => {
         expect(getKoyweMarket('mexico')?.offRamp).toBe(true);
         expect(getKoyweMarket('colombia')?.offRamp).toBe(true);
+        expect(getKoyweMarket('argentina')?.offRamp).toBe(true);
     });
 
     it('gives Colombia a checking/savings account type and Mexico a CLABE label', () => {
