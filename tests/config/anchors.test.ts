@@ -248,7 +248,7 @@ describe('HONORABLE_MENTIONS', () => {
         expect(HONORABLE_MENTIONS['coinsph'].regions).toContain('philippines');
     });
 
-    it('includes the BD pipeline anchors as vetting, with their markets', () => {
+    it('includes the additional vetting anchors, with their markets', () => {
         for (const id of ['bitso', 'yellowcard', 'fonbnk', 'bilira', 'onafriq', 'flutterwave']) {
             expect(HONORABLE_MENTIONS[id], id).toBeDefined();
             expect(HONORABLE_MENTIONS[id].vetting, id).toBe(true);

@@ -349,7 +349,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         },
         knownIssues: [
             {
-                text: 'Regional expansion (BD pipeline): Colombia is live (PSE rails) and is a near-term expansion candidate; Brazil (PIX) is announced as "coming soon" but not yet live. The same Stellar USDC leg applies once those fiat rails are confirmed.',
+                text: 'Regional coverage: Colombia is live (PSE rails); Brazil (PIX) is announced as "coming soon" but not yet live. The same Stellar USDC leg applies once those fiat rails are confirmed.',
             },
             {
                 text: 'Koywe does not return a Stellar issuer for USDC (it is network-dependent), so the integration injects PUBLIC_USDC_ISSUER for the active network.',
@@ -857,13 +857,13 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             'high-fidelity-sandbox': { status: 'unverified' },
         }),
     },
-    // --- In-vetting branch candidates (BD actively engaging; assessments are
-    // preliminary, hand-authored from investigation notes). ---
+    // --- In-vetting branch candidates (assessments are preliminary,
+    // hand-authored from investigation notes, not verified live integrations). ---
     pdax: {
         id: 'pdax',
         name: 'PDAX',
         description:
-            'Philippine licensed exchange explored as a PHP ramp. Best PH option commercially, but the most integration-hostile of the candidates.',
+            'Philippine licensed exchange evaluated as a PHP ramp. Integration access is heavily gated (password-gated docs, credentials by request) and no crypto transaction has completed end-to-end.',
         website: 'https://pdax.ph',
         tokens: ['USDC'],
         rails: ['instapay', 'pesonet'],
@@ -902,7 +902,7 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         id: 'coinsph',
         name: 'Coins.ph',
         description:
-            'Philippine wallet/exchange explored as a launch-only on-ramp. Stellar + USDC support itself is unconfirmed.',
+            'Philippine wallet/exchange evaluated as a launch-only on-ramp. Stellar + USDC support itself is unconfirmed.',
         website: 'https://coins.ph',
         tokens: ['USDC'],
         rails: ['instapay', 'pesonet'],
@@ -928,13 +928,13 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             },
         }),
     },
-    // --- BD priority-pipeline candidates (actively engaged; assessments are
-    // preliminary, hand-authored from research). ---
+    // --- Additional vetting candidates (assessments are preliminary,
+    // hand-authored from research, not verified live integrations). ---
     bitso: {
         id: 'bitso',
         name: 'Bitso',
         description:
-            'Major LATAM exchange. Bitso Business supports USDC on Stellar (production) with SPEI/PIX/PSE fiat rails; local stablecoins (MXNB, BRL1) are on EVM chains, not Stellar. It is a treasury/exchange API, not a SEP anchor: fiat settles in your own Bitso account and you convert + withdraw USDC to the customer, so the integrator is the principal/fund-holder (B2B2C) rather than plugging into an anchor that custodies and transmits directly to the end-user wallet — which carries the attendant money-transmission, KYC, and (in Brazil) Bacen-reporting obligations.',
+            'Major LATAM exchange. Bitso Business supports USDC on Stellar (production) with SPEI/PIX/PSE rails; local stablecoins (MXNB, BRL1) are on EVM chains, not Stellar. A treasury/exchange API, the fund-holder (B2B2C) carrying money-transmission and KYC obligations.',
         website: 'https://bitso.com/business',
         tokens: ['USDC'],
         rails: ['spei', 'pix', 'pse'],
@@ -1053,7 +1053,7 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         id: 'bilira',
         name: 'BiLira',
         description:
-            'Issuer of TRYB, a TRY-pegged stablecoin (the rare genuine local asset). TRYB is live on EVM/Solana but NOT on Stellar yet — Stellar support is "in the works" per BD, unconfirmed publicly.',
+            'Issuer of TRYB, a TRY-pegged stablecoin (the rare genuine local asset). TRYB is live on EVM/Solana but NOT on Stellar yet — Stellar support is unconfirmed publicly.',
         website: 'https://bilira.co',
         tokens: ['TRYB'],
         rails: ['bank-transfer'],

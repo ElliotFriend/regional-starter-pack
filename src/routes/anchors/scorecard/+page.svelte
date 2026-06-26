@@ -34,8 +34,8 @@
         <h1 class="text-3xl font-bold text-gray-900">Anchor Developer Readiness</h1>
         <p class="mt-2 text-sm text-gray-600">
             A self-updating developer-readiness view derived from anchor config. Fees and liquidity
-            are owned by BD and omitted; the verdict reflects buildability only. Local asset is
-            shown for reference but does not affect the verdict.
+            are tracked separately and omitted; the verdict reflects buildability only. Local asset
+            is shown for reference but does not affect the verdict.
         </p>
         <p class="mt-2 text-sm text-gray-600">
             <strong class="font-semibold text-gray-700">Required</strong> signals block readiness if

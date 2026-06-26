@@ -5,7 +5,7 @@
  * GET /api/scorecard?format=md  → Markdown
  * GET /api/scorecard with `Accept: text/markdown` → Markdown (query wins if both)
  *
- * Read-only public data, so CORS is wide open for the BD team's agents.
+ * Read-only public data, so CORS is wide open for programmatic consumers.
  */
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';

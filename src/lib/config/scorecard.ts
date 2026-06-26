@@ -2,11 +2,11 @@
  * Developer-readiness view over the anchor scorecards.
  *
  * Reframes the two-lens `scorecard` data (see `anchors.ts`) around a single
- * question for the BD team's agents: *can a developer build on this anchor
- * today?* Self-updating — derived entirely from `ANCHORS` +
- * `HONORABLE_MENTIONS` — and deliberately omits the commercial fee/liquidity
- * criteria (BD owns those), catalogue metadata (regions/tokens/rails/links —
- * noise for a readiness read), and the internal curated/honorable framing.
+ * question: *can a developer build on this anchor today?* Self-updating —
+ * derived entirely from `ANCHORS` + `HONORABLE_MENTIONS` — and deliberately
+ * omits the commercial fee/liquidity criteria (tracked separately), catalogue
+ * metadata (regions/tokens/rails/links — noise for a readiness read), and the
+ * curated/honorable framing.
  *
  * Pure / framework-agnostic: no SvelteKit imports.
  */
@@ -172,7 +172,7 @@ export function toMarkdown(entries: ReadinessEntry[]): string {
     const out: string[] = [
         '# Anchor developer-readiness',
         '',
-        '_Derived live from anchor config. Fees and liquidity are owned by BD and omitted;' +
+        '_Derived live from anchor config. Fees and liquidity are tracked separately and omitted;' +
             ' the reference test anchor is excluded._',
         '',
         '## How to read this',

@@ -157,7 +157,7 @@ describe('toMarkdown', () => {
     const md = toMarkdown(buildReadiness());
 
     it('has a scope note', () => {
-        expect(md).toMatch(/owned by BD/i);
+        expect(md).toMatch(/tracked separately and omitted/i);
     });
 
     it('explains the signals and their required/friction severity', () => {
