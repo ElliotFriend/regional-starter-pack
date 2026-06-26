@@ -1,16 +1,14 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
     import { ANCHORS } from '$lib/config/anchors';
-    import { getRegionsForAnchor, getRegion } from '$lib/config/regions';
+    import { getRegionsForAnchor } from '$lib/config/regions';
     import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
 
     const profile = ANCHORS.koywe;
     const regions = getRegionsForAnchor('koywe');
 
-    // Koywe currently serves a single region (Argentina).
-    const activeRegionId = 'argentina';
-    const activeRegion = getRegion(activeRegionId);
-    const activeCapability = profile.regions[activeRegionId];
+    // Koywe serves multiple regions; each links to its own ?region= flow.
+    const koyweRegions = regions.filter((r) => profile.regions[r.id]);
 </script>
 
 <div class="mx-auto max-w-3xl px-4 py-8">
@@ -24,56 +22,53 @@
         </div>
     </header>
 
-    <section class="mt-8 rounded-lg border border-gray-200 bg-white p-6">
-        <h2 class="text-lg font-semibold text-gray-900">Region</h2>
-        <div class="mt-3 flex flex-wrap gap-2">
-            {#each regions as r (r.id)}
-                <span
-                    class="rounded-md border border-indigo-500 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700"
-                >
-                    {r.flag}
-                    {r.name}
-                </span>
-            {/each}
-        </div>
-
-        {#if activeRegion && activeCapability}
-            <div class="mt-6 grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <span class="text-gray-500">Currency</span>
-                    <p class="font-medium">{activeRegion.currency}</p>
+    <section class="mt-8 space-y-4">
+        <h2 class="text-lg font-semibold text-gray-900">Regions</h2>
+        {#each koyweRegions as r (r.id)}
+            {@const cap = profile.regions[r.id]}
+            <div class="rounded-lg border border-gray-200 bg-white p-6">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">{r.flag}</span>
+                    <h3 class="text-base font-semibold text-gray-900">{r.name}</h3>
                 </div>
-                <div>
-                    <span class="text-gray-500">Rails</span>
-                    <p class="font-medium uppercase">{activeCapability.paymentRails.join(', ')}</p>
+                <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500">Currency</span>
+                        <p class="font-medium">{r.currency}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Rails</span>
+                        <p class="font-medium uppercase">{cap.paymentRails.join(', ')}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Token</span>
+                        <p class="font-medium">{cap.tokens.join(', ')}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">KYC</span>
+                        <p class="font-medium">{cap.kycRequired ? 'Required' : 'Not required'}</p>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-gray-500">Token</span>
-                    <p class="font-medium">{activeCapability.tokens.join(', ')}</p>
-                </div>
-                <div>
-                    <span class="text-gray-500">KYC</span>
-                    <p class="font-medium">
-                        {activeCapability.kycRequired ? 'Required' : 'Not required'}
-                    </p>
+                <div class="mt-6 flex gap-3">
+                    {#if cap.onRamp}
+                        <a
+                            href="{resolve('/anchors/koywe/onramp')}?region={r.id}"
+                            class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                            On-Ramp ({r.currency} → {cap.tokens[0]})
+                        </a>
+                    {/if}
+                    {#if cap.offRamp}
+                        <a
+                            href="{resolve('/anchors/koywe/offramp')}?region={r.id}"
+                            class="flex-1 rounded-md border border-indigo-600 px-4 py-2 text-center text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+                        >
+                            Off-Ramp ({cap.tokens[0]} → {r.currency})
+                        </a>
+                    {/if}
                 </div>
             </div>
-        {/if}
-
-        <div class="mt-6 flex gap-3">
-            <a
-                href={resolve('/anchors/koywe/onramp')}
-                class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-indigo-700"
-            >
-                On-Ramp ({activeRegion?.currency} → {activeCapability?.tokens[0]})
-            </a>
-            <a
-                href={resolve('/anchors/koywe/offramp')}
-                class="flex-1 rounded-md border border-indigo-600 px-4 py-2 text-center text-sm font-medium text-indigo-600 hover:bg-indigo-50"
-            >
-                Off-Ramp ({activeCapability?.tokens[0]} → {activeRegion?.currency})
-            </a>
-        </div>
+        {/each}
     </section>
 
     {#if profile.scorecard}
