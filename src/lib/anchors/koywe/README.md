@@ -2,9 +2,16 @@
 
 Self-contained TypeScript client for the [Koywe](https://koywe.com) crypto fiat on/off ramp API (`https://api-sandbox.koywe.com`, docs at [docs-crypto.koywe.com](https://docs-crypto.koywe.com/en)). Copy these three files into any TypeScript project — the only runtime dependency outside this directory is `@stellar/stellar-sdk` (for Stellar public-key validation).
 
-Handles fiat on/off ramps in Argentina:
+Handles fiat on/off ramps across three Latin American markets:
 
 - **Argentina** — ARS ↔ USDC on Stellar via WIREAR (CVU bank transfer), QRI-AR (QR), or Khipu.
+- **Mexico** — MXN ↔ USDC on Stellar via SPEI (WIREMX / STP).
+- **Colombia** — COP ↔ USDC on Stellar via PSE (plus Bancolombia / Nequi / Palomma on-ramp providers).
+
+The client is currency-agnostic; per-market UI defaults (currency, country code,
+document type, payout-account field, test data) live in `src/lib/config/koyweMarkets.ts`,
+and the on/off-ramp pages select a market from the `?region=` query param (default
+`argentina`), mirroring the Etherfuse multi-country pages.
 
 **Server-side only.** It authenticates with a `clientId`/`secret` pair (exchanged for a 24h JWT) that must never reach the browser.
 
@@ -111,3 +118,5 @@ The integration is **paused** here. Neither ramp reaches `DELIVERED` in the sand
 5. **[us] Confirm both ramps to `DELIVERED`** — neither verified end-to-end; do this once the Koywe-side blockers are resolved.
 
 These are tracked as `knownIssues` on `ANCHORS.koywe` (rendered on the anchor page) and as a `TODO(koywe)` in `routes/anchors/koywe/offramp/+page.svelte`.
+
+Mexico and Colombia have no published whitelisted test identities (document↔account pairs), so their off-ramp bank-account registration cannot be sandbox-verified either.
