@@ -61,6 +61,13 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             "Colombia's instant interbank payment system (Bre-B) for real-time COP transfers.",
         type: 'bank_transfer',
     },
+    pse: {
+        id: 'pse',
+        name: 'PSE',
+        description:
+            "Pagos Seguros en Línea — Colombia's bank-debit rail for real-time COP transfers from a bank account.",
+        type: 'bank_transfer',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {

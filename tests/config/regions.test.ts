@@ -40,10 +40,10 @@ describe('getRegion', () => {
         expect(region!.anchors).toEqual(['etherfuse', 'manteca']);
     });
 
-    it('Mexico has etherfuse as its only anchor', () => {
+    it('Mexico has etherfuse and koywe as its anchors', () => {
         const region = getRegion('mexico');
         expect(region).toBeDefined();
-        expect(region!.anchors).toEqual(['etherfuse']);
+        expect(region!.anchors).toEqual(['etherfuse', 'koywe']);
     });
 
     it('returns Argentina region with ARS and Koywe anchor', () => {
@@ -88,10 +88,10 @@ describe('getAllRegions', () => {
 });
 
 describe('getAnchorsForRegion', () => {
-    it('returns only Etherfuse for Mexico', () => {
+    it('returns Etherfuse and Koywe for Mexico', () => {
         const anchors = getAnchorsForRegion('mexico');
-        expect(anchors).toHaveLength(1);
-        expect(anchors[0].id).toBe('etherfuse');
+        expect(anchors).toHaveLength(2);
+        expect(anchors.map((a) => a.id)).toEqual(['etherfuse', 'koywe']);
     });
 
     it('returns Etherfuse and Manteca for Brazil', () => {
@@ -149,5 +149,15 @@ describe('getRegionsForAnchor', () => {
 
     it('returns empty array for nonexistent anchor', () => {
         expect(getRegionsForAnchor('nonexistent')).toEqual([]);
+    });
+});
+
+describe('Koywe regional coverage', () => {
+    it('lists Koywe in Mexico and Colombia', () => {
+        expect(getRegion('mexico')!.anchors).toContain('koywe');
+        expect(getRegion('colombia')!.anchors).toContain('koywe');
+    });
+    it('adds the PSE rail to Colombia', () => {
+        expect(getRegion('colombia')!.paymentRails.map((r) => r.id)).toContain('pse');
     });
 });

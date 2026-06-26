@@ -53,3 +53,12 @@ describe('getPaymentRail', () => {
         expect(getPaymentRail('nonexistent')).toBeUndefined();
     });
 });
+
+describe('pse rail', () => {
+    it('defines the Colombian PSE rail', () => {
+        expect(getPaymentRail('pse')).toBeDefined();
+        expect(getPaymentRail('pse')!.id).toBe('pse');
+        expect(getPaymentRail('pse')!.type).toBe('bank_transfer');
+        expect(getPaymentRail('pse')!.name).toBe('PSE');
+    });
+});

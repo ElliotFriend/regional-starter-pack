@@ -31,9 +31,9 @@ export const REGIONS: Record<string, Region> = {
         currencySymbol: '$',
         flag: '🇲🇽',
         description:
-            'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Locally denominated assets on Stellar enable low-cost on- and off-ramps with competitive FX rates.',
+            'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Etherfuse ramps to CETES stablebonds and Koywe ramps Mexican pesos to USDC on Stellar over SPEI.',
         paymentRails: [PAYMENT_RAILS.spei],
-        anchors: ['etherfuse'],
+        anchors: ['etherfuse', 'koywe'],
     },
     brazil: {
         id: 'brazil',
@@ -67,9 +67,9 @@ export const REGIONS: Record<string, Region> = {
         currencySymbol: '$',
         flag: '🇨🇴',
         description:
-            'Colombia is rolling out Bre-B, the central bank’s instant payment system. Manteca ramps Colombian pesos to USDC on Stellar over BRE-B with competitive FX.',
-        paymentRails: [PAYMENT_RAILS.breb],
-        anchors: ['manteca'],
+            "Colombia is rolling out Bre-B, the central bank's instant payment system. Manteca ramps Colombian pesos to USDC on Stellar over BRE-B, and Koywe ramps COP to USDC over PSE — both with competitive FX.",
+        paymentRails: [PAYMENT_RAILS.breb, PAYMENT_RAILS.pse],
+        anchors: ['manteca', 'koywe'],
     },
     testnet: {
         id: 'testnet',
