@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-    KOYWE_MARKETS,
     getKoyweMarket,
     koyweMarketRegionIds,
     DEFAULT_KOYWE_REGION,

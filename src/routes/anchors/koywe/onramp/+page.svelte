@@ -16,6 +16,8 @@
     import * as koywe from '$lib/api/koywe';
     import { resolveFiatLimits } from '$lib/anchors/koywe';
     import type { StellarNetwork } from '$lib/wallet/types';
+    import { page } from '$app/state';
+    import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
     import type {
         KoywePaymentMethod,
         KoyweQuote,
@@ -25,11 +27,14 @@
     } from '$lib/anchors/koywe';
 
     // ------------------------------------------------------------------
-    // Region & token derivation (Koywe Argentina — ARS → USDC on Stellar)
+    // Region & token derivation (Koywe — region from ?region= query param)
     // ------------------------------------------------------------------
 
     const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
-    const fiatCurrency = 'ARS';
+
+    const requestedRegion = $derived(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION);
+    const market = $derived(getKoyweMarket(requestedRegion) ?? KOYWE_MARKETS[DEFAULT_KOYWE_REGION]);
+    const fiatCurrency = $derived(market.currency);
     const tokenSymbol = 'USDC';
     // Koywe returns no Stellar issuer; inject the network-correct USDC issuer.
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
@@ -52,16 +57,21 @@
     // Identity + KYC
     let email = $state('');
     let accountCheck = $state<KoyweAccountCheck | null>(null);
+    // Initial market for the one-time KYC-form defaults (the reactive `market`
+    // above drives all display values; users visit one region per page load).
+    const initialMarket =
+        getKoyweMarket(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION) ??
+        KOYWE_MARKETS[DEFAULT_KOYWE_REGION];
     let kycForm = $state({
         documentNumber: '',
-        documentType: 'DNI',
-        documentCountry: 'ARG',
+        documentType: initialMarket.documentType,
+        documentCountry: initialMarket.countryCode,
         names: '',
         firstLastname: '',
         dob: '',
         phoneNumber: '',
         activity: '',
-        nationality: 'ARG',
+        nationality: initialMarket.countryCode,
         gender: '' as '' | 'H' | 'M' | 'O',
         street: '',
         city: '',
@@ -156,23 +166,7 @@
     }
 
     function fillTestData() {
-        kycForm = {
-            documentNumber: '95456858',
-            documentType: 'DNI',
-            documentCountry: 'ARG',
-            names: 'Test',
-            firstLastname: 'User',
-            dob: '1990-01-01',
-            phoneNumber: '+5491155551234',
-            activity: 'Software Engineer',
-            nationality: 'ARG',
-            gender: 'O',
-            street: 'Av. 9 de Julio 1000',
-            city: 'Buenos Aires',
-            state: 'CABA',
-            zipCode: 'C1043',
-            neighborhood: 'Centro',
-        };
+        kycForm = { ...market.testData };
     }
 
     async function submitKyc() {
