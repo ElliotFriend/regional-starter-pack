@@ -72,7 +72,7 @@ export class KoyweError extends Error {
 // ---------------------------------------------------------------------------
 
 /** Payment rail identifiers shared with `$lib/config/rails.ts`. */
-export type KoyweRail = 'wirear' | 'qri';
+export type KoyweRail = 'wirear' | 'qri' | 'spei' | 'pse';
 
 /** A token Koywe can deliver on Stellar. */
 export interface KoyweTokenInfo {

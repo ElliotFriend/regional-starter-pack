@@ -50,6 +50,19 @@ function mockProviders() {
     server.use(
         http.get(`${BASE_URL}/rest/payment-providers`, ({ request }) => {
             const symbol = new URL(request.url).searchParams.get('symbol');
+            if (symbol === 'MXN') {
+                return HttpResponse.json([
+                    { _id: 'm1', name: 'WIREMX', fee: 0 },
+                    { _id: 'm2', name: 'STP', fee: 0 },
+                ]);
+            }
+            if (symbol === 'COP') {
+                return HttpResponse.json([
+                    { _id: 'c1', name: 'PSE', fee: 0 },
+                    { _id: 'c2', name: 'NEQUI', fee: 0 },
+                ]);
+            }
+            // Default: ARS
             expect(symbol).toBe('ARS');
             return HttpResponse.json([
                 { _id: WIREAR_ID, name: 'WIREAR', fee: 1 },
@@ -70,7 +83,7 @@ describe('metadata', () => {
         expect(client.name).toBe('koywe');
         expect(client.displayName).toBe('Koywe');
         expect(client.supportedCurrencies).toContain('ARS');
-        expect(client.supportedRails).toEqual(['wirear', 'qri']);
+        expect(client.supportedRails).toEqual(['wirear', 'qri', 'spei', 'pse']);
 
         const usdc = client.supportedTokens.find((t) => t.symbol === 'USDC');
         expect(usdc).toBeDefined();
@@ -232,6 +245,31 @@ describe('getPaymentProviders', () => {
         // has no shared local rail id.
         expect(byName.KHIPU.label).toBe('Khipu');
         expect(byName.KHIPU.rail).toBeUndefined();
+    });
+
+    it('labels and maps Mexican SPEI (WIREMX) providers', async () => {
+        // MSW: respond to ?symbol=MXN with [{ _id: 'm1', name: 'WIREMX', fee: 0 }, { _id: 'm2', name: 'STP', fee: 0 }]
+        const client = createClient();
+        mockAuth();
+        mockProviders();
+        const methods = await client.getPaymentProviders('MXN');
+        const spei = methods.find((m) => m.name === 'WIREMX');
+        expect(spei?.label).toBe('Bank transfer (SPEI)');
+        expect(spei?.rail).toBe('spei');
+    });
+
+    it('labels and maps Colombian PSE providers', async () => {
+        // MSW: respond to ?symbol=COP with [{ _id: 'c1', name: 'PSE', fee: 0 }, { _id: 'c2', name: 'NEQUI', fee: 0 }]
+        const client = createClient();
+        mockAuth();
+        mockProviders();
+        const methods = await client.getPaymentProviders('COP');
+        const pse = methods.find((m) => m.name === 'PSE');
+        expect(pse?.label).toBe('PSE');
+        expect(pse?.rail).toBe('pse');
+        const nequi = methods.find((m) => m.name === 'NEQUI');
+        expect(nequi?.label).toBe('Nequi');
+        expect(nequi?.rail).toBeUndefined();
     });
 });
 

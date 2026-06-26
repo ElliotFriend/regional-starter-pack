@@ -89,8 +89,8 @@ export class KoyweClient {
     readonly supportedTokens: readonly KoyweTokenInfo[];
     /** ISO 4217 fiat currency codes supported by Koywe (crypto product). */
     readonly supportedCurrencies: readonly string[] = ['ARS', 'CLP', 'MXN', 'COP', 'PEN', 'BRL'];
-    /** Local payment rails this app surfaces for Koywe (Argentina). */
-    readonly supportedRails: readonly KoyweRail[] = ['wirear', 'qri'];
+    /** Local payment rails this app surfaces for Koywe (per market). */
+    readonly supportedRails: readonly KoyweRail[] = ['wirear', 'qri', 'spei', 'pse'];
 
     private readonly config: KoyweConfig;
     /**
@@ -653,6 +653,20 @@ function labelForProvider(name: string): string {
             return 'QR transfer';
         case 'KHIPU':
             return 'Khipu';
+        case 'WIREMX':
+            return 'Bank transfer (SPEI)';
+        case 'STP':
+            return 'SPEI (STP)';
+        case 'PSE':
+            return 'PSE';
+        case 'BANCOLOMBIA':
+            return 'Bancolombia';
+        case 'NEQUI':
+            return 'Nequi';
+        case 'PALOMMA':
+            return 'Palomma';
+        case 'WIRECO':
+            return 'Bank transfer';
         default:
             return name;
     }
@@ -665,6 +679,10 @@ function railForProvider(name: string): KoyweRail | undefined {
             return 'wirear';
         case 'QRI-AR':
             return 'qri';
+        case 'WIREMX':
+            return 'spei';
+        case 'PSE':
+            return 'pse';
         default:
             return undefined;
     }
