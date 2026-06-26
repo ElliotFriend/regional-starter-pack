@@ -47,4 +47,13 @@ describe('SUPPORTED_COUNTRIES', () => {
         expect(argentina!.currency).toBe('ARS');
         expect(argentina!.paymentMethod).toBe('WIREAR');
     });
+
+    it('includes Colombia (COP/PSE)', () => {
+        expect(SUPPORTED_COUNTRIES.find((c) => c.code === 'CO')).toEqual({
+            code: 'CO',
+            name: 'Colombia',
+            currency: 'COP',
+            paymentMethod: 'PSE',
+        });
+    });
 });

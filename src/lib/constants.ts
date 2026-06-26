@@ -10,8 +10,8 @@ export const SUPPORTED_COUNTRIES = [
     { code: 'MX', name: 'Mexico', currency: 'MXN', paymentMethod: 'SPEI' },
     { code: 'BR', name: 'Brazil', currency: 'BRL', paymentMethod: 'PIX' },
     { code: 'AR', name: 'Argentina', currency: 'ARS', paymentMethod: 'WIREAR' },
+    { code: 'CO', name: 'Colombia', currency: 'COP', paymentMethod: 'PSE' },
     /** TODO: Enable regions as they come online or as activations approach. */
-    // { code: 'CO', name: 'Colombia', currency: 'COP', paymentMethod: 'ACH' },
     // { code: 'CL', name: 'Chile', currency: 'CLP', paymentMethod: 'ACH_CHL' },
     // { code: 'BO', name: 'Bolivia', currency: 'BOB', paymentMethod: 'ACH_BOL' },
     // { code: 'DO', name: 'Dominican Republic', currency: 'DOP', paymentMethod: 'ACH_DOM' },
