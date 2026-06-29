@@ -32,11 +32,13 @@
 ### Task 1: Add the `pse` payment rail + wire Koywe rails into Mexico & Colombia regions
 
 **Files:**
+
 - Modify: `src/lib/config/rails.ts` (add `pse` rail)
 - Modify: `src/lib/config/regions.ts:26-73` (Mexico + Colombia `anchors` and `paymentRails`, descriptions)
 - Test: `tests/config/rails.test.ts`, `tests/config/regions.test.ts`
 
 **Interfaces:**
+
 - Produces: `PAYMENT_RAILS.pse` (id `'pse'`); `REGIONS.mexico.anchors` includes `'koywe'`; `REGIONS.colombia.anchors` includes `'koywe'` and `REGIONS.colombia.paymentRails` includes `PAYMENT_RAILS.pse`.
 
 - [ ] **Step 1: Write failing tests**
@@ -97,6 +99,7 @@ In `src/lib/config/rails.ts`, inside `PAYMENT_RAILS`, after the `breb` entry add
 In `src/lib/config/regions.ts`:
 
 Mexico (`mexico` entry) — change `anchors` and append Koywe to the description:
+
 ```ts
         description:
             'Mexico has a growing crypto ecosystem with SPEI providing fast, reliable bank transfers. Etherfuse ramps to CETES stablebonds and Koywe ramps Mexican pesos to USDC on Stellar over SPEI.',
@@ -105,6 +108,7 @@ Mexico (`mexico` entry) — change `anchors` and append Koywe to the description
 ```
 
 Colombia (`colombia` entry) — add the PSE rail, add Koywe, update description:
+
 ```ts
         description:
             'Colombia is rolling out Bre-B, the central bank’s instant payment system. Manteca ramps Colombian pesos to USDC on Stellar over BRE-B, and Koywe ramps COP to USDC over PSE — both with competitive FX.',
@@ -129,11 +133,13 @@ git commit -m "feat(koywe): add PSE rail and wire Koywe into Mexico & Colombia r
 ### Task 2: Expand `KoyweRail` and teach the client MX/CO rail labels
 
 **Files:**
+
 - Modify: `src/lib/anchors/koywe/types.ts` (the `KoyweRail` union)
 - Modify: `src/lib/anchors/koywe/client.ts:91-93` (`supportedRails`), `:647-671` (`labelForProvider`, `railForProvider`)
 - Test: `tests/anchors/koywe/client.test.ts`
 
 **Interfaces:**
+
 - Consumes: `KoywePaymentMethod` (unchanged shape `{ id, name, label, rail, fee }`).
 - Produces: `KoyweRail = 'wirear' | 'qri' | 'spei' | 'pse'`; `getPaymentProviders('MXN')` returns a method labelled `'Bank transfer (SPEI)'` with `rail: 'spei'` for provider `WIREMX`; `getPaymentProviders('COP')` returns `'PSE'` with `rail: 'pse'` for provider `PSE`.
 
@@ -172,10 +178,13 @@ Expected: FAIL (labels fall through to the raw provider name; rails undefined).
 - [ ] **Step 3: Expand the rail union**
 
 In `src/lib/anchors/koywe/types.ts`, replace:
+
 ```ts
 export type KoyweRail = 'wirear' | 'qri';
 ```
+
 with:
+
 ```ts
 export type KoyweRail = 'wirear' | 'qri' | 'spei' | 'pse';
 ```
@@ -183,17 +192,21 @@ export type KoyweRail = 'wirear' | 'qri' | 'spei' | 'pse';
 - [ ] **Step 4: Expand `supportedRails` and the provider helpers**
 
 In `src/lib/anchors/koywe/client.ts`, replace lines 92-93:
+
 ```ts
     /** Local payment rails this app surfaces for Koywe (Argentina). */
     readonly supportedRails: readonly KoyweRail[] = ['wirear', 'qri'];
 ```
+
 with:
+
 ```ts
     /** Local payment rails this app surfaces for Koywe (per market). */
     readonly supportedRails: readonly KoyweRail[] = ['wirear', 'qri', 'spei', 'pse'];
 ```
 
 Replace `labelForProvider` (lines 648-659):
+
 ```ts
 /** Friendly UI label for a Koywe payment-provider name. */
 function labelForProvider(name: string): string {
@@ -225,6 +238,7 @@ function labelForProvider(name: string): string {
 ```
 
 Replace `railForProvider` (lines 662-671):
+
 ```ts
 /** Map a Koywe provider name to a shared local rail id, if one exists. */
 function railForProvider(name: string): KoyweRail | undefined {
@@ -260,17 +274,19 @@ git commit -m "feat(koywe): map Mexican SPEI and Colombian PSE payment providers
 ### Task 3: Create the `KOYWE_MARKETS` per-market config
 
 **Files:**
+
 - Create: `src/lib/config/koyweMarkets.ts`
 - Test: `tests/config/koywe-markets.test.ts`
 
 **Interfaces:**
+
 - Produces:
-  - `interface KoyweKycTestData` (the `kycForm` shape).
-  - `interface KoyweMarket { region: string; name: string; currency: string; countryCode: string; documentType: string; offRamp: boolean; accountLabel: string; accountPlaceholder: string; accountType?: 'checking' | 'savings'; testData: KoyweKycTestData; testAccountNumber?: string; }`
-  - `const KOYWE_MARKETS: Record<string, KoyweMarket>` keyed by region id (`argentina`, `mexico`, `colombia`).
-  - `function getKoyweMarket(region: string): KoyweMarket | undefined`.
-  - `function koyweMarketRegionIds(): string[]`.
-  - `const DEFAULT_KOYWE_REGION = 'argentina'`.
+    - `interface KoyweKycTestData` (the `kycForm` shape).
+    - `interface KoyweMarket { region: string; name: string; currency: string; countryCode: string; documentType: string; offRamp: boolean; accountLabel: string; accountPlaceholder: string; accountType?: 'checking' | 'savings'; testData: KoyweKycTestData; testAccountNumber?: string; }`
+    - `const KOYWE_MARKETS: Record<string, KoyweMarket>` keyed by region id (`argentina`, `mexico`, `colombia`).
+    - `function getKoyweMarket(region: string): KoyweMarket | undefined`.
+    - `function koyweMarketRegionIds(): string[]`.
+    - `const DEFAULT_KOYWE_REGION = 'argentina'`.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -513,10 +529,12 @@ git commit -m "feat(koywe): add per-market config for Argentina, Mexico, Colombi
 ### Task 4: Add Mexico & Colombia capabilities to `ANCHORS.koywe` and refresh its scorecard/description
 
 **Files:**
+
 - Modify: `src/lib/config/anchors.ts:312-381` (description, scorecard `local-rails` note, knownIssues, `regions`)
 - Test: `tests/config/anchors.test.ts`, `tests/config/scorecard.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `AnchorProfile`/`AnchorCapability` shapes.
 - Produces: `ANCHORS.koywe.regions` has keys `argentina`, `mexico`, `colombia`, each `{ onRamp:true, offRamp:true, paymentRails:[...], tokens:['USDC'], kycRequired:true }`.
 
@@ -634,10 +652,12 @@ git commit -m "feat(koywe): add Mexico & Colombia capabilities and refresh score
 ### Task 5: Enable Colombia in `SUPPORTED_COUNTRIES`
 
 **Files:**
+
 - Modify: `src/lib/constants.ts:9-19`
 - Test: `tests/config/constants.test.ts`
 
 **Interfaces:**
+
 - Produces: `SUPPORTED_COUNTRIES` contains `{ code: 'CO', name: 'Colombia', currency: 'COP', paymentMethod: 'PSE' }`.
 
 - [ ] **Step 1: Write failing test**
@@ -695,6 +715,7 @@ git commit -m "feat(koywe): enable Colombia in SUPPORTED_COUNTRIES"
 ### Task 6: Parameterize the on-ramp page off the `?region=` query param
 
 **Files:**
+
 - Modify: `src/routes/anchors/koywe/onramp/+page.svelte`
 
 **Pattern reference:** `src/routes/anchors/etherfuse/onramp/+page.svelte` — `import { page } from '$app/state'`, `const requestedRegion = $derived(page.url.searchParams.get('region') ?? 'mexico')`, then `$derived` currency/token. Mirror it.
@@ -702,66 +723,71 @@ git commit -m "feat(koywe): enable Colombia in SUPPORTED_COUNTRIES"
 - [ ] **Step 1: Add the imports and region/market derivation**
 
 In the `<script>` import block (after the existing imports), add:
+
 ```ts
-    import { page } from '$app/state';
-    import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
+import { page } from '$app/state';
+import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
 ```
 
 Replace the region-derivation block (lines 27-35):
+
 ```ts
-    // ------------------------------------------------------------------
-    // Region & token derivation (Koywe — region from ?region= query param)
-    // ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// Region & token derivation (Koywe — region from ?region= query param)
+// ------------------------------------------------------------------
 
-    const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
+const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
-    const requestedRegion = $derived(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION);
-    const market = $derived(getKoyweMarket(requestedRegion) ?? KOYWE_MARKETS[DEFAULT_KOYWE_REGION]);
-    const fiatCurrency = $derived(market.currency);
-    const tokenSymbol = 'USDC';
-    // Koywe returns no Stellar issuer; inject the network-correct USDC issuer.
-    const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
+const requestedRegion = $derived(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION);
+const market = $derived(getKoyweMarket(requestedRegion) ?? KOYWE_MARKETS[DEFAULT_KOYWE_REGION]);
+const fiatCurrency = $derived(market.currency);
+const tokenSymbol = 'USDC';
+// Koywe returns no Stellar issuer; inject the network-correct USDC issuer.
+const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
 ```
 
 - [ ] **Step 2: Default the KYC form to the initial market**
 
 The `kycForm` is `$state`, initialized once at component setup. Read the initial market non-reactively for its defaults. Add just above the `kycForm` declaration:
+
 ```ts
-    // Initial market for the one-time KYC-form defaults (the reactive `market`
-    // above drives all display values; users visit one region per page load).
-    const initialMarket =
-        getKoyweMarket(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION) ??
-        KOYWE_MARKETS[DEFAULT_KOYWE_REGION];
+// Initial market for the one-time KYC-form defaults (the reactive `market`
+// above drives all display values; users visit one region per page load).
+const initialMarket =
+    getKoyweMarket(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION) ??
+    KOYWE_MARKETS[DEFAULT_KOYWE_REGION];
 ```
 
 Replace the `kycForm` initializer (lines 55-71) so the document/nationality defaults come from `initialMarket`:
+
 ```ts
-    let kycForm = $state({
-        documentNumber: '',
-        documentType: initialMarket.documentType,
-        documentCountry: initialMarket.countryCode,
-        names: '',
-        firstLastname: '',
-        dob: '',
-        phoneNumber: '',
-        activity: '',
-        nationality: initialMarket.countryCode,
-        gender: '' as '' | 'H' | 'M' | 'O',
-        street: '',
-        city: '',
-        state: '',
-        zipCode: '',
-        neighborhood: '',
-    });
+let kycForm = $state({
+    documentNumber: '',
+    documentType: initialMarket.documentType,
+    documentCountry: initialMarket.countryCode,
+    names: '',
+    firstLastname: '',
+    dob: '',
+    phoneNumber: '',
+    activity: '',
+    nationality: initialMarket.countryCode,
+    gender: '' as '' | 'H' | 'M' | 'O',
+    street: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    neighborhood: '',
+});
 ```
 
 - [ ] **Step 3: Drive `fillTestData` from the market**
 
 Replace the body of `fillTestData` (lines 158-176):
+
 ```ts
-    function fillTestData() {
-        kycForm = { ...market.testData };
-    }
+function fillTestData() {
+    kycForm = { ...market.testData };
+}
 ```
 
 - [ ] **Step 4: Validate the component**
@@ -787,40 +813,45 @@ git commit -m "feat(koywe): select on-ramp market via ?region= query param"
 ### Task 7: Parameterize the off-ramp page off the `?region=` query param
 
 **Files:**
+
 - Modify: `src/routes/anchors/koywe/offramp/+page.svelte`
 
 - [ ] **Step 1: Add imports and region/market derivation**
 
 In the `<script>` import block add:
+
 ```ts
-    import { page } from '$app/state';
-    import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
+import { page } from '$app/state';
+import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
 ```
 
 Replace the region-derivation block (lines 21-29):
+
 ```ts
-    // ------------------------------------------------------------------
-    // Region & token derivation (Koywe — region from ?region= query param)
-    // ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// Region & token derivation (Koywe — region from ?region= query param)
+// ------------------------------------------------------------------
 
-    const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
+const network = (PUBLIC_STELLAR_NETWORK || 'testnet') as StellarNetwork;
 
-    const requestedRegion = $derived(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION);
-    const market = $derived(getKoyweMarket(requestedRegion) ?? KOYWE_MARKETS[DEFAULT_KOYWE_REGION]);
-    const fiatCurrency = $derived(market.currency);
-    const fiatCountry = $derived(market.countryCode);
-    const tokenSymbol = 'USDC';
-    const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
+const requestedRegion = $derived(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION);
+const market = $derived(getKoyweMarket(requestedRegion) ?? KOYWE_MARKETS[DEFAULT_KOYWE_REGION]);
+const fiatCurrency = $derived(market.currency);
+const fiatCountry = $derived(market.countryCode);
+const tokenSymbol = 'USDC';
+const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
 ```
 
 - [ ] **Step 2: Default the KYC form to the initial market**
 
 Add above the `kycForm` declaration (mirroring Task 6 Step 2):
+
 ```ts
-    const initialMarket =
-        getKoyweMarket(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION) ??
-        KOYWE_MARKETS[DEFAULT_KOYWE_REGION];
+const initialMarket =
+    getKoyweMarket(page.url.searchParams.get('region') ?? DEFAULT_KOYWE_REGION) ??
+    KOYWE_MARKETS[DEFAULT_KOYWE_REGION];
 ```
+
 Replace the `kycForm` initializer (lines 50-66) so `documentType: initialMarket.documentType`, `documentCountry: initialMarket.countryCode`, `nationality: initialMarket.countryCode`, all other fields `''`/empty as before.
 
 - [ ] **Step 3: Remove the stale Argentina-only `TODO(koywe)` comment**
@@ -830,65 +861,69 @@ Delete the comment block at lines 72-77 (the `TODO(koywe): off-ramp is BLOCKED h
 - [ ] **Step 4: Drive `fillTestData` from the market**
 
 Replace the body of `fillTestData` (lines 130-153):
+
 ```ts
-    function fillTestData() {
-        kycForm = { ...market.testData };
-        accountNumber = market.testAccountNumber ?? '';
-    }
+function fillTestData() {
+    kycForm = { ...market.testData };
+    accountNumber = market.testAccountNumber ?? '';
+}
 ```
 
 - [ ] **Step 5: Pass `accountType` when the market requires it**
 
 In `registerBankAccount`, extend the `createBankAccount` call (lines 212-220):
+
 ```ts
-            const account =
-                match ??
-                (await koywe.createBankAccount(fetch, {
-                    email,
-                    accountNumber: number,
-                    countryCode: fiatCountry,
-                    currencySymbol: fiatCurrency,
-                    documentNumber: kycForm.documentNumber || undefined,
-                    accountType: market.accountType,
-                }));
+const account =
+    match ??
+    (await koywe.createBankAccount(fetch, {
+        email,
+        accountNumber: number,
+        countryCode: fiatCountry,
+        currencySymbol: fiatCurrency,
+        documentNumber: kycForm.documentNumber || undefined,
+        accountType: market.accountType,
+    }));
 ```
+
 (`CreateBankAccountArgs` already carries optional `accountType` — `client.ts:285`. The `src/lib/api/koywe.ts` `createBankAccount` wrapper forwards the whole args object, so no wrapper change is needed; verify by reading `src/lib/api/koywe.ts:95-103`.)
 
 - [ ] **Step 6: Make the payout-account field + hint market-driven**
 
 Replace the static "CVU / account number" label + placeholder + Argentina-only amber hint (lines 609-631):
+
 ```svelte
-            <h2 class="text-lg font-semibold text-gray-900">Payout account</h2>
-            <p class="mt-1 text-sm text-gray-500">
-                Enter the {market.accountLabel} that will receive your {fiatCurrency}. We'll register
-                it with Koywe as your payout account.
-            </p>
-            <label class="mt-4 block text-sm font-medium text-gray-700" for="accountNumber">
-                {market.accountLabel}
-            </label>
-            <input
-                id="accountNumber"
-                type="text"
-                bind:value={accountNumber}
-                placeholder={market.accountPlaceholder}
-                class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-            {#if market.region === 'argentina'}
-                <p class="mt-2 text-xs text-amber-700">
-                    Heads up: Koywe's sandbox currently rejects bank-account registration with a
-                    validation error even for its own documented DNI↔CVU test pairs (e.g. DNI
-                    <span class="font-mono">34770518</span> ↔ CVU
-                    <span class="font-mono">0000242600000000009120</span>, which "Fill test data"
-                    uses). This is a known Koywe-side limitation — the off-ramp can't complete past
-                    this step until it's resolved.
-                </p>
-            {:else}
-                <p class="mt-2 text-xs text-amber-700">
-                    Heads up: Koywe's sandbox has no published test identities for {market.name},
-                    and its bank-account ownership validation can't be satisfied without them, so the
-                    off-ramp may not complete past this step in the sandbox.
-                </p>
-            {/if}
+<h2 class="text-lg font-semibold text-gray-900">Payout account</h2>
+<p class="mt-1 text-sm text-gray-500">
+    Enter the {market.accountLabel} that will receive your {fiatCurrency}. We'll register it with
+    Koywe as your payout account.
+</p>
+<label class="mt-4 block text-sm font-medium text-gray-700" for="accountNumber">
+    {market.accountLabel}
+</label>
+<input
+    id="accountNumber"
+    type="text"
+    bind:value={accountNumber}
+    placeholder={market.accountPlaceholder}
+    class="mt-1 block w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+/>
+{#if market.region === 'argentina'}
+    <p class="mt-2 text-xs text-amber-700">
+        Heads up: Koywe's sandbox currently rejects bank-account registration with a validation
+        error even for its own documented DNI↔CVU test pairs (e.g. DNI
+        <span class="font-mono">34770518</span> ↔ CVU
+        <span class="font-mono">0000242600000000009120</span>, which "Fill test data" uses). This is
+        a known Koywe-side limitation — the off-ramp can't complete past this step until it's
+        resolved.
+    </p>
+{:else}
+    <p class="mt-2 text-xs text-amber-700">
+        Heads up: Koywe's sandbox has no published test identities for {market.name}, and its
+        bank-account ownership validation can't be satisfied without them, so the off-ramp may not
+        complete past this step in the sandbox.
+    </p>
+{/if}
 ```
 
 - [ ] **Step 7: Validate the component**
@@ -910,71 +945,75 @@ git commit -m "feat(koywe): select off-ramp market via ?region= query param"
 ### Task 8: Make the Koywe landing page multi-region
 
 **Files:**
+
 - Modify: `src/routes/anchors/koywe/+page.svelte`
 
 **Interfaces:**
+
 - Consumes: `getRegionsForAnchor('koywe')` (now Argentina, Mexico, Colombia), `ANCHORS.koywe.regions`. Links carry the region as a `?region=` query param.
 
 - [ ] **Step 1: Replace the single-region script block**
 
 Replace lines 10-13:
+
 ```ts
-    // Koywe serves multiple regions; each links to its own ?region= flow.
-    const koyweRegions = regions.filter((r) => profile.regions[r.id]);
+// Koywe serves multiple regions; each links to its own ?region= flow.
+const koyweRegions = regions.filter((r) => profile.regions[r.id]);
 ```
 
 - [ ] **Step 2: Replace the Region `<section>` with a per-region list**
 
 Replace lines 27-77:
+
 ```svelte
-    <section class="mt-8 space-y-4">
-        <h2 class="text-lg font-semibold text-gray-900">Regions</h2>
-        {#each koyweRegions as r (r.id)}
-            {@const cap = profile.regions[r.id]}
-            <div class="rounded-lg border border-gray-200 bg-white p-6">
-                <div class="flex items-center gap-2">
-                    <span class="text-xl">{r.flag}</span>
-                    <h3 class="text-base font-semibold text-gray-900">{r.name}</h3>
+<section class="mt-8 space-y-4">
+    <h2 class="text-lg font-semibold text-gray-900">Regions</h2>
+    {#each koyweRegions as r (r.id)}
+        {@const cap = profile.regions[r.id]}
+        <div class="rounded-lg border border-gray-200 bg-white p-6">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">{r.flag}</span>
+                <h3 class="text-base font-semibold text-gray-900">{r.name}</h3>
+            </div>
+            <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-500">Currency</span>
+                    <p class="font-medium">{r.currency}</p>
                 </div>
-                <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-500">Currency</span>
-                        <p class="font-medium">{r.currency}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">Rails</span>
-                        <p class="font-medium uppercase">{cap.paymentRails.join(', ')}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">Token</span>
-                        <p class="font-medium">{cap.tokens.join(', ')}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">KYC</span>
-                        <p class="font-medium">{cap.kycRequired ? 'Required' : 'Not required'}</p>
-                    </div>
+                <div>
+                    <span class="text-gray-500">Rails</span>
+                    <p class="font-medium uppercase">{cap.paymentRails.join(', ')}</p>
                 </div>
-                <div class="mt-6 flex gap-3">
-                    {#if cap.onRamp}
-                        <a
-                            href="{resolve('/anchors/koywe/onramp')}?region={r.id}"
-                            class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-indigo-700"
-                        >
-                            On-Ramp ({r.currency} → {cap.tokens[0]})
-                        </a>
-                    {/if}
-                    {#if cap.offRamp}
-                        <a
-                            href="{resolve('/anchors/koywe/offramp')}?region={r.id}"
-                            class="flex-1 rounded-md border border-indigo-600 px-4 py-2 text-center text-sm font-medium text-indigo-600 hover:bg-indigo-50"
-                        >
-                            Off-Ramp ({cap.tokens[0]} → {r.currency})
-                        </a>
-                    {/if}
+                <div>
+                    <span class="text-gray-500">Token</span>
+                    <p class="font-medium">{cap.tokens.join(', ')}</p>
+                </div>
+                <div>
+                    <span class="text-gray-500">KYC</span>
+                    <p class="font-medium">{cap.kycRequired ? 'Required' : 'Not required'}</p>
                 </div>
             </div>
-        {/each}
-    </section>
+            <div class="mt-6 flex gap-3">
+                {#if cap.onRamp}
+                    <a
+                        href="{resolve('/anchors/koywe/onramp')}?region={r.id}"
+                        class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                        On-Ramp ({r.currency} → {cap.tokens[0]})
+                    </a>
+                {/if}
+                {#if cap.offRamp}
+                    <a
+                        href="{resolve('/anchors/koywe/offramp')}?region={r.id}"
+                        class="flex-1 rounded-md border border-indigo-600 px-4 py-2 text-center text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+                    >
+                        Off-Ramp ({cap.tokens[0]} → {r.currency})
+                    </a>
+                {/if}
+            </div>
+        </div>
+    {/each}
+</section>
 ```
 
 (`resolve('/anchors/koywe/onramp')` returns the base path; the `?region=` suffix is appended in the template. `svelte/no-navigation-without-resolve` is disabled project-wide, so the concatenated href is fine — this matches how bespoke pages build dynamic hrefs.)
@@ -1002,11 +1041,13 @@ git commit -m "feat(koywe): list all served regions on the landing page"
 ### Task 9: Update docs (README) and run the full verification sweep
 
 **Files:**
+
 - Modify: `src/lib/anchors/koywe/README.md`
 
 - [ ] **Step 1: Update the README coverage statement**
 
 In `src/lib/anchors/koywe/README.md`, replace the "Handles fiat on/off ramps in Argentina:" line (5) and its bullet (7) with:
+
 ```markdown
 Handles fiat on/off ramps across three Latin American markets:
 
@@ -1031,6 +1072,7 @@ pnpm check
 pnpm lint
 pnpm build
 ```
+
 Expected: all green. Investigate any regression in `tests/config/*` or `tests/anchors/koywe/*` before proceeding.
 
 - [ ] **Step 3: Commit**
