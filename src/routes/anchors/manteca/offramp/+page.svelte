@@ -414,7 +414,10 @@
             if (!depositAddress) {
                 throw new Error('Manteca did not return a Stellar deposit address for this order');
             }
-            await signAndSubmit(depositAddress, amount);
+            // AmountInput binds a `type="number"` field, so `amount` is a JS
+            // number at runtime despite the string contract. The Stellar SDK's
+            // Operation.payment rejects non-string amounts, so coerce here.
+            await signAndSubmit(depositAddress, String(amount));
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to create off-ramp';
         } finally {

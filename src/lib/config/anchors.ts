@@ -483,11 +483,11 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             },
             'accurate-docs': {
                 status: 'partial',
-                note: 'Verified live: several wire shapes diverge from the published reference — nested effectivePrice (not flat), {user,person} onboarding envelope, PIX deposit object (no scalar address), sex F/M/X enum',
+                note: '2026 docs corrected auth, onboarding, and the ramp-off destination to match the wire. Residual: docs type depositAddresses.STELLAR as a string, but the wire returns an object (use .address); the scalar depositAddress holds the EVM address.',
             },
             'high-fidelity-sandbox': {
-                status: 'partial',
-                note: 'Pipeline proven on EVM (Base Sepolia round trip settles both directions on-chain); only the sandbox Stellar leg is broken — withdraws fail with no broadcast and deposits go undetected, vendor fix pending (reported June 2026). Issuer mismatch ruled out (pooled account trustlines the same Circle testnet USDC). Fiat legs auto-mock.',
+                status: 'met',
+                note: 'Verified end-to-end on testnet — on-ramp settles USDC to the user’s Stellar address, off-ramp accepts the payment and pays out fiat. Earlier Stellar-settlement gap fixed by Manteca (June 2026). Fiat legs auto-mock.',
             },
             'agent-buildable': {
                 status: 'met',
@@ -499,10 +499,6 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             },
         }),
         knownIssues: [
-            {
-                text: 'The sandbox never settles the Stellar leg — withdraws fail and deposits go undetected — though a full EVM round trip completes, so the gap is Manteca-side and was reported. Fiat legs auto-settle.',
-                link: 'https://developers.manteca.dev/recipes/ramp-on-synthetic',
-            },
             {
                 text: 'Sandbox onboarding only accepts a fixed set of seeded test identities per market; arbitrary valid IDs are rejected and each seeded ID is single-use. Repeatable testing needs Manteca’s seeded list.',
             },
