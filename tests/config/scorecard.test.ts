@@ -131,7 +131,7 @@ describe('buildReadiness', () => {
 
     it('verdicts follow the severity split', () => {
         expect(byId.etherfuse.verdict).toBe('ready'); // all 6 met
-        expect(byId.koywe.verdict).toBe('blocked'); // required: high-fidelity-sandbox failed
+        expect(byId.koywe.verdict).toBe('partial'); // no required fail; open-access + agent-buildable partial
         expect(byId.alfredpay.verdict).toBe('blocked');
         expect(byId.blindpay.verdict).toBe('partial'); // no required fail; partial/unverified
         expect(byId.abroad.verdict).toBe('blocked');
@@ -139,7 +139,7 @@ describe('buildReadiness', () => {
     });
 
     it('blockers are failed required signals; caveats are the other not-met signals', () => {
-        expect(byId.koywe.blockers.map((s) => s.id)).toEqual(['high-fidelity-sandbox']);
+        expect(byId.koywe.blockers).toEqual([]); // sandbox now settles the Stellar USDC leg
         expect(byId.koywe.caveats.map((s) => s.id).sort()).toEqual(
             ['agent-buildable', 'open-access'].sort(),
         );
@@ -184,9 +184,9 @@ describe('toMarkdown', () => {
     });
 
     it('surfaces blocker and caveat notes in a per-anchor detail section', () => {
-        // Koywe's sandbox blocker note must appear (the "why").
-        expect(md).toContain('cannot settle the Stellar USDC leg');
-        // A caveat note too.
+        // Koywe's agent-buildable caveat note must appear (the "why").
+        expect(md).toContain('opaque/silent sandbox failures');
+        // The blocker/caveat detail section is present.
         expect(md.toLowerCase()).toMatch(/blocker|caveat/);
     });
 
