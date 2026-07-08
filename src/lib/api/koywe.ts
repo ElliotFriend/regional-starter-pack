@@ -153,6 +153,26 @@ export async function getOrder(
     }
 }
 
+/**
+ * Fetch an order by the client-supplied `externalId` (idempotency key) instead
+ * of Koywe's `orderId`. Lets a page resume tracking after a hosted-payment
+ * redirect, where only the round-tripped `externalId` is known.
+ */
+export async function getOrderByExternalId(
+    fetch: Fetch,
+    externalId: string,
+    email?: string,
+): Promise<KoyweOrder | null> {
+    const params = new URLSearchParams({ externalId });
+    if (email) params.set('email', email);
+    try {
+        return await apiRequest<KoyweOrder>(fetch, `/api/anchor/koywe/order?${params}`);
+    } catch (err) {
+        if (err instanceof KoyweApiError && err.statusCode === 404) return null;
+        throw err;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // KYC
 // ---------------------------------------------------------------------------

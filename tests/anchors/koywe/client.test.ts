@@ -427,6 +427,107 @@ describe('createOnRampOrder', () => {
         expect(order.id).toBe('order-doc');
         expect(order.interactiveUrl).toBe('https://ramp.koywe.test/khipu/order-doc');
     });
+
+    it('passes callbackUrl + externalId through when supplied, and omits them otherwise', async () => {
+        const client = createClient();
+        mockAuth();
+        const bodies: Record<string, unknown>[] = [];
+        server.use(
+            http.post(`${BASE_URL}/rest/orders`, async ({ request }) => {
+                bodies.push((await request.json()) as Record<string, unknown>);
+                return HttpResponse.json({
+                    orderId: 'order-cb',
+                    quoteId: 'q',
+                    amountIn: 10000,
+                    amountOut: 5,
+                    symbolIn: 'ARS',
+                    symbolOut: 'USDC Stellar',
+                    providedAction: 'https://app.khipu.com/payment/simplified/abc',
+                });
+            }),
+        );
+
+        await client.createOnRampOrder({
+            quoteId: 'q',
+            stellarAddress: STELLAR_PUBKEY,
+            email: EMAIL,
+            callbackUrl: 'https://my.app/anchors/koywe/onramp?region=argentina&ref=ext-1',
+            externalId: 'ext-1',
+        });
+        await client.createOnRampOrder({
+            quoteId: 'q',
+            stellarAddress: STELLAR_PUBKEY,
+            email: EMAIL,
+        });
+
+        expect(bodies[0].callbackUrl).toBe(
+            'https://my.app/anchors/koywe/onramp?region=argentina&ref=ext-1',
+        );
+        expect(bodies[0].externalId).toBe('ext-1');
+        expect(bodies[1]).not.toHaveProperty('callbackUrl');
+        expect(bodies[1]).not.toHaveProperty('externalId');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getOrderByExternalId
+// ---------------------------------------------------------------------------
+
+describe('getOrderByExternalId', () => {
+    it('fetches an order by client-supplied externalId and maps the display asset', async () => {
+        const client = createClient();
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/orders/external_id/ext-42`, () =>
+                HttpResponse.json({
+                    orderId: 'order-42',
+                    status: 'DELIVERED',
+                    amountIn: 10000,
+                    amountOut: 5.59,
+                    symbolIn: 'ARS',
+                    symbolOut: 'USDC Stellar',
+                    txHash: 'abc123',
+                }),
+            ),
+        );
+        const order = await client.getOrderByExternalId('ext-42', EMAIL);
+        expect(order!.id).toBe('order-42');
+        expect(order!.status).toBe('DELIVERED');
+        expect(order!.targetAsset).toBe('USDC');
+        expect(order!.txHash).toBe('abc123');
+    });
+
+    it('returns null on 404', async () => {
+        const client = createClient();
+        mockAuth();
+        server.use(
+            http.get(`${BASE_URL}/rest/orders/external_id/nope`, () =>
+                HttpResponse.json({ statusCode: 404, message: 'not found' }, { status: 404 }),
+            ),
+        );
+        expect(await client.getOrderByExternalId('nope')).toBeNull();
+    });
+
+    it('url-encodes the externalId', async () => {
+        const client = createClient();
+        mockAuth();
+        let hit = false;
+        server.use(
+            http.get(`${BASE_URL}/rest/orders/external_id/a%2Fb`, () => {
+                hit = true;
+                return HttpResponse.json({
+                    orderId: 'o',
+                    status: 'WAITING',
+                    amountIn: 1,
+                    amountOut: 1,
+                    symbolIn: 'ARS',
+                    symbolOut: 'USDC Stellar',
+                });
+            }),
+        );
+        await client.getOrderByExternalId('a/b');
+        expect(hit).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------

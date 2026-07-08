@@ -238,6 +238,8 @@ export class KoyweClient {
                 destinationAddress: args.stellarAddress,
                 ...(email ? { email } : {}),
                 documentNumber: args.documentNumber,
+                ...(args.callbackUrl ? { callbackUrl: args.callbackUrl } : {}),
+                ...(args.externalId ? { externalId: args.externalId } : {}),
             },
             email,
         );
@@ -383,10 +385,31 @@ export class KoyweClient {
      * @throws {KoyweError} On non-404 API errors.
      */
     async getOrder(orderId: string, email?: string): Promise<KoyweOrder | null> {
+        return this.fetchOrder(`/rest/orders/${encodeURIComponent(orderId)}`, email);
+    }
+
+    /**
+     * Fetch an order by the client-supplied `externalId` (the idempotency key
+     * passed to {@link createOnRampOrder}) rather than Koywe's `orderId`
+     * (`GET /rest/orders/external_id/{externalId}`).
+     *
+     * Useful to resume tracking after a hosted-payment redirect: the caller
+     * knows its own `externalId` before the order exists, so it can round-trip
+     * it through the `callbackUrl` and look the order up on return.
+     *
+     * @returns The order, or `null` if not found.
+     * @throws {KoyweError} On non-404 API errors.
+     */
+    async getOrderByExternalId(externalId: string, email?: string): Promise<KoyweOrder | null> {
+        return this.fetchOrder(`/rest/orders/external_id/${encodeURIComponent(externalId)}`, email);
+    }
+
+    /** Shared GET-and-map for the two order-lookup endpoints. 404 → `null`. */
+    private async fetchOrder(endpoint: string, email?: string): Promise<KoyweOrder | null> {
         try {
             const response = await this.request<KoyweOrderResponse>(
                 'GET',
-                `/rest/orders/${encodeURIComponent(orderId)}`,
+                endpoint,
                 undefined,
                 email ?? this.config.email,
             );

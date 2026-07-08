@@ -1,7 +1,8 @@
 /**
  * Koywe order endpoint.
- * GET: fetch an order (on- or off-ramp) by `orderId` query param for polling.
- *   Optional `email` query param scopes the auth token to that user.
+ * GET: fetch an order (on- or off-ramp) for polling, by either `orderId` or
+ *   `externalId` query param (the client-supplied idempotency key). Optional
+ *   `email` query param scopes the auth token to that user.
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -11,12 +12,15 @@ import { KoyweError } from '$lib/anchors/koywe';
 
 export const GET: RequestHandler = async ({ url }) => {
     const orderId = url.searchParams.get('orderId');
-    if (!orderId) {
-        throw error(400, { message: 'orderId query parameter is required' });
+    const externalId = url.searchParams.get('externalId');
+    if (!orderId && !externalId) {
+        throw error(400, { message: 'orderId or externalId query parameter is required' });
     }
     const email = url.searchParams.get('email') ?? undefined;
     try {
-        const order = await getKoywe().getOrder(orderId, email);
+        const order = orderId
+            ? await getKoywe().getOrder(orderId, email)
+            : await getKoywe().getOrderByExternalId(externalId!, email);
         if (!order) {
             throw error(404, { message: 'Order not found' });
         }

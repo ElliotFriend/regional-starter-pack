@@ -320,6 +320,20 @@ export interface CreateOnRampOrderArgs {
     email?: string;
     /** End-user national document number (some flows require it). */
     documentNumber?: string;
+    /**
+     * URL Koywe returns the user to after the hosted payment step (Khipu/QRI).
+     * When omitted, Koywe defaults to its own hosted interface. The hosted pay
+     * page (`providedAction`) is returned either way — this only controls where
+     * the user lands afterward.
+     */
+    callbackUrl?: string;
+    /**
+     * Client-supplied unique id (idempotency key). Because the caller mints it
+     * before the order exists, it can be round-tripped through `callbackUrl` and
+     * used with {@link KoyweClient.getOrderByExternalId} to resume tracking after
+     * a hosted-payment redirect.
+     */
+    externalId?: string;
 }
 
 /** Args for {@link KoyweClient.createOffRampOrder}. */

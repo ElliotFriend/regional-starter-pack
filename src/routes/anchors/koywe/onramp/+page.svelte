@@ -258,15 +258,77 @@
         isWorking = true;
         error = null;
         try {
+            const externalId = crypto.randomUUID();
+            const callback = new URL(window.location.href);
+            callback.searchParams.set('ref', externalId);
+            // Stash the email so the returned tab can recover it for token scoping.
+            try {
+                localStorage.setItem(`koywe:onramp:${externalId}`, JSON.stringify({ email }));
+            } catch {
+                /* ignore */
+            }
             order = await koywe.createOnRampOrder(fetch, {
                 quoteId: quote.id,
                 stellarAddress: walletStore.publicKey,
                 email,
+                callbackUrl: callback.toString(),
+                externalId,
             });
             step = 'payment';
             orderPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to create order';
+        } finally {
+            isWorking = false;
+        }
+    }
+
+    /**
+     * Resume tracking an order after the hosted-payment redirect. Koywe returns the
+     * user to `?ref=<externalId>` (in a new tab); we recover the order by that id.
+     */
+    async function resumeFromRef(ref: string) {
+        isWorking = true;
+        error = null;
+        try {
+            let storedEmail = '';
+            try {
+                storedEmail =
+                    JSON.parse(localStorage.getItem(`koywe:onramp:${ref}`) ?? '{}').email ?? '';
+            } catch {
+                /* ignore malformed storage */
+            }
+            if (storedEmail) email = storedEmail;
+            const resumed = await koywe.getOrderByExternalId(fetch, ref, email || undefined);
+            if (!resumed) {
+                error = 'Could not find the Koywe order to resume from the payment redirect.';
+                return;
+            }
+            lifecycle = resumed;
+            order = {
+                id: resumed.id,
+                quoteId: '',
+                status: resumed.status,
+                sourceAmount: resumed.sourceAmount,
+                destinationAmount: resumed.destinationAmount,
+                sourceAsset: resumed.sourceAsset,
+                targetAsset: resumed.targetAsset,
+                stellarAddress: walletStore.publicKey ?? '',
+                deposit: resumed.deposit,
+                interactiveUrl: resumed.interactiveUrl,
+            };
+            if (resumed.status === 'DELIVERED') {
+                step = 'complete';
+            } else if (resumed.isDeliveryExpired) {
+                step = 'payment';
+                error =
+                    'Koywe stopped retrying the on-chain delivery, so this order will not complete.';
+            } else {
+                step = 'payment';
+                orderPoller.start();
+            }
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to resume the Koywe order';
         } finally {
             isWorking = false;
         }
@@ -315,6 +377,8 @@
     }
 
     onMount(() => {
+        const ref = page.url.searchParams.get('ref');
+        if (ref) resumeFromRef(ref);
         return () => orderPoller.stop();
     });
 </script>

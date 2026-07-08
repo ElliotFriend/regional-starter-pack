@@ -1,7 +1,7 @@
 /**
  * Koywe on-ramp endpoint.
  * POST: create an on-ramp order (fiat → USDC) from an executable quote.
- *   body: { quoteId, stellarAddress, email?, documentNumber? }
+ *   body: { quoteId, stellarAddress, email?, documentNumber?, callbackUrl?, externalId? }
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -20,6 +20,8 @@ export const POST: RequestHandler = async ({ request }) => {
             stellarAddress: body.stellarAddress,
             email: body.email,
             documentNumber: body.documentNumber,
+            callbackUrl: body.callbackUrl,
+            externalId: body.externalId,
         });
         return json(order, { status: 201 });
     } catch (err) {
