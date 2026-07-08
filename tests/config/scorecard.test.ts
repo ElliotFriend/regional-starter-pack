@@ -116,10 +116,10 @@ describe('buildReadiness', () => {
 
     it('reflects the live Manteca sandbox findings', () => {
         const sig = (id: string) => byId.manteca.signals.find((s) => s.id === id);
-        // Stellar leg is broken in Manteca's sandbox (withdraw no-broadcast, deposit
-        // undetected) but the full ramp pipeline completes on EVM and a vendor-side
-        // fix is pending → high-fidelity-sandbox is PARTIAL, not a confirmed failure.
-        expect(sig('high-fidelity-sandbox')?.status).toBe('partial');
+        // Both Stellar legs now settle end-to-end in Manteca's sandbox (on-ramp lands
+        // USDC, off-ramp accepts the payment and pays out fiat) → high-fidelity-sandbox
+        // is MET. The earlier Stellar-settlement gap was fixed by Manteca (June 2026).
+        expect(sig('high-fidelity-sandbox')?.status).toBe('met');
         // Per-quote fee is discoverable on the synthetic (withdrawCost*, effectivePrice).
         expect(sig('fee-discoverability')?.status).toBe('met');
         // Still blocked — but on open-access (sandbox keys sales-gated, no self-serve),
