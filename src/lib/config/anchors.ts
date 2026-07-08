@@ -994,7 +994,7 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             'accurate-docs': { status: 'met', note: 'Public docs + OpenAPI + llms.txt' },
             'high-fidelity-sandbox': {
                 status: 'failed',
-                note: 'Sandbox is mocked; Stellar excluded from sim addresses, no real testnet result',
+                note: 'USDC-XLM partially wired to testnet but not reconciled: on-ramp payout fails → refund (no txHash); off-ramp gives a real testnet deposit address but ignores the on-chain credit (mock completes via sender name, totalCryptoReceived=0)',
             },
             'agent-buildable': {
                 status: 'met',
