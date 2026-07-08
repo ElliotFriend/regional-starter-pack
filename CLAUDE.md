@@ -29,7 +29,7 @@ Each curated anchor owns its own client, its own server-side instance singleton,
     - `testanchor.ts` — typed wrappers around `/api/anchor/testanchor/*`.
 - `src/lib/wallet/` — Freighter wallet API + Stellar helpers (Horizon, transactions, trustlines).
 - `src/lib/components/` — Shared UI primitives. None of them encode anchor-specific logic; each bespoke flow page composes them.
-    - Top-level: `WalletConnect`, `QuoteDisplay`, `KycIframe`, `CriteriaScorecard` (two-lens scorecard renderer; compact + `detailed` modes; Lucide status icons), `HonorableMentionAnchors`.
+    - Top-level: `WalletConnect`, `QuoteDisplay`, `KycIframe`, `CriteriaScorecard` (two-lens scorecard renderer; compact + `detailed` modes; Lucide status icons), `HonorableMentionAnchors`, `AnchorRegionSelector` (standard region section for an anchor landing page — takes `{ profile }`, renders `?region=` toggle chips when multi-region, a capability grid, and capability-gated ramp buttons).
     - `ramp/`: `AmountInput`, `TrustlineStatus`.
     - `ui/`: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`.
 - `src/lib/stores/` — `wallet.svelte.ts` (Freighter connection state) and `auth.ts` (SEP-10 JWT cache, keyed by provider + public key).
@@ -100,7 +100,7 @@ A self-updating, machine-readable view of how build-ready each anchor is, derive
 2. Create `src/lib/server/<name>Instance.ts` — singleton getter that reads env vars. Pass `debug: dev` (from `$app/environment`) so the client logs in local dev and stays quiet in production.
 3. Create `src/lib/api/<name>.ts` — client-side fetch wrappers per route. Mirror the per-provider shape from `etherfuse.ts` / `testanchor.ts`.
 4. Create `src/routes/api/anchor/<name>/<operation>/+server.ts` per operation.
-5. Create `src/routes/anchors/<name>/+page.svelte` (landing) and `<name>/<flow>/+page.svelte` per flow. Compose primitives from `src/lib/components/`. Don't try to share flow logic with another anchor in this PR — let it duplicate.
+5. Create `src/routes/anchors/<name>/+page.svelte` (landing) and `<name>/<flow>/+page.svelte` per flow. Compose primitives from `src/lib/components/`. Don't try to share flow logic with another anchor in this PR — let it duplicate. The landing page's region display must use `AnchorRegionSelector` (`<AnchorRegionSelector {profile} />`) — for a multi-region anchor this gives toggle-able region chips, matching the established pattern; don't hand-roll the region section.
 6. Add the provider to `src/lib/constants.ts` (`PROVIDER`).
 7. Add to `src/lib/config/anchors.ts` (`ANCHORS`).
 8. Add to `src/lib/config/regions.ts` if the anchor serves a region.
