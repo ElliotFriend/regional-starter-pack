@@ -21,8 +21,10 @@ describe('KOYWE_MARKETS', () => {
         expect(getKoyweMarket('argentina')).toMatchObject({ currency: 'ARS', countryCode: 'ARG' });
     });
 
-    it('uses wire-enum-safe document types', () => {
-        expect(getKoyweMarket('mexico')?.documentType).toBe('RFC');
+    it('defaults to the right document type per market', () => {
+        // Mexico keys individuals by CURP (Koywe compliance docs), not RFC; the
+        // offramp UI still lets the user switch to RFC.
+        expect(getKoyweMarket('mexico')?.documentType).toBe('CURP');
         expect(getKoyweMarket('colombia')?.documentType).toBe('CED_CIU');
         expect(getKoyweMarket('argentina')?.documentType).toBe('DNI');
     });

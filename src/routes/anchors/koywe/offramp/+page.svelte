@@ -4,6 +4,7 @@
     import { page } from '$app/state';
     import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
     import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
+    import { generateCurp, generateRfc } from '$lib/utils/mexico';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
     import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
@@ -31,6 +32,11 @@
     const fiatCurrency = $derived(market.currency);
     const fiatCountry = $derived(market.countryCode);
     const tokenSymbol = 'USDC';
+
+    // Mexico keys individuals by CURP or RFC; the UI offers a picker that
+    // regenerates a valid, checksum-correct number for the chosen type.
+    const isMexico = $derived(market.region === 'mexico');
+    const generateMxDocument = (type: string) => (type === 'RFC' ? generateRfc() : generateCurp());
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
 
     // ------------------------------------------------------------------
@@ -130,6 +136,8 @@
 
     function fillTestData() {
         kycForm = { ...market.testData };
+        // Fresh document each fill so we never reuse an identity.
+        if (isMexico) kycForm.documentNumber = generateMxDocument(kycForm.documentType);
         accountNumber = market.testAccountNumber ?? '';
     }
 
@@ -319,6 +327,11 @@
     }
 
     onMount(() => {
+        // Seed a document number client-side (avoids an SSR/hydration mismatch on
+        // the random value) so the CURP/RFC field isn't empty on first paint.
+        if (isMexico && !kycForm.documentNumber) {
+            kycForm.documentNumber = generateMxDocument(kycForm.documentType);
+        }
         return () => payoutPoller.stop();
     });
 </script>
@@ -415,19 +428,49 @@
                 <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <label class="block sm:col-span-1">
                         <span class="text-xs font-medium text-gray-700">Type</span>
-                        <input
-                            type="text"
-                            bind:value={kycForm.documentType}
-                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        />
+                        {#if isMexico}
+                            <select
+                                value={kycForm.documentType}
+                                onchange={(e) => {
+                                    kycForm.documentType = e.currentTarget.value;
+                                    kycForm.documentNumber = generateMxDocument(
+                                        kycForm.documentType,
+                                    );
+                                }}
+                                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                                <option value="CURP">CURP</option>
+                                <option value="RFC">RFC</option>
+                            </select>
+                        {:else}
+                            <input
+                                type="text"
+                                bind:value={kycForm.documentType}
+                                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            />
+                        {/if}
                     </label>
                     <label class="block sm:col-span-1">
                         <span class="text-xs font-medium text-gray-700">Number</span>
-                        <input
-                            type="text"
-                            bind:value={kycForm.documentNumber}
-                            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        />
+                        <div class="mt-1 flex gap-2">
+                            <input
+                                type="text"
+                                bind:value={kycForm.documentNumber}
+                                class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            />
+                            {#if isMexico}
+                                <button
+                                    type="button"
+                                    onclick={() =>
+                                        (kycForm.documentNumber = generateMxDocument(
+                                            kycForm.documentType,
+                                        ))}
+                                    class="shrink-0 rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    Generate
+                                </button>
+                            {/if}
+                        </div>
                     </label>
                     <label class="block sm:col-span-1">
                         <span class="text-xs font-medium text-gray-700">Country</span>

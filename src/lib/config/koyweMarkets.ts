@@ -17,6 +17,8 @@
  * ([CLP, COP, MXN, PEN]) that gates Mexico/Colombia.
  */
 
+import { generateClabe, generateCurp } from '$lib/utils/mexico';
+
 export interface KoyweKycTestData {
     documentNumber: string;
     documentType: string;
@@ -98,14 +100,19 @@ export const KOYWE_MARKETS: Record<string, KoyweMarket> = {
         name: 'Mexico',
         currency: 'MXN',
         countryCode: 'MEX',
-        documentType: 'RFC',
+        // Koywe keys Mexican individuals by CURP (RFC is for companies), despite
+        // the bundled OpenAPI enum omitting it. The offramp UI lets the user pick
+        // CURP/RFC and regenerates a matching number.
+        documentType: 'CURP',
         offRamp: true,
         accountLabel: 'CLABE',
-        accountPlaceholder: '646180374711307483',
-        testAccountNumber: '646180374711307483',
+        accountPlaceholder: '646180157000000004',
+        // Generated fresh per module load so "Fill test data" yields a unique,
+        // checksum-valid CLABE (the old hard-coded placeholder was neither).
+        testAccountNumber: generateClabe('646'),
         testData: {
-            documentNumber: 'TEST920101HDFXXX01',
-            documentType: 'RFC',
+            documentNumber: generateCurp(),
+            documentType: 'CURP',
             documentCountry: 'MEX',
             names: 'Test',
             firstLastname: 'User',
