@@ -4,6 +4,7 @@ import {
     getAllRegions,
     getAnchorsForRegion,
     getRegionsForAnchor,
+    regionChip,
 } from '$lib/config/regions';
 
 describe('getRegion', () => {
@@ -152,6 +153,19 @@ describe('getRegionsForAnchor', () => {
 
     it('returns empty array for nonexistent anchor', () => {
         expect(getRegionsForAnchor('nonexistent')).toEqual([]);
+    });
+});
+
+describe('regionChip', () => {
+    it('returns name + flag for a configured region', () => {
+        expect(regionChip('mexico')).toEqual({ name: 'Mexico', flag: '🇲🇽' });
+        expect(regionChip('brazil')).toEqual({ name: 'Brazil', flag: '🇧🇷' });
+    });
+
+    it('falls back to a title-cased name with no flag for free-form markets', () => {
+        // Markets that live only on an anchor's scorecard (no REGIONS entry).
+        expect(regionChip('kenya')).toEqual({ name: 'Kenya', flag: '' });
+        expect(regionChip('philippines')).toEqual({ name: 'Philippines', flag: '' });
     });
 });
 

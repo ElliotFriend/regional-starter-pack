@@ -93,6 +93,17 @@ export function getRegion(id: string): Region | undefined {
     return REGIONS[id];
 }
 
+/**
+ * Display label + flag for a region id, for compact chips. Falls back to a
+ * title-cased name (and no flag) for free-form markets that live only on an
+ * anchor's scorecard and have no REGIONS entry (e.g. kenya, philippines).
+ */
+export function regionChip(id: string): { name: string; flag: string } {
+    const region = REGIONS[id];
+    if (region) return { name: region.name, flag: region.flag };
+    return { name: id.charAt(0).toUpperCase() + id.slice(1), flag: '' };
+}
+
 export function getAllRegions(): Region[] {
     return Object.values(REGIONS);
 }

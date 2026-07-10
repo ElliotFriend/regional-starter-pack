@@ -75,19 +75,40 @@
             {@const verdict = VERDICT[entry.verdict]}
             <div class="rounded-lg border border-gray-200 bg-white p-6">
                 <!-- Header -->
-                <div class="flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-2">
-                        <h2 class="text-lg font-semibold text-gray-900">{entry.name}</h2>
-                        {#if entry.vetting}
-                            <span
-                                class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-amber-700 uppercase"
-                            >
-                                Under evaluation
-                            </span>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="text-lg font-semibold text-gray-900">{entry.name}</h2>
+                            {#if entry.curated}
+                                <span
+                                    class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-indigo-700 uppercase"
+                                >
+                                    Curated
+                                </span>
+                            {/if}
+                            {#if entry.vetting}
+                                <span
+                                    class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-amber-700 uppercase"
+                                >
+                                    Under evaluation
+                                </span>
+                            {/if}
+                        </div>
+                        {#if entry.regionChips.length}
+                            <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                {#each entry.regionChips as chip (chip.name)}
+                                    <span
+                                        class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                                    >
+                                        {#if chip.flag}<span aria-hidden="true">{chip.flag}</span
+                                            >{/if}{chip.name}
+                                    </span>
+                                {/each}
+                            </div>
                         {/if}
                     </div>
                     <span
-                        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {verdict.class}"
+                        class="inline-flex flex-none items-center rounded-full px-2.5 py-0.5 text-xs font-medium {verdict.class}"
                     >
                         {verdict.label}
                     </span>
