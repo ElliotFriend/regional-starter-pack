@@ -367,7 +367,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'The off-ramp order field name and the submit-tx-hash REST path follow the documented OpenAPI spec but have not been verified end-to-end against the live sandbox.',
             },
             {
-                text: "Off-ramp is blocked at bank-account registration: POST /rest/bank-accounts returns a 400 ownership-validation error even for Koywe's own documented DNI↔CVU test pairs. Appears to be a non-functional sandbox validation backend on Koywe's side; awaiting the Koywe team.",
+                text: "Off-ramp is blocked at bank-account registration: POST /rest/bank-accounts returns a 400 ownership-validation error even for Koywe's own documented DNI↔CVU test pairs. Appears to be a non-functional sandbox validation backend on Koywe's side.",
             },
             {
                 text: 'KYC document numbers are single-use: re-using a whitelisted test DNI on a new account returns "account already exists with that document number", so the small pool of sandbox test identities is quickly exhausted. Account verification status is read live via GET /rest/accounts/{email}/check.',
@@ -496,7 +496,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             'deep-liquidity': { status: 'met', note: '~$10M/day per survey; Bybit partnership' },
             'open-access': {
                 status: 'failed',
-                note: 'Sandbox keys are sales-gated — obtained one via sales, still no self-serve',
+                note: 'Sandbox keys are sales-gated (not self-serve)',
             },
             'accurate-docs': {
                 status: 'partial',
@@ -1075,7 +1075,7 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         scorecard: makeCriteria({
             'local-asset': {
                 status: 'failed',
-                note: 'TRYB is TRY-pegged but not on Stellar (EVM/Solana); Stellar issuance in the works, unconfirmed',
+                note: 'TRYB is TRY-pegged but not issued on Stellar (EVM/Solana only)',
             },
             'local-rails': {
                 status: 'met',
