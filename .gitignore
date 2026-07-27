@@ -24,7 +24,8 @@ vite.config.ts.timestamp-*
 
 # AI tooling
 .agents/
-.claude/
+.claude/*
+!.claude/skills/
 
 # DX test projects (temporary, recreated each round)
 sample-dx-project/
