@@ -13,7 +13,7 @@ SIGNING_KEY="${signingKeyPublicKey}"
 
 [DOCUMENTATION]
 ORG_NAME="Regional Starter Pack"
-ORG_URL="https://regional-starter-pack.vercel.app"
+ORG_URL="https://www.regionalstarterpack.com"
 ORG_DESCRIPTION="An anchor library and demo for the Stellar network."
 ORG_KEYBASE="elliotfriend"
 ORG_TWITTER="elliotfriend"
