@@ -16,4 +16,4 @@ are simulated; the Stellar leg pays real testnet USDC.
 `stellar:USDC:<issuer>` and require the bare code `USDC`, while the fiat leg
 still requires `iso4217:TRY`. `TrMockRampClient.exchangeAssetRef()` encodes
 this; `sep38AssetId()` returns the spec form for SEP-38 quotes, which do
-accept it. Verified 2026-09-15. See `docs/bilira-mock-sep6-findings.md`.
+accept it. Verified 2026-09-15 (internal notes, not in this repo).

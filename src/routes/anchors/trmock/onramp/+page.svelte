@@ -173,6 +173,13 @@
         error = null;
         step = 'amount';
     }
+
+    // The SEP-38 fee asset arrives as `iso4217:TRY` or `stellar:USDC:<issuer>`.
+    // Strip the scheme and, for the Stellar form, show just the asset code.
+    function feeUnit(asset: string): string {
+        const parts = asset.split(':');
+        return parts.length > 1 ? parts[1] : asset;
+    }
 </script>
 
 <div class="mx-auto max-w-2xl px-4 py-8">
@@ -319,7 +326,9 @@
             {#if quote}
                 <p class="mt-2 text-sm text-gray-600">
                     {quote.sell_amount} TRY → {quote.buy_amount} USDC
-                    <span class="text-gray-400">(fee {quote.fee.total})</span>
+                    <span class="text-gray-400"
+                        >(fee {quote.fee.total} {feeUnit(quote.fee.asset)})</span
+                    >
                 </p>
             {/if}
 

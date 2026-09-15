@@ -10,8 +10,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getTrMock, requireBearer } from '$lib/server/trmockInstance';
-import { TrMockError } from '$lib/anchors/trmock';
+import { getTrMock, requireBearer, fail } from '$lib/server/trmockInstance';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
@@ -34,12 +33,6 @@ export const POST: RequestHandler = async ({ request }) => {
         });
         return json(quote);
     } catch (err) {
-        if (err instanceof TrMockError) throw error(err.statusCode, { message: err.message });
-        if (err instanceof Error && 'statusCode' in err) {
-            throw error((err as Error & { statusCode?: number }).statusCode ?? 500, {
-                message: err.message,
-            });
-        }
-        throw err;
+        fail(err);
     }
 };

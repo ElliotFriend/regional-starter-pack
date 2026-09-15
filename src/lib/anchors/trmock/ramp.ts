@@ -186,8 +186,8 @@ export class TrMockRampClient {
      * `stellar:USDC:<issuer>` on those two endpoints with
      * `400 unsupported destination_asset` and requires the bare code, while
      * still requiring the full `iso4217:TRY` on the fiat leg. Verified live
-     * 2026-09-15; reported in `docs/bilira-mock-sep6-findings.md`. If the
-     * anchor is fixed to accept both, this becomes `sep38AssetId()`.
+     * 2026-09-15 (internal notes, not in this repo). If the anchor is fixed
+     * to accept both, this becomes `sep38AssetId()`.
      */
     exchangeAssetRef(): string {
         return ASSET_CODE;

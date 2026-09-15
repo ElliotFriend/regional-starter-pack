@@ -743,8 +743,8 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         mock: true,
         scorecard: makeCriteria({
             // Developer lens only — exempt from the commercial gate via
-            // `referenceAnchor`. Verified live 2026-09-15; see
-            // docs/bilira-mock-sep6-findings.md.
+            // `referenceAnchor`. Verified live 2026-09-15 (internal notes,
+            // not in this repo).
             'open-access': { status: 'met', note: 'No signup; open testnet SEP door' },
             'high-fidelity-sandbox': {
                 status: 'met',

@@ -22,6 +22,10 @@
     } from '$lib/anchors/sep/types';
     import type { StellarNetwork } from '$lib/wallet/types';
 
+    // No SEP-12 step here, unlike the on-ramp. Verified against the live anchor
+    // 2026-09-15: a fresh account that never created a customer still gets a 200
+    // from /sep6/withdraw-exchange. GET /sep12/customer returns NEEDS_INFO, but
+    // it is advisory — the anchor gates neither ramp on KYC.
     const PROVIDER = 'trmock';
     const network: StellarNetwork = 'testnet';
     const stellarAsset = getStellarAsset('USDC', PUBLIC_USDC_ISSUER);
@@ -101,7 +105,12 @@
             poller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to sign and submit the payment';
-            step = 'send';
+            // Back to 'amount', not 'send': the XDR was built against a
+            // Horizon sequence number and a 180s timebound, so a stale retry
+            // (e.g. after unlocking Freighter) would just fail again with
+            // tx_too_late. Restarting from 'amount' rebuilds a fresh quote
+            // and XDR.
+            step = 'amount';
         } finally {
             isWorking = false;
         }
@@ -116,6 +125,13 @@
         amount = '';
         error = null;
         step = 'amount';
+    }
+
+    // The SEP-38 fee asset arrives as `iso4217:TRY` or `stellar:USDC:<issuer>`.
+    // Strip the scheme and, for the Stellar form, show just the asset code.
+    function feeUnit(asset: string): string {
+        const parts = asset.split(':');
+        return parts.length > 1 ? parts[1] : asset;
     }
 
     async function pollTransaction({ stop }: { stop: () => void }) {
@@ -213,7 +229,9 @@
             {#if quote}
                 <p class="mt-2 text-sm text-gray-600">
                     {quote.sell_amount} USDC → {quote.buy_amount} TRY
-                    <span class="text-gray-400">(fee {quote.fee.total})</span>
+                    <span class="text-gray-400"
+                        >(fee {quote.fee.total} {feeUnit(quote.fee.asset)})</span
+                    >
                 </p>
             {/if}
 
@@ -221,7 +239,7 @@
                 Anchor account: <CopyableField value={withdrawal.account_id} mono />
             </p>
             <p class="mt-2 text-sm text-gray-600">
-                Memo (id): <CopyableField value={withdrawal.memo ?? ''} mono />
+                Memo ({withdrawal.memo_type}): <CopyableField value={withdrawal.memo ?? ''} mono />
             </p>
             <p class="mt-1 text-xs text-gray-500">
                 The memo is how the anchor identifies your incoming payment — it must be attached to

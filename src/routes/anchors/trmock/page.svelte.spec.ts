@@ -16,6 +16,9 @@ describe('/anchors/trmock/+page.svelte', () => {
 
     it('says plainly that BiLira does not operate it', async () => {
         render(Page);
+        await expect
+            .element(page.getByText('This is a mock, not a live anchor.', { exact: true }))
+            .toBeInTheDocument();
         await expect.element(page.getByText(/not operated by BiLira/i).first()).toBeInTheDocument();
     });
 });

@@ -5,21 +5,10 @@
  * PUT → Sep12PutCustomerResponse
  */
 
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getTrMock, requireBearer } from '$lib/server/trmockInstance';
-import { TrMockError } from '$lib/anchors/trmock';
+import { getTrMock, requireBearer, fail } from '$lib/server/trmockInstance';
 import type { Sep12PutCustomerRequest } from '$lib/anchors/sep/types';
-
-function fail(err: unknown): never {
-    if (err instanceof TrMockError) throw error(err.statusCode, { message: err.message });
-    if (err instanceof Error && 'statusCode' in err) {
-        throw error((err as Error & { statusCode?: number }).statusCode ?? 500, {
-            message: err.message,
-        });
-    }
-    throw err;
-}
 
 export const GET: RequestHandler = async ({ request, url }) => {
     try {

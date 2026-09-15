@@ -92,12 +92,13 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns the curated Etherfuse + Koywe + Manteca anchors and the test anchor', () => {
+    it('returns the curated Etherfuse + Koywe + Manteca anchors, the test anchor, and the TR Mock Anchor', () => {
         const ids = getAllAnchors().map((a) => a.id);
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('koywe');
         expect(ids).toContain('manteca');
         expect(ids).toContain('testanchor');
+        expect(ids).toContain('trmock');
         expect(ids).toHaveLength(5);
     });
 });
