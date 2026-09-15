@@ -157,6 +157,73 @@ export interface Sep6WithdrawResponse {
     extra_info?: Record<string, string>;
 }
 
+/**
+ * SEP-6 `deposit-exchange` request. Replaces `asset_code` with a SEP-38 asset
+ * pair so the ramp can be priced with a firm quote.
+ *
+ * `destination_asset` and `source_asset` are SEP-38 Asset Identification
+ * Format strings and are sent **verbatim** — callers own the exact spelling,
+ * because anchors differ on what they accept.
+ */
+export interface Sep6DepositExchangeRequest {
+    /** The on-chain asset the user receives, in SEP-38 format. */
+    destination_asset: string;
+    /** The off-chain asset the user pays with, in SEP-38 format (e.g. `iso4217:TRY`). */
+    source_asset: string;
+    /** Amount of `source_asset` the user will send. */
+    amount: string;
+    account: string;
+    /** Firm quote from SEP-38 `POST /quote`. Omit for an indicative rate. */
+    quote_id?: string;
+    /** A deposit method supported by the anchor (e.g. `"bank_account"`). */
+    funding_method?: string;
+    /** @deprecated SEP-6 deprecated `type` in favor of {@link funding_method}. */
+    type?: string;
+    memo_type?: 'text' | 'id' | 'hash';
+    memo?: string;
+    email_address?: string;
+    wallet_name?: string;
+    wallet_url?: string;
+    lang?: string;
+    on_change_callback?: string;
+    country_code?: string;
+    claimable_balance_supported?: boolean;
+    customer_id?: string;
+    [key: string]: string | boolean | undefined;
+}
+
+/**
+ * SEP-6 `withdraw-exchange` request — the reverse pair of
+ * {@link Sep6DepositExchangeRequest}. Asset identifiers are sent verbatim.
+ */
+export interface Sep6WithdrawExchangeRequest {
+    /** The on-chain asset the user sends, in SEP-38 format. */
+    source_asset: string;
+    /** The off-chain asset the user receives, in SEP-38 format. */
+    destination_asset: string;
+    /** Amount of `source_asset` the user will send. */
+    amount: string;
+    /** Firm quote from SEP-38 `POST /quote`. Omit for an indicative rate. */
+    quote_id?: string;
+    funding_method?: string;
+    /** @deprecated SEP-6 deprecated `type` in favor of {@link funding_method}. */
+    type?: string;
+    dest?: string;
+    dest_extra?: string;
+    account?: string;
+    memo?: string;
+    memo_type?: 'text' | 'id' | 'hash';
+    wallet_name?: string;
+    wallet_url?: string;
+    lang?: string;
+    on_change_callback?: string;
+    country_code?: string;
+    refund_memo?: string;
+    refund_memo_type?: string;
+    customer_id?: string;
+    [key: string]: string | undefined;
+}
+
 // =============================================================================
 // SEP-12: KYC API
 // =============================================================================

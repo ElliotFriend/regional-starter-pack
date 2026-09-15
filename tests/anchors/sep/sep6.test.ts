@@ -12,6 +12,8 @@ import {
     getInfo,
     deposit,
     withdraw,
+    depositExchange,
+    withdrawExchange,
     getTransaction,
     getTransactionByStellarId,
     getTransactions,
@@ -529,5 +531,168 @@ describe('input validation behavior', () => {
         await getTransactions(TRANSFER_SERVER, TOKEN, {
             asset_code: 'USDC',
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// exchange endpoints
+// ---------------------------------------------------------------------------
+
+const EX_TRANSFER = 'https://anchor.example.com/sep6';
+const EX_TOKEN = 'header.payload.sig';
+const EX_ACCOUNT = 'GASAZERTFNL6EWRFIHKQV53GMYBTUQAHAUE37N4N6D6WXQE34B47Q5HH';
+const EX_FULL_ASSET = 'stellar:USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+describe('depositExchange', () => {
+    it('sends every parameter as a query param and returns the deposit instructions', async () => {
+        let captured: URL | undefined;
+        let auth: string | null = null;
+        server.use(
+            http.get(`${EX_TRANSFER}/deposit-exchange`, ({ request }) => {
+                captured = new URL(request.url);
+                auth = request.headers.get('authorization');
+                return HttpResponse.json({
+                    id: 'sep_1',
+                    how: 'Send TRY to IBAN TR05…',
+                    instructions: {
+                        organization_bank_account_number: {
+                            value: 'TR05…',
+                            description: 'IBAN',
+                        },
+                    },
+                });
+            }),
+        );
+
+        const result = await depositExchange(EX_TRANSFER, EX_TOKEN, {
+            destination_asset: EX_FULL_ASSET,
+            source_asset: 'iso4217:TRY',
+            amount: '1000',
+            account: EX_ACCOUNT,
+            quote_id: 'qt_1',
+            funding_method: 'bank_account',
+        });
+
+        expect(captured!.searchParams.get('destination_asset')).toBe(EX_FULL_ASSET);
+        expect(captured!.searchParams.get('source_asset')).toBe('iso4217:TRY');
+        expect(captured!.searchParams.get('amount')).toBe('1000');
+        expect(captured!.searchParams.get('account')).toBe(EX_ACCOUNT);
+        expect(captured!.searchParams.get('quote_id')).toBe('qt_1');
+        expect(captured!.searchParams.get('funding_method')).toBe('bank_account');
+        expect(auth).toBe(`Bearer ${EX_TOKEN}`);
+        expect(result.id).toBe('sep_1');
+        expect(result.instructions!.organization_bank_account_number.value).toBe('TR05…');
+    });
+
+    it('passes asset identifiers through verbatim and never normalises them', async () => {
+        let captured: URL | undefined;
+        server.use(
+            http.get(`${EX_TRANSFER}/deposit-exchange`, ({ request }) => {
+                captured = new URL(request.url);
+                return HttpResponse.json({ id: 'sep_2' });
+            }),
+        );
+
+        // A bare asset code is not the spec form, but some anchors require it.
+        // The shared helper must not rewrite either side of the pair.
+        await depositExchange(EX_TRANSFER, EX_TOKEN, {
+            destination_asset: 'USDC',
+            source_asset: 'iso4217:TRY',
+            amount: '1000',
+            account: EX_ACCOUNT,
+        });
+
+        expect(captured!.searchParams.get('destination_asset')).toBe('USDC');
+        expect(captured!.searchParams.get('source_asset')).toBe('iso4217:TRY');
+    });
+
+    it('omits undefined parameters', async () => {
+        let captured: URL | undefined;
+        server.use(
+            http.get(`${EX_TRANSFER}/deposit-exchange`, ({ request }) => {
+                captured = new URL(request.url);
+                return HttpResponse.json({ id: 'sep_3' });
+            }),
+        );
+
+        await depositExchange(EX_TRANSFER, EX_TOKEN, {
+            destination_asset: 'USDC',
+            source_asset: 'iso4217:TRY',
+            amount: '1000',
+            account: EX_ACCOUNT,
+            quote_id: undefined,
+        });
+
+        expect(captured!.searchParams.has('quote_id')).toBe(false);
+    });
+
+    it('throws SepApiError with the anchor error message on a non-2xx', async () => {
+        server.use(
+            http.get(`${EX_TRANSFER}/deposit-exchange`, () =>
+                HttpResponse.json({ error: 'unsupported destination_asset' }, { status: 400 }),
+            ),
+        );
+
+        await expect(
+            depositExchange(EX_TRANSFER, EX_TOKEN, {
+                destination_asset: EX_FULL_ASSET,
+                source_asset: 'iso4217:TRY',
+                amount: '1000',
+                account: EX_ACCOUNT,
+            }),
+        ).rejects.toThrow(SepApiError);
+    });
+});
+
+describe('withdrawExchange', () => {
+    it('sends every parameter and returns the anchor account and memo', async () => {
+        let captured: URL | undefined;
+        let auth: string | null = null;
+        server.use(
+            http.get(`${EX_TRANSFER}/withdraw-exchange`, ({ request }) => {
+                captured = new URL(request.url);
+                auth = request.headers.get('authorization');
+                return HttpResponse.json({
+                    account_id: 'GCLCZEQZ2THTEDAOFI66LACNPLY4OBKN7VKLEZFMBIHYKYQOW2W7T3Z6',
+                    memo_type: 'id',
+                    memo: '539516300156',
+                    id: 'sep_w1',
+                });
+            }),
+        );
+
+        const result = await withdrawExchange(EX_TRANSFER, EX_TOKEN, {
+            source_asset: 'USDC',
+            destination_asset: 'iso4217:TRY',
+            amount: '10',
+            account: EX_ACCOUNT,
+            quote_id: 'qt_2',
+            funding_method: 'bank_account',
+        });
+
+        expect(captured!.searchParams.get('source_asset')).toBe('USDC');
+        expect(captured!.searchParams.get('destination_asset')).toBe('iso4217:TRY');
+        expect(captured!.searchParams.get('amount')).toBe('10');
+        expect(captured!.searchParams.get('quote_id')).toBe('qt_2');
+        expect(auth).toBe(`Bearer ${EX_TOKEN}`);
+        expect(result.memo).toBe('539516300156');
+        expect(result.memo_type).toBe('id');
+    });
+
+    it('throws SepApiError with the anchor error message on a non-2xx', async () => {
+        server.use(
+            http.get(`${EX_TRANSFER}/withdraw-exchange`, () =>
+                HttpResponse.json({ error: 'amount below minimum' }, { status: 400 }),
+            ),
+        );
+
+        await expect(
+            withdrawExchange(EX_TRANSFER, EX_TOKEN, {
+                source_asset: 'USDC',
+                destination_asset: 'iso4217:TRY',
+                amount: '0.1',
+                account: EX_ACCOUNT,
+            }),
+        ).rejects.toThrow(SepApiError);
     });
 });

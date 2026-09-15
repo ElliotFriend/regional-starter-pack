@@ -9,8 +9,10 @@ import type {
     Sep6Info,
     Sep6DepositRequest,
     Sep6DepositResponse,
+    Sep6DepositExchangeRequest,
     Sep6WithdrawRequest,
     Sep6WithdrawResponse,
+    Sep6WithdrawExchangeRequest,
     Sep6Transaction,
     TransactionStatus,
     SepError,
@@ -116,6 +118,88 @@ export async function withdraw(
         const errorBody = (await response.json().catch(() => ({}))) as SepError;
         throw new SepApiError(
             errorBody.error || `Failed to initiate withdrawal: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
+
+    return response.json();
+}
+
+/**
+ * Initiate a quoted deposit (fiat to crypto) against a SEP-38 asset pair.
+ *
+ * Asset identifiers are serialised exactly as given — this module does not
+ * normalise them, because anchors disagree about what they accept.
+ *
+ * @param transferServer - The SEP-6 transfer server URL
+ * @param token - SEP-10 JWT token
+ * @param request - Deposit-exchange request parameters
+ * @param fetchFn - Optional fetch function for SSR compatibility
+ */
+export async function depositExchange(
+    transferServer: string,
+    token: string,
+    request: Sep6DepositExchangeRequest,
+    fetchFn: typeof fetch = fetch,
+): Promise<Sep6DepositResponse> {
+    const url = new URL(`${transferServer}/deposit-exchange`);
+
+    Object.entries(request).forEach(([key, value]) => {
+        if (value !== undefined) {
+            url.searchParams.set(key, String(value));
+        }
+    });
+
+    const response = await fetchFn(url.toString(), {
+        headers: createAuthHeaders(token),
+    });
+
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to initiate deposit-exchange: ${response.status}`,
+            response.status,
+            errorBody,
+        );
+    }
+
+    return response.json();
+}
+
+/**
+ * Initiate a quoted withdrawal (crypto to fiat) against a SEP-38 asset pair.
+ *
+ * Asset identifiers are serialised exactly as given — this module does not
+ * normalise them, because anchors disagree about what they accept.
+ *
+ * @param transferServer - The SEP-6 transfer server URL
+ * @param token - SEP-10 JWT token
+ * @param request - Withdraw-exchange request parameters
+ * @param fetchFn - Optional fetch function for SSR compatibility
+ */
+export async function withdrawExchange(
+    transferServer: string,
+    token: string,
+    request: Sep6WithdrawExchangeRequest,
+    fetchFn: typeof fetch = fetch,
+): Promise<Sep6WithdrawResponse> {
+    const url = new URL(`${transferServer}/withdraw-exchange`);
+
+    Object.entries(request).forEach(([key, value]) => {
+        if (value !== undefined) {
+            url.searchParams.set(key, String(value));
+        }
+    });
+
+    const response = await fetchFn(url.toString(), {
+        headers: createAuthHeaders(token),
+    });
+
+    if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as SepError;
+        throw new SepApiError(
+            errorBody.error || `Failed to initiate withdraw-exchange: ${response.status}`,
             response.status,
             errorBody,
         );
