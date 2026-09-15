@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
+    import { resolve } from '$app/paths';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { getStellarAsset } from '$lib/wallet/stellar';
     import { createSep10Session } from '$lib/wallet/sep10-session';
@@ -46,6 +48,10 @@
         maxAttempts: 60,
         onTick: pollTransaction,
     });
+
+    // Stop polling if the user navigates away mid-deposit — parity with the
+    // testanchor reference page.
+    onMount(() => () => poller.stop());
 
     const sep10 = createSep10Session(PROVIDER, {
         getChallenge: trmock.getChallenge,
@@ -159,19 +165,22 @@
     }
 
     function reset() {
+        poller.stop();
         quote = null;
         deposit = null;
         transaction = null;
         amount = '';
         error = null;
         step = 'amount';
-        poller.stop();
     }
 </script>
 
 <div class="mx-auto max-w-2xl px-4 py-8">
     <header class="mb-6 flex items-center justify-between">
         <div>
+            <a href={resolve('/anchors/trmock')} class="text-sm text-indigo-600 hover:underline">
+                ← TR Mock Anchor
+            </a>
             <div class="flex items-center gap-2">
                 <h1 class="mt-1 text-2xl font-semibold text-gray-900">TR Mock Anchor — On-Ramp</h1>
                 <span
@@ -372,7 +381,7 @@
                 ? [
                       {
                           label: 'View on Stellar Expert',
-                          href: `https://stellar.expert/explorer/testnet/tx/${transaction.stellar_transaction_id}`,
+                          href: `https://stellar.expert/explorer/${network}/tx/${transaction.stellar_transaction_id}`,
                       },
                   ]
                 : []}
