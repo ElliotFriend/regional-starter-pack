@@ -58,6 +58,13 @@
         {#each data.anchors as anchor (anchor.id)}
             <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-gray-900">{anchor.name}</h3>
+                {#if anchor.mock}
+                    <span
+                        class="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                    >
+                        Sandbox stand-in
+                    </span>
+                {/if}
                 <p class="mt-2 text-sm text-gray-600">{anchor.description}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
                     {#each Object.keys(anchor.regions) as regionId (regionId)}
