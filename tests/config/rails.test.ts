@@ -62,3 +62,13 @@ describe('pse rail', () => {
         expect(getPaymentRail('pse')!.name).toBe('PSE');
     });
 });
+
+describe('FAST rail', () => {
+    it('is a Turkish bank transfer rail', () => {
+        const rail = getPaymentRail('fast');
+        expect(rail).toBeDefined();
+        expect(rail!.name).toBe('FAST');
+        expect(rail!.type).toBe('bank_transfer');
+        expect(rail!.description).toContain('Havale');
+    });
+});

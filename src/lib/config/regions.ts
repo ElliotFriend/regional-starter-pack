@@ -71,6 +71,18 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.breb, PAYMENT_RAILS.pse],
         anchors: ['manteca', 'koywe'],
     },
+    turkiye: {
+        id: 'turkiye',
+        name: 'Türkiye',
+        code: 'TR',
+        currency: 'TRY',
+        currencySymbol: '₺',
+        flag: '🇹🇷',
+        description:
+            'Türkiye has high stablecoin demand and instant interbank transfers over FAST. No production Stellar anchor serves TRY yet, so the TR Mock Anchor stands in: a testnet sandbox that ramps TRY to real testnet USDC over the standard SEPs.',
+        paymentRails: [PAYMENT_RAILS.fast],
+        anchors: ['trmock'],
+    },
     testnet: {
         id: 'testnet',
         name: 'Testnet',

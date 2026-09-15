@@ -222,3 +222,10 @@ describe('resolveFormat', () => {
         expect(() => resolveFormat('csv', null)).toThrow();
     });
 });
+
+describe('reference anchors are excluded from readiness', () => {
+    it('omits trmock, which is a mock reference anchor', () => {
+        const ids = buildReadiness().map((e) => e.id);
+        expect(ids).not.toContain('trmock');
+    });
+});

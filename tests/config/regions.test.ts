@@ -178,3 +178,20 @@ describe('Koywe regional coverage', () => {
         expect(getRegion('colombia')!.paymentRails.map((r) => r.id)).toContain('pse');
     });
 });
+
+describe('Türkiye region', () => {
+    it('is configured for TRY over the FAST rail', () => {
+        const region = getRegion('turkiye');
+        expect(region).toBeDefined();
+        expect(region!.name).toBe('Türkiye');
+        expect(region!.code).toBe('TR');
+        expect(region!.currency).toBe('TRY');
+        expect(region!.currencySymbol).toBe('₺');
+        expect(region!.paymentRails.map((r) => r.id)).toEqual(['fast']);
+    });
+
+    it('lists the TR Mock Anchor', () => {
+        expect(getRegion('turkiye')!.anchors).toEqual(['trmock']);
+        expect(getAnchorsForRegion('turkiye').map((a) => a.id)).toEqual(['trmock']);
+    });
+});

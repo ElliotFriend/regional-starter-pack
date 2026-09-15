@@ -98,7 +98,7 @@ describe('getAllAnchors', () => {
         expect(ids).toContain('koywe');
         expect(ids).toContain('manteca');
         expect(ids).toContain('testanchor');
-        expect(ids).toHaveLength(4);
+        expect(ids).toHaveLength(5);
     });
 });
 
@@ -334,5 +334,60 @@ describe('Koywe multi-country', () => {
     it('uses SPEI in Mexico and PSE in Colombia', () => {
         expect(ANCHORS.koywe.regions.mexico.paymentRails).toContain('spei');
         expect(ANCHORS.koywe.regions.colombia.paymentRails).toContain('pse');
+    });
+});
+
+describe('TR Mock Anchor', () => {
+    it('is a reference anchor flagged as a mock', () => {
+        const anchor = getAnchor('trmock');
+        expect(anchor).toBeDefined();
+        expect(anchor!.name).toBe('TR Mock Anchor');
+        expect(anchor!.referenceAnchor).toBe(true);
+        expect(anchor!.mock).toBe(true);
+    });
+
+    it('is not named after BiLira', () => {
+        const anchor = getAnchor('trmock')!;
+        expect(anchor.id).not.toContain('bilira');
+        expect(anchor.name.toLowerCase()).not.toContain('bilira');
+    });
+
+    it('serves Türkiye with TRY↔USDC over FAST, both directions', () => {
+        const anchor = getAnchor('trmock')!;
+        expect(anchor.regions.turkiye).toBeDefined();
+        expect(anchor.regions.turkiye.onRamp).toBe(true);
+        expect(anchor.regions.turkiye.offRamp).toBe(true);
+        expect(anchor.regions.turkiye.paymentRails).toContain('fast');
+        expect(anchor.regions.turkiye.tokens).toContain('USDC');
+    });
+
+    it('is exempt from the commercial gate as a reference anchor', () => {
+        const anchor = getAnchor('trmock')!;
+        // curationStatus takes the scorecard array plus an `exempt` flag and
+        // returns { status, flags } — see the existing describe block above.
+        expect(curationStatus(anchor.scorecard!, { exempt: anchor.referenceAnchor }).status).toBe(
+            'curated',
+        );
+    });
+
+    it('scores the developer lens from the 2026-09-15 verification', () => {
+        const byId = Object.fromEntries(
+            getAnchor('trmock')!.scorecard!.map((c: ScoredCriterion) => [c.id, c]),
+        );
+        expect(byId['open-access'].status).toBe('met');
+        expect(byId['high-fidelity-sandbox'].status).toBe('met');
+        expect(byId['fee-discoverability'].status).toBe('met');
+        // OpenAPI was removed upstream on 2026-09-08; the exchange endpoints
+        // also deviate from SEP-6.
+        expect(byId['agent-buildable'].status).toBe('partial');
+        // /guide documents an exchange parameter form the server rejects.
+        expect(byId['accurate-docs'].status).toBe('partial');
+    });
+
+    it('warns that it is a stand-in, not operated by BiLira', () => {
+        const issues = getAnchor('trmock')!.knownIssues ?? [];
+        const text = issues.map((i) => i.text).join(' ');
+        expect(text).toContain('BiLira');
+        expect(text.toLowerCase()).toContain('mock');
     });
 });

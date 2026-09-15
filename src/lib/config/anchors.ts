@@ -58,6 +58,13 @@ export interface AnchorProfile {
      * gate when computing {@link curationStatus}.
      */
     referenceAnchor?: boolean;
+    /**
+     * The integration behind this entry is a stand-in — a mock built by a third
+     * party to model an anchor that has not shipped — rather than a real
+     * provider. Renders a "Sandbox stand-in" badge. Distinct from
+     * {@link referenceAnchor}, which only means "not a production provider".
+     */
+    mock?: boolean;
 }
 
 // =============================================================================
@@ -723,6 +730,127 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Poll Until Complete',
                     description: 'Poll the transaction status until the payout is confirmed.',
+                },
+            ],
+        },
+    },
+    trmock: {
+        id: 'trmock',
+        name: 'TR Mock Anchor',
+        description:
+            'A Turkish TRY↔USDC sandbox anchor on Stellar testnet, built by Kaan Kacar to model what a production Turkish ramp would look like. It implements SEP-1/10/6/12/38; the bank transfer and KYC are simulated, the Stellar leg is real testnet USDC. It is not operated by BiLira and no real money moves.',
+        referenceAnchor: true,
+        mock: true,
+        scorecard: makeCriteria({
+            // Developer lens only — exempt from the commercial gate via
+            // `referenceAnchor`. Verified live 2026-09-15; see
+            // docs/bilira-mock-sep6-findings.md.
+            'open-access': { status: 'met', note: 'No signup; open testnet SEP door' },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'Pays real testnet USDC; SEP-38 quotes honoured exactly',
+            },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'llms.txt + sitemap.md, but no OpenAPI and the exchange endpoints deviate from SEP-6',
+            },
+            'accurate-docs': {
+                status: 'partial',
+                note: 'The guide documents an exchange asset format the server rejects',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'SEP-38 firm quotes; 50 bps spread documented',
+            },
+        }),
+        links: {
+            website: 'https://tr-mock-anchor.fly.dev',
+            documentation: 'https://tr-mock-anchor.fly.dev/sep',
+            guide: 'https://tr-mock-anchor.fly.dev/guide',
+            mainnet: 'https://tr-mock-anchor.fly.dev/mainnet',
+            repository: 'https://github.com/kaankacar/tr-mock-anchor',
+            'stellar.toml': 'https://tr-mock-anchor.fly.dev/.well-known/stellar.toml',
+        },
+        knownIssues: [
+            {
+                text: 'This is a mock, not a live anchor. It is built by an independent developer to model a Turkish ramp, is not operated by BiLira, and moves no real money. Treat it as a sandbox stand-in until a production Turkish anchor ships.',
+                link: 'https://tr-mock-anchor.fly.dev/mainnet',
+            },
+            {
+                text: 'The SEP-6 exchange endpoints require a bare asset code in destination_asset / source_asset rather than the SEP-38 identifier the spec calls for. The client sends the form the anchor accepts.',
+            },
+            {
+                text: 'SEP-12 auto-approves every customer, so the KYC rejection and NEEDS_INFO paths cannot be exercised against this anchor.',
+            },
+        ],
+        regions: {
+            turkiye: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['fast'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'No signup required — the SEP door is open on Stellar testnet.',
+                link: 'https://tr-mock-anchor.fly.dev/.well-known/stellar.toml',
+            },
+            {
+                text: 'Fund a testnet wallet and add a USDC trustline so the deposit can be paid directly.',
+            },
+            {
+                text: 'Read the SEP path guide — it is the authoritative integration reference.',
+                link: 'https://tr-mock-anchor.fly.dev/sep',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Authenticate (SEP-10)',
+                    description:
+                        'Sign a challenge transaction with the wallet to obtain a session token.',
+                },
+                {
+                    title: 'Verify Customer (SEP-12)',
+                    description: 'Submit SEP-9 fields. The sandbox auto-approves every customer.',
+                },
+                {
+                    title: 'Lock a Quote (SEP-38)',
+                    description:
+                        'Request a firm TRY→USDC quote at the mid rate plus a 50 bps spread.',
+                },
+                {
+                    title: 'Start Deposit (SEP-6)',
+                    description:
+                        'Call deposit-exchange with the quote to receive an IBAN and a transfer reference.',
+                },
+                {
+                    title: 'Simulate the Bank Transfer',
+                    description:
+                        'Trigger the sandbox bank leg; the anchor then pays real testnet USDC.',
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Authenticate (SEP-10)',
+                    description:
+                        'Sign a challenge transaction with the wallet to obtain a session token.',
+                },
+                {
+                    title: 'Lock a Quote (SEP-38)',
+                    description: 'Request a firm USDC→TRY quote.',
+                },
+                {
+                    title: 'Start Withdrawal (SEP-6)',
+                    description:
+                        'Call withdraw-exchange to receive the treasury address and a memo.',
+                },
+                {
+                    title: 'Send USDC',
+                    description:
+                        'Sign and submit the payment with the memo attached; the anchor pays out simulated TRY.',
                 },
             ],
         },

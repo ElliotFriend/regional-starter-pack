@@ -33,6 +33,13 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             'Generic bank transfer rail used by the SEP test anchor for end-to-end integration testing.',
         type: 'bank_transfer',
     },
+    fast: {
+        id: 'fast',
+        name: 'FAST',
+        description:
+            "Fonların Anlık ve Sürekli Transferi — Türkiye's instant interbank transfer system, alongside the older EFT and same-bank Havale transfers.",
+        type: 'bank_transfer',
+    },
     wirear: {
         id: 'wirear',
         name: 'CVU Transfer',
