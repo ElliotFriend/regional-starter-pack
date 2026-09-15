@@ -1194,10 +1194,10 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         id: 'bilira',
         name: 'BiLira',
         description:
-            'Issuer of TRYB, a TRY-pegged stablecoin (the rare genuine local asset). TRYB is live on EVM/Solana but NOT on Stellar yet — Stellar support is unconfirmed publicly.',
+            'Issuer of TRYB, a TRY-pegged stablecoin (the rare genuine local asset). TRYB is live on EVM/Solana but NOT on Stellar yet. BiLira has agreed to implement a SEP-6 anchor but has not scheduled it, and is moving to a business-and-enterprise-only model.',
         website: 'https://bilira.co',
         tokens: ['TRYB'],
-        rails: ['bank-transfer'],
+        rails: ['fast'],
         regions: ['turkiye'],
         vetting: true,
         scorecard: makeCriteria({
@@ -1219,14 +1219,11 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 note: 'Partner/contact-only; no public self-serve ramp API',
             },
             'accurate-docs': {
-                status: 'failed',
-                note: 'No public developer docs/API reference found',
+                status: 'unverified',
+                note: 'API PDF received; never checked against the wire',
             },
             'high-fidelity-sandbox': { status: 'failed', note: 'No sandbox found' },
-            'agent-buildable': {
-                status: 'failed',
-                note: 'No OpenAPI/SEP; token issuer + exchange, not an anchor',
-            },
+            'agent-buildable': { status: 'unverified', note: 'Not assessed' },
         }),
     },
     onafriq: {

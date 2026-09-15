@@ -400,3 +400,32 @@ describe('TR Mock Anchor', () => {
         expect(text.toLowerCase()).toContain('mock');
     });
 });
+
+describe('BiLira honorable mention', () => {
+    it('is still in vetting and ramps over FAST in Türkiye', () => {
+        const mention = HONORABLE_MENTIONS.bilira;
+        expect(mention).toBeDefined();
+        expect(mention.vetting).toBe(true);
+        expect(mention.regions).toEqual(['turkiye']);
+        expect(mention.rails).toEqual(['fast']);
+    });
+
+    it('records that SEP-6 is agreed but unscheduled', () => {
+        expect(HONORABLE_MENTIONS.bilira.description).toMatch(/SEP-6/);
+    });
+
+    it('marks unassessed criteria unverified rather than failed', () => {
+        const byId = Object.fromEntries(
+            HONORABLE_MENTIONS.bilira.scorecard.map((c: ScoredCriterion) => [c.id, c]),
+        );
+        // We hold their API PDF but have never checked it against the wire,
+        // and we have not assessed the agent surface at all. Neither is a
+        // confirmed failure.
+        expect(byId['accurate-docs'].status).toBe('unverified');
+        expect(byId['agent-buildable'].status).toBe('unverified');
+        // These are confirmed.
+        expect(byId['local-asset'].status).toBe('failed');
+        expect(byId['open-access'].status).toBe('failed');
+        expect(byId['high-fidelity-sandbox'].status).toBe('failed');
+    });
+});
