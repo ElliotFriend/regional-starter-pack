@@ -363,9 +363,18 @@ describe('TR Mock Anchor', () => {
 
     it('is exempt from the commercial gate as a reference anchor', () => {
         const anchor = getAnchor('trmock')!;
-        // curationStatus takes the scorecard array plus an `exempt` flag and
-        // returns { status, flags } — see the existing describe block above.
-        expect(curationStatus(anchor.scorecard!, { exempt: anchor.referenceAnchor }).status).toBe(
+        expect(anchor.referenceAnchor).toBe(true);
+
+        // trmock's own scorecard has no failures, so the exemption is moot
+        // against it as written. Fail two commercial criteria to prove the
+        // flag path is live, then prove `exempt` overrides it.
+        const wouldFlag: ScoredCriterion[] = anchor.scorecard!.map((c) =>
+            c.id === 'local-asset' || c.id === 'deep-liquidity'
+                ? { ...c, status: 'failed' as const }
+                : c,
+        );
+        expect(curationStatus(wouldFlag).status).toBe('flagged');
+        expect(curationStatus(wouldFlag, { exempt: anchor.referenceAnchor }).status).toBe(
             'curated',
         );
     });
