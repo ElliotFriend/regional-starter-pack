@@ -408,8 +408,7 @@
             // scalar is the EVM address; the per-network map holds the Stellar
             // (muxed M…) address the USDC must be sent to.
             const stellarEntry = synthetic.details.depositAddresses?.STELLAR as
-                | { address?: string }
-                | undefined;
+                { address?: string } | undefined;
             const depositAddress = stellarEntry?.address;
             if (!depositAddress) {
                 throw new Error('Manteca did not return a Stellar deposit address for this order');

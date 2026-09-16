@@ -68,7 +68,7 @@
         <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
             <div class=" grid md:grid-cols-2">
                 <div>
-                    <p class="text-sm text-gray-600 p-2">
+                    <p class="p-2 text-sm text-gray-600">
                         We evaluate providers against two lenses — a commercial bar (real local
                         value for end-users) and a developer bar (can you actually build on it):
                     </p>

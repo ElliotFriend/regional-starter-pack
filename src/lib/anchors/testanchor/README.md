@@ -112,9 +112,7 @@ window.open(deposit.url, '_blank');
 // deposit.id is the transaction ID to poll
 
 // Withdraw — same shape
-const withdrawal = await anchor.sep24Withdraw(token, {
-    /* ... */
-});
+const withdrawal = await anchor.sep24Withdraw(token, {/* ... */});
 
 // Poll
 const tx = await anchor.getSep24Transaction(token, deposit.id);
@@ -293,9 +291,7 @@ const price = await client.sep38.getPrice({
     sell_amount: '100',
     context: 'sep6',
 });
-const quote = await client.sep38.createQuote({
-    /* ... */
-});
+const quote = await client.sep38.createQuote({/* ... */});
 const existing = await client.sep38.getQuote(quote.id);
 ```
 

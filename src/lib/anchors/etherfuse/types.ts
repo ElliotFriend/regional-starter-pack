@@ -74,11 +74,7 @@ export type EtherfuseRail = 'spei' | 'pix';
 
 /** Etherfuse KYC status values. */
 export type EtherfuseKycStatus =
-    | 'not_started'
-    | 'proposed'
-    | 'approved'
-    | 'approved_chain_deploying'
-    | 'rejected';
+    'not_started' | 'proposed' | 'approved' | 'approved_chain_deploying' | 'rejected';
 
 /** Etherfuse order status values. */
 export type EtherfuseOrderStatus =
@@ -696,9 +692,7 @@ export interface EtherfuseBankAccountResponse {
 
 /** Etherfuse agreement type. */
 export type EtherfuseAgreementType =
-    | 'electronic_signature'
-    | 'terms_and_conditions'
-    | 'customer_agreement';
+    'electronic_signature' | 'terms_and_conditions' | 'customer_agreement';
 
 /** Response from agreement acceptance endpoints. */
 export interface EtherfuseAgreementResponse {

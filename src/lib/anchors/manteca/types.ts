@@ -100,12 +100,7 @@ export type MantecaCryptoNetwork =
 
 /** Synthetic lifecycle status (`STARTING`/`ACTIVE`/`WAITING` non-terminal). */
 export type MantecaSyntheticStatus =
-    | 'STARTING'
-    | 'ACTIVE'
-    | 'WAITING'
-    | 'PAUSED'
-    | 'COMPLETED'
-    | 'CANCELLED';
+    'STARTING' | 'ACTIVE' | 'WAITING' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
 /** Synthetic kinds; ramps are `RAMP_OPERATION`, Brazil QR/Pix are `PIX_PAYMENT`. */
 export type MantecaSyntheticType =

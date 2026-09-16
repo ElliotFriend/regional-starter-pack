@@ -221,9 +221,7 @@ import { MyAnchorError, type MyAnchorConfig /*, ... */ } from './types';
 export class MyAnchorClient {
     readonly name = 'myanchor';
     readonly displayName = 'My Anchor';
-    readonly supportedTokens = [
-        /* ... */
-    ] as const;
+    readonly supportedTokens = [/* ... */] as const;
     readonly supportedCurrencies = ['USD'] as const;
     readonly supportedRails = ['bank'] as const;
 

@@ -39,14 +39,7 @@
     // ------------------------------------------------------------------
 
     type Step =
-        | 'connect'
-        | 'identity'
-        | 'kyc'
-        | 'idupload'
-        | 'amount'
-        | 'quote'
-        | 'payment'
-        | 'complete';
+        'connect' | 'identity' | 'kyc' | 'idupload' | 'amount' | 'quote' | 'payment' | 'complete';
     let step = $state<Step>('connect');
 
     // Identity + KYC
