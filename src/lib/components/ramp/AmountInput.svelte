@@ -50,6 +50,13 @@ Usage:
         children,
     }: Props = $props();
 
+    // Not `bind:value`: Svelte coerces a bound `type="number"` input to a JS
+    // number, and callers pass `amount` straight into Stellar SDK amount
+    // fields, which reject anything that is not a string.
+    function handleInput(event: Event & { currentTarget: HTMLInputElement }) {
+        amount = event.currentTarget.value;
+    }
+
     const exceedsMax = $derived(
         maxAmount !== undefined && parseFloat(amount) > parseFloat(maxAmount),
     );
@@ -76,7 +83,8 @@ Usage:
             <input
                 type="number"
                 id="amount"
-                bind:value={amount}
+                value={amount}
+                oninput={handleInput}
                 {placeholder}
                 min="1"
                 step="1"
@@ -87,7 +95,8 @@ Usage:
         <input
             type="number"
             id="amount"
-            bind:value={amount}
+            value={amount}
+            oninput={handleInput}
             {placeholder}
             min="1"
             step="1"
