@@ -12,6 +12,8 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
 export default defineConfig(
     includeIgnoreFile(gitignorePath),
+    // Ad-hoc anchor probe scripts, not app code.
+    { ignores: ['scripts/'] },
     js.configs.recommended,
     ...ts.configs.recommended,
     ...svelte.configs.recommended,
