@@ -20,6 +20,7 @@
         getChipperMarket,
         normalizePhone,
         shouldOfferStartOver,
+        groupMethods,
     } from '$lib/config/chipper-markets';
     import type { StellarNetwork } from '$lib/wallet/types';
 
@@ -244,10 +245,12 @@
                     bind:value={methodCode}
                     class="mt-1 block w-full rounded-md border-gray-300 text-sm"
                 >
-                    {#each methods as m (m.code)}
-                        <option value={m.code}>
-                            {m.type === 'bank_transfer' ? `Bank transfer · ${m.name}` : m.name}
-                        </option>
+                    {#each groupMethods(methods) as group (group.label)}
+                        <optgroup label={group.label}>
+                            {#each group.methods as m (m.code)}
+                                <option value={m.code}>{m.name}</option>
+                            {/each}
+                        </optgroup>
                     {/each}
                 </select>
             </label>

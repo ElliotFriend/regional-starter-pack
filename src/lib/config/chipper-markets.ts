@@ -109,3 +109,28 @@ export function shouldOfferStartOver(
 ): boolean {
     return !!order?.failed || timedOut || sandboxOutcome !== null;
 }
+
+/** A labelled section of the method picker. */
+export interface ChipperMethodGroup<M> {
+    label: 'Mobile money' | 'Banks';
+    methods: M[];
+}
+
+/**
+ * Group methods for the picker: mobile money first (catalog order, since the
+ * catalog leads with the dominant operators), then banks sorted by name.
+ * Empty groups are omitted.
+ */
+export function groupMethods<M extends { type: string; name: string }>(
+    methods: M[],
+): ChipperMethodGroup<M>[] {
+    const mobileMoney = methods.filter((m) => m.type === 'mobile_money');
+    const banks = methods
+        .filter((m) => m.type === 'bank_transfer')
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const groups: ChipperMethodGroup<M>[] = [
+        { label: 'Mobile money', methods: mobileMoney },
+        { label: 'Banks', methods: banks },
+    ];
+    return groups.filter((g) => g.methods.length > 0);
+}

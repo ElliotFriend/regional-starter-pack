@@ -6,6 +6,7 @@ import {
     maxSendableUsdc,
     shortfall,
     shouldOfferStartOver,
+    groupMethods,
 } from '$lib/config/chipper-markets';
 
 describe('CHIPPER_MARKETS', () => {
@@ -88,5 +89,33 @@ describe('shouldOfferStartOver', () => {
     it('does not interrupt a healthy in-flight order', () => {
         expect(shouldOfferStartOver(live, false, null)).toBe(false);
         expect(shouldOfferStartOver(null, false, null)).toBe(false);
+    });
+});
+
+describe('groupMethods', () => {
+    const m = (code: string, name: string, type: string) => ({
+        code,
+        name,
+        type,
+        status: 'operational',
+        limits: null,
+    });
+
+    it('puts mobile money first in catalog order, then banks sorted by name', () => {
+        const groups = groupMethods([
+            m('gh_mtn', 'MTN Mobile Money', 'mobile_money'),
+            m('gh_gcb', 'GCB Bank', 'bank_transfer'),
+            m('gh_vodafone', 'Telecel Cash', 'mobile_money'),
+            m('gh_absa', 'Absa Bank Ghana', 'bank_transfer'),
+            m('gh_access', 'access bank', 'bank_transfer'),
+        ]);
+        expect(groups.map((g) => g.label)).toEqual(['Mobile money', 'Banks']);
+        expect(groups[0].methods.map((x) => x.code)).toEqual(['gh_mtn', 'gh_vodafone']);
+        expect(groups[1].methods.map((x) => x.code)).toEqual(['gh_absa', 'gh_access', 'gh_gcb']);
+    });
+
+    it('omits an empty group', () => {
+        const groups = groupMethods([m('ke_mpesa', 'M-Pesa Kenya', 'mobile_money')]);
+        expect(groups.map((g) => g.label)).toEqual(['Mobile money']);
     });
 });
