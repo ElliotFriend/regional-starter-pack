@@ -15,6 +15,10 @@ import {
     type ChipperErrorDetail,
     type ChipperErrorResponse,
     type ChipperOrganization,
+    type ChipperCapabilitiesResponse,
+    type ChipperCapabilityGroup,
+    type ChipperCountryCapabilities,
+    type ChipperValidation,
 } from './types';
 
 /** API version pinned for every request (echoed back by Chipper). */
@@ -46,6 +50,44 @@ export class ChipperClient {
             '/v1/organization',
         );
         return res.organization;
+    }
+
+    /**
+     * Mobile money methods for a country (`GET /v1/capabilities/{country}`).
+     * Read at runtime: the catalog differs between sandbox and production.
+     */
+    async getCapabilities(country: string): Promise<ChipperCountryCapabilities> {
+        const res = await this.request<ChipperCapabilitiesResponse>(
+            'GET',
+            `/v1/capabilities/${encodeURIComponent(country)}`,
+        );
+        const mobileMoney = (groups: ChipperCapabilityGroup[] = []) =>
+            groups.flatMap((g) => g.methods).filter((m) => m.type === 'mobile_money');
+        return {
+            collections: mobileMoney(res.capabilities.collections),
+            payouts: mobileMoney(res.capabilities.payouts),
+        };
+    }
+
+    /** All-in rate, destination units per origin unit (`GET /v1/rates/{origin}/{destination}`). */
+    async getRate(origin: string, destination: string): Promise<string> {
+        const res = await this.request<{ rate: { from: string; to: string; rate: string } }>(
+            'GET',
+            `/v1/rates/${encodeURIComponent(origin)}/${encodeURIComponent(destination)}`,
+        );
+        return res.rate.rate;
+    }
+
+    /** Resolve the holder name for a mobile money number (`POST /v1/validate`). */
+    async validateDestination(args: {
+        code: string;
+        accountNumber: string;
+    }): Promise<ChipperValidation> {
+        const res = await this.request<{ validation: ChipperValidation }>('POST', '/v1/validate', {
+            code: args.code,
+            accountNumber: args.accountNumber,
+        });
+        return res.validation;
     }
 
     /** Send an authenticated JSON request, mapping the error envelope to {@link ChipperError}. */

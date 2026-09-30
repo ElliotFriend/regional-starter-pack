@@ -61,3 +61,47 @@ export interface ChipperOrganization {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface ChipperMethodLimits {
+    min: number;
+    max: number;
+    currency: string;
+}
+
+/** One payment method from the capabilities catalog. */
+export interface ChipperMethod {
+    code: string;
+    name: string;
+    type: string;
+    status: string;
+    limits: ChipperMethodLimits | null;
+    estimatedSettlement?: string;
+    fields?: Array<{ key: string; label: string; type: string; placeholder?: string }>;
+}
+
+/** Mobile money methods for one country, by direction. */
+export interface ChipperCountryCapabilities {
+    /** Methods Chipper can charge (the on-ramp source). */
+    collections: ChipperMethod[];
+    /** Methods Chipper can pay out to (the off-ramp destination). */
+    payouts: ChipperMethod[];
+}
+
+/** One country/currency group in the raw capabilities catalog. */
+export interface ChipperCapabilityGroup {
+    country: { code: string; name: string };
+    currency: { code: string; name: string };
+    methods: ChipperMethod[];
+}
+
+/** Raw `GET /v1/capabilities/{country}`. */
+export interface ChipperCapabilitiesResponse {
+    capabilities: { payouts?: ChipperCapabilityGroup[]; collections?: ChipperCapabilityGroup[] };
+}
+
+/** `POST /v1/validate` result. */
+export interface ChipperValidation {
+    valid: boolean;
+    accountName?: string;
+    reason?: string;
+}

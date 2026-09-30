@@ -121,3 +121,95 @@ describe('debug logging', () => {
         expect(logged).not.toContain(API_KEY);
     });
 });
+
+describe('discovery', () => {
+    it('lists mobile money methods for a country', async () => {
+        server.use(
+            http.get(`${BASE_URL}/v1/capabilities/GH`, () =>
+                HttpResponse.json({
+                    capabilities: {
+                        payouts: [
+                            {
+                                country: { code: 'GH', name: 'Ghana' },
+                                currency: { code: 'GHS', name: 'Ghanaian Cedi' },
+                                methods: [
+                                    {
+                                        code: 'gh_mtn',
+                                        name: 'MTN Mobile Money',
+                                        type: 'mobile_money',
+                                        status: 'operational',
+                                        limits: { min: 1, max: 10000, currency: 'GHS' },
+                                        estimatedSettlement: '0-5 minutes',
+                                        fields: [
+                                            {
+                                                key: 'accountNumber',
+                                                label: 'Phone Number',
+                                                type: 'phone',
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        code: 'gh_gcb',
+                                        name: 'GCB Bank',
+                                        type: 'bank_transfer',
+                                        status: 'operational',
+                                        limits: null,
+                                        fields: [],
+                                    },
+                                ],
+                            },
+                        ],
+                        collections: [
+                            {
+                                country: { code: 'GH', name: 'Ghana' },
+                                currency: { code: 'GHS', name: 'Ghanaian Cedi' },
+                                methods: [
+                                    {
+                                        code: 'gh_mtn',
+                                        name: 'MTN Mobile Money',
+                                        type: 'mobile_money',
+                                        status: 'operational',
+                                        limits: { min: 1, max: 5000, currency: 'GHS' },
+                                        fields: [],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                }),
+            ),
+        );
+        const caps = await createClient().getCapabilities('GH');
+        expect(caps.collections.map((m) => m.code)).toEqual(['gh_mtn']);
+        // Payouts are filtered to mobile money: this app does not offer bank payouts.
+        expect(caps.payouts.map((m) => m.code)).toEqual(['gh_mtn']);
+        expect(caps.collections[0].limits).toEqual({ min: 1, max: 5000, currency: 'GHS' });
+    });
+
+    it('reads the all-in rate from the path-parameter endpoint', async () => {
+        server.use(
+            http.get(`${BASE_URL}/v1/rates/GHS/USDC`, () =>
+                HttpResponse.json({ rate: { from: 'GHS', to: 'USDC', rate: '0.08489111' } }),
+            ),
+        );
+        expect(await createClient().getRate('GHS', 'USDC')).toBe('0.08489111');
+    });
+
+    it('validates a mobile money destination and returns the holder name', async () => {
+        let body: unknown;
+        server.use(
+            http.post(`${BASE_URL}/v1/validate`, async ({ request }) => {
+                body = await request.json();
+                return HttpResponse.json({
+                    validation: { valid: true, accountName: 'Ama Mensah' },
+                });
+            }),
+        );
+        const v = await createClient().validateDestination({
+            code: 'gh_mtn',
+            accountNumber: '+233548909027',
+        });
+        expect(body).toEqual({ code: 'gh_mtn', accountNumber: '+233548909027' });
+        expect(v).toEqual({ valid: true, accountName: 'Ama Mensah' });
+    });
+});
