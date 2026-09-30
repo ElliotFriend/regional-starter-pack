@@ -125,6 +125,8 @@ export interface ChipperMoney {
 
 export interface ChipperOrderLeg {
     code: string;
+    /** Bank name on a bank-transfer leg. */
+    bank?: string | null;
     accountNumber?: string | null;
     address?: string | null;
     tag?: string;

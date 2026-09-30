@@ -6,7 +6,7 @@
  *
  * Chipper is partner-level: there is no end-user customer or KYC object. An
  * order collects on one rail and pays out on another in one call, which is how
- * both ramps work here (mobile money ⇄ `usdc_stellar`).
+ * both ramps work here (mobile money or bank ⇄ `usdc_stellar`).
  */
 
 import { StrKey } from '@stellar/stellar-sdk';
@@ -70,12 +70,20 @@ export class ChipperClient {
      * between sandbox and production.
      */
     async getCapabilities(country: string): Promise<ChipperCountryCapabilities> {
+        assertParam(country, COUNTRY, 'country');
         const res = await this.request<ChipperCapabilitiesResponse>(
             'GET',
             `/v1/capabilities/${encodeURIComponent(country)}`,
         );
-        const methods = (groups: ChipperCapabilityGroup[] = [], types: string[]) =>
-            groups.flatMap((g) => g.methods).filter((m) => types.includes(m.type));
+        // Only the country's own groups (the catalog also carries GLOBAL crypto
+        // groups), deduped by code so keyed pickers never see a repeat.
+        const methods = (groups: ChipperCapabilityGroup[] = [], types: string[]) => {
+            const seen = new Set<string>();
+            return groups
+                .filter((g) => g.country.code === country)
+                .flatMap((g) => g.methods)
+                .filter((m) => types.includes(m.type) && !seen.has(m.code) && seen.add(m.code));
+        };
         return {
             collections: methods(res.capabilities.collections, ['mobile_money']),
             payouts: methods(res.capabilities.payouts, PAYOUT_TYPES),
@@ -84,6 +92,8 @@ export class ChipperClient {
 
     /** All-in rate, destination units per origin unit (`GET /v1/rates/{origin}/{destination}`). */
     async getRate(origin: string, destination: string): Promise<string> {
+        assertParam(origin, CURRENCY, 'origin');
+        assertParam(destination, CURRENCY, 'destination');
         const res = await this.request<{ rate: { from: string; to: string; rate: string } }>(
             'GET',
             `/v1/rates/${encodeURIComponent(origin)}/${encodeURIComponent(destination)}`,
@@ -91,7 +101,7 @@ export class ChipperClient {
         return res.rate.rate;
     }
 
-    /** Resolve the holder name for a mobile money number (`POST /v1/validate`). */
+    /** Resolve the holder name for a mobile money number or bank account (`POST /v1/validate`). */
     async validateDestination(args: {
         code: string;
         accountNumber: string;
@@ -103,7 +113,7 @@ export class ChipperClient {
         return res.validation;
     }
 
-    /** Mobile money in, USDC on Stellar out (`POST /v1/orders`). */
+    /** Mobile money or bank transfer in, USDC on Stellar out (`POST /v1/orders`). */
     async createOnRampOrder(args: CreateOnRampOrderArgs): Promise<ChipperOrder> {
         assertStellarAddress(args.stellarAddress);
         return this.createOrder({
@@ -119,7 +129,7 @@ export class ChipperClient {
     }
 
     /**
-     * USDC on Stellar in, mobile money out. The returned `instructions` carry the
+     * USDC on Stellar in, mobile money or bank payout out. The returned `instructions` carry the
      * Stellar `address`, the memo-ID `tag`, and the exact `amount` (incl. fee).
      */
     async createOffRampOrder(args: CreateOffRampOrderArgs): Promise<ChipperOrder> {
@@ -136,6 +146,7 @@ export class ChipperClient {
 
     /** Fetch an order for polling; `null` if unknown. */
     async getOrder(id: string): Promise<ChipperOrder | null> {
+        assertParam(id, ORDER_ID, 'id');
         try {
             const res = await this.request<{ order: ChipperOrderResponse }>(
                 'GET',
@@ -156,6 +167,7 @@ export class ChipperClient {
      * @throws {ChipperError} `VIRTUAL_ACCOUNT_NOT_FOUND` if the order has none.
      */
     async simulateBankDeposit(args: SimulateBankDepositArgs): Promise<void> {
+        assertParam(args.orderId, ORDER_ID, 'orderId');
         const list = await this.request<{ data: ChipperVirtualAccount[] }>(
             'GET',
             `/v1/virtual-accounts?externalReference=${encodeURIComponent(args.orderId)}`,
@@ -261,6 +273,38 @@ const SANDBOX_COLLECTION_CENTS: Record<string, ChipperSandboxOutcome> = {
 export function sandboxCollectionOutcome(amount: string): ChipperSandboxOutcome | null {
     const cents = (amount.split('.')[1] ?? '').padEnd(2, '0').slice(0, 2);
     return SANDBOX_COLLECTION_CENTS[cents] ?? null;
+}
+
+/** ISO 3166-1 alpha-2 country, as the capabilities path expects. */
+const COUNTRY = /^[A-Z]{2}$/;
+/** Fiat or asset code, e.g. `GHS`, `USDC`, `PYUSD`. */
+const CURRENCY = /^[A-Z]{3,6}$/;
+/** Chipper order id, e.g. `ord_dx2lgo5sgalpeqbrmmn5`. */
+const ORDER_ID = /^ord_[a-z0-9]+$/;
+
+/**
+ * Throw a {@link ChipperError} unless a path parameter matches its pattern.
+ * `encodeURIComponent` leaves `..` intact, so an unchecked value could reach a
+ * different authenticated endpoint.
+ */
+function assertParam(value: string, pattern: RegExp, name: string): void {
+    if (!pattern.test(value)) {
+        throw new ChipperError(`Invalid ${name}: ${value}`, 'INVALID_PARAMETER', 400);
+    }
+}
+
+/**
+ * Refuse anything but a sandbox key (`sk_test_…`). This app's proxy routes are
+ * unauthenticated, so a live key would let any visitor move real money.
+ */
+export function assertSandboxKey(apiKey: string): void {
+    if (!apiKey?.startsWith('sk_test_')) {
+        throw new ChipperError(
+            'Chipper is configured for sandbox only: CHIPPER_SECRET_KEY must be an sk_test_ key',
+            'LIVE_KEY_REFUSED',
+            500,
+        );
+    }
 }
 
 /** Throw a {@link ChipperError} unless `address` is a valid Stellar public key. */

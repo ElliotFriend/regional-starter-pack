@@ -695,7 +695,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         }),
         knownIssues: [
             {
-                text: 'In sandbox, a collection’s cents choose its outcome, and orders collect amount + 0.5% fee. A total ending in .50, .51, .52, or .99 stalls or fails (e.g. 100 GHS collects 100.50); the app warns before you confirm.',
+                text: 'In sandbox, a mobile money collection’s cents choose its outcome, and orders collect amount + 0.5% fee. A total ending in .51 or .52 fails, and .50 or .99 completes after a delay (e.g. 100 GHS collects 100.50); the app warns before you confirm.',
             },
             {
                 text: 'Off-ramp USDC must be sent with the order’s memo ID; a payment without it is held for manual review.',
@@ -758,7 +758,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Create an order',
                     description:
-                        'Collect from the payer’s phone and deliver usdc_stellar to their Stellar address.',
+                        'Collect from the payer’s phone or a per-order bank account and deliver usdc_stellar to their Stellar address.',
                 },
                 {
                     title: 'Approve the prompt',

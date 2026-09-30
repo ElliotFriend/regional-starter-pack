@@ -99,15 +99,36 @@ export function shortfall(required: string, balance: string): string | null {
 }
 
 /**
+ * Whether a sandbox collection outcome ends in failure. `delayed_completion`
+ * and `transient_error_then_reconciled` still complete, just later.
+ */
+export function sandboxOutcomeWillFail(outcome: string | null): boolean {
+    return outcome === 'failed' || outcome === 'customer_timeout';
+}
+
+/**
  * Whether a flow page should offer "Start over": the order failed or expired,
- * polling gave up, or a sandbox trigger cent means it will stall.
+ * polling gave up, or the sandbox outcome will fail. An order that will still
+ * complete is left alone.
  */
 export function shouldOfferStartOver(
     order: { failed: boolean } | null,
     timedOut: boolean,
     sandboxOutcome: string | null,
 ): boolean {
-    return !!order?.failed || timedOut || sandboxOutcome !== null;
+    return !!order?.failed || timedOut || sandboxOutcomeWillFail(sandboxOutcome);
+}
+
+/**
+ * Whether a method code belongs to an active market (`gh_…`, `ke_…`), and, when
+ * `currency` is given, whether it is that market's currency. The proxy routes
+ * use this so a browser can only drive this app's own corridors.
+ */
+export function isMethodForMarket(code: string, currency?: string): boolean {
+    const match = /^([a-z]{2})_[a-z0-9]+$/.exec(code);
+    if (!match) return false;
+    const market = Object.values(CHIPPER_MARKETS).find((m) => m.country.toLowerCase() === match[1]);
+    return !!market && (currency === undefined || market.currency === currency);
 }
 
 /** A labelled section of the method picker. */
@@ -133,4 +154,11 @@ export function groupMethods<M extends { type: string; name: string }>(
         { label: 'Banks', methods: banks },
     ];
     return groups.filter((g) => g.methods.length > 0);
+}
+
+/** The first method the grouped picker shows (so the default matches the UI). */
+export function defaultMethodCode<M extends { type: string; name: string; code: string }>(
+    methods: M[],
+): string {
+    return groupMethods(methods)[0]?.methods[0]?.code ?? '';
 }

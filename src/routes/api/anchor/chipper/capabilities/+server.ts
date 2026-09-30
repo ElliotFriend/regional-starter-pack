@@ -1,6 +1,6 @@
 /**
  * Chipper capabilities endpoint.
- * GET ?country=GH|KE → mobile money collection and payout methods.
+ * GET ?country=GH|KE → mobile money collections, and mobile money + bank payouts.
  */
 
 import { json, error } from '@sveltejs/kit';

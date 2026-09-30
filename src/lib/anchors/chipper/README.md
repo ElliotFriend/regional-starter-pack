@@ -4,6 +4,16 @@ Server-side TypeScript client for the [Chipper Platform API](https://docs.platfo
 
 **This client must only run on the server.** It authenticates with a secret API key that must never reach the browser.
 
+## Security: sandbox demo only
+
+This app's proxy routes (`src/routes/api/anchor/chipper/*`) are unauthenticated, like every anchor proxy in the demo. Anyone who can reach them can create orders (sending a mobile money PIN prompt to any phone) and resolve account-holder names through `/validate` using the app's Chipper key. To keep that harmless:
+
+- The server singleton refuses anything but a sandbox key (`assertSandboxKey`: `sk_test_…` only).
+- Routes accept method codes only from the app's active markets and matching currency (`isMethodForMarket`: `gh_…`/GHS and `ke_…`/KES).
+- Path parameters (country, currency, order id) are validated before any request, so a value like `..` can't reach a different endpoint.
+
+**Before using a live key**, put these routes behind user authentication and rate limiting. `/validate` in particular is a PII lookup; resolve names only inside an authenticated off-ramp flow. The client itself accepts live keys; the restriction lives in this app's singleton.
+
 ## Files
 
 | File                   | Purpose                                                                         |
@@ -37,16 +47,16 @@ Chipper is partner-level: there is no end-user customer or KYC object. A single 
 
 ## Methods
 
-| Method                | Endpoint                                                                    | Purpose                                                 |
-| --------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `getOrganization`     | `GET /v1/organization`                                                      | Connectivity check; which org the key belongs to        |
-| `getCapabilities`     | `GET /v1/capabilities/{country}`                                            | Mobile money collection and payout methods (`GH`, `KE`) |
-| `getRate`             | `GET /v1/rates/{origin}/{destination}`                                      | All-in rate, destination units per origin unit          |
-| `validateDestination` | `POST /v1/validate`                                                         | Resolve a mobile money holder name                      |
-| `createOnRampOrder`   | `POST /v1/orders`                                                           | Mobile money → `usdc_stellar`                           |
-| `createOffRampOrder`  | `POST /v1/orders`                                                           | `usdc_stellar` → mobile money                           |
-| `simulateBankDeposit` | `GET /v1/virtual-accounts` + `POST /v1/simulations/virtual-account-deposit` | Sandbox only: fund a bank-sourced order                 |
-| `getOrder`            | `GET /v1/orders/{id}`                                                       | Poll an order; `null` when unknown                      |
+| Method                | Endpoint                                                                    | Purpose                                                            |
+| --------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `getOrganization`     | `GET /v1/organization`                                                      | Connectivity check; which org the key belongs to                   |
+| `getCapabilities`     | `GET /v1/capabilities/{country}`                                            | Mobile money collections; mobile money + bank payouts (`GH`, `KE`) |
+| `getRate`             | `GET /v1/rates/{origin}/{destination}`                                      | All-in rate, destination units per origin unit                     |
+| `validateDestination` | `POST /v1/validate`                                                         | Resolve a mobile money or bank account holder name                 |
+| `createOnRampOrder`   | `POST /v1/orders`                                                           | Mobile money or bank transfer → `usdc_stellar`                     |
+| `createOffRampOrder`  | `POST /v1/orders`                                                           | `usdc_stellar` → mobile money or bank account                      |
+| `simulateBankDeposit` | `GET /v1/virtual-accounts` + `POST /v1/simulations/virtual-account-deposit` | Sandbox only: fund a bank-sourced order                            |
+| `getOrder`            | `GET /v1/orders/{id}`                                                       | Poll an order; `null` when unknown                                 |
 
 Read capabilities at runtime: method codes and limits differ between sandbox and production.
 
@@ -64,8 +74,13 @@ Every order takes an `externalReference`. Reuse it on retry: a replay returns th
 
 - The sandbox settles on the real Stellar testnet with Circle's testnet USDC (`GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`).
 - Bank on-ramps are funded with `simulateBankDeposit`, which finds the order's virtual account (its `externalReference` is the order id).
-- A mobile money collection's cents choose its outcome (`.50` delayed, `.51` failed, `.52` timeout, `.99` transient error). An order collects amount + fee (0.5% in sandbox), so a 100 GHS order collects 100.50 and stalls, while 200 GHS collects 201.00 and completes. `sandboxCollectionOutcome(order.expectedAmount)` reports the outcome in advance.
+- A mobile money collection's cents choose its outcome (`.50` delayed, `.51` failed, `.52` timeout, `.99` transient error). An order collects amount + fee (0.5% in sandbox), so a 100 GHS order collects 100.50 and completes only after a delay, while 200 GHS collects 201.00 and completes normally. `.51` and `.52` are the outcomes that actually fail. `sandboxCollectionOutcome(order.expectedAmount)` reports the outcome in advance.
 - PYUSD on Stellar appears in capabilities but has no sandbox provider (`no_provider_available`), so this client ramps USDC only.
+
+## Verified in sandbox (2026-09-30)
+
+- Kenya bank pay-ins: an order sourced from `ke_kcb` or `ke_equity` returned `virtual_account` instructions for a per-order KCB account whose `externalReference` is the order id, and completed after a simulated deposit. Ghana bank pay-ins need an organization representative on the account.
+- Bank payouts completed to `gh_gcb` (Ghana) and `ke_kcb` (Kenya).
 
 ## Errors
 

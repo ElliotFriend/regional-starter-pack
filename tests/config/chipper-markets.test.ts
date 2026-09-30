@@ -7,6 +7,9 @@ import {
     shortfall,
     shouldOfferStartOver,
     groupMethods,
+    sandboxOutcomeWillFail,
+    defaultMethodCode,
+    isMethodForMarket,
 } from '$lib/config/chipper-markets';
 
 describe('CHIPPER_MARKETS', () => {
@@ -79,14 +82,28 @@ describe('shortfall', () => {
     });
 });
 
+describe('sandboxOutcomeWillFail', () => {
+    it('is true only for outcomes that end in failure', () => {
+        expect(sandboxOutcomeWillFail('failed')).toBe(true);
+        expect(sandboxOutcomeWillFail('customer_timeout')).toBe(true);
+        // These still complete, just slowly or after a retry.
+        expect(sandboxOutcomeWillFail('delayed_completion')).toBe(false);
+        expect(sandboxOutcomeWillFail('transient_error_then_reconciled')).toBe(false);
+        expect(sandboxOutcomeWillFail(null)).toBe(false);
+    });
+});
+
 describe('shouldOfferStartOver', () => {
     const live = { failed: false };
-    it('offers a restart when the order failed, the poll timed out, or a sandbox trigger fired', () => {
+    it('offers a restart when the order failed, polling timed out, or the sandbox outcome fails', () => {
         expect(shouldOfferStartOver({ failed: true }, false, null)).toBe(true);
         expect(shouldOfferStartOver(live, true, null)).toBe(true);
-        expect(shouldOfferStartOver(live, false, 'delayed_completion')).toBe(true);
+        expect(shouldOfferStartOver(live, false, 'failed')).toBe(true);
+        expect(shouldOfferStartOver(live, false, 'customer_timeout')).toBe(true);
     });
-    it('does not interrupt a healthy in-flight order', () => {
+    it('does not push users off an order that will still complete', () => {
+        expect(shouldOfferStartOver(live, false, 'delayed_completion')).toBe(false);
+        expect(shouldOfferStartOver(live, false, 'transient_error_then_reconciled')).toBe(false);
         expect(shouldOfferStartOver(live, false, null)).toBe(false);
         expect(shouldOfferStartOver(null, false, null)).toBe(false);
     });
@@ -117,5 +134,35 @@ describe('groupMethods', () => {
     it('omits an empty group', () => {
         const groups = groupMethods([m('ke_mpesa', 'M-Pesa Kenya', 'mobile_money')]);
         expect(groups.map((g) => g.label)).toEqual(['Mobile money']);
+    });
+});
+
+describe('defaultMethodCode', () => {
+    it('selects the first option the grouped picker shows, not catalog order', () => {
+        const methods = [
+            { code: 'gh_gcb', name: 'GCB Bank', type: 'bank_transfer' },
+            { code: 'gh_absa', name: 'Absa Bank', type: 'bank_transfer' },
+            { code: 'gh_mtn', name: 'MTN Mobile Money', type: 'mobile_money' },
+        ];
+        expect(defaultMethodCode(methods)).toBe('gh_mtn');
+        expect(defaultMethodCode(methods.slice(0, 2))).toBe('gh_absa');
+        expect(defaultMethodCode([])).toBe('');
+    });
+});
+
+describe('isMethodForMarket', () => {
+    it('allows only codes from an active market, paired with that market’s currency', () => {
+        expect(isMethodForMarket('gh_mtn', 'GHS')).toBe(true);
+        expect(isMethodForMarket('ke_kcb', 'KES')).toBe(true);
+        expect(isMethodForMarket('ke_mpesa', 'GHS')).toBe(false); // wrong currency
+        expect(isMethodForMarket('ng_gtbank', 'NGN')).toBe(false); // inactive market
+        expect(isMethodForMarket('usdc_stellar', 'USDC')).toBe(false); // crypto
+        expect(isMethodForMarket('gh_', 'GHS')).toBe(false);
+        expect(isMethodForMarket('gh_mtn/../x', 'GHS')).toBe(false);
+    });
+
+    it('checks the market alone when no currency is given (validation)', () => {
+        expect(isMethodForMarket('gh_gcb')).toBe(true);
+        expect(isMethodForMarket('ug_mtn')).toBe(false);
     });
 });

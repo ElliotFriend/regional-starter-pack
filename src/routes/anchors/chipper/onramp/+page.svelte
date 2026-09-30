@@ -20,6 +20,8 @@
         getChipperMarket,
         normalizePhone,
         shouldOfferStartOver,
+        sandboxOutcomeWillFail,
+        defaultMethodCode,
         groupMethods,
     } from '$lib/config/chipper-markets';
     import type { StellarNetwork } from '$lib/wallet/types';
@@ -64,8 +66,8 @@
     const estimatedTotal = $derived(
         amount ? (Number(amount) * (1 + CHIPPER_FEE_ESTIMATE)).toFixed(2) : null,
     );
-    // The cents rule applies to mobile money charges only; bank deposits are
-    // simulated with an explicit outcome.
+    // The cents rule applies to mobile money charges only; a simulated bank
+    // deposit always completes (no outcome is sent).
     const estimatedOutcome = $derived(
         estimatedTotal && !isBank ? sandboxCollectionOutcome(estimatedTotal) : null,
     );
@@ -105,7 +107,7 @@
                 ? caps.payouts.filter((m) => m.type === 'bank_transfer')
                 : [];
             methods = [...caps.collections, ...banks].filter((m) => m.status === 'operational');
-            methodCode = methods[0]?.code ?? '';
+            methodCode = defaultMethodCode(methods);
             step = 'method';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to load Chipper methods';
@@ -143,6 +145,11 @@
                 stellarAddress: walletStore.publicKey,
                 externalReference,
             });
+            if (order.failed || !order.instructions) {
+                error = `Chipper couldn’t start this on-ramp${order.statusMessage ? `: ${order.statusMessage}` : ''}.`;
+                order = null;
+                return;
+            }
             step = 'payment';
             orderPoller.start();
         } catch (err) {
@@ -154,8 +161,10 @@
 
     async function pollOrder({ stop }: { stop: () => void }) {
         if (!order) return;
-        const updated = await chipper.getOrder(fetch, order.id);
-        if (!updated) return;
+        const id = order.id;
+        const updated = await chipper.getOrder(fetch, id);
+        // Start over can land while this tick is in flight; drop a stale result.
+        if (!updated || order?.id !== id) return;
         order = updated;
         if (updated.status === 'completed') {
             step = 'complete';
@@ -180,6 +189,8 @@
                 externalReference: `sim-${order.id}`,
             });
             depositSimulated = true;
+            // Polling may have given up while the user read the instructions.
+            orderPoller.start();
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to simulate the deposit';
         } finally {
@@ -220,7 +231,8 @@
     </a>
     <h1 class="mt-2 text-2xl font-semibold text-gray-900">{market.currency} → USDC on Stellar</h1>
     <p class="mt-1 text-sm text-gray-600">
-        Pay with {market.railLabel}; receive USDC in your Stellar wallet.
+        Pay with {market.railLabel}{market.bankOnRamp ? ' or bank transfer' : ''}; receive USDC in
+        your Stellar wallet.
     </p>
 
     <div class="mt-6"><WalletConnect /></div>
@@ -236,6 +248,10 @@
                 Retry loading payment methods
             </button>
         {/if}
+    {:else if step === 'method' && methods.length === 0}
+        <p class="mt-6 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+            Chipper reports no operational {market.currency} payment methods right now. Try again later.
+        </p>
     {:else if step === 'method'}
         <section class="mt-6 rounded-lg border border-gray-200 bg-white p-6">
             <h2 class="text-lg font-semibold text-gray-900">Pay from</h2>
@@ -346,8 +362,12 @@
                 <div class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
                     Sandbox: with the fee, about {estimatedTotal}
                     {market.currency} is collected, which triggers
-                    <span class="font-mono">{estimatedOutcome}</span>. Go back and pick an amount
-                    like 200 so the order completes.
+                    <span class="font-mono">{estimatedOutcome}</span>.
+                    {#if sandboxOutcomeWillFail(estimatedOutcome)}
+                        That collection fails, so go back and pick an amount like 200.
+                    {:else}
+                        The order still completes, just more slowly.
+                    {/if}
                 </div>
             {/if}
             <div class="mt-6 flex gap-3">
@@ -362,7 +382,11 @@
                     disabled={isWorking}
                     class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
-                    {isWorking ? 'Creating order…' : 'Confirm and send prompt'}
+                    {isWorking
+                        ? 'Creating order…'
+                        : isBank
+                          ? 'Confirm and get bank details'
+                          : 'Confirm and send prompt'}
                 </button>
             </div>
         </section>
@@ -430,9 +454,13 @@
             {#if sandboxOutcome}
                 <div class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
                     Sandbox: a collection of {order.expectedAmount} triggers
-                    <span class="font-mono">{sandboxOutcome}</span>, so this order may stall or
-                    fail. Start over with an amount whose total doesn’t end in .50, .51, .52, or .99
-                    (e.g. 200).
+                    <span class="font-mono">{sandboxOutcome}</span>.
+                    {#if sandboxOutcomeWillFail(sandboxOutcome)}
+                        It will fail; start over with an amount whose total doesn’t end in .51 or
+                        .52 (e.g. 200).
+                    {:else}
+                        It still completes, just more slowly; keep this page open.
+                    {/if}
                 </div>
             {/if}
             {#if orderPoller.timedOut}
@@ -470,7 +498,7 @@
         <DevBox
             items={[
                 {
-                    text: 'POST /v1/orders collects from mobile money and pays usdc_stellar in one call.',
+                    text: 'POST /v1/orders collects from mobile money or a bank transfer and pays usdc_stellar in one call.',
                     link: 'https://docs.platform.chipper.ai/guides/orders',
                 },
                 {

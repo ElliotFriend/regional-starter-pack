@@ -21,6 +21,7 @@
         normalizePhone,
         shortfall,
         shouldOfferStartOver,
+        defaultMethodCode,
         groupMethods,
     } from '$lib/config/chipper-markets';
     import type { StellarNetwork } from '$lib/wallet/types';
@@ -53,7 +54,7 @@
         const digits = destinationInput.replace(/[\s-]/g, '');
         return /^\d{6,20}$/.test(digits) ? digits : null;
     });
-    const destinationField = $derived(method?.fields?.[0]);
+    const destinationField = $derived(method?.fields?.find((f) => f.key === 'accountNumber'));
     let recipientName = $state<string | null>(null);
 
     // Amount + rate preview
@@ -89,7 +90,7 @@
         try {
             const caps = await chipper.getCapabilities(fetch, market.country);
             methods = caps.payouts.filter((m) => m.status === 'operational');
-            methodCode = methods[0]?.code ?? '';
+            methodCode = defaultMethodCode(methods);
             step = 'recipient';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to load Chipper methods';
@@ -108,7 +109,8 @@
                 accountNumber: destination,
             });
             if (!v.valid) {
-                error = `Chipper couldn’t verify this number${v.reason ? `: ${v.reason}` : ''}.`;
+                const what = isBank ? 'bank account' : 'number';
+                error = `Chipper couldn’t verify this ${what}${v.reason ? `: ${v.reason}` : ''}.`;
                 return;
             }
             recipientName = v.accountName ?? null;
@@ -148,6 +150,12 @@
                 usdcAmount: amount,
                 externalReference,
             });
+            // Instructions are null once an order fails before provisioning.
+            if (order.failed || !order.instructions) {
+                error = `Chipper couldn’t start this off-ramp${order.statusMessage ? `: ${order.statusMessage}` : ''}.`;
+                order = null;
+                return;
+            }
             step = 'send';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to create the order';
@@ -186,8 +194,10 @@
 
     async function pollOrder({ stop }: { stop: () => void }) {
         if (!order) return;
-        const updated = await chipper.getOrder(fetch, order.id);
-        if (!updated) return;
+        const id = order.id;
+        const updated = await chipper.getOrder(fetch, id);
+        // Start over can land while this tick is in flight; drop a stale result.
+        if (!updated || order?.id !== id) return;
         order = updated;
         if (updated.status === 'completed') {
             step = 'complete';
@@ -251,6 +261,10 @@
                 Retry loading payment methods
             </button>
         {/if}
+    {:else if step === 'recipient' && methods.length === 0}
+        <p class="mt-6 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+            Chipper reports no operational {market.currency} payout methods right now. Try again later.
+        </p>
     {:else if step === 'recipient'}
         <section class="mt-6 rounded-lg border border-gray-200 bg-white p-6">
             <h2 class="text-lg font-semibold text-gray-900">Pay out to</h2>
@@ -472,7 +486,7 @@
         <DevBox
             items={[
                 {
-                    text: 'POST /v1/orders collects usdc_stellar and pays out to mobile money in one call.',
+                    text: 'POST /v1/orders collects usdc_stellar and pays out to mobile money or a bank account in one call.',
                     link: 'https://docs.platform.chipper.ai/guides/orders',
                 },
                 {

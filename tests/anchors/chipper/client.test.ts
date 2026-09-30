@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
-import { ChipperClient, ChipperError, sandboxCollectionOutcome } from '$lib/anchors/chipper';
+import {
+    ChipperClient,
+    ChipperError,
+    assertSandboxKey,
+    sandboxCollectionOutcome,
+} from '$lib/anchors/chipper';
 
 const BASE_URL = 'https://chipper.test';
 const API_KEY = 'sk_test_supersecret';
@@ -301,7 +306,7 @@ describe('orders', () => {
         ).rejects.toMatchObject({ code: 'INVALID_STELLAR_ADDRESS' });
     });
 
-    it('returns the original order on an idempotent replay (200)', async () => {
+    it('accepts a 200 replay response (Chipper returns the original order for a reused externalReference)', async () => {
         server.use(
             http.post(`${BASE_URL}/v1/orders`, () =>
                 HttpResponse.json(ONRAMP_ORDER, { status: 200 }),
@@ -388,14 +393,14 @@ describe('orders', () => {
 
     it('returns null for an unknown order', async () => {
         server.use(
-            http.get(`${BASE_URL}/v1/orders/missing`, () =>
+            http.get(`${BASE_URL}/v1/orders/ord_missing`, () =>
                 HttpResponse.json(
                     { error: 'not_found', message: 'Order not found' },
                     { status: 404 },
                 ),
             ),
         );
-        expect(await createClient().getOrder('missing')).toBeNull();
+        expect(await createClient().getOrder('ord_missing')).toBeNull();
     });
 });
 
@@ -470,5 +475,158 @@ describe('simulateBankDeposit (sandbox)', () => {
                 externalReference: 'sim-2',
             }),
         ).rejects.toMatchObject({ code: 'VIRTUAL_ACCOUNT_NOT_FOUND', statusCode: 404 });
+    });
+});
+
+describe('capabilities filtering', () => {
+    const method = (code: string, type: string) => ({
+        code,
+        name: code,
+        type,
+        status: 'operational',
+        limits: null,
+        fields: [],
+    });
+    const group = (country: string, currency: string, methods: unknown[]) => ({
+        country: { code: country, name: country },
+        currency: { code: currency, name: currency },
+        methods,
+    });
+
+    it('keeps only the country’s own groups, drops wallets and crypto, and dedupes codes', async () => {
+        server.use(
+            http.get(`${BASE_URL}/v1/capabilities/KE`, () =>
+                HttpResponse.json({
+                    capabilities: {
+                        payouts: [
+                            group('KE', 'KES', [
+                                method('ke_mpesa', 'mobile_money'),
+                                method('ke_kcb', 'bank_transfer'),
+                                method('ke_chipper', 'wallet'),
+                            ]),
+                            group('KE', 'KES', [method('ke_kcb', 'bank_transfer')]),
+                            group('GLOBAL', 'USDC', [method('usdc_stellar', 'crypto')]),
+                        ],
+                        collections: [
+                            group('KE', 'KES', [
+                                method('ke_mpesa', 'mobile_money'),
+                                method('ke_equity', 'bank_transfer'),
+                            ]),
+                        ],
+                    },
+                }),
+            ),
+        );
+        const caps = await createClient().getCapabilities('KE');
+        expect(caps.payouts.map((m) => m.code)).toEqual(['ke_mpesa', 'ke_kcb']);
+        expect(caps.collections.map((m) => m.code)).toEqual(['ke_mpesa']);
+    });
+});
+
+describe('bank orders', () => {
+    it('sends a bank off-ramp to the account number and maps virtual-account instructions', async () => {
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(
+                    {
+                        order: {
+                            ...ONRAMP_ORDER.order,
+                            from: {
+                                code: 'ke_kcb',
+                                bank: 'KCB Bank',
+                                accountNumber: '5252184873',
+                                amount: '2000.00',
+                                currency: 'KES',
+                            },
+                            instructions: {
+                                type: 'virtual_account',
+                                message: 'Transfer KES 2010.00 to KCB Bank account 5252184873',
+                                bank: 'KCB Bank',
+                                accountNumber: '5252184873',
+                                accountName: 'Chipper/ord_on1',
+                                amount: '2010.00',
+                                currency: 'KES',
+                            },
+                        },
+                    },
+                    { status: 201 },
+                );
+            }),
+        );
+        const order = await createClient().createOffRampOrder({
+            payoutCode: 'gh_gcb',
+            accountNumber: '1234567890',
+            fiatCurrency: 'GHS',
+            usdcAmount: '2',
+            externalReference: 'ref-bank-out',
+        });
+        expect(body?.to).toEqual({ code: 'gh_gcb', accountNumber: '1234567890', currency: 'GHS' });
+        expect(order.instructions?.type).toBe('virtual_account');
+        expect(order.instructions?.accountNumber).toBe('5252184873');
+        expect(order.from.bank).toBe('KCB Bank');
+    });
+});
+
+describe('path parameter validation', () => {
+    it.each([
+        ['getOrder', () => createClient().getOrder('..')],
+        ['getRate', () => createClient().getRate('..', 'organization')],
+        ['getCapabilities', () => createClient().getCapabilities('..')],
+        [
+            'simulateBankDeposit',
+            () =>
+                createClient().simulateBankDeposit({
+                    orderId: '../organization',
+                    amount: '1',
+                    externalReference: 'x',
+                }),
+        ],
+    ])('%s rejects a traversal segment before calling the API', async (_name, call) => {
+        let hits = 0;
+        server.use(
+            http.all(`${BASE_URL}/*`, () => {
+                hits++;
+                return HttpResponse.json({});
+            }),
+        );
+        await expect(call()).rejects.toMatchObject({ code: 'INVALID_PARAMETER', statusCode: 400 });
+        expect(hits).toBe(0);
+    });
+});
+
+describe('debug logging never leaks the key', () => {
+    it('keeps the key out of POST bodies and error logs', async () => {
+        server.use(
+            http.post(`${BASE_URL}/v1/validate`, () =>
+                HttpResponse.json({ error: 'internal_error', message: 'boom' }, { status: 500 }),
+            ),
+        );
+        vi.mocked(console.log).mockClear();
+        vi.mocked(console.error).mockClear();
+        await expect(
+            createClient(true).validateDestination({
+                code: 'gh_mtn',
+                accountNumber: '+233548909027',
+            }),
+        ).rejects.toThrow();
+        const logged = [
+            ...vi.mocked(console.log).mock.calls,
+            ...vi.mocked(console.error).mock.calls,
+        ]
+            .map((c) => c.join(' '))
+            .join('\n');
+        expect(logged).toContain('[Chipper] POST');
+        expect(logged).toContain('[Chipper] Error 500');
+        expect(logged).not.toContain(API_KEY);
+    });
+});
+
+describe('assertSandboxKey', () => {
+    it('accepts a sandbox key and refuses a live key', () => {
+        expect(() => assertSandboxKey('sk_test_abc')).not.toThrow();
+        expect(() => assertSandboxKey('sk_live_abc')).toThrow(/sandbox/i);
+        expect(() => assertSandboxKey('')).toThrow();
     });
 });
