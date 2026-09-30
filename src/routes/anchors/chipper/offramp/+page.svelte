@@ -15,7 +15,13 @@
     import { createPoller } from '$lib/utils/poll.svelte';
     import * as chipper from '$lib/api/chipper';
     import type { ChipperMethod, ChipperOrder } from '$lib/anchors/chipper';
-    import { getChipperMarket, normalizePhone } from '$lib/config/chipper-markets';
+    import {
+        getChipperMarket,
+        maxSendableUsdc,
+        normalizePhone,
+        shortfall,
+        shouldOfferStartOver,
+    } from '$lib/config/chipper-markets';
     import type { StellarNetwork } from '$lib/wallet/types';
 
     // ------------------------------------------------------------------
@@ -54,6 +60,10 @@
     let externalReference = $state<string | null>(null);
     let order = $state<ChipperOrder | null>(null);
     let stellarTxHash = $state<string | null>(null);
+    // The order's USDC amount includes Chipper's fee; flag it before signing.
+    const missingUsdc = $derived(
+        order?.instructions ? shortfall(order.instructions.amount, usdcBalance) : null,
+    );
 
     let isWorking = $state(false);
     let error = $state<string | null>(null);
@@ -292,7 +302,7 @@
                 label="Amount (USDC)"
                 placeholder="4"
                 inputPrefix="$"
-                maxAmount={usdcBalance}
+                maxAmount={maxSendableUsdc(usdcBalance)}
                 isWalletConnected={walletStore.isConnected}
                 {hasTrustline}
                 isGettingQuote={isWorking}
@@ -363,13 +373,28 @@
                 The memo ID matches your payment to this order; without it Chipper holds the deposit
                 for manual review. The button below includes it for you.
             </p>
+            {#if missingUsdc}
+                <div class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                    Your wallet holds {usdcBalance} USDC, {missingUsdc} short of the
+                    {order.instructions.amount} USDC this order needs (the amount plus Chipper's fee).
+                    Start over with a smaller amount.
+                </div>
+            {/if}
             <button
                 onclick={signAndSend}
-                disabled={isWorking}
+                disabled={isWorking || !!missingUsdc}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
                 {isWorking ? 'Waiting for Freighter…' : 'Sign and send with Freighter'}
             </button>
+            <div class="text-center">
+                <button
+                    onclick={reset}
+                    class="mt-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Start over
+                </button>
+            </div>
         </section>
     {:else if step === 'awaiting' && order}
         <section class="mt-6 rounded-lg border border-gray-200 bg-white p-6">
@@ -386,6 +411,14 @@
                 <div class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
                     Still processing. Order ID: <span class="font-mono">{order.id}</span>
                 </div>
+            {/if}
+            {#if shouldOfferStartOver(order, orderPoller.timedOut, null)}
+                <button
+                    onclick={reset}
+                    class="mt-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Start over
+                </button>
             {/if}
         </section>
     {:else if step === 'complete' && order}

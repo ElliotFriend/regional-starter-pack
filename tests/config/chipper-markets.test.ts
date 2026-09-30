@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { CHIPPER_MARKETS, getChipperMarket, normalizePhone } from '$lib/config/chipper-markets';
+import {
+    CHIPPER_MARKETS,
+    getChipperMarket,
+    normalizePhone,
+    maxSendableUsdc,
+    shortfall,
+    shouldOfferStartOver,
+} from '$lib/config/chipper-markets';
 
 describe('CHIPPER_MARKETS', () => {
     it('covers Ghana and Kenya with country, currency, and dial code', () => {
@@ -39,5 +46,35 @@ describe('normalizePhone', () => {
         ['', '+254', null],
     ])('%s (%s) → %s', (input, dial, expected) => {
         expect(normalizePhone(input, dial)).toBe(expected);
+    });
+});
+
+describe('maxSendableUsdc', () => {
+    it('leaves room for the 0.5% fee Chipper adds to the USDC sent', () => {
+        // 10 / 1.005 = 9.950248…, floored to 6 decimals so amount + fee ≤ balance
+        expect(maxSendableUsdc('10')).toBe('9.950248');
+        expect(maxSendableUsdc('0')).toBe('0.000000');
+        expect(maxSendableUsdc('')).toBe('0.000000');
+    });
+});
+
+describe('shortfall', () => {
+    it('reports how much USDC is missing to fund the order, or null when covered', () => {
+        expect(shortfall('10.050000', '10.0000000')).toBe('0.050000');
+        expect(shortfall('4.020000', '13.9700000')).toBeNull();
+        expect(shortfall('4.020000', '4.0200000')).toBeNull();
+    });
+});
+
+describe('shouldOfferStartOver', () => {
+    const live = { failed: false };
+    it('offers a restart when the order failed, the poll timed out, or a sandbox trigger fired', () => {
+        expect(shouldOfferStartOver({ failed: true }, false, null)).toBe(true);
+        expect(shouldOfferStartOver(live, true, null)).toBe(true);
+        expect(shouldOfferStartOver(live, false, 'delayed_completion')).toBe(true);
+    });
+    it('does not interrupt a healthy in-flight order', () => {
+        expect(shouldOfferStartOver(live, false, null)).toBe(false);
+        expect(shouldOfferStartOver(null, false, null)).toBe(false);
     });
 });

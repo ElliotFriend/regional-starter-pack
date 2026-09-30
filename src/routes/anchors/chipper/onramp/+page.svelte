@@ -14,7 +14,12 @@
     import * as chipper from '$lib/api/chipper';
     import { sandboxCollectionOutcome } from '$lib/anchors/chipper';
     import type { ChipperMethod, ChipperOrder } from '$lib/anchors/chipper';
-    import { getChipperMarket, normalizePhone } from '$lib/config/chipper-markets';
+    import {
+        CHIPPER_FEE_ESTIMATE,
+        getChipperMarket,
+        normalizePhone,
+        shouldOfferStartOver,
+    } from '$lib/config/chipper-markets';
     import type { StellarNetwork } from '$lib/wallet/types';
 
     // ------------------------------------------------------------------
@@ -25,11 +30,6 @@
     const market = $derived(getChipperMarket(page.url.searchParams.get('region')));
     // Chipper returns no Stellar issuer; inject the network-correct USDC issuer.
     const stellarAsset = getUsdcAsset(PUBLIC_USDC_ISSUER);
-
-    // The fee observed on every sandbox order (0.5%). Used only to pre-warn
-    // about sandbox outcome cents before the order exists; the real fee comes
-    // back on the order.
-    const SANDBOX_FEE_ESTIMATE = 0.005;
 
     // ------------------------------------------------------------------
     // State machine
@@ -58,7 +58,7 @@
         return !!l && !!amount && (n < l.min || n > l.max);
     });
     const estimatedTotal = $derived(
-        amount ? (Number(amount) * (1 + SANDBOX_FEE_ESTIMATE)).toFixed(2) : null,
+        amount ? (Number(amount) * (1 + CHIPPER_FEE_ESTIMATE)).toFixed(2) : null,
     );
     const estimatedOutcome = $derived(
         estimatedTotal ? sandboxCollectionOutcome(estimatedTotal) : null,
@@ -350,6 +350,14 @@
                 <div class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
                     Still processing. Order ID: <span class="font-mono">{order.id}</span>
                 </div>
+            {/if}
+            {#if shouldOfferStartOver(order, orderPoller.timedOut, sandboxOutcome)}
+                <button
+                    onclick={reset}
+                    class="mt-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Start over
+                </button>
             {/if}
         </section>
     {:else if step === 'complete' && order}

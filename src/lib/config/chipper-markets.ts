@@ -59,3 +59,42 @@ export function normalizePhone(input: string, dialCode: string): string | null {
     else if (subscriber.startsWith('0')) subscriber = subscriber.slice(1);
     return /^\d{9}$/.test(subscriber) ? `${dialCode}${subscriber}` : null;
 }
+
+/**
+ * The fee every sandbox order has charged (0.5%), added on top of the amount.
+ * Used only for pre-order estimates; the real fee comes back on the order.
+ */
+export const CHIPPER_FEE_ESTIMATE = 0.005;
+
+const MICRO = 1_000_000; // USDC amounts carry 6 decimals at Chipper
+
+/** Parse a decimal string to integer micro-units exactly (extra digits truncated). */
+function toMicro(amount: string): number {
+    const [whole = '0', frac = ''] = (amount || '0').trim().split('.');
+    return Number(whole || '0') * MICRO + Number(frac.padEnd(6, '0').slice(0, 6));
+}
+
+/** The most USDC a user can off-ramp from `balance` once the fee is added. */
+export function maxSendableUsdc(balance: string): string {
+    const micro = Math.floor(toMicro(balance) / (1 + CHIPPER_FEE_ESTIMATE));
+    return (micro / MICRO).toFixed(6);
+}
+
+/** USDC missing to fund `required` from `balance`, or `null` when covered. */
+export function shortfall(required: string, balance: string): string | null {
+    const need = toMicro(required);
+    const have = toMicro(balance);
+    return need > have ? ((need - have) / MICRO).toFixed(6) : null;
+}
+
+/**
+ * Whether a flow page should offer "Start over": the order failed or expired,
+ * polling gave up, or a sandbox trigger cent means it will stall.
+ */
+export function shouldOfferStartOver(
+    order: { failed: boolean } | null,
+    timedOut: boolean,
+    sandboxOutcome: string | null,
+): boolean {
+    return !!order?.failed || timedOut || sandboxOutcome !== null;
+}
