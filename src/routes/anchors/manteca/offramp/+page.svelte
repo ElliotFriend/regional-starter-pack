@@ -67,9 +67,11 @@
     let missingPersonalData = $state<string[]>([]);
     let user = $state<MantecaUser | null>(null);
 
-    // Identity-document upload (regions where IDENTITY_VALIDATION is required, e.g. AR)
+    // Identity-document / selfie upload (regions where IDENTITY_VALIDATION or
+    // SELFIE_VALIDATION is required, e.g. AR)
     let idFront = $state<File | null>(null);
     let idBack = $state<File | null>(null);
+    let selfie = $state<File | null>(null);
 
     // Payout destination — a single key (BR/AR) or a structured bank account (CO).
     let pixKey = $state('');
@@ -86,6 +88,9 @@
     let amount = $state('');
     let quote = $state<MantecaQuote | null>(null);
     let synthetic = $state<MantecaSynthetic | null>(null);
+    // Per-attempt idempotency key: reused if creation throws and the user retries,
+    // so Manteca returns the existing synthetic instead of creating a duplicate.
+    let externalId = $state<string | null>(null);
     let stellarTxHash = $state<string | null>(null);
     let hasTrustline = $state(false);
 
@@ -263,32 +268,67 @@
         }
     }
 
-    // True when the user still owes an identity-document upload to become operational.
-    function needsIdUpload(u: MantecaUser): boolean {
-        const s = u.onboarding?.['IDENTITY_VALIDATION'];
-        return !u.canOperate && !!s?.required && s.status !== 'COMPLETED';
+    // True when the user still owes a KYC task (identity document and/or selfie).
+    function taskPending(u: MantecaUser, key: string): boolean {
+        const s = u.onboarding?.[key];
+        return !!s?.required && s.status !== 'COMPLETED';
     }
+    function needsIdUpload(u: MantecaUser): boolean {
+        return (
+            !u.canOperate &&
+            (taskPending(u, 'IDENTITY_VALIDATION') || taskPending(u, 'SELFIE_VALIDATION'))
+        );
+    }
+    const needsDocument = $derived(!!user && taskPending(user, 'IDENTITY_VALIDATION'));
+    const needsSelfie = $derived(!!user && taskPending(user, 'SELFIE_VALIDATION'));
+    // A FAILED task carries Manteca's rejectionReason; surface it so the user can re-upload.
+    function rejectionOf(key: string): string | null {
+        const s = user?.onboarding?.[key];
+        return s?.status === 'FAILED' ? (s.rejectionReason ?? 'no reason given') : null;
+    }
+    const documentRejection = $derived(rejectionOf('IDENTITY_VALIDATION'));
+    const selfieRejection = $derived(rejectionOf('SELFIE_VALIDATION'));
 
     async function uploadIdentity() {
-        if (!user || !idFront) return;
+        if (!user) return;
+        if ((needsDocument && !idFront) || (needsSelfie && !selfie)) return;
         isWorking = true;
         error = null;
         try {
-            // Both FRONT and BACK are required; reuse the front for the back if the
-            // user only has a single-sided document.
-            const back = idBack ?? idFront;
-            await manteca.uploadIdentityImage(fetch, {
-                userAnyId: user.numberId,
-                side: 'FRONT',
-                fileName: idFront.name,
-                file: idFront,
-            });
-            await manteca.uploadIdentityImage(fetch, {
-                userAnyId: user.numberId,
-                side: 'BACK',
-                fileName: back.name,
-                file: back,
-            });
+            const uploaded: { key: string; label: string }[] = [];
+            if (needsDocument && idFront) {
+                // Both FRONT and BACK are required; reuse the front image for the back
+                // if the user only has a single-sided document.
+                const back = idBack ?? idFront;
+                await manteca.uploadIdentityImage(fetch, {
+                    userAnyId: user.numberId,
+                    side: 'FRONT',
+                    fileName: idFront.name,
+                    file: idFront,
+                });
+                await manteca.uploadIdentityImage(fetch, {
+                    userAnyId: user.numberId,
+                    side: 'BACK',
+                    fileName: back.name,
+                    file: back,
+                });
+                uploaded.push({ key: 'IDENTITY_VALIDATION', label: 'identity document' });
+            }
+            if (needsSelfie && selfie) {
+                await manteca.uploadIdentityImage(fetch, {
+                    userAnyId: user.numberId,
+                    side: 'SELFIE',
+                    fileName: selfie.name,
+                    file: selfie,
+                });
+                uploaded.push({ key: 'SELFIE_VALIDATION', label: 'selfie' });
+            }
+            // A task that was already FAILED before this upload only counts as a new
+            // rejection once Manteca has moved it off FAILED (i.e. re-reviewed it).
+            let staleFailed = uploaded
+                .filter((t) => user?.onboarding?.[t.key]?.status === 'FAILED')
+                .map((t) => t.key);
+            // Verification is async — poll until the user can operate.
             for (let i = 0; i < 15; i++) {
                 await new Promise((r) => setTimeout(r, 4000));
                 const u = await manteca.getUser(fetch, user.numberId);
@@ -296,6 +336,15 @@
                 if (u?.canOperate) {
                     step = 'destination';
                     return;
+                }
+                for (const t of uploaded) {
+                    const s = u?.onboarding?.[t.key];
+                    if (s?.status !== 'FAILED') {
+                        staleFailed = staleFailed.filter((k) => k !== t.key);
+                    } else if (!staleFailed.includes(t.key)) {
+                        error = `Manteca rejected your ${t.label}: ${s.rejectionReason ?? 'no reason given'}. Re-upload and try again.`;
+                        return;
+                    }
                 }
             }
             error = 'Identity uploaded — still awaiting verification. Try again shortly.';
@@ -317,6 +366,18 @@
             idBack = null;
         } catch {
             error = 'Could not load the sample document.';
+        }
+    }
+
+    // Same sample image, for the SELFIE_VALIDATION task.
+    async function fillSampleSelfie() {
+        error = null;
+        try {
+            const res = await fetch('/sample-dni.jpg');
+            const blob = await res.blob();
+            selfie = new File([blob], 'sample-selfie.jpg', { type: blob.type || 'image/jpeg' });
+        } catch {
+            error = 'Could not load the sample image.';
         }
     }
 
@@ -349,6 +410,8 @@
         if (!amount) return;
         isWorking = true;
         error = null;
+        // A fresh quote for a (possibly new) amount starts a new ramp attempt.
+        externalId = null;
         try {
             quote = await manteca.getQuote(fetch, {
                 ramp: 'offramp',
@@ -387,12 +450,15 @@
         if (!quote || !user || !walletStore.publicKey) return;
         isWorking = true;
         error = null;
+        // Keep the key across retries of this attempt (idempotent create).
+        externalId ??= crypto.randomUUID();
         try {
             synthetic = await manteca.createRampOff(fetch, {
                 userAnyId: user.numberId,
                 asset: tokenSymbol,
                 against: fiatCurrency,
-                assetAmount: parseFloat(amount),
+                assetAmount: amount,
+                externalId,
                 // Colombia uses a structured bank-account destination; BR/AR use a
                 // single key (PIX key / CVU / alias).
                 ...(fr.destinationKind === 'bank'
@@ -453,15 +519,15 @@
         if (!updated) return;
         synthetic = updated;
         if (updated.failed) {
-            error = `Manteca could not complete this off-ramp: ${updated.failureReason ?? 'a stage failed'}.`;
+            // CANCELLED is the only terminal failure.
+            error = `Manteca cancelled this off-ramp: ${updated.failureReason ?? 'no reason given'}.`;
             stop();
         } else if (updated.isTerminal && updated.status === 'COMPLETED') {
             step = 'complete';
             stop();
-        } else if (updated.status === 'CANCELLED') {
-            error = 'Manteca cancelled this off-ramp.';
-            stop();
         }
+        // `updated.retrying`: a stage errored but Manteca is retrying it — keep
+        // polling; the step view shows a non-fatal notice.
     }
 
     // ------------------------------------------------------------------
@@ -472,6 +538,7 @@
         amount = '';
         quote = null;
         synthetic = null;
+        externalId = null;
         stellarTxHash = null;
         error = null;
         step = 'destination';
@@ -713,58 +780,108 @@
     <!-- =================== IDENTITY UPLOAD ======================= -->
     {#if step === 'idupload'}
         <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <div class="flex items-start justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
-                    <p class="mt-1 text-sm text-gray-500">
-                        {fr.exchange} requires a photo of your identity document ({fr.legalIdLabel}).
-                        Upload the front and back — Manteca verifies it before your account can
-                        operate.
-                    </p>
-                </div>
-                <button
-                    onclick={fillSampleId}
-                    class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Use sample document
-                </button>
-            </div>
+            <h2 class="text-lg font-semibold text-gray-900">Identity verification</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                {fr.exchange} requires {needsDocument && needsSelfie
+                    ? `a photo of your identity document (${fr.legalIdLabel}) and a selfie`
+                    : needsSelfie
+                      ? 'a selfie'
+                      : `a photo of your identity document (${fr.legalIdLabel})`}. Manteca verifies
+                it before your account can operate.
+            </p>
 
-            {#if idFront}
-                <p class="mt-3 text-xs text-gray-500">
-                    Selected: <span class="font-mono">{idFront.name}</span>
-                </p>
+            {#if needsDocument}
+                <div class="mt-6 flex items-start justify-between">
+                    <h3 class="text-sm font-semibold text-gray-900">Identity document</h3>
+                    <button
+                        onclick={fillSampleId}
+                        class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                        Use sample document
+                    </button>
+                </div>
+
+                {#if documentRejection}
+                    <div class="mt-3 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
+                        <p class="font-medium">Manteca rejected your identity document</p>
+                        <p class="mt-1">{documentRejection}</p>
+                        <p class="mt-1">Upload a new image to try again.</p>
+                    </div>
+                {/if}
+
+                {#if idFront}
+                    <p class="mt-3 text-xs text-gray-500">
+                        Selected: <span class="font-mono">{idFront.name}</span>
+                    </p>
+                {/if}
+
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Document — front</span>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onchange={(e) => (idFront = e.currentTarget.files?.[0] ?? null)}
+                        class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
+                    />
+                </label>
+
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Document — back (optional)</span
+                    >
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onchange={(e) => (idBack = e.currentTarget.files?.[0] ?? null)}
+                        class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Leave empty to reuse the front image for both sides.
+                    </span>
+                </label>
             {/if}
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Document — front</span>
-                <input
-                    type="file"
-                    accept="image/*"
-                    onchange={(e) => (idFront = e.currentTarget.files?.[0] ?? null)}
-                    class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
-                />
-            </label>
+            {#if needsSelfie}
+                <div class="mt-6 flex items-start justify-between">
+                    <h3 class="text-sm font-semibold text-gray-900">Selfie</h3>
+                    <button
+                        onclick={fillSampleSelfie}
+                        class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                        Use sample image
+                    </button>
+                </div>
 
-            <label class="mt-4 block">
-                <span class="text-sm font-medium text-gray-700">Document — back (optional)</span>
-                <input
-                    type="file"
-                    accept="image/*"
-                    onchange={(e) => (idBack = e.currentTarget.files?.[0] ?? null)}
-                    class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
-                />
-                <span class="mt-1 block text-xs text-gray-400">
-                    Leave empty to reuse the front image for both sides.
-                </span>
-            </label>
+                {#if selfieRejection}
+                    <div class="mt-3 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
+                        <p class="font-medium">Manteca rejected your selfie</p>
+                        <p class="mt-1">{selfieRejection}</p>
+                        <p class="mt-1">Upload a new image to try again.</p>
+                    </div>
+                {/if}
+
+                {#if selfie}
+                    <p class="mt-3 text-xs text-gray-500">
+                        Selected: <span class="font-mono">{selfie.name}</span>
+                    </p>
+                {/if}
+
+                <label class="mt-4 block">
+                    <span class="text-sm font-medium text-gray-700">Selfie</span>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onchange={(e) => (selfie = e.currentTarget.files?.[0] ?? null)}
+                        class="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700"
+                    />
+                </label>
+            {/if}
 
             <button
                 onclick={uploadIdentity}
-                disabled={!idFront || isWorking}
+                disabled={(needsDocument && !idFront) || (needsSelfie && !selfie) || isWorking}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-                {isWorking ? 'Uploading & verifying…' : 'Upload identity document'}
+                {isWorking ? 'Uploading & verifying…' : 'Upload & verify'}
             </button>
         </div>
     {/if}
@@ -1011,6 +1128,15 @@
                 ></div>
                 <span class="ml-3 text-sm text-gray-500">Polling Manteca…</span>
             </div>
+            {#if synthetic.retrying}
+                <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+                    <p class="font-medium">Manteca is retrying a stage</p>
+                    <p class="mt-1">
+                        Manteca hit an error on a stage and is retrying it ({synthetic.failureReason ??
+                            'no reason given'}). This can take a few minutes.
+                    </p>
+                </div>
+            {/if}
             {#if payoutPoller.timedOut}
                 <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
                     <p class="font-medium">Still processing</p>

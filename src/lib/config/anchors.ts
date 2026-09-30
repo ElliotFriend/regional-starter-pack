@@ -490,7 +490,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         scorecard: makeCriteria({
             'local-asset': {
                 status: 'failed',
-                note: 'USDC/USDT/XLM — no locally denominated asset',
+                note: 'USDC/XLM on Stellar; no locally denominated asset',
             },
             'local-rails': {
                 status: 'met',
@@ -498,7 +498,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             },
             'competitive-rates': {
                 status: 'failed',
-                note: 'Sandbox spread ~0 (not representative); production ~50–60 bps per survey, above the <25 bps target',
+                note: 'Production ~50–60 bps per survey, above the <25 bps target; sandbox prices embed the spread, so it is not separable',
             },
             'deep-liquidity': { status: 'met', note: '~$10M/day per survey; Bybit partnership' },
             'open-access': {
@@ -507,11 +507,11 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             },
             'accurate-docs': {
                 status: 'partial',
-                note: '2026 docs corrected auth, onboarding, and the ramp-off destination to match the wire. Residual: docs type depositAddresses.STELLAR as a string, but the wire returns an object (use .address); the scalar depositAddress holds the EVM address.',
+                note: 'Mostly match the wire; residual gaps in the ramp-off Stellar address shape, the Colombia bank list, and Brazil’s required fields',
             },
             'high-fidelity-sandbox': {
                 status: 'met',
-                note: 'Verified end-to-end on testnet — on-ramp settles USDC to the user’s Stellar address, off-ramp accepts the payment and pays out fiat. Earlier Stellar-settlement gap fixed by Manteca (June 2026). Fiat legs auto-mock.',
+                note: 'Re-verified on testnet (September 2026): on-ramp settles USDC to the user’s Stellar address; off-ramp detects the on-chain payment and sells it. Fiat legs are mocked.',
             },
             'agent-buildable': {
                 status: 'met',
@@ -524,22 +524,28 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         }),
         knownIssues: [
             {
-                text: 'Sandbox onboarding only accepts a fixed set of seeded test identities per market; arbitrary valid IDs are rejected and each seeded ID is single-use. Repeatable testing needs Manteca’s seeded list.',
+                text: 'Argentina and Colombia sandbox onboarding only accept Manteca’s seeded test identities, each single-use. Brazil accepts any valid CPF.',
             },
             {
-                text: 'Argentina onboarding requires an extra identity-document upload before the account can operate; the app handles it with an upload step and a sample-document helper. Brazil and Colombia need no upload.',
+                text: 'Argentina onboarding requires an identity-document upload (plus a selfie where requested) before the account can operate. Brazil and Colombia require one once cumulative amounts pass a threshold.',
             },
             {
-                text: 'Colombia off-ramp uses a structured bank destination (account number, bank, account type), wired as a bank-account form. Names are missing for 5 of the 16 accepted bank codes, so those show the code.',
+                text: 'Colombia off-ramp uses a structured bank destination (account number, bank, account type). Manteca’s docs list different bank codes than the live bank endpoint; the app follows the live list.',
             },
             {
                 text: 'Several request/response shapes were corrected against the live sandbox after building from the docs (pricing, onboarding, deposit instructions, and field enums).',
             },
             {
-                text: 'Competitive rates are unverified — the sandbox shows ~0 spread. Per-quote cost is visible on each order, but the production spread (~50–60 bps per survey) needs a live account.',
+                text: 'Competitive rates are unverified. Sandbox prices already include Manteca’s spread (USDC/BRL buy and sell ~2.4% apart), so the production spread (~50–60 bps per survey) needs a live account.',
             },
             {
-                text: 'The broker test-deposit endpoint is a separate product and is not used (the on-ramp deposit auto-settles). The ramp-on call is also intermittently flaky in sandbox, so clients should retry.',
+                text: 'Sandbox Brazil PIX and Colombia BRE-B deposits settle automatically. Argentina’s CVU deposit is simulated with the sandbox create-deposit action (the Simulate deposit button).',
+            },
+            {
+                text: 'Ramp creation is idempotent on externalId, so the app reuses one per attempt and retries safely. A failed stage is retried by Manteca for several minutes before the ramp is cancelled.',
+            },
+            {
+                text: 'In sandbox, the off-ramp’s fiat payout can stall at the withdraw stage after the USDC is received and sold.',
             },
             {
                 text: 'Each user gets a per-user muxed Stellar deposit address with no separate memo.',
@@ -580,7 +586,10 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'Authenticate every request with the static `md-api-key` header — no OAuth, no token refresh.',
             },
             {
-                text: 'Onboard end-users programmatically via POST /crypto/v2/onboarding-actions/initial. Brazil auto-populates only some fields (name, birthDate, work) from national databases — you must still supply surname, phoneNumber, nationality, address.street, sex, and maritalStatus. Use the missing-personal-data endpoint to check what is pending, then poll the user until ACTIVE.',
+                text: 'Onboard end-users programmatically via POST /crypto/v2/onboarding-actions/initial with a nested personalData object. In Brazil, name, surname, phoneNumber, nationality, and address.street are enough; the CPF fills the rest. Use the missing-personal-data endpoint to check what is pending, then poll the user until ACTIVE.',
+            },
+            {
+                text: 'Send an externalId on every ramp. A retried create returns 409 SYNTHETIC_EXISTS, and the original is fetchable by that externalId.',
             },
         ],
         integrationFlow: {
@@ -602,7 +611,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Pay via PIX',
                     description:
-                        'The user pays the PIX deposit (or, in sandbox, simulate the deposit) to trigger the synthetic.',
+                        'The user pays the PIX deposit to trigger the synthetic; the sandbox detects it automatically.',
                 },
                 {
                     title: 'Receive USDC',

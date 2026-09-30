@@ -5,9 +5,8 @@
  * legal-ID field, payout destination label, and the Manteca `exchange`/`country`
  * to pass through) from this one table — mirroring the Etherfuse region pattern.
  *
- * NOTE: Argentina + Colombia values are wired from docs; the deposit-instruction
- * and destination wire shapes are not yet sandbox-verified (see
- * docs/manteca-multiregion-plan.md, Phase 4). Brazil is the verified default.
+ * Brazil is the default region. All three regions have been exercised against
+ * the sandbox (see docs/manteca-multiregion-plan.md).
  */
 
 import type { MantecaExchange } from '$lib/anchors/manteca';
@@ -37,10 +36,19 @@ export interface MantecaFlowRegion {
     destinationKind: 'key' | 'bank';
     /** Sandbox test legal ID for "Fill test data" (empty where unknown). */
     testLegalId: string;
+    /**
+     * Manteca legal entity for the sandbox `create-deposit` action, set only
+     * where the on-ramp deposit is a static address the sandbox can credit
+     * (Argentina's CVU). QR deposits (BR PIX, CO BRE-B) auto-settle instead.
+     */
+    sandboxDepositEntity?: string;
 }
 
-/** Colombian banks accepted by Manteca's off-ramp (ACH `1000+`-style codes). */
-export const CO_BANKS: { code: string; name?: string }[] = [
+/**
+ * Colombian banks accepted by Manteca's off-ramp, per the live
+ * `GET /crypto/v2/info/banks?exchange=COLOMBIA` list.
+ */
+export const CO_BANKS: { code: string; name: string }[] = [
     { code: '1007', name: 'Bancolombia' },
     { code: '1001', name: 'Banco de Bogotá' },
     { code: '1002', name: 'Banco Popular' },
@@ -50,14 +58,13 @@ export const CO_BANKS: { code: string; name?: string }[] = [
     { code: '1051', name: 'Davivienda' },
     { code: '1052', name: 'Banco AV Villas' },
     { code: '1062', name: 'Banco Falabella' },
+    { code: '1070', name: 'Lulo Bank' },
+    { code: '1292', name: 'Confiar Cooperativa Financiera' },
     { code: '1507', name: 'Nequi' },
     { code: '1551', name: 'Daviplata' },
-    // Codes Manteca accepts but whose names aren't confidently mapped yet.
-    { code: '1070' },
-    { code: '1292' },
-    { code: '1801' },
-    { code: '1804' },
-    { code: '1809' },
+    { code: '1801', name: 'Movii' },
+    { code: '1804', name: 'Ualá' },
+    { code: '1809', name: 'Nu' },
 ];
 
 /** Colombian account types accepted by the off-ramp. */
@@ -91,6 +98,7 @@ export const MANTECA_REGIONS: Record<string, MantecaFlowRegion> = {
         destinationPlaceholder: 'CVU, CBU, or alias',
         destinationKind: 'key',
         testLegalId: '',
+        sandboxDepositEntity: 'CRYPTO_ARG',
     },
     colombia: {
         id: 'colombia',

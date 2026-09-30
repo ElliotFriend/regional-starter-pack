@@ -520,6 +520,65 @@ describe('MantecaClient', () => {
         });
     });
 
+    describe('uploadSelfieImage', () => {
+        it('mints a presigned URL via upload-selfie-image then PUTs the bytes', async () => {
+            let postBody: Record<string, unknown> | undefined;
+            let putBytes: Uint8Array | undefined;
+            server.use(
+                http.post(
+                    `${BASE_URL}/crypto/v2/onboarding-actions/upload-selfie-image`,
+                    async ({ request }) => {
+                        expectAuth(request);
+                        postBody = (await request.json()) as Record<string, unknown>;
+                        return HttpResponse.json({
+                            url: 'https://s3.example.test/doc/selfie?Content-Type=image%2Fjpeg',
+                        });
+                    },
+                ),
+                http.put('https://s3.example.test/doc/selfie', async ({ request }) => {
+                    expect(request.headers.get('md-api-key')).toBeNull();
+                    putBytes = new Uint8Array(await request.arrayBuffer());
+                    return new HttpResponse(null, { status: 200 });
+                }),
+            );
+            await createClient().uploadSelfieImage({
+                userAnyId: '10001',
+                fileName: 'selfie.jpg',
+                file: new Uint8Array([4, 5, 6]),
+            });
+            expect(postBody).toEqual({ userAnyId: '10001', fileName: 'selfie.jpg' });
+            expect(putBytes).toEqual(new Uint8Array([4, 5, 6]));
+        });
+    });
+
+    describe('createSandboxDeposit', () => {
+        it('POSTs a simulated fiat deposit to /crypto/v2/sandbox-actions/create-deposit (204)', async () => {
+            let captured: Record<string, unknown> | undefined;
+            server.use(
+                http.post(
+                    `${BASE_URL}/crypto/v2/sandbox-actions/create-deposit`,
+                    async ({ request }) => {
+                        expectAuth(request);
+                        captured = (await request.json()) as Record<string, unknown>;
+                        return new HttpResponse(null, { status: 204 });
+                    },
+                ),
+            );
+            await createClient().createSandboxDeposit({
+                userAnyId: '10001',
+                legalEntity: 'CRYPTO_ARG',
+                asset: 'ARS',
+                amount: '15000',
+            });
+            expect(captured).toEqual({
+                userAnyId: '10001',
+                legalEntity: 'CRYPTO_ARG',
+                asset: 'ARS',
+                amount: '15000',
+            });
+        });
+    });
+
     describe('getMissingPersonalData', () => {
         it('GETs /crypto/v2/stats/onboarding/missing-personal-data/{anyId}', async () => {
             server.use(
@@ -569,7 +628,7 @@ describe('MantecaClient', () => {
                 userAnyId: '10001',
                 asset: 'USDC',
                 against: 'BRL',
-                againstAmount: 58.5,
+                againstAmount: '58.5', // the docs type amounts as decimal strings
                 destination: { address: STELLAR_PUBKEY, network: 'STELLAR' },
             });
             expect(synthetic.id).toBe('67859d6471d5a50fd3592381');
@@ -591,6 +650,58 @@ describe('MantecaClient', () => {
             expect(synthetic.details.effectiveWithdrawAmount).toBe('19.04761605');
             expect(synthetic.details.effectivePrice).toBe('5.25000');
             expect(synthetic.details.depositAvailableNetworks).toEqual(['PIX']);
+        });
+
+        it('forwards externalId and recovers the existing synthetic on SYNTHETIC_EXISTS', async () => {
+            // Creation is idempotent on externalId: a retried create 409s, and the
+            // original synthetic is fetchable by that externalId.
+            let posted: Record<string, unknown> | undefined;
+            server.use(
+                http.post(`${BASE_URL}/crypto/v2/synthetics/ramp-on`, async ({ request }) => {
+                    posted = (await request.json()) as Record<string, unknown>;
+                    return HttpResponse.json(
+                        {
+                            internalStatus: 'SYNTHETIC_EXISTS',
+                            message: 'Synthetic with given ids already exists.',
+                        },
+                        { status: 409 },
+                    );
+                }),
+                http.get(`${BASE_URL}/crypto/v2/synthetics/ramp-op-1`, () =>
+                    HttpResponse.json({ ...RAMP_ON_RESPONSE, status: 'ACTIVE' }),
+                ),
+            );
+            const s = await createClient().createRampOn({
+                userAnyId: '10001',
+                asset: 'USDC',
+                against: 'BRL',
+                againstAmount: 100,
+                stellarAddress: STELLAR_PUBKEY,
+                externalId: 'ramp-op-1',
+            });
+            expect(posted?.externalId).toBe('ramp-op-1');
+            expect(s.id).toBe('67859d6471d5a50fd3592381');
+            expect(s.status).toBe('ACTIVE');
+        });
+
+        it('rethrows SYNTHETIC_EXISTS when no externalId was sent', async () => {
+            server.use(
+                http.post(`${BASE_URL}/crypto/v2/synthetics/ramp-on`, () =>
+                    HttpResponse.json(
+                        { internalStatus: 'SYNTHETIC_EXISTS', message: 'exists' },
+                        { status: 409 },
+                    ),
+                ),
+            );
+            await expect(
+                createClient().createRampOn({
+                    userAnyId: '10001',
+                    asset: 'USDC',
+                    against: 'BRL',
+                    againstAmount: 100,
+                    stellarAddress: STELLAR_PUBKEY,
+                }),
+            ).rejects.toMatchObject({ code: 'SYNTHETIC_EXISTS', statusCode: 409 });
         });
 
         it('rejects an invalid Stellar address before calling the API', async () => {
@@ -651,7 +762,7 @@ describe('MantecaClient', () => {
                 userAnyId: '10001',
                 asset: 'USDC',
                 against: 'BRL',
-                assetAmount: 10,
+                assetAmount: '10',
                 destination: { address: 'maria@example.com' },
             });
             // The crypto deposit address the user funds (USDC on Stellar).
@@ -716,24 +827,55 @@ describe('MantecaClient', () => {
             expect(await createClient().getSynthetic('missing')).toBeNull();
         });
 
-        it('flags a failed (non-terminal) synthetic when a stage reports errors', async () => {
+        it('treats stage errors on an ACTIVE synthetic as retrying, not failed', async () => {
+            // Manteca retries a failed stage for several minutes while the
+            // synthetic stays ACTIVE; only CANCELLED is a terminal failure.
             server.use(
-                http.get(`${BASE_URL}/crypto/v2/synthetics/wfail`, () =>
+                http.get(`${BASE_URL}/crypto/v2/synthetics/wretry`, () =>
                     HttpResponse.json({
                         ...RAMP_ON_RESPONSE,
                         status: 'ACTIVE',
                         currentStage: 3,
                         stages: {
                             ...RAMP_ON_RESPONSE.stages,
-                            '3': { ...RAMP_ON_RESPONSE.stages['3'], errors: ['Withdraw FAILED'] },
+                            '3': {
+                                ...RAMP_ON_RESPONSE.stages['3'],
+                                errors: ['C3: Account number does not exist'],
+                            },
                         },
                     }),
                 ),
             );
-            const s = await createClient().getSynthetic('wfail');
-            expect(s?.isTerminal).toBe(false); // still ACTIVE, not COMPLETED/CANCELLED
+            const s = await createClient().getSynthetic('wretry');
+            expect(s?.isTerminal).toBe(false);
+            expect(s?.failed).toBe(false);
+            expect(s?.retrying).toBe(true);
+            expect(s?.failureReason).toBe('C3: Account number does not exist');
+        });
+
+        it('flags a CANCELLED synthetic as failed, with the stage error as the reason', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/wcancel`, () =>
+                    HttpResponse.json({
+                        ...RAMP_ON_RESPONSE,
+                        status: 'CANCELLED',
+                        currentStage: 4,
+                        stages: {
+                            ...RAMP_ON_RESPONSE.stages,
+                            '3': {
+                                ...RAMP_ON_RESPONSE.stages['3'],
+                                errors: ['C3: Account number does not exist'],
+                            },
+                            '4': { stageType: 'REFUND', asset: 'BRL', amount: '100.00' },
+                        },
+                    }),
+                ),
+            );
+            const s = await createClient().getSynthetic('wcancel');
+            expect(s?.isTerminal).toBe(true);
             expect(s?.failed).toBe(true);
-            expect(s?.failureReason).toBe('Withdraw FAILED');
+            expect(s?.retrying).toBe(false);
+            expect(s?.failureReason).toBe('C3: Account number does not exist');
         });
 
         it('is not flagged failed for a clean synthetic', async () => {
@@ -744,6 +886,7 @@ describe('MantecaClient', () => {
             );
             const s = await createClient().getSynthetic('clean');
             expect(s?.failed).toBe(false);
+            expect(s?.retrying).toBe(false);
             expect(s?.failureReason).toBeUndefined();
         });
 
@@ -834,6 +977,68 @@ describe('MantecaClient', () => {
                 expect((err as MantecaError).statusCode).toBe(409);
                 expect((err as MantecaError).message).toContain('not able to operate');
             }
+        });
+    });
+
+    describe('request metadata', () => {
+        it('sends Accept: application/json', async () => {
+            let accept: string | null = null;
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/meta`, ({ request }) => {
+                    accept = request.headers.get('accept');
+                    return HttpResponse.json(RAMP_ON_RESPONSE);
+                }),
+            );
+            await createClient().getSynthetic('meta');
+            expect(accept).toBe('application/json');
+        });
+
+        it('carries X-RequestId on MantecaError for support tickets', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/boom`, () =>
+                    HttpResponse.json(
+                        { internalStatus: 'INTERNAL', message: 'boom' },
+                        { status: 500, headers: { 'X-RequestId': 'req-123' } },
+                    ),
+                ),
+            );
+            await expect(createClient().getSynthetic('boom')).rejects.toMatchObject({
+                code: 'INTERNAL',
+                requestId: 'req-123',
+            });
+        });
+
+        it('retries a 429 once after Retry-After', async () => {
+            let calls = 0;
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/limited`, () => {
+                    calls++;
+                    if (calls === 1) {
+                        return HttpResponse.json(
+                            { internalStatus: 'TOO_MANY_REQUESTS', message: 'slow down' },
+                            { status: 429, headers: { 'Retry-After': '0' } },
+                        );
+                    }
+                    return HttpResponse.json(RAMP_ON_RESPONSE);
+                }),
+            );
+            const s = await createClient().getSynthetic('limited');
+            expect(calls).toBe(2);
+            expect(s?.id).toBe('67859d6471d5a50fd3592381');
+        });
+
+        it('surfaces a second consecutive 429 as a MantecaError', async () => {
+            server.use(
+                http.get(`${BASE_URL}/crypto/v2/synthetics/limited2`, () =>
+                    HttpResponse.json(
+                        { internalStatus: 'TOO_MANY_REQUESTS', message: 'slow down' },
+                        { status: 429, headers: { 'Retry-After': '0' } },
+                    ),
+                ),
+            );
+            await expect(createClient().getSynthetic('limited2')).rejects.toMatchObject({
+                statusCode: 429,
+            });
         });
     });
 

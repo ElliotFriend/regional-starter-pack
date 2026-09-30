@@ -56,6 +56,8 @@ import {
     type SubmitOnboardingArgs,
     type MantecaPersonalData,
     type UploadIdentityImageArgs,
+    type UploadSelfieImageArgs,
+    type CreateSandboxDepositArgs,
     type GetQuoteArgs,
     type CreateRampOnArgs,
     type CreateRampOffArgs,
@@ -263,20 +265,40 @@ export class MantecaClient {
             '/crypto/v2/onboarding-actions/upload-identity-image',
             { userAnyId: args.userAnyId, side: args.side, fileName: args.fileName },
         );
-        const contentType =
-            new URL(url).searchParams.get('Content-Type') ?? 'application/octet-stream';
-        const res = await fetch(url, {
-            method: 'PUT',
-            headers: { 'Content-Type': contentType },
-            body: args.file as BodyInit,
+        await putPresigned(url, args.file);
+    }
+
+    /**
+     * Upload the user's selfie to satisfy the `SELFIE_VALIDATION` onboarding
+     * step. Same two-step presigned flow as {@link uploadIdentityImage}
+     * (`POST /crypto/v2/onboarding-actions/upload-selfie-image`, then PUT).
+     *
+     * @throws {MantecaError} If minting the URL or the upload PUT fails.
+     */
+    async uploadSelfieImage(args: UploadSelfieImageArgs): Promise<void> {
+        const { url } = await this.request<{ url: string }>(
+            'POST',
+            '/crypto/v2/onboarding-actions/upload-selfie-image',
+            { userAnyId: args.userAnyId, fileName: args.fileName },
+        );
+        await putPresigned(url, args.file);
+    }
+
+    /**
+     * Sandbox only: simulate a fiat deposit to the user's static deposit
+     * address (`POST /crypto/v2/sandbox-actions/create-deposit`, 204). This is
+     * how an Argentina (CVU) on-ramp gets funded in sandbox; Brazil PIX and
+     * Colombia BRE-B QR deposits are auto-detected and not supported here.
+     *
+     * @throws {MantecaError} On API failure (e.g. `QA_ONLY` outside sandbox).
+     */
+    async createSandboxDeposit(args: CreateSandboxDepositArgs): Promise<void> {
+        await this.request<void>('POST', '/crypto/v2/sandbox-actions/create-deposit', {
+            userAnyId: args.userAnyId,
+            legalEntity: args.legalEntity,
+            asset: args.asset,
+            amount: args.amount,
         });
-        if (!res.ok) {
-            throw new MantecaError(
-                `Identity image upload failed (${res.status})`,
-                'UPLOAD_FAILED',
-                res.status,
-            );
-        }
     }
 
     // =========================================================================
@@ -358,21 +380,16 @@ export class MantecaClient {
      */
     async createRampOn(args: CreateRampOnArgs): Promise<MantecaSynthetic> {
         this.assertStellarAddress(args.stellarAddress);
-        const response = await this.request<MantecaSyntheticResponse>(
-            'POST',
-            '/crypto/v2/synthetics/ramp-on',
-            {
-                userAnyId: args.userAnyId,
-                asset: args.asset,
-                against: args.against,
-                ...amountBody(args),
-                destination: { address: args.stellarAddress, network: 'STELLAR' },
-                ...(args.priceCode ? { priceCode: args.priceCode } : {}),
-                ...(args.externalId ? { externalId: args.externalId } : {}),
-                ...(args.sessionId ? { sessionId: args.sessionId } : {}),
-            },
-        );
-        return mapSynthetic(response);
+        return this.createSynthetic('/crypto/v2/synthetics/ramp-on', args.externalId, {
+            userAnyId: args.userAnyId,
+            asset: args.asset,
+            against: args.against,
+            ...amountBody(args),
+            destination: { address: args.stellarAddress, network: 'STELLAR' },
+            ...(args.priceCode ? { priceCode: args.priceCode } : {}),
+            ...(args.externalId ? { externalId: args.externalId } : {}),
+            ...(args.sessionId ? { sessionId: args.sessionId } : {}),
+        });
     }
 
     /**
@@ -387,26 +404,43 @@ export class MantecaClient {
      * @throws {MantecaError} On API failure (e.g. `INVALID_DESTINATION`).
      */
     async createRampOff(args: CreateRampOffArgs): Promise<MantecaSynthetic> {
-        const response = await this.request<MantecaSyntheticResponse>(
-            'POST',
-            '/crypto/v2/synthetics/ramp-off',
-            {
-                userAnyId: args.userAnyId,
-                asset: args.asset,
-                against: args.against,
-                ...amountBody(args),
-                destination: {
-                    address: args.destinationAddress,
-                    ...(args.network ? { network: args.network } : {}),
-                    ...(args.bankCode ? { bankCode: args.bankCode } : {}),
-                    ...(args.accountType ? { accountType: args.accountType } : {}),
-                },
-                ...(args.priceCode ? { priceCode: args.priceCode } : {}),
-                ...(args.externalId ? { externalId: args.externalId } : {}),
-                ...(args.sessionId ? { sessionId: args.sessionId } : {}),
+        return this.createSynthetic('/crypto/v2/synthetics/ramp-off', args.externalId, {
+            userAnyId: args.userAnyId,
+            asset: args.asset,
+            against: args.against,
+            ...amountBody(args),
+            destination: {
+                address: args.destinationAddress,
+                ...(args.network ? { network: args.network } : {}),
+                ...(args.bankCode ? { bankCode: args.bankCode } : {}),
+                ...(args.accountType ? { accountType: args.accountType } : {}),
             },
-        );
-        return mapSynthetic(response);
+            ...(args.priceCode ? { priceCode: args.priceCode } : {}),
+            ...(args.externalId ? { externalId: args.externalId } : {}),
+            ...(args.sessionId ? { sessionId: args.sessionId } : {}),
+        });
+    }
+
+    /**
+     * POST a synthetic. Creation is idempotent on `externalId`: a retried create
+     * returns `409 SYNTHETIC_EXISTS`, in which case the original synthetic is
+     * fetched by that `externalId` and returned instead.
+     */
+    private async createSynthetic(
+        endpoint: string,
+        externalId: string | undefined,
+        body: Record<string, unknown>,
+    ): Promise<MantecaSynthetic> {
+        try {
+            const response = await this.request<MantecaSyntheticResponse>('POST', endpoint, body);
+            return mapSynthetic(response);
+        } catch (error) {
+            if (externalId && error instanceof MantecaError && error.code === 'SYNTHETIC_EXISTS') {
+                const existing = await this.getSynthetic(externalId);
+                if (existing) return existing;
+            }
+            throw error;
+        }
     }
 
     /**
@@ -504,14 +538,26 @@ export class MantecaClient {
         const url = `${this.config.baseUrl}${endpoint}`;
         this.debugLog(`[Manteca] ${method} ${url}`, body ? JSON.stringify(body) : '');
 
-        const response = await fetch(url, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                'md-api-key': this.config.apiKey,
-            },
-            body: body ? JSON.stringify(body) : undefined,
-        });
+        const send = () =>
+            fetch(url, {
+                method,
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'md-api-key': this.config.apiKey,
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+
+        let response = await send();
+        if (response.status === 429) {
+            // Rate limited: honor Retry-After once (capped), then surface the error.
+            const retryAfter = Number(response.headers.get('Retry-After'));
+            const waitMs = Number.isFinite(retryAfter) ? Math.min(retryAfter, 10) * 1000 : 1000;
+            this.debugLog(`[Manteca] 429, retrying in ${waitMs}ms`);
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            response = await send();
+        }
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -528,6 +574,7 @@ export class MantecaClient {
                 parsed?.message || errorText || `Manteca API error: ${response.status}`,
                 parsed?.internalStatus || 'MANTECA_ERROR',
                 response.status,
+                response.headers.get('X-RequestId') ?? undefined,
             );
         }
 
@@ -541,6 +588,22 @@ export class MantecaClient {
 // ===========================================================================
 // Module-private mapping helpers
 // ===========================================================================
+
+/**
+ * PUT image bytes to a Manteca presigned upload URL with its signed
+ * `Content-Type`. The PUT does NOT carry the Manteca API key.
+ */
+async function putPresigned(url: string, file: UploadIdentityImageArgs['file']): Promise<void> {
+    const contentType = new URL(url).searchParams.get('Content-Type') ?? 'application/octet-stream';
+    const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: file as BodyInit,
+    });
+    if (!res.ok) {
+        throw new MantecaError(`Image upload failed (${res.status})`, 'UPLOAD_FAILED', res.status);
+    }
+}
 
 /** Map a raw Manteca user to the client-facing {@link MantecaUser}. */
 function mapUser(raw: MantecaUserResponse): MantecaUser {
@@ -579,11 +642,12 @@ function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
     const depositQr = qrEntry
         ? { code: qrEntry.code, url: qrEntry.url, expiresAt: qrEntry.expiresAt }
         : undefined;
-    // Any stage carrying errors (e.g. a failed Stellar withdraw) marks the whole
-    // synthetic as failed even while its status is still non-terminal.
-    const failedStage = Object.values(response.stages ?? {}).find(
+    // A stage with errors is retried by Manteca while the synthetic stays
+    // ACTIVE; only CANCELLED is a terminal failure.
+    const erroredStage = Object.values(response.stages ?? {}).find(
         (s) => Array.isArray(s?.errors) && s.errors.length > 0,
     );
+    const isTerminal = MANTECA_TERMINAL_SYNTHETIC_STATUSES.includes(response.status);
     return {
         id: response.id,
         numberId: response.numberId,
@@ -608,21 +672,22 @@ function mapSynthetic(response: MantecaSyntheticResponse): MantecaSynthetic {
         },
         creationTime: response.creationTime,
         updatedAt: response.updatedAt,
-        isTerminal: MANTECA_TERMINAL_SYNTHETIC_STATUSES.includes(response.status),
-        failed: failedStage !== undefined,
-        failureReason: failedStage?.errors?.[0],
+        isTerminal,
+        failed: response.status === 'CANCELLED',
+        retrying: !isTerminal && erroredStage !== undefined,
+        failureReason: erroredStage?.errors?.[0],
     };
 }
 
 /**
  * Build the amount field for a synthetic body. Manteca accepts exactly one of
- * `assetAmount` (crypto units) or `againstAmount` (fiat units).
+ * `assetAmount` (crypto units) or `againstAmount` (fiat units), as decimal strings.
  */
 function amountBody(args: {
-    assetAmount?: number;
-    againstAmount?: number;
-}): Record<string, number> {
-    if (args.assetAmount != null) return { assetAmount: args.assetAmount };
-    if (args.againstAmount != null) return { againstAmount: args.againstAmount };
+    assetAmount?: number | string;
+    againstAmount?: number | string;
+}): Record<string, string> {
+    if (args.assetAmount != null) return { assetAmount: String(args.assetAmount) };
+    if (args.againstAmount != null) return { againstAmount: String(args.againstAmount) };
     return {};
 }

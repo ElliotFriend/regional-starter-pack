@@ -39,7 +39,19 @@ describe('destination kind + Colombia bank list', () => {
         expect(codes).toContain('1007');
         expect(CO_BANKS.find((b) => b.code === '1007')?.name).toBe('Bancolombia');
         expect(CO_BANKS.length).toBe(16);
+        // Names come from the live GET /crypto/v2/info/banks?exchange=COLOMBIA list.
+        for (const bank of CO_BANKS) expect(bank.name, bank.code).toBeTruthy();
+        expect(CO_BANKS.find((b) => b.code === '1809')?.name).toBe('Nu');
         expect(CO_ACCOUNT_TYPES).toEqual(['SAVINGS', 'CHECKING']);
+    });
+});
+
+describe('sandbox deposit simulation', () => {
+    it('only Argentina (static CVU) is funded via the sandbox create-deposit action', () => {
+        // BR PIX and CO BRE-B are dynamic QRs the sandbox auto-detects instead.
+        expect(MANTECA_REGIONS.argentina.sandboxDepositEntity).toBe('CRYPTO_ARG');
+        expect(MANTECA_REGIONS.brazil.sandboxDepositEntity).toBeUndefined();
+        expect(MANTECA_REGIONS.colombia.sandboxDepositEntity).toBeUndefined();
     });
 });
 

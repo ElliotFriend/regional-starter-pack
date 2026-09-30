@@ -77,10 +77,13 @@ export async function getMissingPersonalData(fetch: Fetch, userAnyId: string): P
     return apiRequest<string[]>(fetch, `${BASE}/kyc?userAnyId=${encodeURIComponent(userAnyId)}`);
 }
 
-/** Upload one side of a user's identity document (KYC IDENTITY_VALIDATION). */
+/**
+ * Upload one side of a user's identity document (KYC IDENTITY_VALIDATION), or
+ * their selfie with side=SELFIE (SELFIE_VALIDATION).
+ */
 export async function uploadIdentityImage(
     fetch: Fetch,
-    args: { userAnyId: string; side: 'FRONT' | 'BACK'; fileName: string; file: Blob },
+    args: { userAnyId: string; side: 'FRONT' | 'BACK' | 'SELFIE'; fileName: string; file: Blob },
 ): Promise<void> {
     const form = new FormData();
     form.set('userAnyId', args.userAnyId);
@@ -134,6 +137,14 @@ export async function createRampOff(
     args: CreateRampOffArgs,
 ): Promise<MantecaSynthetic> {
     return postJson<MantecaSynthetic>(fetch, `${BASE}/ramp`, { action: 'offramp', ...args });
+}
+
+/** Sandbox only: credit a simulated fiat deposit to the user's static address (AR CVU). */
+export async function createSandboxDeposit(
+    fetch: Fetch,
+    args: { userAnyId: string; legalEntity: string; asset: string; amount: string },
+): Promise<void> {
+    await postJson<{ ok: boolean }>(fetch, `${BASE}/sandbox-deposit`, args);
 }
 
 export async function getSynthetic(

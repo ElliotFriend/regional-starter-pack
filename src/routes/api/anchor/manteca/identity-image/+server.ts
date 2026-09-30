@@ -1,6 +1,7 @@
 /**
- * Manteca identity-image upload (KYC `IDENTITY_VALIDATION`).
- * POST multipart/form-data: { userAnyId, side: FRONT|BACK, fileName, file }.
+ * Manteca identity-image upload (KYC `IDENTITY_VALIDATION`, or `SELFIE_VALIDATION`
+ * with side=SELFIE).
+ * POST multipart/form-data: { userAnyId, side: FRONT|BACK|SELFIE, fileName, file }.
  * The server mints a presigned URL and PUTs the bytes to it (keeps the
  * md-api-key server-side; avoids any browser→S3 CORS dependency).
  */
@@ -17,18 +18,21 @@ export const POST: RequestHandler = async ({ request }) => {
         const side = form.get('side');
         const file = form.get('file');
         const fileName = form.get('fileName');
-        if (typeof userAnyId !== 'string' || (side !== 'FRONT' && side !== 'BACK')) {
-            throw error(400, { message: 'userAnyId and side (FRONT|BACK) are required' });
+        if (
+            typeof userAnyId !== 'string' ||
+            (side !== 'FRONT' && side !== 'BACK' && side !== 'SELFIE')
+        ) {
+            throw error(400, { message: 'userAnyId and side (FRONT|BACK|SELFIE) are required' });
         }
         if (!(file instanceof Blob)) {
             throw error(400, { message: 'file is required' });
         }
-        await getManteca().uploadIdentityImage({
-            userAnyId,
-            side,
-            fileName: typeof fileName === 'string' && fileName ? fileName : 'identity.jpg',
-            file,
-        });
+        const name = typeof fileName === 'string' && fileName ? fileName : 'identity.jpg';
+        if (side === 'SELFIE') {
+            await getManteca().uploadSelfieImage({ userAnyId, fileName: name, file });
+        } else {
+            await getManteca().uploadIdentityImage({ userAnyId, side, fileName: name, file });
+        }
         return json({ ok: true });
     } catch (err) {
         if (err instanceof MantecaError) {

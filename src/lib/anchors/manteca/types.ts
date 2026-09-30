@@ -55,12 +55,15 @@ export interface MantecaConfig {
 export class MantecaError extends Error {
     code: string;
     statusCode: number;
+    /** Manteca's `X-RequestId` response header, for support tickets. */
+    requestId?: string;
 
-    constructor(message: string, code: string, statusCode: number = 500) {
+    constructor(message: string, code: string, statusCode: number = 500, requestId?: string) {
         super(message);
         this.name = 'MantecaError';
         this.code = code;
         this.statusCode = statusCode;
+        this.requestId = requestId;
     }
 }
 
@@ -112,7 +115,10 @@ export type MantecaSyntheticType =
     | 'BOLIVIA_QR_PAYMENT'
     | 'PARAGUAY_QR_PAYMENT'
     | 'BILL_PAYMENT'
-    | 'BREB_PAYMENT';
+    | 'BREB_PAYMENT'
+    | 'CHARGE'
+    | 'COLLECT'
+    | 'DISBURSE';
 
 /** Terminal synthetic statuses — stop polling once one is reached. */
 export const MANTECA_TERMINAL_SYNTHETIC_STATUSES: readonly MantecaSyntheticStatus[] = [
@@ -141,8 +147,10 @@ export interface MantecaTokenInfo {
 /** One step in a user's onboarding/KYC checklist. */
 export interface MantecaOnboardingStep {
     required: boolean;
-    /** e.g. `NOT_DONE`, `DONE`, `PENDING`, `REJECTED`. */
+    /** `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, or `EXPIRED`. */
     status: string;
+    /** Set on a `FAILED` task, e.g. `"1. <reason in Spanish>"`. */
+    rejectionReason?: string;
 }
 
 /** A Manteca end-user record, normalized for the host app. */
@@ -227,7 +235,10 @@ export interface MantecaSyntheticStage {
     price?: string;
     to?: string;
     expiresAt?: string;
-    /** Non-empty when this stage failed (e.g. `["Withdraw FAILED"]`). */
+    /**
+     * Non-empty when this stage errored, as `"<code>: <label>"` (e.g.
+     * `"C3: Account number does not exist"`). Match on the code prefix.
+     */
     errors?: string[];
     [key: string]: unknown;
 }
@@ -289,12 +300,15 @@ export interface MantecaSynthetic {
     /** `true` when status is terminal (`COMPLETED`/`CANCELLED`). */
     isTerminal: boolean;
     /**
-     * `true` when a stage reported errors (e.g. a failed Stellar withdraw). The
-     * synthetic may still be non-terminal (`ACTIVE`), so callers should stop
-     * polling on this as well as on {@link isTerminal}.
+     * `true` once the synthetic is `CANCELLED`, the only terminal failure. A
+     * stage error alone does not fail it: Manteca retries the stage for several
+     * minutes (see {@link retrying}), then appends `REFUND` / `ORDER_REVERSAL`
+     * stages and cancels if recovery is impossible.
      */
     failed: boolean;
-    /** First stage error message, when {@link failed}. */
+    /** `true` while a stage has errors but the synthetic is still non-terminal. */
+    retrying: boolean;
+    /** First stage error message, when {@link failed} or {@link retrying}. */
     failureReason?: string;
 }
 
@@ -346,11 +360,11 @@ export interface CreateUserArgs {
  * call, `POST /crypto/v2/onboarding-actions/initial`; supports incremental
  * updates — only provided fields are stored).
  *
- * Per the create-user recipe, Brazil auto-populates only SOME fields (name,
- * birthDate, work) from national databases — the integrator must still supply
- * `personalData` with at least `surname`, `phoneNumber`, `nationality`,
- * `address.street`, `sex`, and `maritalStatus` for the user to reach `ACTIVE`.
- * Use {@link MantecaClient.getMissingPersonalData} to discover what's pending.
+ * `personalData` is required. In Brazil the CPF fills most of it; a user with
+ * `name`, `surname`, `phoneNumber`, `nationality`, and `address.street` reaches
+ * `ACTIVE` without `sex`, `maritalStatus`, or `work` (verified in sandbox,
+ * September 2026). Use {@link MantecaClient.getMissingPersonalData} to discover
+ * what's pending.
  */
 export interface SubmitOnboardingArgs {
     email: string;
@@ -370,7 +384,7 @@ export interface SubmitOnboardingArgs {
 
 /**
  * Personal data fields for onboarding. Free-form (Manteca's required set varies
- * by `exchange`), but these are the Brazil-required fields per the recipe.
+ * by `exchange`).
  */
 export interface MantecaPersonalData {
     name?: string;
@@ -414,9 +428,9 @@ export interface CreateRampOnArgs {
     against: string;
     /** The Stellar account that receives the purchased crypto. */
     stellarAddress: string;
-    /** Provide exactly one of assetAmount / againstAmount. */
-    assetAmount?: number;
-    againstAmount?: number;
+    /** Provide exactly one of assetAmount / againstAmount. Sent as a string. */
+    assetAmount?: number | string;
+    againstAmount?: number | string;
     priceCode?: string;
     externalId?: string;
     sessionId?: string;
@@ -434,9 +448,9 @@ export interface CreateRampOffArgs {
      * or a bank account number (Colombia, with `network`/`bankCode`/`accountType`).
      */
     destinationAddress: string;
-    /** Provide exactly one of assetAmount / againstAmount. */
-    assetAmount?: number;
-    againstAmount?: number;
+    /** Provide exactly one of assetAmount / againstAmount. Sent as a string. */
+    assetAmount?: number | string;
+    againstAmount?: number | string;
     /** Destination rail (Colombia): `BANK_TRANSFER` | `TRANSFIYA` | `BREB`. */
     network?: string;
     /** Bank code + account type for a structured (Colombia) destination. */
@@ -460,6 +474,24 @@ export interface UploadIdentityImageArgs {
     fileName: string;
     /** The image bytes (a browser `File`/`Blob`, or raw bytes server-side). */
     file: Blob | ArrayBuffer | Uint8Array;
+}
+
+/** Args for {@link MantecaClient.uploadSelfieImage} (`SELFIE_VALIDATION`). */
+export type UploadSelfieImageArgs = Omit<UploadIdentityImageArgs, 'side'>;
+
+/**
+ * Args for {@link MantecaClient.createSandboxDeposit}. The sandbox only credits
+ * static deposit addresses (e.g. Argentina's CVU); dynamic QR deposits (Brazil
+ * PIX, Colombia BRE-B) are auto-detected instead.
+ */
+export interface CreateSandboxDepositArgs {
+    userAnyId: string;
+    /** The Manteca entity holding the deposit, e.g. `CRYPTO_ARG`. */
+    legalEntity: string;
+    /** Fiat asset, e.g. `ARS`. */
+    asset: string;
+    /** Decimal string. */
+    amount: string;
 }
 
 // ---------------------------------------------------------------------------

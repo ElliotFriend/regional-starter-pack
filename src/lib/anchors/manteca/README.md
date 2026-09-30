@@ -14,12 +14,15 @@ together into any TypeScript project — the only external dependency is
 > Confirmed working: price/quote, onboarding (`{user, person}` envelope; sandbox
 > test CPF `40360893821`, name-mocked KYC), user fetch (per-user muxed Stellar
 > address, no memo), ramp-on synthetic + PIX QR deposit instructions. The sandbox
-> **auto-detects the PIX deposit (~15s) and auto-converts BRL→USDC** — no deposit
-> simulation call is needed (the broker test-deposit endpoint is a separate
-> product and is not used). **Both Stellar legs now settle end-to-end:** the
+> **auto-detects PIX (BR) and BRE-B (CO) QR deposits (~15s)** and auto-converts
+> to USDC. Argentina's static CVU deposit is credited with
+> `createSandboxDeposit` (`POST /crypto/v2/sandbox-actions/create-deposit`), which
+> only supports static addresses. **Both Stellar legs settle end-to-end**
+> (re-verified September 2026): the
 > on-ramp delivers real testnet USDC on-chain to the user's Stellar address, and
-> the off-ramp detects the inbound on-chain USDC payment and pays out fiat (both
-> reach `COMPLETED`). The earlier sandbox Stellar-settlement gap (withdraw failed
+> the off-ramp detects the inbound on-chain USDC payment and sells it. The mocked
+> fiat payout that follows has reached `COMPLETED` in earlier runs but can stall
+> at the withdraw stage (seen September 2026). The earlier sandbox Stellar-settlement gap (withdraw failed
 > with no broadcast; inbound deposit undetected) was fixed by Manteca (June 2026);
 > issuer mismatch was never the cause — the pooled sandbox account trustlines the
 > same Circle testnet USDC (`GBBD47IF…`). Only the fiat legs auto-mock. Several wire
@@ -95,25 +98,37 @@ const manteca = new MantecaClient({
 | `createRampOff`              | `POST /crypto/v2/synthetics/ramp-off`                           | USDC-on-Stellar → fiat synthetic                              |
 | `getSynthetic`               | `GET /crypto/v2/synthetics/{anyId}`                             | Poll ramp progress (`isTerminal`)                             |
 | `getWithdrawDestinationInfo` | `GET /crypto/v2/info/withdraw-destination/{dest}`               | Validate a PIX key / CBU / CVU                                |
+| `uploadSelfieImage`          | `POST /crypto/v2/onboarding-actions/upload-selfie-image`        | Presigned selfie upload (`SELFIE_VALIDATION`)                 |
+| `createSandboxDeposit`       | `POST /crypto/v2/sandbox-actions/create-deposit`                | Sandbox only: credit a static deposit address (AR CVU)        |
 
 ### Synthetics
 
 A _synthetic_ is Manteca's orchestration entity: one API call chains
 `DEPOSIT → ORDER → WITHDRAW` and reports overall progress via status
-(`STARTING → ACTIVE → WAITING → COMPLETED`/`CANCELLED`). This client uses
+(`STARTING → WAITING → ACTIVE → COMPLETED`/`CANCELLED`). This client uses
 **automatic mode** so the demo app can poll `getSynthetic` to completion rather
 than running a webhook receiver. `MantecaSynthetic.isTerminal` is `true` once a
 terminal status is reached — stop polling then.
+
+A stage error does not end a synthetic: Manteca retries the stage for several
+minutes while the status stays `ACTIVE` (`retrying: true`, error text in
+`failureReason` as `"<code>: <label>"`). Only `CANCELLED` is a failure
+(`failed: true`), after Manteca appends `REFUND` / `ORDER_REVERSAL` stages.
+
+Creation is idempotent on `externalId`. Pass one per attempt: a retried create
+returns `409 SYNTHETIC_EXISTS`, and the client fetches and returns the original
+synthetic by that `externalId`.
 
 ### Onboarding (per the create-user recipe)
 
 `submitOnboarding` calls `POST /crypto/v2/onboarding-actions/initial`, which is
 the canonical create-user call (returns `id` + `numberId`; use `numberId` as
-`userAnyId`). **Brazil needs more than a CPF**: only some fields (name,
-birthDate, work) auto-populate from national databases — the integrator must
-still supply `personalData` with `surname`, `phoneNumber`, `nationality`,
-`address.street`, `sex`, and `maritalStatus`. Call `getMissingPersonalData` to
-see what's still pending, and poll `getUser` until `status === 'ACTIVE'`.
+`userAnyId`). `personalData` is required. In Brazil the CPF fills most of it:
+`name`, `surname`, `phoneNumber`, `nationality`, and `address.street` reach
+`ACTIVE` without `sex`, `maritalStatus`, or `work` (verified September 2026).
+Call `getMissingPersonalData` to see what's still pending, and poll `getUser`
+until `status === 'ACTIVE'`. Onboarding task statuses are `PENDING`,
+`IN_PROGRESS`, `COMPLETED`, `FAILED` (with `rejectionReason`), and `EXPIRED`.
 
 ### Pricing — no separate fee endpoint
 
@@ -123,29 +138,31 @@ Crypto ramp economics live in the price itself: `getPrice` returns nominal
 **Broker-as-a-Service** (Argentine securities: MEP dollar, CEDEARs, bonds) and
 does **not** apply to crypto ramps — we do not call it. `getQuote` transacts at
 the effective price (buy for on-ramp, sell for off-ramp) and reports the implied
-`spreadFraction`.
+`spreadFraction`. Note that `buy`/`sell` already include Manteca's spread, so
+`spreadFraction` measures only the integrator's configured fee on top of it.
 
 ### Errors
 
 API errors use Manteca's envelope `{ status, internalStatus, message, errors? }`.
-The client maps these to `MantecaError` with `code` = `internalStatus` and
-`statusCode` = HTTP status. Handle on `code`, not `message`.
+The client maps these to `MantecaError` with `code` = `internalStatus`,
+`statusCode` = HTTP status, and `requestId` = the `X-RequestId` header. Handle on
+`code`, not `message`. A `429` is retried once after `Retry-After`.
 
 ## Quality-criteria assessment (curated bar)
 
-| Criterion                            | Status                                                                                                |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Locally denominated asset on Stellar | **USDC on Stellar** (no BRL-denominated Stellar token)                                                |
-| Local payment rails                  | **PIX** (BR) confirmed; **CVU/CBU/alias** (AR) + **BRE-B** (CO) wired, unverified                     |
-| Competitive rates (<25 bps)          | **Unverified** — sandbox spread ~0 (not representative); per-quote cost is on the synthetic           |
-| Well-documented developer access     | **Strong** docs; sandbox keys sales-gated (not self-serve)                                            |
-| High-fidelity sandbox                | **Met** — both Stellar legs settle end-to-end in sandbox (on-ramp lands USDC, off-ramp pays out fiat) |
-| Deep liquidity                       | **Unverified** — no public volume figures                                                             |
+| Criterion                            | Status                                                                                              |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Locally denominated asset on Stellar | **USDC on Stellar** (no BRL-denominated Stellar token)                                              |
+| Local payment rails                  | **PIX** (BR), **CVU/CBU/alias** (AR), and **BRE-B** (CO) exercised in sandbox                       |
+| Competitive rates (<25 bps)          | **Unverified** — sandbox prices embed Manteca's spread; production ~50–60 bps per survey            |
+| Well-documented developer access     | **Strong** docs; sandbox keys sales-gated (not self-serve)                                          |
+| High-fidelity sandbox                | **Met** — both Stellar legs settle end-to-end in sandbox (on-ramp lands USDC, off-ramp receives it) |
+| Deep liquidity                       | **Unverified** — no public volume figures                                                           |
 
 High-fidelity-sandbox is scored **met**: both Stellar legs now settle end-to-end
 in Manteca's sandbox — the on-ramp lands real testnet USDC on-chain and the
-off-ramp detects the inbound on-chain USDC payment and pays out fiat (both reach
-`COMPLETED`). The earlier Stellar-settlement gap was fixed by Manteca (June 2026).
+off-ramp detects the inbound on-chain USDC payment and sells it (the mocked fiat
+payout can stall afterwards). The earlier Stellar-settlement gap was fixed by Manteca (June 2026).
 Manteca stays **curated**. (Note: the developer-readiness scorecard still computes
 a `blocked` verdict, but on `open-access` — sandbox keys are sales-gated, not
 self-serve — which is independent of the now-resolved Stellar issue.)
