@@ -92,14 +92,15 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns the curated Etherfuse + Koywe + Manteca anchors, the test anchor, and the TR Mock Anchor', () => {
+    it('returns the curated Etherfuse + Koywe + Manteca + Chipper anchors, the test anchor, and the TR Mock Anchor', () => {
         const ids = getAllAnchors().map((a) => a.id);
+        expect(ids).toContain('chipper');
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('koywe');
         expect(ids).toContain('manteca');
         expect(ids).toContain('testanchor');
         expect(ids).toContain('trmock');
-        expect(ids).toHaveLength(5);
+        expect(ids).toHaveLength(6);
     });
 });
 
@@ -203,9 +204,9 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 13 entries (4 vetted + 9 in-vetting pipeline; Manteca graduated to curated)', () => {
+    it('has 12 entries (4 vetted + 8 in-vetting pipeline; Manteca and Chipper graduated to curated)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(13);
+        expect(mentions).toHaveLength(12);
         expect(mentions).not.toContain('manteca');
     });
 
@@ -218,21 +219,12 @@ describe('HONORABLE_MENTIONS', () => {
         expect(mention.rails).toEqual(['spei', 'pix', 'cvu', 'bank']);
     });
 
-    it('includes Chipper (Africa), flagged vetting, across its mobile-money markets', () => {
-        const mention = HONORABLE_MENTIONS['chipper'];
-        expect(mention).toBeDefined();
-        expect(mention.vetting).toBe(true);
-        expect(mention.scorecard).toHaveLength(9);
-        expect(mention.regions).toEqual([
-            'ghana',
-            'kenya',
-            'nigeria',
-            'uganda',
-            'rwanda',
-            'tanzania',
-            'zambia',
-        ]);
-        expect(mention.tokens).toEqual(['USDC', 'PYUSD', 'XLM']);
+    it('curates Chipper: not a mention; Ghana and Kenya over mobile money, USDC only', () => {
+        expect(HONORABLE_MENTIONS['chipper']).toBeUndefined();
+        expect(ANCHORS.chipper.regions.ghana.paymentRails).toEqual(['mobile-money']);
+        expect(ANCHORS.chipper.regions.kenya.paymentRails).toEqual(['mpesa', 'mobile-money']);
+        expect(ANCHORS.chipper.regions.kenya.tokens).toEqual(['USDC']);
+        expect(ANCHORS.chipper.logo).toBe('/anchor-logos/chipper.svg');
     });
 
     it('includes blindpay', () => {
@@ -335,9 +327,9 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 13 honorable mentions', () => {
+    it('returns all 12 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(13);
+        expect(mentions).toHaveLength(12);
     });
 });
 

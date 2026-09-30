@@ -27,6 +27,7 @@ export const PROVIDER = {
     TESTANCHOR: 'testanchor',
     KOYWE: 'koywe',
     MANTECA: 'manteca',
+    CHIPPER: 'chipper',
 } as const;
 
 // KYC statuses (internal)

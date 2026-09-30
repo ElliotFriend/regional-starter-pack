@@ -164,8 +164,8 @@ describe('regionChip', () => {
 
     it('falls back to a title-cased name with no flag for free-form markets', () => {
         // Markets that live only on an anchor's scorecard (no REGIONS entry).
-        expect(regionChip('kenya')).toEqual({ name: 'Kenya', flag: '' });
         expect(regionChip('philippines')).toEqual({ name: 'Philippines', flag: '' });
+        expect(regionChip('turkmenistan')).toEqual({ name: 'Turkmenistan', flag: '' });
     });
 });
 
@@ -176,6 +176,26 @@ describe('Koywe regional coverage', () => {
     });
     it('adds the PSE rail to Colombia', () => {
         expect(getRegion('colombia')!.paymentRails.map((r) => r.id)).toContain('pse');
+    });
+});
+
+describe('Ghana and Kenya regions', () => {
+    it('are served by Chipper over mobile money', () => {
+        expect(getRegion('ghana')).toMatchObject({
+            code: 'GH',
+            currency: 'GHS',
+            anchors: ['chipper'],
+        });
+        expect(getRegion('kenya')).toMatchObject({
+            code: 'KE',
+            currency: 'KES',
+            anchors: ['chipper'],
+        });
+        expect(getRegion('kenya')!.paymentRails.map((r) => r.id)).toEqual([
+            'mpesa',
+            'mobile-money',
+        ]);
+        expect(getRegionsForAnchor('chipper').map((r) => r.id)).toEqual(['ghana', 'kenya']);
     });
 });
 

@@ -75,6 +75,20 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
             "Pagos Seguros en Línea — Colombia's bank-debit rail for real-time COP transfers from a bank account.",
         type: 'bank_transfer',
     },
+    'mobile-money': {
+        id: 'mobile-money',
+        name: 'Mobile Money',
+        description:
+            'Phone-number wallets run by telecom operators (MTN MoMo, Telecel Cash, AirtelTigo, Airtel Money); payments are approved with a PIN prompt.',
+        type: 'mobile_money',
+    },
+    mpesa: {
+        id: 'mpesa',
+        name: 'M-Pesa',
+        description:
+            "Safaricom's mobile money wallet, Kenya's dominant payment rail; collections arrive as an STK push the payer approves with their PIN.",
+        type: 'mobile_money',
+    },
 };
 
 export function getPaymentRail(id: string): PaymentRail | undefined {

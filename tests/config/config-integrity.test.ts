@@ -19,14 +19,7 @@ import { PAYMENT_RAILS } from '$lib/config/rails';
 const KNOWN_DANGLING: Record<string, { regions: string[]; rails: string[] }> = {
     pdax: { regions: ['philippines'], rails: ['instapay', 'pesonet'] },
     coinsph: { regions: ['philippines'], rails: ['instapay', 'pesonet'] },
-    yellowcard: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money'] },
-    fonbnk: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money', 'airtime'] },
-    onafriq: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money'] },
-    flutterwave: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money'] },
-    chipper: {
-        regions: ['ghana', 'kenya', 'nigeria', 'uganda', 'rwanda', 'tanzania', 'zambia'],
-        rails: ['mpesa', 'mobile-money'],
-    },
+    fonbnk: { regions: [], rails: ['airtime'] },
 };
 
 describe('honorable mention references resolve', () => {

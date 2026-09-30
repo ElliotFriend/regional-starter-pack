@@ -18,8 +18,12 @@ describe('PROVIDER', () => {
         expect(PROVIDER.MANTECA).toBe('manteca');
     });
 
+    it('includes CHIPPER', () => {
+        expect(PROVIDER.CHIPPER).toBe('chipper');
+    });
+
     it('has the expected providers', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(4);
+        expect(Object.keys(PROVIDER)).toHaveLength(5);
     });
 });
 
