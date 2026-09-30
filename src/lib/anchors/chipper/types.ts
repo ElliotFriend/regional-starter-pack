@@ -79,11 +79,11 @@ export interface ChipperMethod {
     fields?: Array<{ key: string; label: string; type: string; placeholder?: string }>;
 }
 
-/** Mobile money methods for one country, by direction. */
+/** The methods this app ramps with for one country, by direction. */
 export interface ChipperCountryCapabilities {
-    /** Methods Chipper can charge (the on-ramp source). */
+    /** Mobile money methods Chipper can charge (the on-ramp source). */
     collections: ChipperMethod[];
-    /** Methods Chipper can pay out to (the off-ramp destination). */
+    /** Mobile money and bank methods Chipper can pay out to (the off-ramp destination). */
     payouts: ChipperMethod[];
 }
 
@@ -140,6 +140,10 @@ export interface ChipperInstructions {
     message: string;
     amount: string;
     currency: string;
+    /** Virtual account instructions: the receiving bank and account. */
+    bank?: string | null;
+    accountNumber?: string | null;
+    accountName?: string | null;
     address?: string | null;
     tag?: string | null;
     chain?: string | null;
@@ -175,10 +179,13 @@ export interface ChipperOrder extends ChipperOrderResponse {
 }
 
 export interface CreateOnRampOrderArgs {
-    /** Mobile money collection method, e.g. `gh_mtn`, `ke_mpesa`. */
+    /**
+     * Source method: mobile money (`gh_mtn`, `ke_mpesa`) or the payer's bank
+     * (`ke_kcb`), for which Chipper issues a per-order virtual account.
+     */
     collectionCode: string;
-    /** Payer phone in E.164, e.g. `+233548909027`. */
-    phone: string;
+    /** Mobile money payer phone in E.164; omit for a bank-transfer source. */
+    phone?: string;
     fiatCurrency: string;
     /** Decimal string in the fiat currency. */
     fiatAmount: string;
@@ -188,10 +195,10 @@ export interface CreateOnRampOrderArgs {
 }
 
 export interface CreateOffRampOrderArgs {
-    /** Mobile money payout method, e.g. `gh_mtn`, `ke_mpesa`. */
+    /** Payout method: mobile money (`ke_mpesa`) or bank (`gh_gcb`, `ke_kcb`). */
     payoutCode: string;
-    /** Recipient phone in E.164. */
-    phone: string;
+    /** Recipient phone in E.164 (mobile money) or bank account number. */
+    accountNumber: string;
     fiatCurrency: string;
     /** Decimal string in USDC. */
     usdcAmount: string;
@@ -200,3 +207,23 @@ export interface CreateOffRampOrderArgs {
 
 export type ChipperSandboxOutcome =
     'delayed_completion' | 'failed' | 'customer_timeout' | 'transient_error_then_reconciled';
+
+/** A virtual account (bank account number that credits the organization). */
+export interface ChipperVirtualAccount {
+    id: string;
+    status: string;
+    currency: string;
+    bank: string;
+    accountNumber: string;
+    accountName: string;
+    externalReference?: string | null;
+}
+
+export interface SimulateBankDepositArgs {
+    /** The bank-sourced order whose virtual account receives the transfer. */
+    orderId: string;
+    /** Amount in the order's fiat currency; use `order.expectedAmount`. */
+    amount: string;
+    /** Idempotency key for the simulation. */
+    externalReference: string;
+}

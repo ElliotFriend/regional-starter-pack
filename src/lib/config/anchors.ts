@@ -651,7 +651,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
         id: 'chipper',
         name: 'Chipper',
         description:
-            'Pan-African payments platform whose API collects and pays out over mobile money. An order ramps Ghanaian cedis or Kenyan shillings to USDC on Stellar, or back, in one call, and the sandbox settles on the real Stellar testnet.',
+            'Pan-African payments platform whose API collects and pays out over mobile money and bank transfer. An order ramps Ghanaian cedis or Kenyan shillings to USDC on Stellar, or back, in one call, and the sandbox settles on the real Stellar testnet.',
         logo: '/anchor-logos/chipper.svg',
         links: {
             website: 'https://chipper.ai',
@@ -665,7 +665,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             },
             'local-rails': {
                 status: 'met',
-                note: 'Mobile money in Ghana (MTN, Telecel, AirtelTigo) and Kenya (M-Pesa, Airtel)',
+                note: 'Mobile money and bank payouts in Ghana and Kenya; bank pay-ins in Kenya',
             },
             'competitive-rates': {
                 status: 'unverified',
@@ -701,6 +701,12 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'Off-ramp USDC must be sent with the order’s memo ID; a payment without it is held for manual review.',
             },
             {
+                text: 'Ghana bank-transfer pay-ins require an organization representative on the Chipper account, so the app offers bank on-ramps in Kenya only. Bank payouts work in both.',
+            },
+            {
+                text: 'A bank on-ramp pays into a per-order virtual account; in sandbox the transfer is simulated with the Simulate deposit button.',
+            },
+            {
                 text: 'PYUSD on Stellar is listed in capabilities but has no sandbox provider (no_provider_available), so the app offers USDC only.',
             },
             {
@@ -711,14 +717,14 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ghana: {
                 onRamp: true,
                 offRamp: true,
-                paymentRails: ['mobile-money'],
+                paymentRails: ['mobile-money', 'bank'],
                 tokens: ['USDC'],
                 kycRequired: false,
             },
             kenya: {
                 onRamp: true,
                 offRamp: true,
-                paymentRails: ['mpesa', 'mobile-money'],
+                paymentRails: ['mpesa', 'mobile-money', 'bank'],
                 tokens: ['USDC'],
                 kycRequired: false,
             },
@@ -743,7 +749,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Pick a method',
                     description:
-                        'Read mobile money collection methods for the country from capabilities.',
+                        'Read mobile money collection methods for the country from capabilities, or pick the payer’s bank.',
                 },
                 {
                     title: 'Preview the rate',
@@ -757,7 +763,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Approve the prompt',
                     description:
-                        'The payer approves the mobile money prompt with their PIN (automatic in sandbox).',
+                        'The payer approves the mobile money prompt with their PIN, or transfers to the order’s virtual account (both simulated in sandbox).',
                 },
                 {
                     title: 'Receive USDC',
@@ -768,12 +774,13 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             offRamp: [
                 {
                     title: 'Validate the recipient',
-                    description: 'Resolve the mobile money holder name for the phone number.',
+                    description:
+                        'Resolve the holder name for the mobile money number or bank account.',
                 },
                 {
                     title: 'Create an order',
                     description:
-                        'Collect usdc_stellar and pay out to the recipient’s phone; receive a Stellar address and memo ID.',
+                        'Collect usdc_stellar and pay out to the recipient’s phone or bank account; receive a Stellar address and memo ID.',
                 },
                 {
                     title: 'Send USDC',
@@ -781,7 +788,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                         'Sign a USDC payment for the exact amount with the memo ID in Freighter.',
                 },
                 {
-                    title: 'Receive mobile money',
+                    title: 'Receive the payout',
                     description:
                         'Chipper detects the payment and pays out; poll the order until completed.',
                 },

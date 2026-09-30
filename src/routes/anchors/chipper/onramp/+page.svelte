@@ -9,6 +9,7 @@
     import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
+    import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import { getUsdcAsset } from '$lib/wallet/stellar';
     import { createPoller } from '$lib/utils/poll.svelte';
     import * as chipper from '$lib/api/chipper';
@@ -38,12 +39,14 @@
     type Step = 'connect' | 'method' | 'amount' | 'review' | 'payment' | 'complete';
     let step = $state<Step>('connect');
 
-    // Collection method + payer phone
+    // Collection method + payer phone. A bank method means the payer transfers
+    // to a per-order virtual account, so there is no phone to collect.
     let methods = $state<ChipperMethod[]>([]);
     let methodCode = $state('');
     let phoneInput = $state('');
     const phone = $derived(normalizePhone(phoneInput, market.dialCode));
     const method = $derived(methods.find((m) => m.code === methodCode));
+    const isBank = $derived(method?.type === 'bank_transfer');
 
     // Amount + rate preview
     let amount = $state('');
@@ -60,8 +63,10 @@
     const estimatedTotal = $derived(
         amount ? (Number(amount) * (1 + CHIPPER_FEE_ESTIMATE)).toFixed(2) : null,
     );
+    // The cents rule applies to mobile money charges only; bank deposits are
+    // simulated with an explicit outcome.
     const estimatedOutcome = $derived(
-        estimatedTotal ? sandboxCollectionOutcome(estimatedTotal) : null,
+        estimatedTotal && !isBank ? sandboxCollectionOutcome(estimatedTotal) : null,
     );
 
     // Order
@@ -69,8 +74,15 @@
     let order = $state<ChipperOrder | null>(null);
     // Sandbox: amount + fee is what gets collected; its cents pick the outcome.
     const sandboxOutcome = $derived(
-        order?.expectedAmount ? sandboxCollectionOutcome(order.expectedAmount) : null,
+        order?.expectedAmount && order.instructions?.type === 'mobile_money'
+            ? sandboxCollectionOutcome(order.expectedAmount)
+            : null,
     );
+    const bankInstructions = $derived(
+        order?.instructions?.type === 'virtual_account' ? order.instructions : null,
+    );
+    let isSimulating = $state(false);
+    let depositSimulated = $state(false);
 
     let isWorking = $state(false);
     let error = $state<string | null>(null);
@@ -86,7 +98,12 @@
         error = null;
         try {
             const caps = await chipper.getCapabilities(fetch, market.country);
-            methods = caps.collections.filter((m) => m.status === 'operational');
+            // Bank pay-ins aren't listed as collections; the payer's bank comes
+            // from the payout catalog, where the market supports them.
+            const banks = market.bankOnRamp
+                ? caps.payouts.filter((m) => m.type === 'bank_transfer')
+                : [];
+            methods = [...caps.collections, ...banks].filter((m) => m.status === 'operational');
             methodCode = methods[0]?.code ?? '';
             step = 'method';
         } catch (err) {
@@ -111,7 +128,7 @@
     }
 
     async function confirmOrder() {
-        if (!walletStore.publicKey || !phone || !methodCode) return;
+        if (!walletStore.publicKey || !methodCode || (!isBank && !phone)) return;
         isWorking = true;
         error = null;
         // One reference per attempt: a retried click returns the same order.
@@ -119,7 +136,7 @@
         try {
             order = await chipper.createOnRampOrder(fetch, {
                 collectionCode: methodCode,
-                phone,
+                ...(isBank || !phone ? {} : { phone }),
                 fiatCurrency: market.currency,
                 fiatAmount: amount,
                 stellarAddress: walletStore.publicKey,
@@ -150,6 +167,25 @@
         }
     }
 
+    async function simulateDeposit() {
+        if (!order?.expectedAmount) return;
+        isSimulating = true;
+        error = null;
+        try {
+            await chipper.simulateBankDeposit(fetch, {
+                orderId: order.id,
+                amount: order.expectedAmount,
+                // One simulation per order: a repeat click replays, not re-deposits.
+                externalReference: `sim-${order.id}`,
+            });
+            depositSimulated = true;
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to simulate the deposit';
+        } finally {
+            isSimulating = false;
+        }
+    }
+
     function fillTestPhone() {
         phoneInput = market.testPhone;
     }
@@ -159,6 +195,7 @@
         rate = null;
         order = null;
         externalReference = null;
+        depositSimulated = false;
         error = null;
         step = methods.length ? 'method' : 'connect';
         orderPoller.stop();
@@ -208,33 +245,43 @@
                     class="mt-1 block w-full rounded-md border-gray-300 text-sm"
                 >
                     {#each methods as m (m.code)}
-                        <option value={m.code}>{m.name}</option>
+                        <option value={m.code}>
+                            {m.type === 'bank_transfer' ? `Bank transfer · ${m.name}` : m.name}
+                        </option>
                     {/each}
                 </select>
             </label>
-            <div class="mt-4 flex items-end justify-between gap-3">
-                <label class="block flex-1 text-sm font-medium text-gray-700">
-                    Phone number
-                    <input
-                        bind:value={phoneInput}
-                        type="tel"
-                        placeholder={market.phonePlaceholder}
-                        class="mt-1 block w-full rounded-md border-gray-300 text-sm"
-                    />
-                </label>
-                <button
-                    onclick={fillTestPhone}
-                    class="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Fill test data
-                </button>
-            </div>
-            {#if phoneInput && !phone}
-                <p class="mt-1 text-sm text-red-600">Enter a {market.dialCode} mobile number.</p>
+            {#if isBank}
+                <p class="mt-4 text-sm text-gray-600">
+                    Chipper gives you a bank account number to transfer to on the next steps.
+                </p>
+            {:else}
+                <div class="mt-4 flex items-end justify-between gap-3">
+                    <label class="block flex-1 text-sm font-medium text-gray-700">
+                        Phone number
+                        <input
+                            bind:value={phoneInput}
+                            type="tel"
+                            placeholder={market.phonePlaceholder}
+                            class="mt-1 block w-full rounded-md border-gray-300 text-sm"
+                        />
+                    </label>
+                    <button
+                        onclick={fillTestPhone}
+                        class="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                        Fill test data
+                    </button>
+                </div>
+                {#if phoneInput && !phone}
+                    <p class="mt-1 text-sm text-red-600">
+                        Enter a {market.dialCode} mobile number.
+                    </p>
+                {/if}
             {/if}
             <button
                 onclick={() => (step = 'amount')}
-                disabled={!phone || !methodCode}
+                disabled={!methodCode || (!isBank && !phone)}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
                 Continue
@@ -318,8 +365,47 @@
         </section>
     {:else if step === 'payment' && order}
         <section class="mt-6 rounded-lg border border-gray-200 bg-white p-6">
-            <h2 class="text-lg font-semibold text-gray-900">Approve the payment</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+                {bankInstructions ? 'Transfer from your bank' : 'Approve the payment'}
+            </h2>
             <p class="mt-2 text-sm text-gray-700">{order.instructions?.message}</p>
+            {#if bankInstructions}
+                <dl class="mt-4 space-y-3 text-sm">
+                    <div>
+                        <dt class="text-gray-500">Bank</dt>
+                        <dd>{bankInstructions.bank}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Account number</dt>
+                        <dd><CopyableField value={bankInstructions.accountNumber ?? ''} mono /></dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Account name</dt>
+                        <dd><CopyableField value={bankInstructions.accountName ?? ''} /></dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Amount</dt>
+                        <dd>
+                            <CopyableField
+                                value="{bankInstructions.amount} {bankInstructions.currency}"
+                            />
+                        </dd>
+                    </div>
+                </dl>
+                {#if !order.isTerminal}
+                    <button
+                        onclick={simulateDeposit}
+                        disabled={isSimulating || depositSimulated}
+                        class="mt-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        {depositSimulated
+                            ? 'Deposit simulated'
+                            : isSimulating
+                              ? 'Simulating…'
+                              : 'Simulate deposit (sandbox)'}
+                    </button>
+                {/if}
+            {/if}
             <dl class="mt-4 space-y-2 text-sm">
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Collected</dt>
@@ -386,6 +472,10 @@
                 },
                 {
                     text: 'Sandbox collections pick their outcome from the cents of amount + fee.',
+                    link: 'https://docs.platform.chipper.ai/sandbox',
+                },
+                {
+                    text: 'A bank source returns virtual_account instructions; POST /v1/simulations/virtual-account-deposit credits it in sandbox.',
                     link: 'https://docs.platform.chipper.ai/sandbox',
                 },
             ]}

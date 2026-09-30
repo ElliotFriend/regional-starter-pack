@@ -40,11 +40,19 @@
     type Step = 'connect' | 'recipient' | 'amount' | 'review' | 'send' | 'awaiting' | 'complete';
     let step = $state<Step>('connect');
 
-    // Payout method + recipient phone
+    // Payout method + recipient: a phone for mobile money, an account number
+    // for a bank. The field label comes from the method's capabilities entry.
     let methods = $state<ChipperMethod[]>([]);
     let methodCode = $state('');
-    let phoneInput = $state('');
-    const phone = $derived(normalizePhone(phoneInput, market.dialCode));
+    let destinationInput = $state('');
+    const method = $derived(methods.find((m) => m.code === methodCode));
+    const isBank = $derived(method?.type === 'bank_transfer');
+    const destination = $derived.by(() => {
+        if (!isBank) return normalizePhone(destinationInput, market.dialCode);
+        const digits = destinationInput.replace(/[\s-]/g, '');
+        return /^\d{6,20}$/.test(digits) ? digits : null;
+    });
+    const destinationField = $derived(method?.fields?.[0]);
     let recipientName = $state<string | null>(null);
 
     // Amount + rate preview
@@ -90,13 +98,13 @@
     }
 
     async function validateRecipient() {
-        if (!phone || !methodCode) return;
+        if (!destination || !methodCode) return;
         isWorking = true;
         error = null;
         try {
             const v = await chipper.validateDestination(fetch, {
                 code: methodCode,
-                accountNumber: phone,
+                accountNumber: destination,
             });
             if (!v.valid) {
                 error = `Chipper couldn’t verify this number${v.reason ? `: ${v.reason}` : ''}.`;
@@ -126,7 +134,7 @@
     }
 
     async function confirmOrder() {
-        if (!phone || !methodCode) return;
+        if (!destination || !methodCode) return;
         isWorking = true;
         error = null;
         // One reference per attempt: a retried click returns the same order.
@@ -134,7 +142,7 @@
         try {
             order = await chipper.createOffRampOrder(fetch, {
                 payoutCode: methodCode,
-                phone,
+                accountNumber: destination,
                 fiatCurrency: market.currency,
                 usdcAmount: amount,
                 externalReference,
@@ -191,8 +199,8 @@
         }
     }
 
-    function fillTestPhone() {
-        phoneInput = market.testPhone;
+    function fillTestData() {
+        destinationInput = isBank ? market.testBankAccount : market.testPhone;
     }
 
     function reset() {
@@ -225,7 +233,8 @@
     </a>
     <h1 class="mt-2 text-2xl font-semibold text-gray-900">USDC on Stellar → {market.currency}</h1>
     <p class="mt-1 text-sm text-gray-600">
-        Send USDC from your Stellar wallet; the recipient gets {market.currency} by {market.railLabel}.
+        Send USDC from your Stellar wallet; the recipient gets {market.currency} by {market.railLabel}
+        or bank transfer.
     </p>
 
     <div class="mt-6"><WalletConnect /></div>
@@ -251,33 +260,44 @@
                     class="mt-1 block w-full rounded-md border-gray-300 text-sm"
                 >
                     {#each methods as m (m.code)}
-                        <option value={m.code}>{m.name}</option>
+                        <option value={m.code}>
+                            {m.type === 'bank_transfer' ? `Bank · ${m.name}` : m.name}
+                        </option>
                     {/each}
                 </select>
             </label>
             <div class="mt-4 flex items-end justify-between gap-3">
                 <label class="block flex-1 text-sm font-medium text-gray-700">
-                    Recipient phone number
+                    Recipient {(
+                        destinationField?.label ?? (isBank ? 'account number' : 'phone number')
+                    ).toLowerCase()}
                     <input
-                        bind:value={phoneInput}
-                        type="tel"
-                        placeholder={market.phonePlaceholder}
+                        bind:value={destinationInput}
+                        type={isBank ? 'text' : 'tel'}
+                        inputmode={isBank ? 'numeric' : 'tel'}
+                        placeholder={isBank
+                            ? (destinationField?.placeholder ?? 'Account number')
+                            : market.phonePlaceholder}
                         class="mt-1 block w-full rounded-md border-gray-300 text-sm"
                     />
                 </label>
                 <button
-                    onclick={fillTestPhone}
+                    onclick={fillTestData}
                     class="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 >
                     Fill test data
                 </button>
             </div>
-            {#if phoneInput && !phone}
-                <p class="mt-1 text-sm text-red-600">Enter a {market.dialCode} mobile number.</p>
+            {#if destinationInput && !destination}
+                <p class="mt-1 text-sm text-red-600">
+                    {isBank
+                        ? 'Enter the recipient’s bank account number.'
+                        : `Enter a ${market.dialCode} mobile number.`}
+                </p>
             {/if}
             <button
                 onclick={validateRecipient}
-                disabled={!phone || !methodCode || isWorking}
+                disabled={!destination || !methodCode || isWorking}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
                 {isWorking ? 'Verifying…' : 'Verify recipient'}
@@ -286,8 +306,10 @@
     {:else if step === 'amount'}
         <section class="mt-6 rounded-lg border border-gray-200 bg-white p-6">
             <p class="mb-4 text-sm text-gray-700">
-                Paying out to <span class="font-medium">{recipientName ?? phone}</span>
-                {#if recipientName}<span class="text-gray-500">({phone})</span>{/if}
+                Paying out to <span class="font-medium">{recipientName ?? destination}</span>
+                {#if recipientName}<span class="text-gray-500"
+                        >({method?.name} · {destination})</span
+                    >{/if}
             </p>
             <TrustlineStatus
                 {stellarAsset}
@@ -424,7 +446,9 @@
     {:else if step === 'complete' && order}
         <CompletionStep
             title="{market.currency} paid out"
-            message="Chipper paid the recipient by {market.railLabel}."
+            message="Chipper paid the recipient{isBank
+                ? ' by bank transfer'
+                : ` by ${market.railLabel}`}."
             details={[
                 { label: 'Paid out', value: `${order.to.amount} ${order.to.currency}` },
                 {

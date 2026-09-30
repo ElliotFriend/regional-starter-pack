@@ -20,7 +20,8 @@ export const POST: RequestHandler = async ({ request }) => {
             return json(
                 await getChipper().createOnRampOrder({
                     collectionCode: String(body.collectionCode),
-                    phone: String(body.phone),
+                    // Omitted for a bank-transfer source.
+                    ...(body.phone ? { phone: String(body.phone) } : {}),
                     fiatCurrency: String(body.fiatCurrency),
                     fiatAmount: String(body.fiatAmount),
                     stellarAddress: String(body.stellarAddress),
@@ -31,7 +32,7 @@ export const POST: RequestHandler = async ({ request }) => {
         return json(
             await getChipper().createOffRampOrder({
                 payoutCode: String(body.payoutCode),
-                phone: String(body.phone),
+                accountNumber: String(body.accountNumber),
                 fiatCurrency: String(body.fiatCurrency),
                 usdcAmount: String(body.usdcAmount),
                 externalReference: String(body.externalReference),

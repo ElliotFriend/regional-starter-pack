@@ -221,8 +221,12 @@ describe('HONORABLE_MENTIONS', () => {
 
     it('curates Chipper: not a mention; Ghana and Kenya over mobile money, USDC only', () => {
         expect(HONORABLE_MENTIONS['chipper']).toBeUndefined();
-        expect(ANCHORS.chipper.regions.ghana.paymentRails).toEqual(['mobile-money']);
-        expect(ANCHORS.chipper.regions.kenya.paymentRails).toEqual(['mpesa', 'mobile-money']);
+        expect(ANCHORS.chipper.regions.ghana.paymentRails).toEqual(['mobile-money', 'bank']);
+        expect(ANCHORS.chipper.regions.kenya.paymentRails).toEqual([
+            'mpesa',
+            'mobile-money',
+            'bank',
+        ]);
         expect(ANCHORS.chipper.regions.kenya.tokens).toEqual(['USDC']);
         expect(ANCHORS.chipper.logo).toBe('/anchor-logos/chipper.svg');
     });

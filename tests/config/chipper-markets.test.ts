@@ -28,6 +28,18 @@ describe('CHIPPER_MARKETS', () => {
         expect(CHIPPER_MARKETS.kenya.testPhone).toBe('+254712345678');
     });
 
+    it('ships a sandbox bank account number that validates (no 00000x trigger suffix)', () => {
+        for (const m of Object.values(CHIPPER_MARKETS)) {
+            expect(m.testBankAccount).toMatch(/^\d{10}$/);
+            expect(m.testBankAccount).not.toMatch(/00000[0-2]$/);
+        }
+    });
+
+    it('offers bank-transfer on-ramps in Kenya only (Ghana bank pay-ins need an org representative)', () => {
+        expect(CHIPPER_MARKETS.kenya.bankOnRamp).toBe(true);
+        expect(CHIPPER_MARKETS.ghana.bankOnRamp).toBe(false);
+    });
+
     it('defaults unknown regions to Ghana', () => {
         expect(getChipperMarket(null).id).toBe('ghana');
         expect(getChipperMarket('kenya').id).toBe('kenya');

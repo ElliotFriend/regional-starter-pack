@@ -194,7 +194,9 @@ describe('Ghana and Kenya regions', () => {
         expect(getRegion('kenya')!.paymentRails.map((r) => r.id)).toEqual([
             'mpesa',
             'mobile-money',
+            'bank',
         ]);
+        expect(getRegion('ghana')!.paymentRails.map((r) => r.id)).toEqual(['mobile-money', 'bank']);
         expect(getRegionsForAnchor('chipper').map((r) => r.id)).toEqual(['ghana', 'kenya']);
     });
 });

@@ -26,7 +26,12 @@ import {
     type ChipperSandboxOutcome,
     type CreateOnRampOrderArgs,
     type CreateOffRampOrderArgs,
+    type ChipperVirtualAccount,
+    type SimulateBankDepositArgs,
 } from './types';
+
+/** Method types this app ramps with; wallets and crypto codes are dropped. */
+const PAYOUT_TYPES = ['mobile_money', 'bank_transfer'];
 
 /** API version pinned for every request (echoed back by Chipper). */
 export const CHIPPER_API_VERSION = '2026-02-20';
@@ -60,19 +65,20 @@ export class ChipperClient {
     }
 
     /**
-     * Mobile money methods for a country (`GET /v1/capabilities/{country}`).
-     * Read at runtime: the catalog differs between sandbox and production.
+     * Mobile money collections, and mobile money + bank payouts, for a country
+     * (`GET /v1/capabilities/{country}`). Read at runtime: the catalog differs
+     * between sandbox and production.
      */
     async getCapabilities(country: string): Promise<ChipperCountryCapabilities> {
         const res = await this.request<ChipperCapabilitiesResponse>(
             'GET',
             `/v1/capabilities/${encodeURIComponent(country)}`,
         );
-        const mobileMoney = (groups: ChipperCapabilityGroup[] = []) =>
-            groups.flatMap((g) => g.methods).filter((m) => m.type === 'mobile_money');
+        const methods = (groups: ChipperCapabilityGroup[] = [], types: string[]) =>
+            groups.flatMap((g) => g.methods).filter((m) => types.includes(m.type));
         return {
-            collections: mobileMoney(res.capabilities.collections),
-            payouts: mobileMoney(res.capabilities.payouts),
+            collections: methods(res.capabilities.collections, ['mobile_money']),
+            payouts: methods(res.capabilities.payouts, PAYOUT_TYPES),
         };
     }
 
@@ -103,7 +109,7 @@ export class ChipperClient {
         return this.createOrder({
             from: {
                 code: args.collectionCode,
-                accountNumber: args.phone,
+                ...(args.phone ? { accountNumber: args.phone } : {}),
                 amount: args.fiatAmount,
                 currency: args.fiatCurrency,
             },
@@ -119,7 +125,11 @@ export class ChipperClient {
     async createOffRampOrder(args: CreateOffRampOrderArgs): Promise<ChipperOrder> {
         return this.createOrder({
             from: { code: 'usdc_stellar', amount: args.usdcAmount, currency: 'USDC' },
-            to: { code: args.payoutCode, accountNumber: args.phone, currency: args.fiatCurrency },
+            to: {
+                code: args.payoutCode,
+                accountNumber: args.accountNumber,
+                currency: args.fiatCurrency,
+            },
             externalReference: args.externalReference,
         });
     }
@@ -136,6 +146,33 @@ export class ChipperClient {
             if (err instanceof ChipperError && err.statusCode === 404) return null;
             throw err;
         }
+    }
+
+    /**
+     * Sandbox only: push a bank transfer into a bank-sourced order's virtual
+     * account (`POST /v1/simulations/virtual-account-deposit`). The account is
+     * found by the order id, which Chipper sets as its `externalReference`.
+     *
+     * @throws {ChipperError} `VIRTUAL_ACCOUNT_NOT_FOUND` if the order has none.
+     */
+    async simulateBankDeposit(args: SimulateBankDepositArgs): Promise<void> {
+        const list = await this.request<{ data: ChipperVirtualAccount[] }>(
+            'GET',
+            `/v1/virtual-accounts?externalReference=${encodeURIComponent(args.orderId)}`,
+        );
+        const account = list.data[0];
+        if (!account) {
+            throw new ChipperError(
+                `No virtual account for order ${args.orderId}`,
+                'VIRTUAL_ACCOUNT_NOT_FOUND',
+                404,
+            );
+        }
+        await this.request('POST', '/v1/simulations/virtual-account-deposit', {
+            virtualAccountId: account.id,
+            amount: args.amount,
+            externalReference: args.externalReference,
+        });
     }
 
     /** Idempotent on `externalReference`: a replay returns the original order (200). */

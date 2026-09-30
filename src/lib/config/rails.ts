@@ -30,7 +30,7 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
         id: 'bank',
         name: 'Bank Transfer',
         description:
-            'Generic bank transfer rail used by the SEP test anchor for end-to-end integration testing.',
+            'Account-to-account bank transfer; also the generic rail the SEP test anchor uses for end-to-end testing.',
         type: 'bank_transfer',
     },
     fast: {

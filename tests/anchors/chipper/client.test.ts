@@ -181,8 +181,8 @@ describe('discovery', () => {
         );
         const caps = await createClient().getCapabilities('GH');
         expect(caps.collections.map((m) => m.code)).toEqual(['gh_mtn']);
-        // Payouts are filtered to mobile money: this app does not offer bank payouts.
-        expect(caps.payouts.map((m) => m.code)).toEqual(['gh_mtn']);
+        // Payouts keep mobile money and bank transfer (wallets and crypto are dropped).
+        expect(caps.payouts.map((m) => m.code)).toEqual(['gh_mtn', 'gh_gcb']);
         expect(caps.collections[0].limits).toEqual({ min: 1, max: 5000, currency: 'GHS' });
     });
 
@@ -277,6 +277,24 @@ describe('orders', () => {
         expect(order.isTerminal).toBe(false);
     });
 
+    it('omits the payer account for a bank-transfer source (Chipper issues a virtual account)', async () => {
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(ONRAMP_ORDER, { status: 201 });
+            }),
+        );
+        await createClient().createOnRampOrder({
+            collectionCode: 'ke_kcb',
+            fiatCurrency: 'KES',
+            fiatAmount: '2000',
+            stellarAddress: STELLAR,
+            externalReference: 'ref-bank',
+        });
+        expect(body?.from).toEqual({ code: 'ke_kcb', amount: '2000', currency: 'KES' });
+    });
+
     it('rejects an invalid Stellar address before calling the API', async () => {
         await expect(
             createClient().createOnRampOrder({ ...ONRAMP_ARGS, stellarAddress: 'not-a-key' }),
@@ -336,7 +354,7 @@ describe('orders', () => {
         );
         const order = await createClient().createOffRampOrder({
             payoutCode: 'ke_mpesa',
-            phone: '+254712345678',
+            accountNumber: '+254712345678',
             fiatCurrency: 'KES',
             usdcAmount: '4',
             externalReference: 'ref-2',
@@ -392,5 +410,65 @@ describe('sandboxCollectionOutcome', () => {
         ['100.5', 'delayed_completion'],
     ])('%s → %s', (amount, expected) => {
         expect(sandboxCollectionOutcome(amount)).toBe(expected);
+    });
+});
+
+describe('simulateBankDeposit (sandbox)', () => {
+    it("finds the order's virtual account by reference and simulates the transfer", async () => {
+        let query: string | null = null;
+        let body: unknown;
+        server.use(
+            http.get(`${BASE_URL}/v1/virtual-accounts`, ({ request }) => {
+                query = new URL(request.url).searchParams.get('externalReference');
+                return HttpResponse.json({
+                    data: [
+                        {
+                            id: 'va_1',
+                            status: 'active',
+                            currency: 'KES',
+                            bank: 'KCB Bank',
+                            accountNumber: '5252184873',
+                            accountName: 'Chipper/ord_bank1',
+                            externalReference: 'ord_bank1',
+                        },
+                    ],
+                    hasMore: false,
+                    nextCursor: null,
+                });
+            }),
+            http.post(`${BASE_URL}/v1/simulations/virtual-account-deposit`, async ({ request }) => {
+                body = await request.json();
+                return HttpResponse.json(
+                    { simulation: { depositId: 'vad_1', requestedOutcome: 'completed' } },
+                    { status: 201 },
+                );
+            }),
+        );
+        await createClient().simulateBankDeposit({
+            orderId: 'ord_bank1',
+            amount: '2010.00',
+            externalReference: 'sim-1',
+        });
+        expect(query).toBe('ord_bank1');
+        expect(body).toEqual({
+            virtualAccountId: 'va_1',
+            amount: '2010.00',
+            externalReference: 'sim-1',
+        });
+    });
+
+    it('throws VIRTUAL_ACCOUNT_NOT_FOUND when the order has no virtual account', async () => {
+        server.use(
+            http.get(`${BASE_URL}/v1/virtual-accounts`, () =>
+                HttpResponse.json({ data: [], hasMore: false, nextCursor: null }),
+            ),
+        );
+        await expect(
+            createClient().simulateBankDeposit({
+                orderId: 'ord_none',
+                amount: '1',
+                externalReference: 'sim-2',
+            }),
+        ).rejects.toMatchObject({ code: 'VIRTUAL_ACCOUNT_NOT_FOUND', statusCode: 404 });
     });
 });

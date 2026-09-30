@@ -12,6 +12,7 @@ import type {
     ChipperValidation,
     CreateOnRampOrderArgs,
     CreateOffRampOrderArgs,
+    SimulateBankDepositArgs,
 } from '$lib/anchors/chipper';
 import { createApiRequester, type Fetch } from './http';
 
@@ -67,6 +68,14 @@ export function createOffRampOrder(
     args: CreateOffRampOrderArgs,
 ): Promise<ChipperOrder> {
     return postJson(fetch, `${BASE}/orders`, { direction: 'offramp', ...args });
+}
+
+/** Sandbox only: simulate the payer's bank transfer into a bank-sourced order. */
+export function simulateBankDeposit(
+    fetch: Fetch,
+    args: SimulateBankDepositArgs,
+): Promise<{ ok: boolean }> {
+    return postJson(fetch, `${BASE}/simulate-deposit`, args);
 }
 
 export async function getOrder(fetch: Fetch, id: string): Promise<ChipperOrder | null> {

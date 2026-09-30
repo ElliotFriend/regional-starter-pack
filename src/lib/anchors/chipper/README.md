@@ -1,6 +1,6 @@
 # Chipper Client
 
-Server-side TypeScript client for the [Chipper Platform API](https://docs.platform.chipper.ai). It ramps Ghanaian cedis (GHS) and Kenyan shillings (KES) over mobile money to and from USDC on Stellar.
+Server-side TypeScript client for the [Chipper Platform API](https://docs.platform.chipper.ai). It ramps Ghanaian cedis (GHS) and Kenyan shillings (KES) over mobile money and bank transfer to and from USDC on Stellar.
 
 **This client must only run on the server.** It authenticates with a secret API key that must never reach the browser.
 
@@ -32,19 +32,21 @@ Every request sends `Authorization: Bearer <key>` and `chipper-version: 2026-02-
 Chipper is partner-level: there is no end-user customer or KYC object. A single **order** collects on one rail and pays out on another.
 
 - **On-ramp:** mobile money collection in, `usdc_stellar` payout out. The payer approves a PIN prompt on their phone; Chipper then pays USDC to the Stellar address in `to.accountNumber`.
-- **Off-ramp:** `usdc_stellar` in, mobile money payout out. The order's `instructions` carry a Stellar `address`, a memo-ID `tag`, and the exact `amount` (fee included). Send that amount with the tag as a **MEMO_ID**. A payment without the memo is held for manual review.
+- **Bank on-ramp (Kenya):** pass the payer's bank as the source (`ke_kcb`, `ke_equity`) and omit `phone`. Chipper opens a per-order virtual account and returns `virtual_account` instructions (bank, account number, account name, amount). Bank sources aren't listed under capabilities `collections`; they come from the bank methods under `payouts`. Ghana bank pay-ins require an organization representative on the Chipper account.
+- **Off-ramp:** `usdc_stellar` in, mobile money or bank payout out (`accountNumber` is the phone or the bank account number). The order's `instructions` carry a Stellar `address`, a memo-ID `tag`, and the exact `amount` (fee included). Send that amount with the tag as a **MEMO_ID**. A payment without the memo is held for manual review.
 
 ## Methods
 
-| Method                | Endpoint                               | Purpose                                                 |
-| --------------------- | -------------------------------------- | ------------------------------------------------------- |
-| `getOrganization`     | `GET /v1/organization`                 | Connectivity check; which org the key belongs to        |
-| `getCapabilities`     | `GET /v1/capabilities/{country}`       | Mobile money collection and payout methods (`GH`, `KE`) |
-| `getRate`             | `GET /v1/rates/{origin}/{destination}` | All-in rate, destination units per origin unit          |
-| `validateDestination` | `POST /v1/validate`                    | Resolve a mobile money holder name                      |
-| `createOnRampOrder`   | `POST /v1/orders`                      | Mobile money → `usdc_stellar`                           |
-| `createOffRampOrder`  | `POST /v1/orders`                      | `usdc_stellar` → mobile money                           |
-| `getOrder`            | `GET /v1/orders/{id}`                  | Poll an order; `null` when unknown                      |
+| Method                | Endpoint                                                                    | Purpose                                                 |
+| --------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `getOrganization`     | `GET /v1/organization`                                                      | Connectivity check; which org the key belongs to        |
+| `getCapabilities`     | `GET /v1/capabilities/{country}`                                            | Mobile money collection and payout methods (`GH`, `KE`) |
+| `getRate`             | `GET /v1/rates/{origin}/{destination}`                                      | All-in rate, destination units per origin unit          |
+| `validateDestination` | `POST /v1/validate`                                                         | Resolve a mobile money holder name                      |
+| `createOnRampOrder`   | `POST /v1/orders`                                                           | Mobile money → `usdc_stellar`                           |
+| `createOffRampOrder`  | `POST /v1/orders`                                                           | `usdc_stellar` → mobile money                           |
+| `simulateBankDeposit` | `GET /v1/virtual-accounts` + `POST /v1/simulations/virtual-account-deposit` | Sandbox only: fund a bank-sourced order                 |
+| `getOrder`            | `GET /v1/orders/{id}`                                                       | Poll an order; `null` when unknown                      |
 
 Read capabilities at runtime: method codes and limits differ between sandbox and production.
 
@@ -61,6 +63,7 @@ Every order takes an `externalReference`. Reuse it on retry: a replay returns th
 ## Sandbox notes
 
 - The sandbox settles on the real Stellar testnet with Circle's testnet USDC (`GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`).
+- Bank on-ramps are funded with `simulateBankDeposit`, which finds the order's virtual account (its `externalReference` is the order id).
 - A mobile money collection's cents choose its outcome (`.50` delayed, `.51` failed, `.52` timeout, `.99` transient error). An order collects amount + fee (0.5% in sandbox), so a 100 GHS order collects 100.50 and stalls, while 200 GHS collects 201.00 and completes. `sandboxCollectionOutcome(order.expectedAmount)` reports the outcome in advance.
 - PYUSD on Stellar appears in capabilities but has no sandbox provider (`no_provider_available`), so this client ramps USDC only.
 

@@ -16,6 +16,13 @@ export interface ChipperMarket {
     railLabel: string;
     /** Sandbox phone that completes collections and payouts. */
     testPhone: string;
+    /** Sandbox bank account number that validates and completes payouts. */
+    testBankAccount: string;
+    /**
+     * Whether bank-transfer pay-ins (a per-order virtual account) are offered.
+     * Ghana's require an organization representative on the Chipper account.
+     */
+    bankOnRamp: boolean;
 }
 
 export const CHIPPER_MARKETS: Record<ChipperMarket['id'], ChipperMarket> = {
@@ -28,6 +35,8 @@ export const CHIPPER_MARKETS: Record<ChipperMarket['id'], ChipperMarket> = {
         phonePlaceholder: '+233 54 890 9027',
         railLabel: 'mobile money',
         testPhone: '+233548909027',
+        testBankAccount: '1234567890',
+        bankOnRamp: false,
     },
     kenya: {
         id: 'kenya',
@@ -38,6 +47,8 @@ export const CHIPPER_MARKETS: Record<ChipperMarket['id'], ChipperMarket> = {
         phonePlaceholder: '+254 712 345 678',
         railLabel: 'M-Pesa',
         testPhone: '+254712345678',
+        testBankAccount: '1234567890',
+        bankOnRamp: true,
     },
 };
 
