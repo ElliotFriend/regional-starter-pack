@@ -674,7 +674,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             'deep-liquidity': { status: 'unverified' },
             'open-access': {
                 status: 'met',
-                note: 'Self-serve sandbox keys; production payouts enabled per organization',
+                note: 'Self-serve sandbox keys; production requires platform KYB',
             },
             'accurate-docs': {
                 status: 'met',
@@ -701,16 +701,16 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 text: 'Off-ramp USDC must be sent with the order’s memo ID; a payment without it is held for manual review.',
             },
             {
-                text: 'Ghana bank-transfer pay-ins require an organization representative on the Chipper account, so the app offers bank on-ramps in Kenya only. Bank payouts work in both.',
+                text: 'Bank-transfer pay-ins (virtual accounts) are still rolling out and aren’t available in Ghana yet, so the app offers bank on-ramps in Kenya only. Bank payouts work in both.',
             },
             {
                 text: 'A bank on-ramp pays into a per-order virtual account; in sandbox the transfer is simulated with the Simulate deposit button.',
             },
             {
-                text: 'PYUSD on Stellar is listed in capabilities but has no sandbox provider (no_provider_available), so the app offers USDC only.',
+                text: 'PYUSD on Stellar is listed in capabilities but isn’t on testnet yet, so the app offers USDC only.',
             },
             {
-                text: 'The API has no end-user KYC step; the integrating business owns customer due diligence. Production payouts are enabled per organization on request.',
+                text: 'Production requires the platform to complete KYB, and each order carries the end user’s details in from.kyc. The sandbox doesn’t require it, and the field list isn’t documented yet.',
             },
         ],
         regions: {
@@ -719,14 +719,14 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 offRamp: true,
                 paymentRails: ['mobile-money', 'bank'],
                 tokens: ['USDC'],
-                kycRequired: false,
+                kycRequired: true,
             },
             kenya: {
                 onRamp: true,
                 offRamp: true,
                 paymentRails: ['mpesa', 'mobile-money', 'bank'],
                 tokens: ['USDC'],
-                kycRequired: false,
+                kycRequired: true,
             },
         },
         devOnboarding: [

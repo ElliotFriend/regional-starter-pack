@@ -122,6 +122,7 @@ export class ChipperClient {
                 ...(args.phone ? { accountNumber: args.phone } : {}),
                 amount: args.fiatAmount,
                 currency: args.fiatCurrency,
+                ...(args.kyc ? { kyc: args.kyc } : {}),
             },
             to: { code: 'usdc_stellar', accountNumber: args.stellarAddress, currency: 'USDC' },
             externalReference: args.externalReference,
@@ -134,7 +135,12 @@ export class ChipperClient {
      */
     async createOffRampOrder(args: CreateOffRampOrderArgs): Promise<ChipperOrder> {
         return this.createOrder({
-            from: { code: 'usdc_stellar', amount: args.usdcAmount, currency: 'USDC' },
+            from: {
+                code: 'usdc_stellar',
+                amount: args.usdcAmount,
+                currency: 'USDC',
+                ...(args.kyc ? { kyc: args.kyc } : {}),
+            },
             to: {
                 code: args.payoutCode,
                 accountNumber: args.accountNumber,

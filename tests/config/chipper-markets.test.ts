@@ -39,7 +39,7 @@ describe('CHIPPER_MARKETS', () => {
         }
     });
 
-    it('offers bank-transfer on-ramps in Kenya only (Ghana bank pay-ins need an org representative)', () => {
+    it('offers bank-transfer on-ramps in Kenya only (Ghana bank pay-ins aren’t live yet)', () => {
         expect(CHIPPER_MARKETS.kenya.bankOnRamp).toBe(true);
         expect(CHIPPER_MARKETS.ghana.bankOnRamp).toBe(false);
     });

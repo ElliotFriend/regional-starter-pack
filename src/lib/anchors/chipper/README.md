@@ -42,7 +42,7 @@ Every request sends `Authorization: Bearer <key>` and `chipper-version: 2026-02-
 Chipper is partner-level: there is no end-user customer or KYC object. A single **order** collects on one rail and pays out on another.
 
 - **On-ramp:** mobile money collection in, `usdc_stellar` payout out. The payer approves a PIN prompt on their phone; Chipper then pays USDC to the Stellar address in `to.accountNumber`.
-- **Bank on-ramp (Kenya):** pass the payer's bank as the source (`ke_kcb`, `ke_equity`) and omit `phone`. Chipper opens a per-order virtual account and returns `virtual_account` instructions (bank, account number, account name, amount). Bank sources aren't listed under capabilities `collections`; they come from the bank methods under `payouts`. Ghana bank pay-ins require an organization representative on the Chipper account.
+- **Bank on-ramp (Kenya):** pass the payer's bank as the source (`ke_kcb`, `ke_equity`) and omit `phone`. Chipper opens a per-order virtual account and returns `virtual_account` instructions (bank, account number, account name, amount). In sandbox, bank sources didn't appear under capabilities `collections` (only mobile money did), so the app takes them from the bank methods under `payouts`. Virtual accounts and bank pay-ins are still rolling out at Chipper; Ghana isn't live yet.
 - **Off-ramp:** `usdc_stellar` in, mobile money or bank payout out (`accountNumber` is the phone or the bank account number). The order's `instructions` carry a Stellar `address`, a memo-ID `tag`, and the exact `amount` (fee included). Send that amount with the tag as a **MEMO_ID**. A payment without the memo is held for manual review.
 
 ## Methods
@@ -60,6 +60,10 @@ Chipper is partner-level: there is no end-user customer or KYC object. A single 
 
 Read capabilities at runtime: method codes and limits differ between sandbox and production.
 
+## KYC in production
+
+Chipper's API is partner-level. In production, the platform (the business holding the key) completes KYB, and each order carries the end user's details in `from.kyc` (`createOnRampOrder` / `createOffRampOrder` accept an optional `kyc` object and pass it through). The sandbox doesn't require it, and Chipper hasn't documented the field list yet, so the demo pages don't collect it.
+
 ## Order lifecycle
 
 `awaiting_funds` → (`awaiting_confirmations` for crypto) → `funds_received` → `processing_payout` → `completed`
@@ -75,11 +79,11 @@ Every order takes an `externalReference`. Reuse it on retry: a replay returns th
 - The sandbox settles on the real Stellar testnet with Circle's testnet USDC (`GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`).
 - Bank on-ramps are funded with `simulateBankDeposit`, which finds the order's virtual account (its `externalReference` is the order id).
 - A mobile money collection's cents choose its outcome (`.50` delayed, `.51` failed, `.52` timeout, `.99` transient error). An order collects amount + fee (0.5% in sandbox), so a 100 GHS order collects 100.50 and completes only after a delay, while 200 GHS collects 201.00 and completes normally. `.51` and `.52` are the outcomes that actually fail. `sandboxCollectionOutcome(order.expectedAmount)` reports the outcome in advance.
-- PYUSD on Stellar appears in capabilities but has no sandbox provider (`no_provider_available`), so this client ramps USDC only.
+- PYUSD on Stellar appears in capabilities but isn't on testnet yet (an order returns `no_provider_available`), so this client ramps USDC only.
 
 ## Verified in sandbox (2026-09-30)
 
-- Kenya bank pay-ins: an order sourced from `ke_kcb` or `ke_equity` returned `virtual_account` instructions for a per-order KCB account whose `externalReference` is the order id, and completed after a simulated deposit. Ghana bank pay-ins need an organization representative on the account.
+- Kenya bank pay-ins: an order sourced from `ke_kcb` or `ke_equity` returned `virtual_account` instructions for a per-order KCB account whose `externalReference` is the order id, and completed after a simulated deposit. Ghana bank pay-ins returned "needs an organization representative"; Chipper says the feature is still rolling out.
 - Bank payouts completed to `gh_gcb` (Ghana) and `ke_kcb` (Kenya).
 
 ## Errors

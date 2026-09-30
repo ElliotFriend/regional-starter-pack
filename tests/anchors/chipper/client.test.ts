@@ -300,6 +300,40 @@ describe('orders', () => {
         expect(body?.from).toEqual({ code: 'ke_kcb', amount: '2000', currency: 'KES' });
     });
 
+    it('passes end-user KYC through as from.kyc on both ramps (required in production)', async () => {
+        const bodies: Record<string, unknown>[] = [];
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, async ({ request }) => {
+                bodies.push((await request.json()) as Record<string, unknown>);
+                return HttpResponse.json(ONRAMP_ORDER, { status: 201 });
+            }),
+        );
+        const kyc = { firstName: 'Ama', lastName: 'Mensah', dateOfBirth: '1990-01-01' };
+        await createClient().createOnRampOrder({ ...ONRAMP_ARGS, kyc });
+        await createClient().createOffRampOrder({
+            payoutCode: 'ke_mpesa',
+            accountNumber: '+254712345678',
+            fiatCurrency: 'KES',
+            usdcAmount: '4',
+            externalReference: 'ref-kyc',
+            kyc,
+        });
+        expect((bodies[0].from as Record<string, unknown>).kyc).toEqual(kyc);
+        expect((bodies[1].from as Record<string, unknown>).kyc).toEqual(kyc);
+    });
+
+    it('omits from.kyc when none is given (sandbox)', async () => {
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(ONRAMP_ORDER, { status: 201 });
+            }),
+        );
+        await createClient().createOnRampOrder(ONRAMP_ARGS);
+        expect(body?.from).not.toHaveProperty('kyc');
+    });
+
     it('rejects an invalid Stellar address before calling the API', async () => {
         await expect(
             createClient().createOnRampOrder({ ...ONRAMP_ARGS, stellarAddress: 'not-a-key' }),

@@ -228,6 +228,9 @@ describe('HONORABLE_MENTIONS', () => {
             'bank',
         ]);
         expect(ANCHORS.chipper.regions.kenya.tokens).toEqual(['USDC']);
+        // Production orders carry end-user details in from.kyc (after platform KYB).
+        expect(ANCHORS.chipper.regions.ghana.kycRequired).toBe(true);
+        expect(ANCHORS.chipper.regions.kenya.kycRequired).toBe(true);
         expect(ANCHORS.chipper.logo).toBe('/anchor-logos/chipper.svg');
     });
 

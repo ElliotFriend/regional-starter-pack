@@ -20,7 +20,7 @@ export interface ChipperMarket {
     testBankAccount: string;
     /**
      * Whether bank-transfer pay-ins (a per-order virtual account) are offered.
-     * Ghana's require an organization representative on the Chipper account.
+     * Chipper's virtual accounts are still rolling out; Ghana isn't live yet.
      */
     bankOnRamp: boolean;
 }

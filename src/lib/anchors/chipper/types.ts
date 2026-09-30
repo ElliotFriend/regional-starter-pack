@@ -194,6 +194,12 @@ export interface CreateOnRampOrderArgs {
     stellarAddress: string;
     /** Idempotency key: reuse it on retry. */
     externalReference: string;
+    /**
+     * End-user details, sent as `from.kyc`. Required in production (after the
+     * platform completes KYB); not needed in sandbox. Chipper has not yet
+     * documented the field list, so this is passed through as-is.
+     */
+    kyc?: Record<string, unknown>;
 }
 
 export interface CreateOffRampOrderArgs {
@@ -205,6 +211,12 @@ export interface CreateOffRampOrderArgs {
     /** Decimal string in USDC. */
     usdcAmount: string;
     externalReference: string;
+    /**
+     * End-user details, sent as `from.kyc`. Required in production (after the
+     * platform completes KYB); not needed in sandbox. Chipper has not yet
+     * documented the field list, so this is passed through as-is.
+     */
+    kyc?: Record<string, unknown>;
 }
 
 export type ChipperSandboxOutcome =
