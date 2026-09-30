@@ -203,9 +203,9 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 12 entries (4 vetted + 8 in-vetting pipeline; Manteca graduated to curated)', () => {
+    it('has 13 entries (4 vetted + 9 in-vetting pipeline; Manteca graduated to curated)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(12);
+        expect(mentions).toHaveLength(13);
         expect(mentions).not.toContain('manteca');
     });
 
@@ -214,8 +214,25 @@ describe('HONORABLE_MENTIONS', () => {
         expect(mention).toBeDefined();
         expect(mention.name).toBe('Alfred Pay');
         expect(mention.website).toBeTruthy();
-        expect(mention.regions).toContain('mexico');
-        expect(mention.regions).toContain('brazil');
+        expect(mention.regions).toEqual(['mexico', 'brazil', 'argentina', 'colombia']);
+        expect(mention.rails).toEqual(['spei', 'pix', 'cvu', 'bank']);
+    });
+
+    it('includes Chipper (Africa), flagged vetting, across its mobile-money markets', () => {
+        const mention = HONORABLE_MENTIONS['chipper'];
+        expect(mention).toBeDefined();
+        expect(mention.vetting).toBe(true);
+        expect(mention.scorecard).toHaveLength(9);
+        expect(mention.regions).toEqual([
+            'ghana',
+            'kenya',
+            'nigeria',
+            'uganda',
+            'rwanda',
+            'tanzania',
+            'zambia',
+        ]);
+        expect(mention.tokens).toEqual(['USDC', 'PYUSD', 'XLM']);
     });
 
     it('includes blindpay', () => {
@@ -318,9 +335,9 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 12 honorable mentions', () => {
+    it('returns all 13 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(12);
+        expect(mentions).toHaveLength(13);
     });
 });
 

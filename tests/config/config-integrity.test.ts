@@ -23,6 +23,10 @@ const KNOWN_DANGLING: Record<string, { regions: string[]; rails: string[] }> = {
     fonbnk: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money', 'airtime'] },
     onafriq: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money'] },
     flutterwave: { regions: ['kenya', 'ghana'], rails: ['mpesa', 'mobile-money'] },
+    chipper: {
+        regions: ['ghana', 'kenya', 'nigeria', 'uganda', 'rwanda', 'tanzania', 'zambia'],
+        rails: ['mpesa', 'mobile-money'],
+    },
 };
 
 describe('honorable mention references resolve', () => {

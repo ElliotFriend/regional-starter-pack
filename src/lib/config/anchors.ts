@@ -915,25 +915,42 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
         id: 'alfredpay',
         name: 'Alfred Pay',
         description:
-            'Fiat on/off ramp services across Latin America, enabling conversion between local currencies and USDC on the Stellar network.',
+            'Latin American collections and payouts API (rebuilt as a /v1 API in September 2026) converting local currencies to USDC, with Stellar among its payout chains. Its sandbox simulates the Stellar leg rather than settling on testnet.',
         website: 'https://alfredpay.io',
         tokens: ['USDC'],
-        rails: ['spei', 'pix'],
-        regions: ['mexico', 'brazil'],
+        rails: ['spei', 'pix', 'cvu', 'bank'],
+        regions: ['mexico', 'brazil', 'argentina', 'colombia'],
         scorecard: makeCriteria({
-            'local-asset': { status: 'failed', note: 'USDC only' },
-            'local-rails': { status: 'met' },
+            'local-asset': {
+                status: 'unverified',
+                note: 'Docs list MXNa/ARSa/COPa/BRZ balances; sandbox exposes none, chain unstated',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'SPEI, PIX, COELSA, and ACH (CO) routes; sandbox-status only',
+            },
             'competitive-rates': {
-                status: 'partial',
+                status: 'unverified',
+                note: 'Sandbox BRL→USDC quote itemizes a 50 bps conversion fee',
             },
-            'deep-liquidity': {
-                status: 'partial',
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'met',
+                note: 'Self-serve API keys from the dashboard; Bearer auth',
             },
-            'open-access': { status: 'met', note: 'Sandbox exists; use example API keys' },
+            'accurate-docs': {
+                status: 'failed',
+                note: 'Endorsement names, payout body, and several endpoints differ from the wire; MX individual KYC cannot pass preflight',
+            },
             'high-fidelity-sandbox': {
                 status: 'failed',
-                note: 'Sandbox does not submit testnet transactions',
+                note: 'XLM deposit address is not a valid Stellar key; a "COMPLETE" USDC payout to a testnet account had no tx hash and nothing landed',
             },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'llms.txt + per-endpoint OpenAPI, but many 422s carry no detail',
+            },
+            'fee-discoverability': { status: 'met', note: 'Quotes itemize fees' },
         }),
     },
     blindpay: {
@@ -1305,6 +1322,52 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 note: 'Rich fiat sandbox but no Stellar leg — no on-chain testnet result possible',
             },
             'agent-buildable': { status: 'met', note: 'OpenAPI + llms.txt; diagnosable errors' },
+        }),
+    },
+    chipper: {
+        id: 'chipper',
+        name: 'Chipper',
+        description:
+            'Pan-African payments platform whose API collects and pays out over mobile money and bank rails across seven markets, with USDC, PYUSD, and XLM on Stellar. Orders ramp between local currency and Stellar in one call, and the sandbox settles on the real Stellar testnet.',
+        website: 'https://docs.platform.chipper.ai',
+        tokens: ['USDC', 'PYUSD', 'XLM'],
+        rails: ['mpesa', 'mobile-money', 'bank'],
+        regions: ['ghana', 'kenya', 'nigeria', 'uganda', 'rwanda', 'tanzania', 'zambia'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USD stablecoins and XLM on Stellar; its UGX token is not on Stellar',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'Mobile money collections in five markets; payouts in seven',
+            },
+            'competitive-rates': {
+                status: 'unverified',
+                note: 'Sandbox orders charge a 0.5% fee (50 bps) at a zero-spread rate',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'met',
+                note: 'Self-serve sandbox keys; production payouts enabled per organization',
+            },
+            'accurate-docs': {
+                status: 'met',
+                note: 'Every documented call matched the wire in a live probe',
+            },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'Verified on testnet: GHS mobile money → USDC landed in ~40s; USDC → GHS completed ~20s after the memo’d payment',
+            },
+            'agent-buildable': {
+                status: 'met',
+                note: 'llms.txt, OpenAPI, an AI-agents guide, and machine-readable sandbox rules',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Rates endpoint plus per-order fee and rate',
+            },
         }),
     },
 };

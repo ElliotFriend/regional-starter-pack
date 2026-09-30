@@ -23,6 +23,7 @@ describe('buildReadiness', () => {
             'bilira',
             'onafriq',
             'flutterwave',
+            'chipper',
         ]);
         expect(ids).not.toContain('testanchor');
     });
@@ -37,6 +38,7 @@ describe('buildReadiness', () => {
             'bilira',
             'onafriq',
             'flutterwave',
+            'chipper',
         ]) {
             expect(byId[id].vetting, id).toBe(true);
         }
@@ -133,6 +135,10 @@ describe('buildReadiness', () => {
         expect(byId.etherfuse.verdict).toBe('ready'); // all 6 met
         expect(byId.koywe.verdict).toBe('partial'); // no required fail; open-access + agent-buildable partial
         expect(byId.alfredpay.verdict).toBe('blocked');
+        // Re-vetted on the /v1 API: self-serve keys now, but the Stellar leg is still simulated.
+        expect(byId.alfredpay.blockers.map((s) => s.id)).toEqual(['high-fidelity-sandbox']);
+        // Self-serve sandbox on real Stellar testnet; both ramps verified live.
+        expect(byId.chipper.verdict).toBe('ready');
         expect(byId.blindpay.verdict).toBe('partial'); // no required fail; partial/unverified
         expect(byId.abroad.verdict).toBe('blocked');
         expect(byId.transfero.verdict).toBe('blocked'); // required: open-access failed
