@@ -9,6 +9,7 @@
  * both ramps work here (mobile money ⇄ `usdc_stellar`).
  */
 
+import { StrKey } from '@stellar/stellar-sdk';
 import {
     ChipperError,
     type ChipperConfig,
@@ -19,6 +20,12 @@ import {
     type ChipperCapabilityGroup,
     type ChipperCountryCapabilities,
     type ChipperValidation,
+    type ChipperOrder,
+    type ChipperOrderResponse,
+    type ChipperOrderStatus,
+    type ChipperSandboxOutcome,
+    type CreateOnRampOrderArgs,
+    type CreateOffRampOrderArgs,
 } from './types';
 
 /** API version pinned for every request (echoed back by Chipper). */
@@ -90,6 +97,53 @@ export class ChipperClient {
         return res.validation;
     }
 
+    /** Mobile money in, USDC on Stellar out (`POST /v1/orders`). */
+    async createOnRampOrder(args: CreateOnRampOrderArgs): Promise<ChipperOrder> {
+        assertStellarAddress(args.stellarAddress);
+        return this.createOrder({
+            from: {
+                code: args.collectionCode,
+                accountNumber: args.phone,
+                amount: args.fiatAmount,
+                currency: args.fiatCurrency,
+            },
+            to: { code: 'usdc_stellar', accountNumber: args.stellarAddress, currency: 'USDC' },
+            externalReference: args.externalReference,
+        });
+    }
+
+    /**
+     * USDC on Stellar in, mobile money out. The returned `instructions` carry the
+     * Stellar `address`, the memo-ID `tag`, and the exact `amount` (incl. fee).
+     */
+    async createOffRampOrder(args: CreateOffRampOrderArgs): Promise<ChipperOrder> {
+        return this.createOrder({
+            from: { code: 'usdc_stellar', amount: args.usdcAmount, currency: 'USDC' },
+            to: { code: args.payoutCode, accountNumber: args.phone, currency: args.fiatCurrency },
+            externalReference: args.externalReference,
+        });
+    }
+
+    /** Fetch an order for polling; `null` if unknown. */
+    async getOrder(id: string): Promise<ChipperOrder | null> {
+        try {
+            const res = await this.request<{ order: ChipperOrderResponse }>(
+                'GET',
+                `/v1/orders/${encodeURIComponent(id)}`,
+            );
+            return mapOrder(res.order);
+        } catch (err) {
+            if (err instanceof ChipperError && err.statusCode === 404) return null;
+            throw err;
+        }
+    }
+
+    /** Idempotent on `externalReference`: a replay returns the original order (200). */
+    private async createOrder(body: Record<string, unknown>): Promise<ChipperOrder> {
+        const res = await this.request<{ order: ChipperOrderResponse }>('POST', '/v1/orders', body);
+        return mapOrder(res.order);
+    }
+
     /** Send an authenticated JSON request, mapping the error envelope to {@link ChipperError}. */
     private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
         const url = `${this.config.baseUrl.replace(/\/$/, '')}${path}`;
@@ -142,4 +196,43 @@ function errorMessage(
         return `${base}: ${fields}`;
     }
     return base;
+}
+
+const TERMINAL: readonly ChipperOrderStatus[] = ['completed', 'failed', 'expired'];
+
+/** Normalize a raw order. */
+export function mapOrder(raw: ChipperOrderResponse): ChipperOrder {
+    return {
+        ...raw,
+        isTerminal: TERMINAL.includes(raw.status),
+        failed: raw.status === 'failed' || raw.status === 'expired',
+    };
+}
+
+const SANDBOX_COLLECTION_CENTS: Record<string, ChipperSandboxOutcome> = {
+    '50': 'delayed_completion',
+    '51': 'failed',
+    '52': 'customer_timeout',
+    '99': 'transient_error_then_reconciled',
+};
+
+/**
+ * Sandbox only: the outcome a mobile money collection of `amount` will take,
+ * chosen by its cents (`GET /v1/simulations`). `null` means it completes
+ * normally. Orders collect amount + fee, so check `order.expectedAmount`.
+ */
+export function sandboxCollectionOutcome(amount: string): ChipperSandboxOutcome | null {
+    const cents = (amount.split('.')[1] ?? '').padEnd(2, '0').slice(0, 2);
+    return SANDBOX_COLLECTION_CENTS[cents] ?? null;
+}
+
+/** Throw a {@link ChipperError} unless `address` is a valid Stellar public key. */
+function assertStellarAddress(address: string): void {
+    if (!StrKey.isValidEd25519PublicKey(address)) {
+        throw new ChipperError(
+            `Invalid Stellar public key: ${address}`,
+            'INVALID_STELLAR_ADDRESS',
+            400,
+        );
+    }
 }

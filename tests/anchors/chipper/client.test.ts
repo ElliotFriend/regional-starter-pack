@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
-import { ChipperClient, ChipperError } from '$lib/anchors/chipper';
+import { ChipperClient, ChipperError, sandboxCollectionOutcome } from '$lib/anchors/chipper';
 
 const BASE_URL = 'https://chipper.test';
 const API_KEY = 'sk_test_supersecret';
@@ -211,5 +211,186 @@ describe('discovery', () => {
         });
         expect(body).toEqual({ code: 'gh_mtn', accountNumber: '+233548909027' });
         expect(v).toEqual({ valid: true, accountName: 'Ama Mensah' });
+    });
+});
+
+const STELLAR = 'GD7JWSZQ2EPAJFM7RC6NXNVIG2PRQYCEA52NU2RMDX5YRI2HYBDQDANC';
+const CHIPPER_TREASURY = 'GCK2CL4BXIYKNQKUEWN6BUH4SNDHUKWOIYCOTGHHTORIDH2OGUBZDLN7';
+const ONRAMP_ORDER = {
+    order: {
+        id: 'ord_on1',
+        status: 'awaiting_funds',
+        from: { code: 'gh_mtn', accountNumber: '+233548909027', amount: '200.00', currency: 'GHS' },
+        to: { code: 'usdc_stellar', accountNumber: STELLAR, amount: '16.978222', currency: 'USDC' },
+        fee: { amount: '1.00', currency: 'GHS' },
+        rate: '0.08489111',
+        instructions: {
+            type: 'mobile_money',
+            message: 'Approve the payment prompt on +233548909027 for GHS 201.00',
+            amount: '201.00',
+            currency: 'GHS',
+        },
+        expectedAmount: '201.00',
+        receivedAmount: null,
+        collectionId: 'col_1',
+        payoutId: null,
+        externalReference: 'ref-1',
+        statusMessage: null,
+        expiresAt: null,
+        completedAt: null,
+        createdAt: '2026-09-29T21:35:00.000Z',
+        updatedAt: '2026-09-29T21:35:00.000Z',
+    },
+};
+
+const ONRAMP_ARGS = {
+    collectionCode: 'gh_mtn',
+    phone: '+233548909027',
+    fiatCurrency: 'GHS',
+    fiatAmount: '200',
+    stellarAddress: STELLAR,
+    externalReference: 'ref-1',
+};
+
+describe('orders', () => {
+    it('creates an on-ramp order: mobile money in, usdc_stellar out, amounts as strings', async () => {
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(ONRAMP_ORDER, { status: 201 });
+            }),
+        );
+        const order = await createClient().createOnRampOrder(ONRAMP_ARGS);
+        expect(body).toEqual({
+            from: {
+                code: 'gh_mtn',
+                accountNumber: '+233548909027',
+                amount: '200',
+                currency: 'GHS',
+            },
+            to: { code: 'usdc_stellar', accountNumber: STELLAR, currency: 'USDC' },
+            externalReference: 'ref-1',
+        });
+        expect(order.id).toBe('ord_on1');
+        expect(order.expectedAmount).toBe('201.00');
+        expect(order.isTerminal).toBe(false);
+    });
+
+    it('rejects an invalid Stellar address before calling the API', async () => {
+        await expect(
+            createClient().createOnRampOrder({ ...ONRAMP_ARGS, stellarAddress: 'not-a-key' }),
+        ).rejects.toMatchObject({ code: 'INVALID_STELLAR_ADDRESS' });
+    });
+
+    it('returns the original order on an idempotent replay (200)', async () => {
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, () =>
+                HttpResponse.json(ONRAMP_ORDER, { status: 200 }),
+            ),
+        );
+        const order = await createClient().createOnRampOrder(ONRAMP_ARGS);
+        expect(order.id).toBe('ord_on1');
+    });
+
+    it('creates an off-ramp order and surfaces the Stellar deposit address and memo', async () => {
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.post(`${BASE_URL}/v1/orders`, async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(
+                    {
+                        order: {
+                            ...ONRAMP_ORDER.order,
+                            id: 'ord_off1',
+                            from: {
+                                code: 'usdc_stellar',
+                                address: CHIPPER_TREASURY,
+                                tag: '3303252620',
+                                chain: 'Stellar',
+                                amount: '4.000000',
+                                currency: 'USDC',
+                            },
+                            to: {
+                                code: 'ke_mpesa',
+                                accountNumber: '+254712345678',
+                                amount: '518.67',
+                                currency: 'KES',
+                                kyc: { accountName: 'Test User' },
+                            },
+                            fee: { amount: '0.020000', currency: 'USDC' },
+                            instructions: {
+                                type: 'crypto',
+                                message: 'Send 4.020000 USDC on Stellar',
+                                address: CHIPPER_TREASURY,
+                                tag: '3303252620',
+                                chain: 'Stellar',
+                                amount: '4.020000',
+                                currency: 'USDC',
+                            },
+                        },
+                    },
+                    { status: 201 },
+                );
+            }),
+        );
+        const order = await createClient().createOffRampOrder({
+            payoutCode: 'ke_mpesa',
+            phone: '+254712345678',
+            fiatCurrency: 'KES',
+            usdcAmount: '4',
+            externalReference: 'ref-2',
+        });
+        expect(body).toEqual({
+            from: { code: 'usdc_stellar', amount: '4', currency: 'USDC' },
+            to: { code: 'ke_mpesa', accountNumber: '+254712345678', currency: 'KES' },
+            externalReference: 'ref-2',
+        });
+        expect(order.instructions?.tag).toBe('3303252620');
+        expect(order.instructions?.amount).toBe('4.020000');
+        expect(order.to.kyc?.accountName).toBe('Test User');
+    });
+
+    it.each([
+        ['completed', true, false],
+        ['failed', true, true],
+        ['expired', true, true],
+        ['underpaid', false, false],
+        ['processing_payout', false, false],
+    ])('maps status %s → isTerminal=%s, failed=%s', async (status, isTerminal, failed) => {
+        server.use(
+            http.get(`${BASE_URL}/v1/orders/ord_on1`, () =>
+                HttpResponse.json({ order: { ...ONRAMP_ORDER.order, status } }),
+            ),
+        );
+        const order = await createClient().getOrder('ord_on1');
+        expect(order?.isTerminal).toBe(isTerminal);
+        expect(order?.failed).toBe(failed);
+    });
+
+    it('returns null for an unknown order', async () => {
+        server.use(
+            http.get(`${BASE_URL}/v1/orders/missing`, () =>
+                HttpResponse.json(
+                    { error: 'not_found', message: 'Order not found' },
+                    { status: 404 },
+                ),
+            ),
+        );
+        expect(await createClient().getOrder('missing')).toBeNull();
+    });
+});
+
+describe('sandboxCollectionOutcome', () => {
+    it.each([
+        ['100.50', 'delayed_completion'],
+        ['100.51', 'failed'],
+        ['100.52', 'customer_timeout'],
+        ['100.99', 'transient_error_then_reconciled'],
+        ['201.00', null],
+        ['2010', null],
+        ['100.5', 'delayed_completion'],
+    ])('%s → %s', (amount, expected) => {
+        expect(sandboxCollectionOutcome(amount)).toBe(expected);
     });
 });

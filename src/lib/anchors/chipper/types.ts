@@ -105,3 +105,98 @@ export interface ChipperValidation {
     accountName?: string;
     reason?: string;
 }
+
+export type ChipperOrderStatus =
+    | 'created'
+    | 'awaiting_funds'
+    | 'awaiting_confirmations'
+    | 'funds_received'
+    | 'overpaid'
+    | 'underpaid'
+    | 'processing_payout'
+    | 'completed'
+    | 'failed'
+    | 'expired';
+
+export interface ChipperMoney {
+    amount: string;
+    currency: string;
+}
+
+export interface ChipperOrderLeg {
+    code: string;
+    accountNumber?: string | null;
+    address?: string | null;
+    tag?: string;
+    chain?: string | null;
+    amount: string;
+    currency: string;
+    kyc?: { accountName?: string; [key: string]: unknown };
+}
+
+/** Where the payer sends the inflow. Crypto instructions carry `address` + memo `tag`. */
+export interface ChipperInstructions {
+    type: 'crypto' | 'virtual_account' | 'mobile_money';
+    message: string;
+    amount: string;
+    currency: string;
+    address?: string | null;
+    tag?: string | null;
+    chain?: string | null;
+}
+
+/** Raw order as returned inside `{ order }`. */
+export interface ChipperOrderResponse {
+    id: string;
+    status: ChipperOrderStatus;
+    from: ChipperOrderLeg;
+    to: ChipperOrderLeg;
+    fee: ChipperMoney | null;
+    rate: string | null;
+    instructions: ChipperInstructions | null;
+    expectedAmount: string | null;
+    receivedAmount: string | null;
+    collectionId: string | null;
+    payoutId: string | null;
+    externalReference: string;
+    statusMessage: string | null;
+    expiresAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+/** An order normalized for the host app. */
+export interface ChipperOrder extends ChipperOrderResponse {
+    /** `completed`, `failed`, or `expired`: stop polling. */
+    isTerminal: boolean;
+    /** `failed` or `expired`. */
+    failed: boolean;
+}
+
+export interface CreateOnRampOrderArgs {
+    /** Mobile money collection method, e.g. `gh_mtn`, `ke_mpesa`. */
+    collectionCode: string;
+    /** Payer phone in E.164, e.g. `+233548909027`. */
+    phone: string;
+    fiatCurrency: string;
+    /** Decimal string in the fiat currency. */
+    fiatAmount: string;
+    stellarAddress: string;
+    /** Idempotency key: reuse it on retry. */
+    externalReference: string;
+}
+
+export interface CreateOffRampOrderArgs {
+    /** Mobile money payout method, e.g. `gh_mtn`, `ke_mpesa`. */
+    payoutCode: string;
+    /** Recipient phone in E.164. */
+    phone: string;
+    fiatCurrency: string;
+    /** Decimal string in USDC. */
+    usdcAmount: string;
+    externalReference: string;
+}
+
+export type ChipperSandboxOutcome =
+    'delayed_completion' | 'failed' | 'customer_timeout' | 'transient_error_then_reconciled';
