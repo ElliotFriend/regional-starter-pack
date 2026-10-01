@@ -71,6 +71,30 @@ export const REGIONS: Record<string, Region> = {
         paymentRails: [PAYMENT_RAILS.breb, PAYMENT_RAILS.pse],
         anchors: ['manteca', 'koywe'],
     },
+    ghana: {
+        id: 'ghana',
+        name: 'Ghana',
+        code: 'GH',
+        currency: 'GHS',
+        currencySymbol: 'GH₵',
+        flag: '🇬🇭',
+        description:
+            'Mobile money is how most Ghanaians pay. Chipper ramps Ghanaian cedis to USDC on Stellar over MTN MoMo, Telecel Cash, and AirtelTigo, and pays out to bank accounts.',
+        paymentRails: [PAYMENT_RAILS['mobile-money'], PAYMENT_RAILS.bank],
+        anchors: ['chipper'],
+    },
+    kenya: {
+        id: 'kenya',
+        name: 'Kenya',
+        code: 'KE',
+        currency: 'KES',
+        currencySymbol: 'KSh',
+        flag: '🇰🇪',
+        description:
+            'M-Pesa carries most everyday payments in Kenya. Chipper ramps Kenyan shillings to USDC on Stellar over M-Pesa, Airtel Money, and bank transfer.',
+        paymentRails: [PAYMENT_RAILS.mpesa, PAYMENT_RAILS['mobile-money'], PAYMENT_RAILS.bank],
+        anchors: ['chipper'],
+    },
     turkiye: {
         id: 'turkiye',
         name: 'Türkiye',

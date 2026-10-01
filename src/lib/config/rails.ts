@@ -30,7 +30,7 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
         id: 'bank',
         name: 'Bank Transfer',
         description:
-            'Generic bank transfer rail used by the SEP test anchor for end-to-end integration testing.',
+            'Account-to-account bank transfer; also the generic rail the SEP test anchor uses for end-to-end testing.',
         type: 'bank_transfer',
     },
     fast: {
@@ -74,6 +74,20 @@ export const PAYMENT_RAILS: Record<string, PaymentRail> = {
         description:
             "Pagos Seguros en Línea — Colombia's bank-debit rail for real-time COP transfers from a bank account.",
         type: 'bank_transfer',
+    },
+    'mobile-money': {
+        id: 'mobile-money',
+        name: 'Mobile Money',
+        description:
+            'Phone-number wallets run by telecom operators (MTN MoMo, Telecel Cash, AirtelTigo, Airtel Money); payments are approved with a PIN prompt.',
+        type: 'mobile_money',
+    },
+    mpesa: {
+        id: 'mpesa',
+        name: 'M-Pesa',
+        description:
+            "Safaricom's mobile money wallet, Kenya's dominant payment rail; collections arrive as an STK push the payer approves with their PIN.",
+        type: 'mobile_money',
     },
 };
 

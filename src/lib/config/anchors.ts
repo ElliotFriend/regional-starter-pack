@@ -647,6 +647,154 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    chipper: {
+        id: 'chipper',
+        name: 'Chipper',
+        description:
+            'Pan-African payments platform whose API collects and pays out over mobile money and bank transfer. An order ramps Ghanaian cedis or Kenyan shillings to USDC on Stellar, or back, in one call, and the sandbox settles on the real Stellar testnet.',
+        logo: '/anchor-logos/chipper.svg',
+        links: {
+            website: 'https://chipper.ai',
+            documentation: 'https://docs.platform.chipper.ai',
+            'api reference': 'https://docs.platform.chipper.ai/llms.txt',
+        },
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USD stablecoins and XLM on Stellar; its UGX token is not on Stellar',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'Mobile money and bank payouts in Ghana and Kenya; bank pay-ins in Kenya',
+            },
+            'competitive-rates': {
+                status: 'unverified',
+                note: 'Sandbox orders charge a 0.5% fee (50 bps) at a zero-spread rate',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'met',
+                note: 'Self-serve sandbox keys; production requires platform KYB',
+            },
+            'accurate-docs': {
+                status: 'met',
+                note: 'Every documented call matched the wire in a live probe',
+            },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'Verified on testnet in Ghana and Kenya: mobile money → USDC lands in ~40s; USDC → mobile money completes ~20s after the memo’d payment',
+            },
+            'agent-buildable': {
+                status: 'met',
+                note: 'llms.txt, OpenAPI, an AI-agents guide, and machine-readable sandbox rules',
+            },
+            'fee-discoverability': {
+                status: 'met',
+                note: 'Rates endpoint plus per-order fee and rate',
+            },
+        }),
+        knownIssues: [
+            {
+                text: 'In sandbox, a mobile money collection’s cents choose its outcome, and orders collect amount + 0.5% fee. A total ending in .51 or .52 fails, and .50 or .99 completes after a delay (e.g. 100 GHS collects 100.50); the app warns before you confirm.',
+            },
+            {
+                text: 'Off-ramp USDC must be sent with the order’s memo ID; a payment without it is held for manual review.',
+            },
+            {
+                text: 'Bank-transfer pay-ins (virtual accounts) are still rolling out and aren’t available in Ghana yet, so the app offers bank on-ramps in Kenya only. Bank payouts work in both.',
+            },
+            {
+                text: 'A bank on-ramp pays into a per-order virtual account; in sandbox the transfer is simulated with the Simulate deposit button.',
+            },
+            {
+                text: 'PYUSD on Stellar is listed in capabilities but isn’t on testnet yet, so the app offers USDC only.',
+            },
+            {
+                text: 'Production requires the platform to complete KYB, and each order carries the end user’s details in from.kyc. The sandbox doesn’t require it, and the field list isn’t documented yet.',
+            },
+        ],
+        regions: {
+            ghana: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['mobile-money', 'bank'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+            kenya: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['mpesa', 'mobile-money', 'bank'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'Sign up for the sandbox dashboard and create a secret key (sk_test_…) under Developers → API keys.',
+                link: 'https://docs.platform.chipper.ai/authentication',
+            },
+            {
+                text: 'Authenticate every request with Authorization: Bearer <key>; pin chipper-version: 2026-02-20.',
+            },
+            {
+                text: 'Read GET /v1/capabilities/{country} at runtime for method codes and limits; they differ between sandbox and production.',
+            },
+            {
+                text: 'Create one order per ramp with an externalReference you reuse on retry; a replay returns the original order.',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Pick a method',
+                    description:
+                        'Read mobile money collection methods for the country from capabilities, or pick the payer’s bank.',
+                },
+                {
+                    title: 'Preview the rate',
+                    description: 'Read the all-in GHS or KES → USDC rate.',
+                },
+                {
+                    title: 'Create an order',
+                    description:
+                        'Collect from the payer’s phone or a per-order bank account and deliver usdc_stellar to their Stellar address.',
+                },
+                {
+                    title: 'Approve the prompt',
+                    description:
+                        'The payer approves the mobile money prompt with their PIN, or transfers to the order’s virtual account (both simulated in sandbox).',
+                },
+                {
+                    title: 'Receive USDC',
+                    description:
+                        'Chipper pays USDC to the Stellar address; poll the order until completed.',
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Validate the recipient',
+                    description:
+                        'Resolve the holder name for the mobile money number or bank account.',
+                },
+                {
+                    title: 'Create an order',
+                    description:
+                        'Collect usdc_stellar and pay out to the recipient’s phone or bank account; receive a Stellar address and memo ID.',
+                },
+                {
+                    title: 'Send USDC',
+                    description:
+                        'Sign a USDC payment for the exact amount with the memo ID in Freighter.',
+                },
+                {
+                    title: 'Receive the payout',
+                    description:
+                        'Chipper detects the payment and pays out; poll the order until completed.',
+                },
+            ],
+        },
+    },
     testanchor: {
         id: 'testanchor',
         name: 'Test Anchor',
@@ -1322,52 +1470,6 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 note: 'Rich fiat sandbox but no Stellar leg — no on-chain testnet result possible',
             },
             'agent-buildable': { status: 'met', note: 'OpenAPI + llms.txt; diagnosable errors' },
-        }),
-    },
-    chipper: {
-        id: 'chipper',
-        name: 'Chipper',
-        description:
-            'Pan-African payments platform whose API collects and pays out over mobile money and bank rails across seven markets, with USDC, PYUSD, and XLM on Stellar. Orders ramp between local currency and Stellar in one call, and the sandbox settles on the real Stellar testnet.',
-        website: 'https://docs.platform.chipper.ai',
-        tokens: ['USDC', 'PYUSD', 'XLM'],
-        rails: ['mpesa', 'mobile-money', 'bank'],
-        regions: ['ghana', 'kenya', 'nigeria', 'uganda', 'rwanda', 'tanzania', 'zambia'],
-        vetting: true,
-        scorecard: makeCriteria({
-            'local-asset': {
-                status: 'failed',
-                note: 'USD stablecoins and XLM on Stellar; its UGX token is not on Stellar',
-            },
-            'local-rails': {
-                status: 'met',
-                note: 'Mobile money collections in five markets; payouts in seven',
-            },
-            'competitive-rates': {
-                status: 'unverified',
-                note: 'Sandbox orders charge a 0.5% fee (50 bps) at a zero-spread rate',
-            },
-            'deep-liquidity': { status: 'unverified' },
-            'open-access': {
-                status: 'met',
-                note: 'Self-serve sandbox keys; production payouts enabled per organization',
-            },
-            'accurate-docs': {
-                status: 'met',
-                note: 'Every documented call matched the wire in a live probe',
-            },
-            'high-fidelity-sandbox': {
-                status: 'met',
-                note: 'Verified on testnet: GHS mobile money → USDC landed in ~40s; USDC → GHS completed ~20s after the memo’d payment',
-            },
-            'agent-buildable': {
-                status: 'met',
-                note: 'llms.txt, OpenAPI, an AI-agents guide, and machine-readable sandbox rules',
-            },
-            'fee-discoverability': {
-                status: 'met',
-                note: 'Rates endpoint plus per-order fee and rate',
-            },
         }),
     },
 };

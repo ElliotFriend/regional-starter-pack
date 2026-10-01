@@ -11,6 +11,7 @@ describe('buildReadiness', () => {
             'etherfuse',
             'koywe',
             'manteca',
+            'chipper',
             'alfredpay',
             'blindpay',
             'abroad',
@@ -23,7 +24,6 @@ describe('buildReadiness', () => {
             'bilira',
             'onafriq',
             'flutterwave',
-            'chipper',
         ]);
         expect(ids).not.toContain('testanchor');
     });
@@ -38,7 +38,6 @@ describe('buildReadiness', () => {
             'bilira',
             'onafriq',
             'flutterwave',
-            'chipper',
         ]) {
             expect(byId[id].vetting, id).toBe(true);
         }
@@ -47,6 +46,7 @@ describe('buildReadiness', () => {
             'etherfuse',
             'koywe',
             'manteca',
+            'chipper',
             'alfredpay',
             'blindpay',
             'abroad',
@@ -139,6 +139,7 @@ describe('buildReadiness', () => {
         expect(byId.alfredpay.blockers.map((s) => s.id)).toEqual(['high-fidelity-sandbox']);
         // Self-serve sandbox on real Stellar testnet; both ramps verified live.
         expect(byId.chipper.verdict).toBe('ready');
+        expect(byId.chipper.regions).toEqual(['ghana', 'kenya']);
         expect(byId.blindpay.verdict).toBe('partial'); // no required fail; partial/unverified
         expect(byId.abroad.verdict).toBe('blocked');
         expect(byId.transfero.verdict).toBe('blocked'); // required: open-access failed

@@ -54,6 +54,13 @@ describe('getPaymentRail', () => {
     });
 });
 
+describe('mobile money rails', () => {
+    it('includes mobile-money and mpesa (mobile_money type)', () => {
+        expect(getPaymentRail('mobile-money')!.type).toBe('mobile_money');
+        expect(getPaymentRail('mpesa')!.type).toBe('mobile_money');
+    });
+});
+
 describe('pse rail', () => {
     it('defines the Colombian PSE rail', () => {
         expect(getPaymentRail('pse')).toBeDefined();
