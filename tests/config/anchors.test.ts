@@ -91,6 +91,13 @@ describe('getAnchor', () => {
     });
 });
 
+describe('testanchor known issues', () => {
+    it('flags that SEP-6 withdrawals never become payable', () => {
+        const texts = (ANCHORS.testanchor.knownIssues ?? []).map((i) => i.text);
+        expect(texts.some((t) => /SEP-6 withdrawals/.test(t) && /incomplete/.test(t))).toBe(true);
+    });
+});
+
 describe('getAllAnchors', () => {
     it('returns the curated Etherfuse + Koywe + Manteca + Chipper + SeevCash anchors, the test anchor, and the TR Mock Anchor', () => {
         const ids = getAllAnchors().map((a) => a.id);

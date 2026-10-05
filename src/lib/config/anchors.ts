@@ -962,6 +962,12 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             {
                 text: 'The test anchor issues no-value testnet assets (SRT and testnet USDC) and exists only for integration testing — it is not a curated production provider and does not offer locally denominated assets.',
             },
+            {
+                text: 'SEP-6 withdrawals stay incomplete and never reach pending_user_transfer_start, so the programmatic off-ramp can’t finish. The SEP-24 off-ramp works.',
+            },
+            {
+                text: 'A 403 for a missing or invalid SEP-10 token has no CORS header, so a browser sees a network error instead of the 403.',
+            },
         ],
         regions: {
             testnet: {
