@@ -26,6 +26,7 @@ vite.config.ts.timestamp-*
 .agents/
 .claude/*
 !.claude/skills/
+!.claude/rules/
 
 # DX test projects (temporary, recreated each round)
 sample-dx-project/
