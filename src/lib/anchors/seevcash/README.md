@@ -7,6 +7,11 @@ AirtelTigo). GHS is off-chain fiat; USDC is the only Stellar asset.
 On testnet the mobile money leg is simulated and the Stellar leg pays real
 testnet USDC. Mainnet runs on a separate host, `anchor-prod.seevcash.com`.
 
+The client is browser-safe. SeevCash holds no secrets and serves CORS
+(`Access-Control-Allow-Origin: *`, with `Authorization` and `Content-Type`
+allowed) on every SEP endpoint, so the demo calls it directly from the
+browser with no proxy routes.
+
 - Docs: <https://docs.seevcash.com/docs/anchor>
 - Machine-readable docs: <https://docs.seevcash.com/llms-full.txt>
 

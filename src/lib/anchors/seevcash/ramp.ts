@@ -10,11 +10,12 @@
  * Plain SEP-6 `deposit` / `withdraw` (not the `-exchange` variants): the
  * anchor converts at its current rate, and SEP-38 `/price` previews it.
  *
- * **Server-side only** for SEP-10 token handling and Horizon access; the
- * underlying SEP modules themselves are framework-agnostic.
+ * **Browser-safe.** SeevCash holds no secrets (auth is SEP-10, signed by the
+ * user's wallet) and serves CORS on every SEP endpoint, so the demo calls it
+ * straight from the browser with no proxy routes. It works server-side too.
  *
  * SEP-10 tokens are passed explicitly to each method that needs them, so a
- * single instance is safe to share across requests.
+ * single instance is safe to share.
  *
  * @example
  * ```ts
@@ -112,6 +113,11 @@ const FIAT_ASSET_ID = 'iso4217:GHS';
 const FUNDING_METHOD = 'mobile';
 /** SEP-38 delivery method for the GHS leg. */
 const DELIVERY_METHOD = 'mobile_money';
+
+/** SEP-6 hash memos arrive base64-encoded; `Memo.hash` takes hex. No Node `Buffer`. */
+function base64ToHex(value: string): string {
+    return Array.from(atob(value), (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+}
 
 function withRequestLogging(baseFetch: typeof fetch): typeof fetch {
     return async (input, init) => {
@@ -418,7 +424,7 @@ export class SeevcashRampClient {
                 params.memoType === 'id'
                     ? Memo.id(params.memo)
                     : params.memoType === 'hash'
-                      ? Memo.hash(Buffer.from(params.memo, 'base64'))
+                      ? Memo.hash(base64ToHex(params.memo))
                       : Memo.text(params.memo),
             );
         }

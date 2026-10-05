@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
+import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
 import { SeevcashRampClient, SeevcashError } from '$lib/anchors/seevcash';
 
@@ -362,8 +363,42 @@ describe('withdraw', () => {
         expect(captured!.searchParams.get('amount')).toBe('2');
         expect(result.account_id).toBe(DISTRIBUTION);
         expect(result.memo).toBe('d3d10baf2cf74c569dd171ef0495');
-        expect(typeof result.signableXdr).toBe('string');
-        expect(result.signableXdr.length).toBeGreaterThan(0);
+        const tx = TransactionBuilder.fromXDR(result.signableXdr, Networks.TESTNET) as Transaction;
+        expect(tx.source).toBe(USER_PUBKEY);
+        expect(tx.memo.type).toBe('text');
+        expect(tx.memo.value?.toString()).toBe('d3d10baf2cf74c569dd171ef0495');
+        expect(tx.operations).toHaveLength(1);
+        expect(tx.operations[0]).toMatchObject({
+            type: 'payment',
+            destination: DISTRIBUTION,
+            amount: '2.0000000',
+        });
+    });
+
+    it('decodes a base64 hash memo without Node Buffer (browser-safe)', async () => {
+        mockToml();
+        mockHorizonAccount();
+        const bytes = Uint8Array.from({ length: 32 }, (_, i) => i);
+        const memo = btoa(String.fromCharCode(...bytes));
+        server.use(
+            http.get(`${TRANSFER}/withdraw`, () =>
+                HttpResponse.json({
+                    id: 'wd_2',
+                    account_id: DISTRIBUTION,
+                    memo_type: 'hash',
+                    memo,
+                }),
+            ),
+        );
+        const bufferSpy = vi.spyOn(Buffer, 'from');
+        const result = await createClient().withdraw(TOKEN, { amount: '2', account: USER_PUBKEY });
+        const fromClient = bufferSpy.mock.calls.some((args) => (args as unknown[])[1] === 'base64');
+        bufferSpy.mockRestore();
+
+        const tx = TransactionBuilder.fromXDR(result.signableXdr, Networks.TESTNET) as Transaction;
+        expect(tx.memo.type).toBe('hash');
+        expect(Array.from(tx.memo.value as Uint8Array)).toEqual(Array.from(bytes));
+        expect(fromClient).toBe(false);
     });
 
     it('rejects an invalid source account before touching Horizon', async () => {
@@ -428,6 +463,43 @@ describe('getTransaction', () => {
             ),
         );
         await expect(createClient().getTransaction(TOKEN, 'dep_1')).rejects.toThrow(SeevcashError);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// browser fetch binding
+// ---------------------------------------------------------------------------
+
+describe('default fetch', () => {
+    it('calls the global fetch unbound, as browsers require', async () => {
+        mockToml();
+        const realFetch = globalThis.fetch;
+        // Browsers throw "Illegal invocation" when window.fetch is called as a
+        // method of another object; mimic that.
+        const strictFetch = vi.fn(function (this: unknown, ...args: Parameters<typeof fetch>) {
+            if (this !== undefined && this !== globalThis) {
+                throw new TypeError('Illegal invocation');
+            }
+            return realFetch(...args);
+        });
+        vi.stubGlobal('fetch', strictFetch);
+        server.use(
+            http.get(AUTH, () =>
+                HttpResponse.json({
+                    transaction: 'AAAAAGmocked',
+                    network_passphrase: 'Test SDF Network ; September 2015',
+                }),
+            ),
+        );
+        try {
+            const client = new SeevcashRampClient({ usdcIssuer: USDC_ISSUER });
+            await expect(client.getChallenge(USER_PUBKEY)).resolves.toMatchObject({
+                transaction: 'AAAAAGmocked',
+            });
+            expect(strictFetch).toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });
 
