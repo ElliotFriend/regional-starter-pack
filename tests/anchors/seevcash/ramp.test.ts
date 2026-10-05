@@ -366,7 +366,9 @@ describe('withdraw', () => {
         const tx = TransactionBuilder.fromXDR(result.signableXdr, Networks.TESTNET) as Transaction;
         expect(tx.source).toBe(USER_PUBKEY);
         expect(tx.memo.type).toBe('text');
-        expect(tx.memo.value?.toString()).toBe('d3d10baf2cf74c569dd171ef0495');
+        expect(new TextDecoder().decode(tx.memo.value as Uint8Array)).toBe(
+            'd3d10baf2cf74c569dd171ef0495',
+        );
         expect(tx.operations).toHaveLength(1);
         expect(tx.operations[0]).toMatchObject({
             type: 'payment',

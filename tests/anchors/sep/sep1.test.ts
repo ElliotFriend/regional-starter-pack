@@ -354,7 +354,7 @@ describe('supportsSep', () => {
 describe('input validation behavior', () => {
     // Tests for empty/invalid domain strings removed: they test Stellar SDK behavior
     // rather than our code, and the SDK's HTTP requests are intercepted by MSW's
-    // onUnhandledRequest: 'error' setting, causing the tests to error rather than
+    // onUnhandledFrame: 'error' setting, causing the tests to error rather than
     // the SDK rejecting cleanly.
 
     it('getSep10Endpoint returns undefined when WEB_AUTH_ENDPOINT is not set on toml', () => {

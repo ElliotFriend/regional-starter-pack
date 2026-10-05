@@ -464,7 +464,7 @@ describe('SEP-6 programmatic ramps', () => {
         const xdr = await createClient().buildWithdrawalPaymentXdr(sep24Tx, USER_PUBKEY, 'SRT');
         const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction;
         expect(tx.memo.type).toBe('text');
-        expect(tx.memo.value?.toString()).toBe('memo-123');
+        expect(new TextDecoder().decode(tx.memo.value as Uint8Array)).toBe('memo-123');
         expect(tx.operations[0]).toMatchObject({
             type: 'payment',
             destination: SRT_ISSUER,
