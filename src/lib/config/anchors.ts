@@ -795,6 +795,141 @@ export const ANCHORS: Record<string, AnchorProfile> = {
             ],
         },
     },
+    seevcash: {
+        id: 'seevcash',
+        name: 'SeevCash',
+        description:
+            'Ghanaian anchor that bridges USDC on Stellar with Ghanaian cedis over MTN, Telecel, and AirtelTigo mobile money. It speaks the standard SEPs with no API key, so a wallet integrates straight from the browser, and the testnet anchor settles real testnet USDC.',
+        logo: '/anchor-logos/seevcash.png',
+        links: {
+            website: 'https://seevcash.com',
+            documentation: 'https://docs.seevcash.com/docs/anchor',
+            'api reference': 'https://docs.seevcash.com/llms-full.txt',
+            'stellar.toml': 'https://anchor.seevcash.com/.well-known/stellar.toml',
+        },
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USDC only; GHS is off-chain fiat',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'Ghana mobile money (MTN, Telecel, AirtelTigo) and bank',
+            },
+            'competitive-rates': {
+                status: 'unverified',
+                note: 'Testnet SEP-38 quotes ~3%; production pricing unconfirmed',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'met',
+                note: 'Standard SEP-10 auth on testnet; no keys or signup',
+            },
+            'accurate-docs': {
+                status: 'partial',
+                note: 'SEP-standard, but docs drift: wrong SEP-24 paths, missing withdraw params, mainnet values on testnet pages',
+            },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'SEP-6 deposit and withdraw settle real testnet USDC; mobile money leg simulated',
+            },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'llms.txt + SEP contract; SEP-12 silently accepts unknown fields, SEP-24 page returns 500',
+            },
+            'fee-discoverability': {
+                status: 'partial',
+                note: 'SEP-38 quotes work; fees disagree across /info, SEP-6, and SEP-38',
+            },
+        }),
+        knownIssues: [
+            {
+                text: 'SEP-24 (interactive) is advertised, but its hosted page returns a server error, so the app uses SEP-6 only.',
+            },
+            {
+                text: 'The SEP-6 withdrawal requires funding_method=mobile, which the docs omit. Mobile money payouts go to the number on the SEP-12 customer, not a per-request destination.',
+            },
+            {
+                text: 'SEP-12 reports ACCEPTED for any field it is sent, recognised or not. Use SEP-9 names such as birth_date; the docs’ date_of_birth is not recognised.',
+            },
+            {
+                text: 'Deposits don’t create accounts despite account_creation in /info; the Stellar account must exist and trust USDC first.',
+            },
+            {
+                text: 'Fees disagree across /sep6/info, the SEP-24 /info, the SEP-6 responses, and SEP-38 quotes.',
+            },
+        ],
+        regions: {
+            ghana: {
+                onRamp: true,
+                offRamp: true,
+                paymentRails: ['mobile-money'],
+                tokens: ['USDC'],
+                kycRequired: true,
+            },
+        },
+        devOnboarding: [
+            {
+                text: 'No signup or API key: read the anchor’s stellar.toml for its SEP endpoints and signing key.',
+                link: 'https://anchor.seevcash.com/.well-known/stellar.toml',
+            },
+            {
+                text: 'Authenticate the user’s wallet with SEP-10; the JWT lasts 15 minutes.',
+                link: 'https://docs.seevcash.com/docs/anchor/authentication',
+            },
+            {
+                text: 'Register the customer with SEP-12, including mobile_money_number and mobile_money_provider. Testnet approves immediately.',
+                link: 'https://docs.seevcash.com/docs/anchor/kyc',
+            },
+        ],
+        integrationFlow: {
+            onRamp: [
+                {
+                    title: 'Authenticate',
+                    description: 'Sign a SEP-10 challenge with the wallet for a JWT.',
+                },
+                {
+                    title: 'Register the customer',
+                    description:
+                        'Submit SEP-12 KYC with the mobile money number and provider to collect from.',
+                },
+                {
+                    title: 'Preview the rate',
+                    description: 'Read a SEP-38 price for GHS → USDC over mobile money.',
+                },
+                {
+                    title: 'Start the deposit',
+                    description:
+                        'Call SEP-6 deposit; the anchor sends a mobile money prompt for the GHS amount (simulated on testnet).',
+                },
+                {
+                    title: 'Receive USDC',
+                    description: 'The anchor pays USDC on Stellar; poll the SEP-6 transaction.',
+                },
+            ],
+            offRamp: [
+                {
+                    title: 'Authenticate and register',
+                    description:
+                        'SEP-10 auth, then SEP-12 KYC with the mobile money number to pay out to.',
+                },
+                {
+                    title: 'Start the withdrawal',
+                    description:
+                        'Call SEP-6 withdraw with funding_method=mobile; receive the anchor’s Stellar account and a memo.',
+                },
+                {
+                    title: 'Send USDC',
+                    description: 'Sign a USDC payment to that account with the memo in Freighter.',
+                },
+                {
+                    title: 'Receive the payout',
+                    description:
+                        'The anchor pays GHS to mobile money (simulated on testnet); poll the SEP-6 transaction.',
+                },
+            ],
+        },
+    },
     testanchor: {
         id: 'testanchor',
         name: 'Test Anchor',
@@ -1470,52 +1605,6 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
                 note: 'Rich fiat sandbox but no Stellar leg — no on-chain testnet result possible',
             },
             'agent-buildable': { status: 'met', note: 'OpenAPI + llms.txt; diagnosable errors' },
-        }),
-    },
-    seevcash: {
-        id: 'seevcash',
-        name: 'SeevCash',
-        description:
-            'Ghana SEP anchor (SEP-6/10/12/24/38) bridging USDC on Stellar with GHS over MTN, Telecel, and AirtelTigo mobile money. Self-serve testnet anchor; production access terms not yet confirmed.',
-        website: 'https://seevcash.com',
-        tokens: ['USDC'],
-        rails: ['mobile-money', 'bank'],
-        regions: ['ghana'],
-        vetting: true,
-        scorecard: makeCriteria({
-            'local-asset': {
-                status: 'failed',
-                note: 'USDC only; GHS is off-chain fiat',
-            },
-            'local-rails': {
-                status: 'met',
-                note: 'Ghana mobile money (MTN, Telecel, AirtelTigo) and bank',
-            },
-            'competitive-rates': {
-                status: 'unverified',
-                note: 'Testnet SEP-38 quotes ~3%; production pricing unconfirmed',
-            },
-            'deep-liquidity': { status: 'unverified' },
-            'open-access': {
-                status: 'met',
-                note: 'Standard SEP-10 auth on testnet; no keys or signup',
-            },
-            'accurate-docs': {
-                status: 'partial',
-                note: 'SEP-standard, but docs drift: wrong SEP-24 paths, missing withdraw params, mainnet values on testnet pages',
-            },
-            'high-fidelity-sandbox': {
-                status: 'met',
-                note: 'SEP-6 deposit and withdraw settle real testnet USDC; mobile money leg simulated',
-            },
-            'agent-buildable': {
-                status: 'partial',
-                note: 'llms.txt + SEP contract; SEP-12 silently accepts unknown fields, SEP-24 page returns 500',
-            },
-            'fee-discoverability': {
-                status: 'partial',
-                note: 'SEP-38 quotes work; fees disagree across /info, SEP-6, and SEP-38',
-            },
         }),
     },
 };

@@ -79,9 +79,9 @@ export const REGIONS: Record<string, Region> = {
         currencySymbol: 'GH₵',
         flag: '🇬🇭',
         description:
-            'Mobile money is how most Ghanaians pay. Chipper ramps Ghanaian cedis to USDC on Stellar over MTN MoMo, Telecel Cash, and AirtelTigo, and pays out to bank accounts.',
+            'Mobile money is how most Ghanaians pay. Chipper and SeevCash ramp Ghanaian cedis to USDC on Stellar over MTN MoMo, Telecel Cash, and AirtelTigo; Chipper also pays out to bank accounts.',
         paymentRails: [PAYMENT_RAILS['mobile-money'], PAYMENT_RAILS.bank],
-        anchors: ['chipper'],
+        anchors: ['chipper', 'seevcash'],
     },
     kenya: {
         id: 'kenya',

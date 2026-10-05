@@ -92,15 +92,16 @@ describe('getAnchor', () => {
 });
 
 describe('getAllAnchors', () => {
-    it('returns the curated Etherfuse + Koywe + Manteca + Chipper anchors, the test anchor, and the TR Mock Anchor', () => {
+    it('returns the curated Etherfuse + Koywe + Manteca + Chipper + SeevCash anchors, the test anchor, and the TR Mock Anchor', () => {
         const ids = getAllAnchors().map((a) => a.id);
         expect(ids).toContain('chipper');
+        expect(ids).toContain('seevcash');
         expect(ids).toContain('etherfuse');
         expect(ids).toContain('koywe');
         expect(ids).toContain('manteca');
         expect(ids).toContain('testanchor');
         expect(ids).toContain('trmock');
-        expect(ids).toHaveLength(6);
+        expect(ids).toHaveLength(7);
     });
 });
 
@@ -204,9 +205,9 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 13 entries (4 vetted + 9 in-vetting pipeline; Manteca and Chipper graduated to curated)', () => {
+    it('has 12 entries (4 vetted + 8 in-vetting pipeline; Manteca, Chipper, and SeevCash graduated to curated)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(13);
+        expect(mentions).toHaveLength(12);
         expect(mentions).not.toContain('manteca');
     });
 
@@ -234,15 +235,20 @@ describe('HONORABLE_MENTIONS', () => {
         expect(ANCHORS.chipper.logo).toBe('/anchor-logos/chipper.svg');
     });
 
-    it('includes Seevcash (Ghana SEP anchor), flagged vetting, over mobile money and bank', () => {
-        const mention = HONORABLE_MENTIONS['seevcash'];
-        expect(mention).toBeDefined();
-        expect(mention.name).toBe('SeevCash');
-        expect(mention.vetting).toBe(true);
-        expect(mention.scorecard).toHaveLength(9);
-        expect(mention.regions).toEqual(['ghana']);
-        expect(mention.rails).toEqual(['mobile-money', 'bank']);
-        expect(mention.tokens).toEqual(['USDC']);
+    it('curates SeevCash: not a mention; Ghana over mobile money, USDC only, KYC required', () => {
+        expect(HONORABLE_MENTIONS['seevcash']).toBeUndefined();
+        expect(ANCHORS.seevcash.name).toBe('SeevCash');
+        expect(Object.keys(ANCHORS.seevcash.regions)).toEqual(['ghana']);
+        expect(ANCHORS.seevcash.regions.ghana).toMatchObject({
+            onRamp: true,
+            offRamp: true,
+            paymentRails: ['mobile-money'],
+            tokens: ['USDC'],
+            kycRequired: true,
+        });
+        expect(ANCHORS.seevcash.scorecard).toHaveLength(9);
+        expect(ANCHORS.seevcash.referenceAnchor).toBeFalsy();
+        expect(ANCHORS.seevcash.logo).toBe('/anchor-logos/seevcash.png');
     });
 
     it('includes blindpay', () => {
@@ -345,9 +351,9 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 13 honorable mentions', () => {
+    it('returns all 12 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(13);
+        expect(mentions).toHaveLength(12);
     });
 });
 

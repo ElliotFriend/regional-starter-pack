@@ -12,6 +12,7 @@ describe('buildReadiness', () => {
             'koywe',
             'manteca',
             'chipper',
+            'seevcash',
             'alfredpay',
             'blindpay',
             'abroad',
@@ -24,7 +25,6 @@ describe('buildReadiness', () => {
             'bilira',
             'onafriq',
             'flutterwave',
-            'seevcash',
         ]);
         expect(ids).not.toContain('testanchor');
     });
@@ -39,7 +39,6 @@ describe('buildReadiness', () => {
             'bilira',
             'onafriq',
             'flutterwave',
-            'seevcash',
         ]) {
             expect(byId[id].vetting, id).toBe(true);
         }
@@ -49,6 +48,7 @@ describe('buildReadiness', () => {
             'koywe',
             'manteca',
             'chipper',
+            'seevcash',
             'alfredpay',
             'blindpay',
             'abroad',

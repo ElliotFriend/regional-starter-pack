@@ -180,11 +180,11 @@ describe('Koywe regional coverage', () => {
 });
 
 describe('Ghana and Kenya regions', () => {
-    it('are served by Chipper over mobile money', () => {
+    it('are served by Chipper (and SeevCash in Ghana) over mobile money', () => {
         expect(getRegion('ghana')).toMatchObject({
             code: 'GH',
             currency: 'GHS',
-            anchors: ['chipper'],
+            anchors: ['chipper', 'seevcash'],
         });
         expect(getRegion('kenya')).toMatchObject({
             code: 'KE',
@@ -198,6 +198,7 @@ describe('Ghana and Kenya regions', () => {
         ]);
         expect(getRegion('ghana')!.paymentRails.map((r) => r.id)).toEqual(['mobile-money', 'bank']);
         expect(getRegionsForAnchor('chipper').map((r) => r.id)).toEqual(['ghana', 'kenya']);
+        expect(getRegionsForAnchor('seevcash').map((r) => r.id)).toEqual(['ghana']);
     });
 });
 
