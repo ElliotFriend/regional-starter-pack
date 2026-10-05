@@ -118,7 +118,27 @@ export async function submitTransaction(
 
     const transaction = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
 
-    return server.submitTransaction(transaction);
+    try {
+        return await server.submitTransaction(transaction);
+    } catch (err) {
+        // The SDK's message is a bare "400 Bad Request"; the reason Stellar
+        // rejected the transaction lives in Horizon's result codes.
+        const codes = (
+            err as {
+                response?: {
+                    data?: {
+                        extras?: { result_codes?: { transaction?: string; operations?: string[] } };
+                    };
+                };
+            }
+        ).response?.data?.extras?.result_codes;
+        if (!codes?.transaction) throw err;
+        const ops = codes.operations?.filter((op) => op !== 'op_success') ?? [];
+        throw new Error(
+            `Transaction failed: ${codes.transaction}${ops.length ? ` (${ops.join(', ')})` : ''}`,
+            { cause: err },
+        );
+    }
 }
 
 /**
