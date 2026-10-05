@@ -1,31 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PROVIDER, SUPPORTED_COUNTRIES } from '$lib/constants';
-
-describe('PROVIDER', () => {
-    it('includes ETHERFUSE', () => {
-        expect(PROVIDER.ETHERFUSE).toBe('etherfuse');
-    });
-
-    it('includes TESTANCHOR', () => {
-        expect(PROVIDER.TESTANCHOR).toBe('testanchor');
-    });
-
-    it('includes KOYWE', () => {
-        expect(PROVIDER.KOYWE).toBe('koywe');
-    });
-
-    it('includes MANTECA', () => {
-        expect(PROVIDER.MANTECA).toBe('manteca');
-    });
-
-    it('includes CHIPPER', () => {
-        expect(PROVIDER.CHIPPER).toBe('chipper');
-    });
-
-    it('has the expected providers', () => {
-        expect(Object.keys(PROVIDER)).toHaveLength(5);
-    });
-});
+import { SUPPORTED_COUNTRIES } from '$lib/constants';
 
 describe('SUPPORTED_COUNTRIES', () => {
     it('includes Mexico with MXN and SPEI', () => {

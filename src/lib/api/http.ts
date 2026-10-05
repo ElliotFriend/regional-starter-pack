@@ -9,21 +9,12 @@
 
 export type Fetch = typeof fetch;
 
-/** Build a `Authorization: Bearer ...` header. */
-export function authHeader(token: string): Record<string, string> {
-    return { Authorization: `Bearer ${token}` };
-}
-
 /** Pre-bound HTTP helpers for one provider's API namespace. */
 export interface ApiRequester {
     /** Fetch JSON; throw the provider's error class on non-2xx. */
     apiRequest<T>(fetch: Fetch, url: string, init?: RequestInit): Promise<T>;
-    /**
-     * POST JSON body; thread an optional bearer token. Provider wrappers that
-     * never authenticate via Bearer (e.g. Etherfuse with its API-key proxy)
-     * simply ignore the `token` argument.
-     */
-    postJson<T>(fetch: Fetch, url: string, body: unknown, token?: string): Promise<T>;
+    /** POST a JSON body; throw the provider's error class on non-2xx. */
+    postJson<T>(fetch: Fetch, url: string, body: unknown): Promise<T>;
 }
 
 /**
@@ -59,18 +50,10 @@ export function createApiRequester(
         return response.json();
     }
 
-    async function postJson<T>(
-        fetch: Fetch,
-        url: string,
-        body: unknown,
-        token?: string,
-    ): Promise<T> {
+    async function postJson<T>(fetch: Fetch, url: string, body: unknown): Promise<T> {
         return apiRequest<T>(fetch, url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? authHeader(token) : {}),
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
     }

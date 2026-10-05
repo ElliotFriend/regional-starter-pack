@@ -21,15 +21,6 @@ export const SUPPORTED_COUNTRIES = [
 // Default country code
 export const DEFAULT_COUNTRY = 'MX';
 
-// Provider names
-export const PROVIDER = {
-    ETHERFUSE: 'etherfuse',
-    TESTANCHOR: 'testanchor',
-    KOYWE: 'koywe',
-    MANTECA: 'manteca',
-    CHIPPER: 'chipper',
-} as const;
-
 // KYC statuses (internal)
 export const KYC_STATUS = {
     NOT_STARTED: 'not_started',

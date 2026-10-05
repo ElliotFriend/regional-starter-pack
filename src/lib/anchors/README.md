@@ -14,7 +14,6 @@ anchors/
 ├── testanchor/      Reference clients for testanchor.stellar.org (SEP-6 + SEP-24, and a playground)
 ├── trmock/          TR Mock Anchor: SEP sandbox stand-in for Türkiye (FAST, USDC)
 ├── sep/             Composable SEP protocol modules (sep1, sep6, sep10, sep12, sep24, sep31, sep38)
-├── sandbox.ts       Sandbox KYC test data (Mexico)
 └── README.md        ← you are here
 ```
 
