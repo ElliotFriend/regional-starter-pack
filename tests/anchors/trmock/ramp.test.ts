@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
+import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
 import { TrMockRampClient, TrMockError } from '$lib/anchors/trmock';
 
@@ -270,6 +271,46 @@ describe('withdrawExchange', () => {
     });
 });
 
+describe('withdrawExchange hash memo', () => {
+    it('decodes a base64 hash memo without Node Buffer (browser-safe)', async () => {
+        mockToml();
+        const bytes = Uint8Array.from({ length: 32 }, (_, i) => i * 3);
+        server.use(
+            http.get(`${TRANSFER}/withdraw-exchange`, () =>
+                HttpResponse.json({
+                    account_id: TREASURY,
+                    memo_type: 'hash',
+                    memo: btoa(String.fromCharCode(...bytes)),
+                    id: 'sep_w2',
+                }),
+            ),
+            http.get(`${HORIZON}/accounts/${USER_PUBKEY}`, () =>
+                HttpResponse.json({
+                    id: USER_PUBKEY,
+                    account_id: USER_PUBKEY,
+                    sequence: '1234567890',
+                    balances: [],
+                }),
+            ),
+        );
+
+        const bufferSpy = vi.spyOn(Buffer, 'from');
+        const result = await createClient().withdrawExchange(TOKEN, {
+            amount: '10',
+            account: USER_PUBKEY,
+        });
+        const usedBase64Buffer = bufferSpy.mock.calls.some(
+            (args) => (args as unknown[])[1] === 'base64',
+        );
+        bufferSpy.mockRestore();
+
+        const tx = TransactionBuilder.fromXDR(result.signableXdr, Networks.TESTNET) as Transaction;
+        expect(tx.memo.type).toBe('hash');
+        expect(Array.from(tx.memo.value as Uint8Array)).toEqual(Array.from(bytes));
+        expect(usedBase64Buffer).toBe(false);
+    });
+});
+
 describe('getTransaction', () => {
     it('returns the transaction', async () => {
         mockToml();
@@ -312,6 +353,34 @@ describe('simulateBankTransfer', () => {
 
         expect(body.amount).toBe('1000');
         expect(auth).toBe(`Bearer ${TOKEN}`);
+    });
+
+    it('calls the global fetch unbound, as browsers require', async () => {
+        mockToml();
+        const realFetch = globalThis.fetch;
+        // Browsers throw "Illegal invocation" when window.fetch is called as a
+        // method of another object; mimic that.
+        const strictFetch = vi.fn(function (this: unknown, ...args: Parameters<typeof fetch>) {
+            if (this !== undefined && this !== globalThis) {
+                throw new TypeError('Illegal invocation');
+            }
+            return realFetch(...args);
+        });
+        vi.stubGlobal('fetch', strictFetch);
+        server.use(
+            http.post(`${TRANSFER}/tx/sep_1/simulate-bank-transfer`, () =>
+                HttpResponse.json({ ok: true }),
+            ),
+        );
+        try {
+            const client = new TrMockRampClient({ horizonUrl: HORIZON, usdcIssuer: USDC_ISSUER });
+            await expect(
+                client.simulateBankTransfer(TOKEN, 'sep_1', '1000'),
+            ).resolves.toBeUndefined();
+            expect(strictFetch).toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it('wraps a sandbox failure in TrMockError', async () => {

@@ -6,11 +6,12 @@
  * directly — there's no adaptation layer because testanchor IS SEP. Copy this
  * file alongside `../sep/*` into any TypeScript project.
  *
- * **Server-side only** for SEP-10 token handling and Horizon access; the
- * underlying SEP modules themselves are framework-agnostic.
+ * **Browser-safe.** The test anchor holds no secrets (auth is SEP-10, signed by the
+ * user's wallet) and serves CORS on its SEP endpoints, so the demo calls it
+ * straight from the browser with no proxy routes. It works server-side too.
  *
  * SEP-10 tokens are passed explicitly to each method that needs them, so a
- * single instance is safe to share across requests.
+ * single instance is safe to share.
  *
  * @example
  * ```ts
@@ -90,6 +91,11 @@ const DEFAULT_DOMAIN = 'testanchor.stellar.org';
 const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
 const DEFAULT_HORIZON = 'https://horizon-testnet.stellar.org';
 
+/** SEP-6 hash memos arrive base64-encoded; `Memo.hash` takes hex. No Node `Buffer`. */
+function base64ToHex(value: string): string {
+    return Array.from(atob(value), (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+}
+
 function withRequestLogging(baseFetch: typeof fetch): typeof fetch {
     return async (input, init) => {
         const method = (init?.method ?? 'GET').toUpperCase();
@@ -139,7 +145,9 @@ export class TestAnchorRampClient {
         this.domain = config.domain || DEFAULT_DOMAIN;
         this.networkPassphrase = config.networkPassphrase || TESTNET_PASSPHRASE;
         this.horizonUrl = config.horizonUrl || DEFAULT_HORIZON;
-        const baseFetch = config.fetchFn || fetch;
+        // Wrap the global so it is never called as a method of this client;
+        // browsers reject that with "Illegal invocation".
+        const baseFetch = config.fetchFn || ((input, init) => fetch(input, init));
         this.fetchFn = config.debug ? withRequestLogging(baseFetch) : baseFetch;
     }
 
@@ -345,7 +353,7 @@ export class TestAnchorRampClient {
                 params.memoType === 'id'
                     ? Memo.id(params.memo)
                     : params.memoType === 'hash'
-                      ? Memo.hash(Buffer.from(params.memo, 'base64'))
+                      ? Memo.hash(base64ToHex(params.memo))
                       : Memo.text(params.memo),
             );
         }

@@ -6,11 +6,12 @@
  * is a **sandbox stand-in**, not a production provider: the bank leg and KYC
  * are simulated, the Stellar leg is real testnet USDC.
  *
- * **Server-side only** for SEP-10 token handling and Horizon access; the
- * underlying SEP modules themselves are framework-agnostic.
+ * **Browser-safe.** The TR Mock Anchor holds no secrets (auth is SEP-10, signed by the
+ * user's wallet) and serves CORS on its SEP endpoints, so the demo calls it
+ * straight from the browser with no proxy routes. It works server-side too.
  *
  * SEP-10 tokens are passed explicitly to each method that needs them, so a
- * single instance is safe to share across requests.
+ * single instance is safe to share.
  *
  * @example
  * ```ts
@@ -108,6 +109,11 @@ const ASSET_CODE = 'USDC';
 const FIAT_ASSET_ID = 'iso4217:TRY';
 const FUNDING_METHOD = 'bank_account';
 
+/** SEP-6 hash memos arrive base64-encoded; `Memo.hash` takes hex. No Node `Buffer`. */
+function base64ToHex(value: string): string {
+    return Array.from(atob(value), (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+}
+
 function withRequestLogging(baseFetch: typeof fetch): typeof fetch {
     return async (input, init) => {
         const method = (init?.method ?? 'GET').toUpperCase();
@@ -145,7 +151,9 @@ export class TrMockRampClient {
         this.usdcIssuer = config.usdcIssuer || DEFAULT_USDC_ISSUER;
         this.networkPassphrase = config.networkPassphrase || TESTNET_PASSPHRASE;
         this.horizonUrl = config.horizonUrl || DEFAULT_HORIZON;
-        const baseFetch = config.fetchFn || fetch;
+        // Wrap the global so it is never called as a method of this client;
+        // browsers reject that with "Illegal invocation".
+        const baseFetch = config.fetchFn || ((input, init) => fetch(input, init));
         this.fetchFn = config.debug ? withRequestLogging(baseFetch) : baseFetch;
     }
 
@@ -405,7 +413,7 @@ export class TrMockRampClient {
                 params.memoType === 'id'
                     ? Memo.id(params.memo)
                     : params.memoType === 'hash'
-                      ? Memo.hash(Buffer.from(params.memo, 'base64'))
+                      ? Memo.hash(base64ToHex(params.memo))
                       : Memo.text(params.memo),
             );
         }

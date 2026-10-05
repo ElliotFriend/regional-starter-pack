@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
+import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
 import { TestAnchorRampClient, TestAnchorSepUnsupportedError } from '$lib/anchors/testanchor';
 
@@ -326,6 +327,47 @@ describe('SEP-6 programmatic ramps', () => {
         // here because that just retests the Stellar SDK.
         expect(typeof withdrawal.signableXdr).toBe('string');
         expect(withdrawal.signableXdr.length).toBeGreaterThan(0);
+    });
+
+    it('sep6Withdraw decodes a base64 hash memo without Node Buffer (browser-safe)', async () => {
+        const destinationKey = 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B';
+        const bytes = Uint8Array.from({ length: 32 }, (_, i) => 255 - i);
+        server.use(
+            http.get(`${TRANSFER}/withdraw`, () =>
+                HttpResponse.json({
+                    id: 'wd-2',
+                    account_id: destinationKey,
+                    memo: btoa(String.fromCharCode(...bytes)),
+                    memo_type: 'hash',
+                }),
+            ),
+            http.get(`${HORIZON}/accounts/${USER_PUBKEY}`, () =>
+                HttpResponse.json({
+                    id: USER_PUBKEY,
+                    account_id: USER_PUBKEY,
+                    sequence: '1234567890',
+                }),
+            ),
+        );
+
+        const bufferSpy = vi.spyOn(Buffer, 'from');
+        const withdrawal = await createClient().sep6Withdraw(
+            TOKEN,
+            { asset_code: 'SRT', amount: '50' },
+            USER_PUBKEY,
+        );
+        const usedBase64Buffer = bufferSpy.mock.calls.some(
+            (args) => (args as unknown[])[1] === 'base64',
+        );
+        bufferSpy.mockRestore();
+
+        const tx = TransactionBuilder.fromXDR(
+            withdrawal.signableXdr,
+            Networks.TESTNET,
+        ) as Transaction;
+        expect(tx.memo.type).toBe('hash');
+        expect(Array.from(tx.memo.value as Uint8Array)).toEqual(Array.from(bytes));
+        expect(usedBase64Buffer).toBe(false);
     });
 
     it('rejects sep6Withdraw when the source account is not a valid public key', async () => {
