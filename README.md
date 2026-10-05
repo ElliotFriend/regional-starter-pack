@@ -255,7 +255,6 @@ There is no dynamic `[provider]` segment; each anchor's routes live at a static 
 /api/anchor/chipper/orders               - POST create on/off-ramp order, GET by ?id=
 /api/anchor/chipper/simulate-deposit     - POST simulate a bank deposit (sandbox)
 
-/api/testanchor/sep6, /api/testanchor/sep24  - SEP proxies for the /testanchor playground page
 /api/scorecard                           - developer-readiness data (JSON; ?format=md for Markdown)
 /api/cron/blend/oracle, .../emissions    - scheduled Blend pool maintenance (Vercel Cron)
 ```

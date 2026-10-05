@@ -357,7 +357,7 @@ export async function load({ fetch }) {
 - **`TestAnchorRampClient`** — use this if you're building ramp UI. Methods return SEP types directly; explicit token passing makes one instance safe to share.
 - **`TestAnchorPlaygroundClient`** — use this if you're learning the SEP protocols or building a playground UI. The namespaced API (`client.sep24.deposit()`) reads like the SEP spec; the cached token is convenient for an interactive shell.
 
-Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorPlaygroundClient`, and also posts some SEP-6/SEP-24 calls through its own `/api/testanchor/sep6` and `/api/testanchor/sep24` proxies.
+Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorPlaygroundClient`. Both run in the browser.
 
 ## Implementing a similar client for another SEP-compliant anchor
 

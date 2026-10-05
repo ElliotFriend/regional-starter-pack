@@ -166,7 +166,7 @@
         return true;
     }
 
-    // SEP-6 Transfer (via server proxy to avoid CORS)
+    // SEP-6 Transfer
     async function handleSep6Transfer() {
         if (!walletStore.publicKey) {
             error = 'Please connect your wallet first';
@@ -186,26 +186,21 @@
         sep6Result = null;
 
         try {
-            const response = await fetch('/api/testanchor/sep6', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: transferType,
-                    token,
-                    asset_code: selectedAsset,
-                    account: walletStore.publicKey,
-                    amount: transferAmount,
-                    type: transferType === 'withdraw' ? 'bank_account' : undefined,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || `SEP-6 ${transferType} failed`);
-            }
-
-            sep6Result = data;
+            // Straight to the anchor: it serves CORS on its SEP endpoints, and
+            // the client attaches the SEP-10 token it stored on authenticate().
+            // The anchor rejects SEP-6 without funding_method in both directions;
+            // `type` is its deprecated predecessor, kept for older anchors.
+            const request = {
+                asset_code: selectedAsset,
+                account: walletStore.publicKey,
+                amount: transferAmount,
+                funding_method: 'bank_account',
+                type: 'bank_account',
+            };
+            sep6Result =
+                transferType === 'deposit'
+                    ? await client.sep6.deposit(request)
+                    : await client.sep6.withdraw(request);
         } catch (e) {
             error = e instanceof Error ? e.message : `SEP-6 ${transferType} failed`;
         } finally {
@@ -213,7 +208,7 @@
         }
     }
 
-    // SEP-24 Transfer (via server proxy to avoid CORS)
+    // SEP-24 Transfer
     async function handleSep24Transfer() {
         if (!walletStore.publicKey) {
             error = 'Please connect your wallet first';
@@ -234,24 +229,11 @@
         sep24Transaction = null;
 
         try {
-            const response = await fetch('/api/testanchor/sep24', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: transferType,
-                    token,
-                    asset_code: selectedAsset,
-                    amount: transferAmount,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || `SEP-24 ${transferType} failed`);
-            }
-
-            sep24Result = data;
+            const request = { asset_code: selectedAsset, amount: transferAmount };
+            sep24Result =
+                transferType === 'deposit'
+                    ? await client.sep24.deposit(request)
+                    : await client.sep24.withdraw(request);
         } catch (e) {
             error = e instanceof Error ? e.message : `SEP-24 ${transferType} failed`;
         } finally {
