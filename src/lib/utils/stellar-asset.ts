@@ -6,7 +6,7 @@
  */
 
 import { Asset } from '@stellar/stellar-sdk';
-import { getStellarAsset, getUsdcAsset } from '$lib/wallet/stellar';
+import { getStellarAsset, getUsdcAsset } from '#lib/wallet/stellar.ts';
 
 /**
  * Resolve a currency symbol to a Stellar `Asset`.

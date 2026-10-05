@@ -9,9 +9,9 @@ import {
     getChallenge,
     signChallenge,
     submitChallenge,
-} from '$lib/anchors/sep/sep10';
-import type { Sep10Config, Sep10SignerFn } from '$lib/anchors/sep/sep10';
-import { SepApiError } from '$lib/anchors/sep/types';
+} from '#lib/anchors/sep/sep10.ts';
+import type { Sep10Config, Sep10SignerFn } from '#lib/anchors/sep/sep10.ts';
+import { SepApiError } from '#lib/anchors/sep/types.ts';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
 // Helper to create a fake JWT with a given payload

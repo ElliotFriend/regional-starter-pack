@@ -1,20 +1,24 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import { page } from '$app/state';
-    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { getUsdcAsset, buildPaymentTransaction, submitTransaction } from '$lib/wallet/stellar';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import * as chipper from '$lib/api/chipper';
-    import type { ChipperMethod, ChipperOrder } from '$lib/anchors/chipper';
+    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$app/env/public';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import {
+        getUsdcAsset,
+        buildPaymentTransaction,
+        submitTransaction,
+    } from '#lib/wallet/stellar.ts';
+    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import * as chipper from '#lib/api/chipper.ts';
+    import type { ChipperMethod, ChipperOrder } from '#lib/anchors/chipper/index.ts';
     import {
         getChipperMarket,
         maxSendableUsdc,
@@ -23,8 +27,8 @@
         shouldOfferStartOver,
         defaultMethodCode,
         groupMethods,
-    } from '$lib/config/chipper-markets';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    } from '#lib/config/chipper-markets.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
 
     // ------------------------------------------------------------------
     // Region & asset (Chipper — region from ?region= query param)
@@ -467,7 +471,11 @@
                 ? ' by bank transfer'
                 : ` by ${market.railLabel}`}."
             details={[
-                { label: 'Paid out', value: `${order.to.amount} ${order.to.currency}` },
+                {
+                    label: 'Paid out',
+                    value: `${order.to.amount} ${order.to.currency}`,
+                },
+
                 {
                     label: 'Sent',
                     value: `${order.receivedAmount ?? order.instructions?.amount} USDC`,

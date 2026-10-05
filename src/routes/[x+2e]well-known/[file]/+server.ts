@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
-import { error, text } from '@sveltejs/kit';
-import { SEP1_SIGNING_KEY_SECRET } from '$env/static/private';
+import { error } from '@sveltejs/kit';
+import { SEP1_SIGNING_KEY_SECRET } from '$app/env/private';
 import { Keypair } from '@stellar/stellar-sdk';
 
 const signingKeyPublicKey = Keypair.fromSecret(SEP1_SIGNING_KEY_SECRET).publicKey();
@@ -30,7 +30,7 @@ telegram="ElliotVoris"
 
 export const GET: RequestHandler = async ({ params, setHeaders }) => {
     if (params.file !== 'stellar.toml') {
-        error(404, { message: 'well known file not found' });
+        error(404, 'well known file not found');
     }
 
     setHeaders({
@@ -38,5 +38,5 @@ export const GET: RequestHandler = async ({ params, setHeaders }) => {
         'Content-Type': 'text/plain',
     });
 
-    return text(TOML_CONTENTS);
+    return new Response(TOML_CONTENTS);
 };

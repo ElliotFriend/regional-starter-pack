@@ -17,7 +17,7 @@ Each curated anchor owns its own client and bespoke flow pages. Nothing is share
 
 **API-key anchor:**
 
-- `src/lib/server/<name>Instance.ts`: singleton getter reading `$env/static/private`, passing `debug: dev`.
+- `src/lib/server/<name>Instance.ts`: singleton getter reading `$app/env/private` (declare the vars in `src/env.ts`), passing `debug: dev` from `$app/env`.
 - `src/lib/api/<name>.ts`: browser fetch wrappers built on `createApiRequester` from `./http`.
 - `src/routes/api/anchor/<name>/<operation>/+server.ts`: one route per operation.
 - Add every new env var to `.env.example`.

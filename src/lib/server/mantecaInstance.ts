@@ -10,10 +10,10 @@
  * static `md-api-key` never leaves the server.
  */
 
-import { MantecaClient } from '$lib/anchors/manteca';
-import { MANTECA_API_KEY, MANTECA_BASE_URL } from '$env/static/private';
-import { PUBLIC_USDC_ISSUER } from '$env/static/public';
-import { dev } from '$app/environment';
+import { MantecaClient } from '#lib/anchors/manteca/index.ts';
+import { MANTECA_API_KEY, MANTECA_BASE_URL } from '$app/env/private';
+import { PUBLIC_USDC_ISSUER } from '$app/env/public';
+import { dev } from '$app/env';
 
 let instance: MantecaClient | undefined;
 

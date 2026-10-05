@@ -331,7 +331,7 @@ Pass SvelteKit's `fetch` to the client for proper SSR request context:
 
 ```typescript
 // +page.ts
-import { createTestAnchorPlaygroundClient } from '$lib/anchors/testanchor';
+import { createTestAnchorPlaygroundClient } from '#lib/anchors/testanchor/index.ts';
 import { error } from '@sveltejs/kit';
 
 export async function load({ fetch }) {
@@ -345,7 +345,7 @@ export async function load({ fetch }) {
             sep6Info: client.sep6.getInfo(),
         };
     } catch (e) {
-        error(500, { message: e instanceof Error ? e.message : 'Failed to initialize' });
+        error(500, e instanceof Error ? e.message : 'Failed to initialize');
     }
 }
 ```

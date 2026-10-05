@@ -13,8 +13,8 @@ import {
     getCurrencies,
     getCurrencyByCode,
     supportsSep,
-} from '$lib/anchors/sep/sep1';
-import type { StellarTomlRecord, TomlCurrency } from '$lib/anchors/sep/sep1';
+} from '#lib/anchors/sep/sep1.ts';
+import type { StellarTomlRecord, TomlCurrency } from '#lib/anchors/sep/sep1.ts';
 
 // =============================================================================
 // fetchStellarToml (HTTP - uses MSW)

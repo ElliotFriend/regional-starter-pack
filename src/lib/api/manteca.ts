@@ -20,7 +20,7 @@ import type {
     CreateRampOffArgs,
     FindUserQuery,
     MantecaPersonalData,
-} from '$lib/anchors/manteca';
+} from '#lib/anchors/manteca/index.ts';
 
 /** Error thrown by the client-side Manteca API wrappers. */
 export class MantecaApiError extends Error {

@@ -6,10 +6,10 @@
  *   submit txHash: { action: 'submitTxHash', orderId, txHash, email? }
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getKoywe } from '$lib/server/koyweInstance';
-import { KoyweError } from '$lib/anchors/koywe';
+import { getKoywe } from '#lib/server/koyweInstance.ts';
+import { KoyweError } from '#lib/anchors/koywe/index.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
@@ -17,14 +17,14 @@ export const POST: RequestHandler = async ({ request }) => {
 
         if (body.action === 'submitTxHash') {
             if (!body.orderId || !body.txHash) {
-                throw error(400, { message: 'orderId and txHash are required' });
+                throw error(400, 'orderId and txHash are required');
             }
             await getKoywe().submitTxHash(body.orderId, body.txHash, body.email);
-            return json({ ok: true });
+            return Response.json({ ok: true });
         }
 
         if (!body.quoteId || !body.bankAccountId) {
-            throw error(400, { message: 'quoteId and bankAccountId are required' });
+            throw error(400, 'quoteId and bankAccountId are required');
         }
         const order = await getKoywe().createOffRampOrder({
             quoteId: body.quoteId,
@@ -32,10 +32,10 @@ export const POST: RequestHandler = async ({ request }) => {
             email: body.email,
             documentNumber: body.documentNumber,
         });
-        return json(order, { status: 201 });
+        return Response.json(order, { status: 201 });
     } catch (err) {
         if (err instanceof KoyweError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }

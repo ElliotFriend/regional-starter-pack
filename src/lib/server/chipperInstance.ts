@@ -6,9 +6,9 @@
  * route handlers. Chipper is partner-level, so one instance serves every user.
  */
 
-import { ChipperClient, assertSandboxKey } from '$lib/anchors/chipper';
-import { CHIPPER_API_URL, CHIPPER_SECRET_KEY } from '$env/static/private';
-import { dev } from '$app/environment';
+import { ChipperClient, assertSandboxKey } from '#lib/anchors/chipper/index.ts';
+import { CHIPPER_API_URL, CHIPPER_SECRET_KEY } from '$app/env/private';
+import { dev } from '$app/env';
 
 let instance: ChipperClient | undefined;
 

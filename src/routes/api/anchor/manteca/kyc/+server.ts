@@ -5,16 +5,16 @@
  * GET:  list onboarding personal-data fields still missing. query: ?userAnyId=
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getManteca } from '$lib/server/mantecaInstance';
-import { MantecaError } from '$lib/anchors/manteca';
+import { getManteca } from '#lib/server/mantecaInstance.ts';
+import { MantecaError } from '#lib/anchors/manteca/index.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
         const body = await request.json();
         if (!body.email || !body.legalId) {
-            throw error(400, { message: 'email and legalId are required' });
+            throw error(400, 'email and legalId are required');
         }
         const user = await getManteca().submitOnboarding({
             email: body.email,
@@ -28,10 +28,10 @@ export const POST: RequestHandler = async ({ request }) => {
             personalData: body.personalData,
             banking: body.banking,
         });
-        return json(user, { status: 201 });
+        return Response.json(user, { status: 201 });
     } catch (err) {
         if (err instanceof MantecaError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }
@@ -40,14 +40,14 @@ export const POST: RequestHandler = async ({ request }) => {
 export const GET: RequestHandler = async ({ url }) => {
     const userAnyId = url.searchParams.get('userAnyId');
     if (!userAnyId) {
-        throw error(400, { message: 'userAnyId is required' });
+        throw error(400, 'userAnyId is required');
     }
     try {
         const missing = await getManteca().getMissingPersonalData(userAnyId);
-        return json(missing);
+        return Response.json(missing);
     } catch (err) {
         if (err instanceof MantecaError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }

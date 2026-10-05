@@ -5,7 +5,7 @@ import {
     getAnchorsForRegion,
     getRegionsForAnchor,
     regionChip,
-} from '$lib/config/regions';
+} from '#lib/config/regions.ts';
 
 describe('getRegion', () => {
     it('returns Mexico region', () => {

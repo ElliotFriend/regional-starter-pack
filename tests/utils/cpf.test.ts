@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidCpf, cpfCheckDigits, generateCpf } from '$lib/utils/cpf';
+import { isValidCpf, cpfCheckDigits, generateCpf } from '#lib/utils/cpf.ts';
 
 describe('cpfCheckDigits', () => {
     it('computes both modulo-11 check digits', () => {

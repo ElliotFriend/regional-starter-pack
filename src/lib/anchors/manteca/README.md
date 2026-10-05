@@ -69,12 +69,12 @@ demo app does not yet wire.
 
 A single **static API key** sent in the `md-api-key` header on every request —
 no OAuth, no token refresh. **Server-side only**: the key must never reach the
-browser. In this repo the key lives in `$env/static/private` and is read by
+browser. In this repo the key comes from `$app/env/private` and is read by
 `src/lib/server/mantecaInstance.ts`; the browser talks to
 `/api/anchor/manteca/*` proxy routes.
 
 ```ts
-import { MantecaClient } from '$lib/anchors/manteca';
+import { MantecaClient } from '#lib/anchors/manteca/index.ts';
 
 const manteca = new MantecaClient({
     apiKey: process.env.MANTECA_API_KEY!,

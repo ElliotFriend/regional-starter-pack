@@ -1,20 +1,20 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import { page } from '$app/state';
-    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import { getUsdcAsset } from '$lib/wallet/stellar';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import * as chipper from '$lib/api/chipper';
-    import { sandboxCollectionOutcome } from '$lib/anchors/chipper';
-    import type { ChipperMethod, ChipperOrder } from '$lib/anchors/chipper';
+    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$app/env/public';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import { getUsdcAsset } from '#lib/wallet/stellar.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import * as chipper from '#lib/api/chipper.ts';
+    import { sandboxCollectionOutcome } from '#lib/anchors/chipper/index.ts';
+    import type { ChipperMethod, ChipperOrder } from '#lib/anchors/chipper/index.ts';
     import {
         CHIPPER_FEE_ESTIMATE,
         getChipperMarket,
@@ -23,8 +23,8 @@
         sandboxOutcomeWillFail,
         defaultMethodCode,
         groupMethods,
-    } from '$lib/config/chipper-markets';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    } from '#lib/config/chipper-markets.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
 
     // ------------------------------------------------------------------
     // Region & asset (Chipper — region from ?region= query param)

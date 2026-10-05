@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
-import { MantecaClient } from '$lib/anchors/manteca/client';
-import { MantecaError } from '$lib/anchors/manteca/types';
+import { MantecaClient } from '#lib/anchors/manteca/client.ts';
+import { MantecaError } from '#lib/anchors/manteca/types.ts';
 
 const BASE_URL = 'https://sandbox.manteca.test';
 const API_KEY = 'AAAA-BBBB-CCCC-DDDD';

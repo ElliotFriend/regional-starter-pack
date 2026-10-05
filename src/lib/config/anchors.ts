@@ -3,11 +3,11 @@
  *
  * Defines anchor provider profiles and their regional capabilities.
  * The `AnchorProfile` type is the config-side representation — distinct from
- * the runtime `Anchor` interface in `$lib/anchors/types.ts`.
+ * the runtime `Anchor` interface in `#lib/anchors/types.ts`.
  *
  * Runtime capability flags (`AnchorCapabilities`) and provider-intrinsic metadata
  * (display name, supported tokens, currencies, rails) live on the `Anchor`
- * interface and client classes in `$lib/anchors/`.
+ * interface and client classes in `#lib/anchors/`.
  */
 
 export interface AnchorCapability {

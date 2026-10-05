@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { calculateExpiresIn } from '$lib/utils/quote';
+import { calculateExpiresIn } from '#lib/utils/quote.ts';
 
 describe('calculateExpiresIn', () => {
     afterEach(() => {

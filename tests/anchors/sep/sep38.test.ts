@@ -11,8 +11,8 @@ import {
     stellarAssetId,
     fiatAssetId,
     parseAssetId,
-} from '$lib/anchors/sep/sep38';
-import { SepApiError } from '$lib/anchors/sep/types';
+} from '#lib/anchors/sep/sep38.ts';
+import { SepApiError } from '#lib/anchors/sep/types.ts';
 
 const BASE = 'https://anchor.test/sep38';
 const TOKEN = 'test-jwt-token';

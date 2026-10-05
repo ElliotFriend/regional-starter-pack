@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
-import { EtherfuseClient } from '$lib/anchors/etherfuse/client';
+import { EtherfuseClient } from '#lib/anchors/etherfuse/client.ts';
 import type {
     EtherfuseSpeiDeposit,
     EtherfusePixDeposit,
     EtherfuseKycIdentityRequest,
     EtherfuseKycDocumentRequest,
-} from '$lib/anchors/etherfuse/types';
+} from '#lib/anchors/etherfuse/types.ts';
 
 const BASE_URL = 'http://etherfuse.test';
 const API_KEY = 'test-api-key';

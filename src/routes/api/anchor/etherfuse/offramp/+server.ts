@@ -4,18 +4,16 @@
  * GET: fetch an off-ramp order by `orderId` query param.
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getEtherfuse } from '$lib/server/etherfuseInstance';
-import { EtherfuseError } from '$lib/anchors/etherfuse';
+import { getEtherfuse } from '#lib/server/etherfuseInstance.ts';
+import { EtherfuseError } from '#lib/anchors/etherfuse/index.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
         const body = await request.json();
         if (!body.customerId || !body.quoteId || !body.publicKey || !body.bankAccountId) {
-            throw error(400, {
-                message: 'customerId, quoteId, publicKey, and bankAccountId are required',
-            });
+            throw error(400, 'customerId, quoteId, publicKey, and bankAccountId are required');
         }
         const order = await getEtherfuse().createOffRampOrder({
             customerId: body.customerId,
@@ -24,10 +22,10 @@ export const POST: RequestHandler = async ({ request }) => {
             bankAccountId: body.bankAccountId,
             memo: body.memo,
         });
-        return json(order, { status: 201 });
+        return Response.json(order, { status: 201 });
     } catch (err) {
         if (err instanceof EtherfuseError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }
@@ -36,17 +34,17 @@ export const POST: RequestHandler = async ({ request }) => {
 export const GET: RequestHandler = async ({ url }) => {
     const orderId = url.searchParams.get('orderId');
     if (!orderId) {
-        throw error(400, { message: 'orderId query parameter is required' });
+        throw error(400, 'orderId query parameter is required');
     }
     try {
         const order = await getEtherfuse().getOffRampOrder(orderId);
         if (!order) {
-            throw error(404, { message: 'Order not found' });
+            throw error(404, 'Order not found');
         }
-        return json(order);
+        return Response.json(order);
     } catch (err) {
         if (err instanceof EtherfuseError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }

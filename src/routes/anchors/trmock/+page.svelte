@@ -1,8 +1,8 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import { ANCHORS } from '$lib/config/anchors';
-    import AnchorRegionSelector from '$lib/components/AnchorRegionSelector.svelte';
-    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
+    import { ANCHORS } from '#lib/config/anchors.ts';
+    import AnchorRegionSelector from '#lib/components/AnchorRegionSelector.svelte';
+    import CriteriaScorecard from '#lib/components/CriteriaScorecard.svelte';
     import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
     const profile = ANCHORS.trmock;
@@ -38,7 +38,7 @@
 
     <div class="mt-8 grid gap-4 md:grid-cols-2">
         <a
-            href={resolve('/anchors/trmock/onramp')}
+            href={resolve('anchors/trmock/onramp')}
             class="rounded-lg border border-indigo-200 bg-indigo-50 p-5 hover:border-indigo-300"
         >
             <h2 class="text-base font-semibold text-indigo-900">On-Ramp — TRY to USDC</h2>
@@ -48,7 +48,7 @@
             </p>
         </a>
         <a
-            href={resolve('/anchors/trmock/offramp')}
+            href={resolve('anchors/trmock/offramp')}
             class="rounded-lg border border-indigo-200 bg-indigo-50 p-5 hover:border-indigo-300"
         >
             <h2 class="text-base font-semibold text-indigo-900">Off-Ramp — USDC to TRY</h2>
@@ -71,6 +71,7 @@
             <li>
                 BiLira has agreed to implement SEP-6 but has not shipped it and has given no date.
             </li>
+
             <li>
                 They are moving to business-and-enterprise-only. The likely production path is KYB,
                 then credentialed API access (OAuth2 client-credentials, IP-allowlisted) — not the

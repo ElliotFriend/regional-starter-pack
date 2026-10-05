@@ -2,30 +2,38 @@
     import { onMount } from 'svelte';
     import { page } from '$app/state';
     import { resolve } from '$app/paths';
-    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { getMantecaFlowRegion, CO_BANKS, CO_ACCOUNT_TYPES } from '$lib/config/manteca-regions';
-    import { isValidCuit } from '$lib/utils/cuit';
-    import { isValidCpf } from '$lib/utils/cpf';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { getUsdcAsset, buildPaymentTransaction, submitTransaction } from '$lib/wallet/stellar';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import * as manteca from '$lib/api/manteca';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$app/env/public';
+    import {
+        getMantecaFlowRegion,
+        CO_BANKS,
+        CO_ACCOUNT_TYPES,
+    } from '#lib/config/manteca-regions.ts';
+    import { isValidCuit } from '#lib/utils/cuit.ts';
+    import { isValidCpf } from '#lib/utils/cpf.ts';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import QuoteDisplay from '#lib/components/QuoteDisplay.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import {
+        getUsdcAsset,
+        buildPaymentTransaction,
+        submitTransaction,
+    } from '#lib/wallet/stellar.ts';
+    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import * as manteca from '#lib/api/manteca.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
     import type {
         MantecaUser,
         MantecaQuote,
         MantecaSynthetic,
         MantecaWithdrawDestination,
-    } from '$lib/anchors/manteca';
+    } from '#lib/anchors/manteca/index.ts';
 
     // ------------------------------------------------------------------
     // Region & token derivation (Manteca — BR/AR/CO, USDC on Stellar → fiat)
@@ -106,10 +114,12 @@
     // known set of still-missing fields — show/require only those (submit via
     // define-personal-data). Otherwise it's a fresh create (full form).
     const completing = $derived(missingPersonalData.length > 0);
+
     const missingFieldKeys = $derived(
         new Set(
             missingPersonalData.map((p) => {
                 const s = p.startsWith('personalData.') ? p.slice('personalData.'.length) : p;
+
                 return s === 'address.street' ? 'street' : s;
             }),
         ),
@@ -127,6 +137,7 @@
     const kycValid = $derived.by(() => {
         const ok = (filled: boolean, key: string) => !showField(key) || filled;
         const legalIdOk = cpf.trim().length > 0 && legalIdChecksumValid(cpf);
+
         return (
             (completing || legalIdOk) &&
             ok(surname.trim().length > 0, 'surname') &&
@@ -247,6 +258,7 @@
                         user =
                             (await manteca.findUser(fetch, { legalId: cpf })) ??
                             (await manteca.findUser(fetch, { email }));
+
                         if (!user) throw err;
                     } else {
                         throw err;
@@ -557,9 +569,10 @@
 <div class="mx-auto max-w-2xl px-4 py-8">
     <header class="mb-6 flex items-center justify-between">
         <div>
-            <a href={resolve('/anchors/manteca')} class="text-sm text-indigo-600 hover:underline">
-                ← Manteca
-            </a>
+            <a href={resolve('anchors/manteca')} class="text-sm text-indigo-600 hover:underline"
+                >← Manteca</a
+            >
+
             <h1 class="mt-1 text-2xl font-semibold text-gray-900">
                 Off-Ramp ({tokenSymbol} → {fiatCurrency})
             </h1>

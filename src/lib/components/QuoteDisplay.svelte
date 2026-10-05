@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { displayCurrency, formatAmount, formatCurrency } from '$lib/utils/currency';
-    import { calculateExpiresIn } from '$lib/utils/quote';
+    import { displayCurrency, formatAmount, formatCurrency } from '#lib/utils/currency.ts';
+    import { calculateExpiresIn } from '#lib/utils/quote.ts';
 
     /**
      * Structural shape for the quote display — accepts anything with these fields,

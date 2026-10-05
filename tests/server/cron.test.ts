@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAuthorizedCron } from '$lib/server/cron';
+import { isAuthorizedCron } from '#lib/server/cron.ts';
 
 describe('isAuthorizedCron', () => {
     const SECRET = 's3cr3t';

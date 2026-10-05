@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidCuit, cuitCheckDigit, generateCuit } from '$lib/utils/cuit';
+import { isValidCuit, cuitCheckDigit, generateCuit } from '#lib/utils/cuit.ts';
 
 describe('cuitCheckDigit', () => {
     it('computes the AFIP modulo-11 check digit', () => {

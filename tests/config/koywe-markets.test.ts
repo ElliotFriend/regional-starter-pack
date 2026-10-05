@@ -3,7 +3,7 @@ import {
     getKoyweMarket,
     koyweMarketRegionIds,
     DEFAULT_KOYWE_REGION,
-} from '$lib/config/koyweMarkets';
+} from '#lib/config/koyweMarkets.ts';
 
 describe('KOYWE_MARKETS', () => {
     it('covers argentina, mexico, colombia', () => {

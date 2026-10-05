@@ -1,21 +1,21 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
-    import { dev } from '$app/environment';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
-    import { createSep10Session } from '$lib/wallet/sep10-session';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { TestAnchorRampClient } from '$lib/anchors/testanchor';
-    import type { Sep24Transaction } from '$lib/anchors/sep/types';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    import { dev } from '$app/env';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { getStellarAsset, submitTransaction } from '#lib/wallet/stellar.ts';
+    import { createSep10Session } from '#lib/wallet/sep10-session.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import { TestAnchorRampClient } from '#lib/anchors/testanchor/index.ts';
+    import type { Sep24Transaction } from '#lib/anchors/sep/types.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
 
     // No proxy routes: the test anchor holds no secrets and serves CORS on its SEP
     // endpoints, so the page talks to the anchor directly. The SEP-10 token
@@ -35,8 +35,8 @@
         | 'signing'
         | 'awaiting-payout'
         | 'complete';
-    let step = $state<Step>('connect');
 
+    let step = $state<Step>('connect');
     let amount = $state('');
     let transactionId = $state<string | null>(null);
     let transaction = $state<Sep24Transaction | null>(null);
@@ -170,10 +170,7 @@
 <div class="mx-auto max-w-2xl px-4 py-8">
     <header class="mb-6 flex items-center justify-between">
         <div>
-            <a
-                href={resolve('/anchors/testanchor')}
-                class="text-sm text-indigo-600 hover:underline"
-            >
+            <a href={resolve('anchors/testanchor')} class="text-sm text-indigo-600 hover:underline">
                 ← Test Anchor
             </a>
             <h1 class="mt-1 text-2xl font-semibold text-gray-900">SEP-24 Off-Ramp (Interactive)</h1>
@@ -290,7 +287,11 @@
                 Freighter and the anchor pays out once it arrives.
             </p>
             <div class="mt-4 space-y-2 text-sm text-gray-600">
-                <p>Amount: <span class="font-mono">{transaction.amount_in} SRT</span></p>
+                <p>
+                    Amount:
+                    <span class="font-mono">{transaction.amount_in} SRT</span>
+                </p>
+
                 <p>
                     Anchor account:
                     <CopyableField value={transaction.withdraw_anchor_account ?? ''} mono />
@@ -383,8 +384,14 @@
                       },
                   ]
                 : []),
+
             ...(transaction.more_info_url
-                ? [{ label: "Anchor's transaction page ↗", href: transaction.more_info_url }]
+                ? [
+                      {
+                          label: "Anchor's transaction page ↗",
+                          href: transaction.more_info_url,
+                      },
+                  ]
                 : []),
         ]}
         <CompletionStep

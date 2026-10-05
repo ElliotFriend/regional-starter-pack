@@ -4,7 +4,7 @@ import {
     getMantecaFlowRegion,
     CO_BANKS,
     CO_ACCOUNT_TYPES,
-} from '$lib/config/manteca-regions';
+} from '#lib/config/manteca-regions.ts';
 
 describe('MANTECA_REGIONS', () => {
     it('covers brazil, argentina, colombia with the right exchange + currency', () => {

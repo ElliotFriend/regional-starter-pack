@@ -1,6 +1,6 @@
 import type { PageLoad } from './$types';
 
-import { createTestAnchorPlaygroundClient } from '$lib/anchors/testanchor';
+import { createTestAnchorPlaygroundClient } from '#lib/anchors/testanchor/index.ts';
 import { error } from '@sveltejs/kit';
 
 export const load: PageLoad = async ({ fetch }) => {
@@ -36,6 +36,6 @@ export const load: PageLoad = async ({ fetch }) => {
             sep38Info: client.sep38.getInfo(),
         };
     } catch (e: unknown) {
-        error(500, { message: e instanceof Error ? e.message : 'Failed to initialize' });
+        error(500, e instanceof Error ? e.message : 'Failed to initialize');
     }
 };

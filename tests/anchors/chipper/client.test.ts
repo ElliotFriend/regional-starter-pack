@@ -6,7 +6,7 @@ import {
     ChipperError,
     assertSandboxKey,
     sandboxCollectionOutcome,
-} from '$lib/anchors/chipper';
+} from '#lib/anchors/chipper/index.ts';
 
 const BASE_URL = 'https://chipper.test';
 const API_KEY = 'sk_test_supersecret';

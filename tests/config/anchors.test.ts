@@ -11,7 +11,7 @@ import {
     getHonorableMentionsForRegion,
     getAllHonorableMentions,
     type ScoredCriterion,
-} from '$lib/config/anchors';
+} from '#lib/config/anchors.ts';
 
 describe('getAnchor', () => {
     it('returns Etherfuse profile', () => {

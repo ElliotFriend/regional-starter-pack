@@ -1,11 +1,11 @@
 <script lang="ts">
-    import { walletStore } from '$lib/stores/wallet.svelte';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
     import {
         buildPaymentTransaction,
         submitTransaction,
         getStellarAsset,
         getNetworkPassphrase,
-    } from '$lib/wallet/stellar';
+    } from '#lib/wallet/stellar.ts';
     import type {
         Sep6DepositResponse,
         Sep6WithdrawResponse,
@@ -15,9 +15,9 @@
         Sep6Info,
         Sep24Info,
         Sep38Info,
-    } from '$lib/anchors/sep/types';
+    } from '#lib/anchors/sep/types.ts';
     import type { PageProps } from './$types';
-    import { browser } from '$app/environment';
+    import { browser } from '$app/env';
     import { onDestroy } from 'svelte';
 
     const { data }: PageProps = $props();
@@ -395,7 +395,7 @@
                             fill-rule="evenodd"
                             d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
                             clip-rule="evenodd"
-                        />
+                        ></path>
                     </svg>
                 </button>
             </div>
@@ -422,7 +422,7 @@
                             fill-rule="evenodd"
                             d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                             clip-rule="evenodd"
-                        />
+                        ></path>
                     </svg>
                     Initialized successfully
                 </div>
@@ -493,7 +493,7 @@
                         fill-rule="evenodd"
                         d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                         clip-rule="evenodd"
-                    />
+                    ></path>
                 </svg>
                 Authenticated as {walletStore.publicKey?.slice(
                     0,
@@ -528,6 +528,7 @@
                     <legend class="mb-2 block text-sm font-medium text-gray-700"
                         >Transfer Type</legend
                     >
+
                     <div class="flex rounded-lg border border-gray-300 p-1" role="group">
                         <button
                             onclick={() => {

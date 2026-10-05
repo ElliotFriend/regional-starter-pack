@@ -1,6 +1,6 @@
 <script lang="ts">
-    import HonorableMentionAnchors from '$lib/components/HonorableMentionAnchors.svelte';
-    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
+    import HonorableMentionAnchors from '#lib/components/HonorableMentionAnchors.svelte';
+    import CriteriaScorecard from '#lib/components/CriteriaScorecard.svelte';
 
     import { resolve } from '$app/paths';
     import type { PageProps } from './$types';
@@ -159,16 +159,16 @@
         </section>
 
         <!-- Honorable Mentions -->
+
         <HonorableMentionAnchors {region} {honorableMentions} />
 
         <!-- Back Link -->
         <div class="mt-8">
             <a
-                href={resolve('/regions')}
+                href={resolve('regions')}
                 class="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                >← Back to Regions</a
             >
-                &larr; Back to Regions
-            </a>
         </div>
     </div>
 {/if}

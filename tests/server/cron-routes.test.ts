@@ -2,20 +2,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock env + the blend maintenance logic so the route tests exercise only the
 // auth gating and response shaping — no network, no real transactions.
-vi.mock('$env/dynamic/private', () => ({ env: {} }));
-vi.mock('$lib/server/blend/oracle', () => ({ updateOracle: vi.fn() }));
-vi.mock('$lib/server/blend/emissions', () => ({
+const env = vi.hoisted(() => ({ CRON_SECRET: '' }));
+vi.mock('$app/env/private', () => env);
+vi.mock('#lib/server/blend/oracle.ts', () => ({ updateOracle: vi.fn() }));
+vi.mock('#lib/server/blend/emissions.ts', () => ({
     gulpEmissions: vi.fn(),
     invokeDistribution: vi.fn(),
 }));
-vi.mock('$lib/server/blend/config', () => ({ getBlendConfig: vi.fn() }));
+vi.mock('#lib/server/blend/config.ts', () => ({ getBlendConfig: vi.fn() }));
 
-import { env } from '$env/dynamic/private';
 import { GET as oracleGET } from '../../src/routes/api/cron/blend/oracle/+server';
 import { GET as emissionsGET } from '../../src/routes/api/cron/blend/emissions/+server';
-import { updateOracle } from '$lib/server/blend/oracle';
-import { gulpEmissions, invokeDistribution } from '$lib/server/blend/emissions';
-import { getBlendConfig } from '$lib/server/blend/config';
+import { updateOracle } from '#lib/server/blend/oracle.ts';
+import { gulpEmissions, invokeDistribution } from '#lib/server/blend/emissions.ts';
+import { getBlendConfig } from '#lib/server/blend/config.ts';
 
 const SECRET = 'cron-secret';
 
@@ -28,8 +28,7 @@ function call(handler: (event: never) => Response | Promise<Response>, authHeade
 
 beforeEach(() => {
     vi.clearAllMocks();
-    for (const key of Object.keys(env)) delete (env as Record<string, string>)[key];
-    (env as Record<string, string>).CRON_SECRET = SECRET;
+    env.CRON_SECRET = SECRET;
 });
 
 describe('GET /api/cron/blend/oracle', () => {

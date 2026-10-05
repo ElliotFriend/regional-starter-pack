@@ -23,7 +23,7 @@
     import CircleDashed from '@lucide/svelte/icons/circle-dashed';
     import CircleX from '@lucide/svelte/icons/circle-x';
     import CircleQuestionMark from '@lucide/svelte/icons/circle-question-mark';
-    import type { ScoredCriterion } from '$lib/config/anchors';
+    import type { ScoredCriterion } from '#lib/config/anchors.ts';
 
     let { scorecard, detailed = false }: { scorecard: ScoredCriterion[]; detailed?: boolean } =
         $props();

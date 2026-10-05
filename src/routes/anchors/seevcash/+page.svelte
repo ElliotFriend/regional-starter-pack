@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { ANCHORS } from '$lib/config/anchors';
-    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
-    import AnchorRegionSelector from '$lib/components/AnchorRegionSelector.svelte';
+    import { ANCHORS } from '#lib/config/anchors.ts';
+    import CriteriaScorecard from '#lib/components/CriteriaScorecard.svelte';
+    import AnchorRegionSelector from '#lib/components/AnchorRegionSelector.svelte';
 
     const profile = ANCHORS.seevcash;
 </script>

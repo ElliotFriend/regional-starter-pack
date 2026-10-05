@@ -9,7 +9,7 @@ import {
     isValidClabe,
     clabeCheckDigit,
     generateClabe,
-} from '$lib/utils/mexico';
+} from '#lib/utils/mexico.ts';
 
 // -----------------------------------------------------------------------------
 // CURP

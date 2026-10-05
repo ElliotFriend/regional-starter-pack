@@ -1,8 +1,8 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
     import { page } from '$app/state';
-    import type { Region } from '$lib/config/regions';
-    import type { AnchorProfile } from '$lib/config/anchors';
+    import type { Region } from '#lib/config/regions.ts';
+    import type { AnchorProfile } from '#lib/config/anchors.ts';
 
     interface Props {
         regions: Region[];
@@ -30,14 +30,14 @@
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                />
+                ></path>
             </svg>
             Home
         </a>
 
         <!-- Test Anchor -->
         <a
-            href={resolve('/testanchor')}
+            href={resolve('testanchor')}
             class="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url.pathname.startsWith(
                 '/testanchor',
             )
@@ -50,20 +50,20 @@
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                />
+                ></path>
                 <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
+                ></path>
             </svg>
             Test Anchor
         </a>
 
         <!-- Scorecard -->
         <a
-            href={resolve('/anchors/scorecard')}
+            href={resolve('anchors/scorecard')}
             class="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page.url.pathname.startsWith(
                 '/anchors/scorecard',
             )
@@ -76,7 +76,7 @@
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
+                ></path>
             </svg>
             Scorecard
         </a>
@@ -89,7 +89,7 @@
             <div class="mt-2 space-y-1">
                 {#each regions as region (region.id)}
                     <a
-                        href={resolve(`/regions/${region.id}`)}
+                        href={resolve(`regions/${region.id}`)}
                         class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium {page
                             .url.pathname === `/regions/${region.id}`
                             ? 'bg-indigo-50 text-indigo-600'
@@ -135,7 +135,7 @@
                                     stroke-linejoin="round"
                                     stroke-width="2"
                                     d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                                />
+                                ></path>
                             </svg>
                         {/if}
                         {anchor.name}

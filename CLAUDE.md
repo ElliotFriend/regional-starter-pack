@@ -8,7 +8,7 @@ Topic rules load automatically from `.claude/rules/` when you touch matching fil
 
 - `pnpm test:run` — one Vitest pass (`pnpm vitest run <path>` for a subset). `pnpm check` — svelte-check.
 - `pnpm format` and `pnpm lint` — never `npx prettier`.
-- Env vars: `.env.example`. Every `$env/static/*` import must be listed there or a fresh clone won't build.
+- Env vars: declare each in `src/env.ts` (`defineEnvVars`; `static: true` = inlined at build time), import from `$app/env/public` / `$app/env/private`, and list it in `.env.example` (a missing static var breaks a fresh clone's build).
 
 ## Design decisions
 
@@ -26,5 +26,6 @@ Topic rules load automatically from `.claude/rules/` when you touch matching fil
 - Unused params take a `_` prefix (ESLint `argsIgnorePattern: '^_'`).
 - Lucide icons use per-icon deep imports (`@lucide/svelte/icons/circle-check`).
 - `svelte/no-navigation-without-resolve` is off project-wide (bespoke pages use dynamic and external hrefs).
+- Import `src/lib` via `#lib/...` with the file's real extension (`#lib/config/anchors.ts`, `#lib/stores/wallet.svelte.ts`, `#lib/anchors/seevcash/index.ts`); `$lib` no longer exists (SvelteKit 3).
 - `src/lib/config/` has no barrel; import its files directly.
 - Use the Svelte MCP server (`.mcp.json`) to check `.svelte` changes.

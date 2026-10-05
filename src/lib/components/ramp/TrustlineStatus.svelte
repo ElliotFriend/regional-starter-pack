@@ -17,15 +17,15 @@ Usage:
 <script lang="ts">
     import { onMount } from 'svelte';
     import type { Asset } from '@stellar/stellar-sdk';
-    import type { StellarNetwork } from '$lib/wallet/types';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import { signWithFreighter } from '$lib/wallet/freighter';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import { signWithFreighter } from '#lib/wallet/freighter.ts';
     import {
         checkTrustline,
         buildTrustlineTransaction,
         submitTransaction,
-    } from '$lib/wallet/stellar';
-    import { formatAmount, displayCurrency } from '$lib/utils/currency';
+    } from '#lib/wallet/stellar.ts';
+    import { formatAmount, displayCurrency } from '#lib/utils/currency.ts';
 
     interface Props {
         stellarAsset: Asset;

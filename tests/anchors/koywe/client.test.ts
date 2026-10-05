@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../test-setup';
-import { KoyweClient, KoyweError, resolveFiatLimits } from '$lib/anchors/koywe';
-import type { KoyweTokenCurrency } from '$lib/anchors/koywe';
+import { KoyweClient, KoyweError, resolveFiatLimits } from '#lib/anchors/koywe/index.ts';
+import type { KoyweTokenCurrency } from '#lib/anchors/koywe/index.ts';
 
 const BASE_URL = 'http://koywe.test';
 const CLIENT_ID = 'test-client-id';

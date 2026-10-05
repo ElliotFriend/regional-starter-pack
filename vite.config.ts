@@ -1,10 +1,18 @@
+import adapter from '@sveltejs/adapter-vercel';
 import { defineConfig } from 'vitest/config';
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { playwright } from '@vitest/browser-playwright';
 
 export default defineConfig({
-    plugins: [tailwindcss(), sveltekit()],
+    plugins: [
+        tailwindcss(),
+        sveltekit({
+            // adapter-vercel is required for Vercel Cron Jobs (see vercel.json `crons`)
+            // to be wired up at build time. See https://svelte.dev/docs/kit/adapter-vercel.
+            adapter: adapter(),
+        }),
+    ],
     test: {
         projects: [
             {

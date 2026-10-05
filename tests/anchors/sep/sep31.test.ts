@@ -18,8 +18,8 @@ import {
     isRefunded,
     isInProgress,
     getStatusDescription,
-} from '$lib/anchors/sep/sep31';
-import { SepApiError, type TransactionStatus } from '$lib/anchors/sep/types';
+} from '#lib/anchors/sep/sep31.ts';
+import { SepApiError, type TransactionStatus } from '#lib/anchors/sep/types.ts';
 
 const BASE = 'https://anchor.test/sep31';
 const TOKEN = 'test-jwt-token';

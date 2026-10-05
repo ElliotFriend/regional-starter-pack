@@ -1,6 +1,6 @@
-import { buildReadiness } from '$lib/config/scorecard';
-import { ANCHORS } from '$lib/config/anchors';
-import { regionChip } from '$lib/config/regions';
+import { buildReadiness } from '#lib/config/scorecard.ts';
+import { ANCHORS } from '#lib/config/anchors.ts';
+import { regionChip } from '#lib/config/regions.ts';
 import type { PageLoad } from './$types';
 
 /**

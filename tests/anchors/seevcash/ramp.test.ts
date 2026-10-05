@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
-import { SeevcashRampClient, SeevcashError } from '$lib/anchors/seevcash';
+import { SeevcashRampClient, SeevcashError } from '#lib/anchors/seevcash/index.ts';
 
 // ---------------------------------------------------------------------------
 // Test constants & helpers

@@ -13,7 +13,7 @@ import type {
     CreateOnRampOrderArgs,
     CreateOffRampOrderArgs,
     SimulateBankDepositArgs,
-} from '$lib/anchors/chipper';
+} from '#lib/anchors/chipper/index.ts';
 import { createApiRequester, type Fetch } from './http';
 
 /** Error thrown by client-side Chipper API calls. */

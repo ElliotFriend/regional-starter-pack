@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ANCHORS, HONORABLE_MENTIONS } from '$lib/config/anchors';
-import { REGIONS } from '$lib/config/regions';
-import { PAYMENT_RAILS } from '$lib/config/rails';
+import { ANCHORS, HONORABLE_MENTIONS } from '#lib/config/anchors.ts';
+import { REGIONS } from '#lib/config/regions.ts';
+import { PAYMENT_RAILS } from '#lib/config/rails.ts';
 
 /**
  * Region and rail ids referenced by honorable mentions that do not exist in

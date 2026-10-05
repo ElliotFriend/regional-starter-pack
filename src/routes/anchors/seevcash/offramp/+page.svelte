@@ -1,28 +1,28 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
-    import { dev } from '$app/environment';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
-    import { createSep10Session } from '$lib/wallet/sep10-session';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { SeevcashRampClient } from '$lib/anchors/seevcash';
+    import { dev } from '$app/env';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { getStellarAsset, submitTransaction } from '#lib/wallet/stellar.ts';
+    import { createSep10Session } from '#lib/wallet/sep10-session.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import { PUBLIC_USDC_ISSUER } from '$app/env/public';
+    import { SeevcashRampClient } from '#lib/anchors/seevcash/index.ts';
     import type {
         Sep6Transaction,
         Sep6WithdrawResponse,
         Sep12CustomerResponse,
         Sep38PriceResponse,
-    } from '$lib/anchors/sep/types';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    } from '#lib/anchors/sep/types.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
 
     // No proxy routes: SeevCash holds no secrets and serves CORS on every SEP
     // endpoint, so the page talks to the anchor directly. The SEP-10 token
@@ -40,8 +40,8 @@
     const PROVIDERS = ['MTN', 'TELECEL', 'AIRTELTIGO'] as const;
 
     type Step = 'connect' | 'kyc' | 'amount' | 'send' | 'signing' | 'awaiting-payout' | 'complete';
-    let step = $state<Step>('connect');
 
+    let step = $state<Step>('connect');
     let customer = $state<Sep12CustomerResponse | null>(null);
     let kycFields = $state<Record<string, string>>({ mobile_money_provider: 'MTN' });
     let amount = $state('');
@@ -202,9 +202,10 @@
 <div class="mx-auto max-w-2xl px-4 py-8">
     <header class="mb-6 flex items-center justify-between">
         <div>
-            <a href={resolve('/anchors/seevcash')} class="text-sm text-indigo-600 hover:underline">
-                ← SeevCash
-            </a>
+            <a href={resolve('anchors/seevcash')} class="text-sm text-indigo-600 hover:underline"
+                >← SeevCash</a
+            >
+
             <h1 class="mt-1 text-2xl font-semibold text-gray-900">SeevCash — Off-Ramp</h1>
             <p class="mt-1 text-sm text-gray-500">
                 USDC on Stellar testnet to Ghanaian cedis over mobile money.
@@ -466,7 +467,11 @@
         <CompletionStep
             title="Withdrawal complete"
             details={[
-                { label: 'Paid out', value: `${transaction?.amount_out ?? ''} GHS` },
+                {
+                    label: 'Paid out',
+                    value: `${transaction?.amount_out ?? ''} GHS`,
+                },
+
                 {
                     label: 'Mobile money reference',
                     value: transaction?.external_transaction_id ?? '',
@@ -486,9 +491,7 @@
     {/if}
 
     {#if error}
-        <div class="mt-4">
-            <ErrorAlert message={error} onDismiss={() => (error = null)} />
-        </div>
+        <div class="mt-4"><ErrorAlert message={error} onDismiss={() => (error = null)} /></div>
     {/if}
 </div>
 

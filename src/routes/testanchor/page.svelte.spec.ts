@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import Page from './+page.svelte';
-import type { TestAnchorPlaygroundClient } from '$lib/anchors/testanchor/playground';
+import type { TestAnchorPlaygroundClient } from '#lib/anchors/testanchor/playground.ts';
 
 // Minimal mock of the testanchor playground client — just enough for
 // the component to render without errors. The interactive features

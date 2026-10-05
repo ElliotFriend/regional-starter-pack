@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPaymentRail } from '$lib/config/rails';
+import { getPaymentRail } from '#lib/config/rails.ts';
 
 describe('getPaymentRail', () => {
     it('returns SPEI rail', () => {

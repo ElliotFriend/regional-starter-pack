@@ -6,16 +6,16 @@
  * we verify here — the URL is otherwise publicly reachable.
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
-import { isAuthorizedCron } from '$lib/server/cron';
-import { gulpEmissions, invokeDistribution } from '$lib/server/blend/emissions';
-import { getBlendConfig } from '$lib/server/blend/config';
+import { CRON_SECRET } from '$app/env/private';
+import { isAuthorizedCron } from '#lib/server/cron.ts';
+import { gulpEmissions, invokeDistribution } from '#lib/server/blend/emissions.ts';
+import { getBlendConfig } from '#lib/server/blend/config.ts';
 
 export const GET: RequestHandler = async ({ request }) => {
-    if (!isAuthorizedCron(request.headers.get('authorization'), env.CRON_SECRET)) {
-        throw error(401, { message: 'Unauthorized' });
+    if (!isAuthorizedCron(request.headers.get('authorization'), CRON_SECRET)) {
+        throw error(401, 'Unauthorized');
     }
 
     try {
@@ -30,7 +30,7 @@ export const GET: RequestHandler = async ({ request }) => {
         // finally, gulp emissions on the lending pool
         const gulpPool = await gulpEmissions();
 
-        return json({
+        return Response.json({
             ok: true,
             task: 'gulp-emissions',
             distributed: {
@@ -41,8 +41,6 @@ export const GET: RequestHandler = async ({ request }) => {
         });
     } catch (err) {
         console.error('[cron] gulp-emissions failed:', err);
-        throw error(500, {
-            message: err instanceof Error ? err.message : 'gulp-emissions failed',
-        });
+        throw error(500, err instanceof Error ? err.message : 'gulp-emissions failed');
     }
 };

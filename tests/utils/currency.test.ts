@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { displayCurrency, formatAmount, formatCurrency } from '$lib/utils/currency';
+import { displayCurrency, formatAmount, formatCurrency } from '#lib/utils/currency.ts';
 
 describe('displayCurrency', () => {
     it('strips issuer from CODE:ISSUER format', () => {

@@ -9,7 +9,7 @@
  * the sandbox (see docs/manteca-multiregion-plan.md).
  */
 
-import type { MantecaExchange } from '$lib/anchors/manteca';
+import type { MantecaExchange } from '#lib/anchors/manteca/index.ts';
 
 export interface MantecaFlowRegion {
     id: string;

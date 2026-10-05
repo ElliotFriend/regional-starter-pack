@@ -1,30 +1,34 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
-    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { getUsdcAsset } from '$lib/wallet/stellar';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import * as koywe from '$lib/api/koywe';
-    import { resolveFiatLimits } from '$lib/anchors/koywe';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$app/env/public';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import QuoteDisplay from '#lib/components/QuoteDisplay.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import { getUsdcAsset } from '#lib/wallet/stellar.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import * as koywe from '#lib/api/koywe.ts';
+    import { resolveFiatLimits } from '#lib/anchors/koywe/index.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
     import { page } from '$app/state';
-    import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
+    import {
+        getKoyweMarket,
+        KOYWE_MARKETS,
+        DEFAULT_KOYWE_REGION,
+    } from '#lib/config/koyweMarkets.ts';
     import type {
         KoywePaymentMethod,
         KoyweQuote,
         KoyweOnRampOrder,
         KoyweAccountCheck,
         KoyweOrder,
-    } from '$lib/anchors/koywe';
+    } from '#lib/anchors/koywe/index.ts';
 
     // ------------------------------------------------------------------
     // Region & token derivation (Koywe — region from ?region= query param)
@@ -379,9 +383,10 @@
 <div class="mx-auto max-w-2xl px-4 py-8">
     <header class="mb-6 flex items-center justify-between">
         <div>
-            <a href={resolve('/anchors/koywe')} class="text-sm text-indigo-600 hover:underline">
-                ← Koywe
-            </a>
+            <a href={resolve('anchors/koywe')} class="text-sm text-indigo-600 hover:underline"
+                >← Koywe</a
+            >
+
             <h1 class="mt-1 text-2xl font-semibold text-gray-900">
                 On-Ramp ({fiatCurrency} → {tokenSymbol})
             </h1>

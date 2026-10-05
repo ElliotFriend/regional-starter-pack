@@ -10,7 +10,7 @@ import {
     TransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { server } from '../test-setup';
-import { submitTransaction } from '$lib/wallet/stellar';
+import { submitTransaction } from '#lib/wallet/stellar.ts';
 
 const HORIZON = 'https://horizon-testnet.stellar.org';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildReadiness, toMarkdown, resolveFormat } from '$lib/config/scorecard';
+import { buildReadiness, toMarkdown, resolveFormat } from '#lib/config/scorecard.ts';
 
 describe('buildReadiness', () => {
     const entries = buildReadiness();

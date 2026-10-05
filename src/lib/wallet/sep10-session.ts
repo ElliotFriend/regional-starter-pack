@@ -10,8 +10,8 @@
  * anchor's `getChallenge`/`submitChallenge` wrapper can be plugged in.
  */
 
-import { walletStore } from '$lib/stores/wallet.svelte';
-import { authStore } from '$lib/stores/auth';
+import { walletStore } from '#lib/stores/wallet.svelte.ts';
+import { authStore } from '#lib/stores/auth.ts';
 import { signWithFreighter } from './freighter';
 
 /** The two operations a SEP-10 session needs from an anchor's API client. */

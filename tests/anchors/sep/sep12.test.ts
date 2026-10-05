@@ -9,9 +9,9 @@ import {
     getCustomer,
     putCustomer,
     deleteCustomer,
-} from '$lib/anchors/sep/sep12';
-import { SepApiError } from '$lib/anchors/sep/types';
-import type { Sep12Status } from '$lib/anchors/sep/types';
+} from '#lib/anchors/sep/sep12.ts';
+import { SepApiError } from '#lib/anchors/sep/types.ts';
+import type { Sep12Status } from '#lib/anchors/sep/types.ts';
 
 describe('isKycComplete', () => {
     it('returns true for ACCEPTED', () => {

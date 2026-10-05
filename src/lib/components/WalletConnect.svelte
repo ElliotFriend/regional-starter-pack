@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { walletStore } from '$lib/stores/wallet.svelte';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
 
     const networkBadgeColors: Record<string, string> = {
         testnet: 'bg-yellow-100 text-yellow-800',

@@ -3,8 +3,8 @@
         COMMERCIAL_CRITERIA,
         DEVELOPER_CRITERIA,
         type HonorableMention,
-    } from '$lib/config/anchors';
-    import type { Region } from '$lib/config/regions';
+    } from '#lib/config/anchors.ts';
+    import type { Region } from '#lib/config/regions.ts';
     import CriteriaScorecard from './CriteriaScorecard.svelte';
 
     interface Props {

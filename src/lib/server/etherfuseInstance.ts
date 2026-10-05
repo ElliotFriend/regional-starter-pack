@@ -5,9 +5,9 @@
  * {@link EtherfuseClient} instance shared across route handlers.
  */
 
-import { EtherfuseClient } from '$lib/anchors/etherfuse';
-import { ETHERFUSE_API_KEY, ETHERFUSE_BASE_URL } from '$env/static/private';
-import { dev } from '$app/environment';
+import { EtherfuseClient } from '#lib/anchors/etherfuse/index.ts';
+import { ETHERFUSE_API_KEY, ETHERFUSE_BASE_URL } from '$app/env/private';
+import { dev } from '$app/env';
 
 let instance: EtherfuseClient | undefined;
 

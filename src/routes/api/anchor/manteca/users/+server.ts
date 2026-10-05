@@ -5,16 +5,16 @@
  *       by ?email= / ?legalId= / ?externalId= (returns the match, or null).
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getManteca } from '$lib/server/mantecaInstance';
-import { MantecaError } from '$lib/anchors/manteca';
+import { getManteca } from '#lib/server/mantecaInstance.ts';
+import { MantecaError } from '#lib/anchors/manteca/index.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
         const body = await request.json();
         if (!body.email) {
-            throw error(400, { message: 'email is required' });
+            throw error(400, 'email is required');
         }
         const user = await getManteca().createUser({
             email: body.email,
@@ -22,10 +22,10 @@ export const POST: RequestHandler = async ({ request }) => {
             externalId: body.externalId,
             sessionId: body.sessionId,
         });
-        return json(user, { status: 201 });
+        return Response.json(user, { status: 201 });
     } catch (err) {
         if (err instanceof MantecaError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }
@@ -42,9 +42,9 @@ export const GET: RequestHandler = async ({ url }) => {
         if (userAnyId) {
             const user = await getManteca().getUser(userAnyId);
             if (!user) {
-                throw error(404, { message: 'User not found' });
+                throw error(404, 'User not found');
             }
-            return json(user);
+            return Response.json(user);
         }
         if (email || legalId || externalId) {
             const user = await getManteca().findUser({
@@ -52,14 +52,12 @@ export const GET: RequestHandler = async ({ url }) => {
                 legalId: legalId ?? undefined,
                 externalId: externalId ?? undefined,
             });
-            return json(user);
+            return Response.json(user);
         }
-        throw error(400, {
-            message: 'userAnyId or a search filter (email/legalId/externalId) is required',
-        });
+        throw error(400, 'userAnyId or a search filter (email/legalId/externalId) is required');
     } catch (err) {
         if (err instanceof MantecaError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }

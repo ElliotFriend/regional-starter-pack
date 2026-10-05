@@ -6,10 +6,10 @@
  * md-api-key server-side; avoids any browser→S3 CORS dependency).
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getManteca } from '$lib/server/mantecaInstance';
-import { MantecaError } from '$lib/anchors/manteca';
+import { getManteca } from '#lib/server/mantecaInstance.ts';
+import { MantecaError } from '#lib/anchors/manteca/index.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
@@ -22,10 +22,10 @@ export const POST: RequestHandler = async ({ request }) => {
             typeof userAnyId !== 'string' ||
             (side !== 'FRONT' && side !== 'BACK' && side !== 'SELFIE')
         ) {
-            throw error(400, { message: 'userAnyId and side (FRONT|BACK|SELFIE) are required' });
+            throw error(400, 'userAnyId and side (FRONT|BACK|SELFIE) are required');
         }
         if (!(file instanceof Blob)) {
-            throw error(400, { message: 'file is required' });
+            throw error(400, 'file is required');
         }
         const name = typeof fileName === 'string' && fileName ? fileName : 'identity.jpg';
         if (side === 'SELFIE') {
@@ -33,10 +33,10 @@ export const POST: RequestHandler = async ({ request }) => {
         } else {
             await getManteca().uploadIdentityImage({ userAnyId, side, fileName: name, file });
         }
-        return json({ ok: true });
+        return Response.json({ ok: true });
     } catch (err) {
         if (err instanceof MantecaError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }

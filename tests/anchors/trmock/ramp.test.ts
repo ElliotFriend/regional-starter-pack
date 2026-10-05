@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
-import { TrMockRampClient, TrMockError } from '$lib/anchors/trmock';
+import { TrMockRampClient, TrMockError } from '#lib/anchors/trmock/index.ts';
 
 // ---------------------------------------------------------------------------
 // Test constants & helpers

@@ -22,7 +22,7 @@
     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {#each data.regions as region (region.id)}
             <a
-                href={resolve(`/regions/${region.id}`)}
+                href={resolve(`regions/${region.id}`)}
                 class="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
             >
                 <div class="flex items-center gap-3">
@@ -49,8 +49,8 @@
     </div>
 
     <div class="mt-8">
-        <a href={resolve('/')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-            &larr; Back to Home
-        </a>
+        <a href={resolve('/')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >← Back to Home</a
+        >
     </div>
 </div>

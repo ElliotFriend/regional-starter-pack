@@ -1,6 +1,6 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
 </script>
 
 <header class="fixed inset-x-0 top-0 z-20 h-16 border-b border-gray-200 bg-white">

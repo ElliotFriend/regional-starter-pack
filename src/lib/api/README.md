@@ -15,12 +15,12 @@ src/lib/api/
 
 ## Why This Exists
 
-API-key anchor clients (`$lib/anchors/<provider>/`) need a secret, so they run server-side only, behind route handlers at `/api/anchor/<provider>/`. The files in this directory provide typed functions that call those routes, so components don't need to hand-build `fetch` calls with the right URLs, methods, and error handling.
+API-key anchor clients (`#lib/anchors/<provider>/`) need a secret, so they run server-side only, behind route handlers at `/api/anchor/<provider>/`. The files in this directory provide typed functions that call those routes, so components don't need to hand-build `fetch` calls with the right URLs, methods, and error handling.
 
 ```text
 Component (.svelte)
     │
-    │  calls functions from $lib/api/<provider>
+    │  calls functions from #lib/api/<provider>.ts
     ▼
 API wrapper (this directory)
     │
@@ -28,16 +28,16 @@ API wrapper (this directory)
     ▼
 Route handler (src/routes/api/anchor/<provider>/.../+server.ts)
     │
-    │  calls get<Provider>() from $lib/server/<provider>Instance
+    │  calls get<Provider>() from #lib/server/<provider>Instance.ts
     ▼
-Anchor client ($lib/anchors/<provider>/)
+Anchor client (#lib/anchors/<provider>/)
     │
     │  fetch to the external anchor API, with the key
     ▼
 Anchor API (Etherfuse, Koywe, Manteca, Chipper)
 ```
 
-Each provider gets its own wrapper module, mirroring the per-provider isolation in `$lib/anchors/`.
+Each provider gets its own wrapper module, mirroring the per-provider isolation in `#lib/anchors/`.
 
 ## Usage
 
@@ -47,7 +47,7 @@ Every function takes SvelteKit's `fetch` as its first argument, for proper cooki
 
 ```svelte
 <script lang="ts">
-    import * as ef from '$lib/api/etherfuse';
+    import * as ef from '#lib/api/etherfuse.ts';
 
     const customer = await ef.createCustomer(fetch, {
         publicKey: walletAddress,
@@ -109,7 +109,7 @@ These follow the same pattern; read each module for its functions:
 Each wrapper has its own error class (`EtherfuseApiError`, `KoyweApiError`, `MantecaApiError`, `ChipperApiError`) with a numeric `statusCode` and a string message. Catch the specific class per provider:
 
 ```typescript
-import { EtherfuseApiError } from '$lib/api/etherfuse';
+import { EtherfuseApiError } from '#lib/api/etherfuse.ts';
 
 try {
     await ef.createOnRampOrder(fetch, args);

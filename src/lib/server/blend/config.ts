@@ -3,14 +3,20 @@
  *
  * Reads the values the maintenance tasks need to build and submit Soroban
  * contract invocations with `@stellar/stellar-sdk` — no Blend SDK required.
- * Uses `$env/dynamic/private` (read at runtime) rather than `$env/static/private`
- * so the app still builds locally when these aren't set; they live in the Vercel
- * project's environment variables in production.
+ * These are runtime env vars (not `static` in `src/env.ts`), so the app still
+ * builds locally when they aren't set; they live in the Vercel project's
+ * environment variables in production. Unset ones arrive as ''.
  *
  * Rename/trim these to match how you construct the invocation args.
  */
+import {
+    BLEND_EMITTER_ADDRESS,
+    BLEND_BACKSTOP_ADDRESS,
+    BLEND_POOL_ADDRESS,
+    BLEND_ORACLE_ADDRESS,
+    BLEND_ADMIN_SECRET,
+} from '$app/env/private';
 
-import { env } from '$env/dynamic/private';
 import { Networks } from '@stellar/stellar-sdk';
 
 export interface BlendMaintenanceConfig {
@@ -40,11 +46,11 @@ export function getBlendConfig(): BlendMaintenanceConfig {
     const config = {
         rpcUrl: 'https://soroban-testnet.stellar.org',
         networkPassphrase: Networks.TESTNET,
-        emitterAddress: env.BLEND_EMITTER_ADDRESS,
-        backstopAddress: env.BLEND_BACKSTOP_ADDRESS,
-        poolAddress: env.BLEND_POOL_ADDRESS,
-        oracleAddress: env.BLEND_ORACLE_ADDRESS,
-        adminSecret: env.BLEND_ADMIN_SECRET,
+        emitterAddress: BLEND_EMITTER_ADDRESS,
+        backstopAddress: BLEND_BACKSTOP_ADDRESS,
+        poolAddress: BLEND_POOL_ADDRESS,
+        oracleAddress: BLEND_ORACLE_ADDRESS,
+        adminSecret: BLEND_ADMIN_SECRET,
     };
 
     const missing = Object.entries(config)

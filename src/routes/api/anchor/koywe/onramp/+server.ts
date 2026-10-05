@@ -4,16 +4,16 @@
  *   body: { quoteId, stellarAddress, email?, documentNumber?, callbackUrl?, externalId? }
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getKoywe } from '$lib/server/koyweInstance';
-import { KoyweError } from '$lib/anchors/koywe';
+import { getKoywe } from '#lib/server/koyweInstance.ts';
+import { KoyweError } from '#lib/anchors/koywe/index.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
         const body = await request.json();
         if (!body.quoteId || !body.stellarAddress) {
-            throw error(400, { message: 'quoteId and stellarAddress are required' });
+            throw error(400, 'quoteId and stellarAddress are required');
         }
         const order = await getKoywe().createOnRampOrder({
             quoteId: body.quoteId,
@@ -23,10 +23,10 @@ export const POST: RequestHandler = async ({ request }) => {
             callbackUrl: body.callbackUrl,
             externalId: body.externalId,
         });
-        return json(order, { status: 201 });
+        return Response.json(order, { status: 201 });
     } catch (err) {
         if (err instanceof KoyweError) {
-            throw error(err.statusCode, { message: err.message });
+            throw error(err.statusCode, err.message);
         }
         throw err;
     }

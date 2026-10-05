@@ -71,7 +71,7 @@ export class KoyweError extends Error {
 // Token & rail metadata
 // ---------------------------------------------------------------------------
 
-/** Payment rail identifiers shared with `$lib/config/rails.ts`. */
+/** Payment rail identifiers shared with `#lib/config/rails.ts`. */
 export type KoyweRail = 'wirear' | 'qri' | 'spei' | 'pse';
 
 /** A token Koywe can deliver on Stellar. */
@@ -130,7 +130,7 @@ export interface KoywePaymentMethod {
     name: string;
     /** Friendly label for the UI. */
     label: string;
-    /** Shared local-rail id (from `$lib/config/rails.ts`), if this provider maps to one. */
+    /** Shared local-rail id (from `#lib/config/rails.ts`), if this provider maps to one. */
     rail?: KoyweRail;
     /** Provider fee figure (provider-defined units). */
     fee: number;

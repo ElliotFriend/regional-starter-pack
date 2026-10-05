@@ -2,8 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
-import { TestAnchorRampClient, TestAnchorSepUnsupportedError } from '$lib/anchors/testanchor';
-import type { Sep24Transaction } from '$lib/anchors/sep/types';
+import {
+    TestAnchorRampClient,
+    TestAnchorSepUnsupportedError,
+} from '#lib/anchors/testanchor/index.ts';
+import type { Sep24Transaction } from '#lib/anchors/sep/types.ts';
 
 // ---------------------------------------------------------------------------
 // Test constants & helpers

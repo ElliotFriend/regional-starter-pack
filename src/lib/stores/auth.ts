@@ -12,7 +12,7 @@
  * production app may prefer an HttpOnly cookie minted by the server instead.
  */
 
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 const STORAGE_PREFIX = 'rsp:auth:';
 // Treat tokens expiring within this window as already stale, so we re-auth
@@ -61,6 +61,7 @@ function createAuthStore() {
             const key = storageKey(provider, publicKey);
             const token =
                 cache.get(key) ?? (browser ? (localStorage.getItem(key) ?? undefined) : undefined);
+
             if (!token) return undefined;
             if (!isFresh(token)) {
                 forget(key);

@@ -9,8 +9,8 @@ import {
     getTransactionByStellarId,
     getTransactions,
     pollTransaction,
-} from '$lib/anchors/sep/sep24';
-import { SepApiError } from '$lib/anchors/sep/types';
+} from '#lib/anchors/sep/sep24.ts';
+import { SepApiError } from '#lib/anchors/sep/types.ts';
 
 const BASE = 'https://anchor.test/sep24';
 const TOKEN = 'test-jwt-token';

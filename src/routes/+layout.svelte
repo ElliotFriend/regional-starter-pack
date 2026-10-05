@@ -1,7 +1,7 @@
 <script lang="ts">
-    import Header from '$lib/components/ui/Header.svelte';
-    import Sidebar from '$lib/components/ui/Sidebar.svelte';
-    import Footer from '$lib/components/ui/Footer.svelte';
+    import Header from '#lib/components/ui/Header.svelte';
+    import Sidebar from '#lib/components/ui/Sidebar.svelte';
+    import Footer from '#lib/components/ui/Footer.svelte';
 
     import './layout.css';
     import type { LayoutProps } from './$types';

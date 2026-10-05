@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Networks } from '@stellar/stellar-sdk';
 
-// getBlendConfig reads from $env/dynamic/private at call time. Mock the module
-// with a mutable `env` object the tests populate per-case.
-vi.mock('$env/dynamic/private', () => ({ env: {} }));
-import { env } from '$env/dynamic/private';
-import { getBlendConfig } from '$lib/server/blend/config';
+// getBlendConfig reads runtime env vars from $app/env/private at call time.
+// Mock the module with a mutable object the tests populate per case. Unset
+// runtime vars arrive as '' (see src/env.ts), so every key starts empty.
+const env = vi.hoisted(() => ({
+    BLEND_EMITTER_ADDRESS: '',
+    BLEND_BACKSTOP_ADDRESS: '',
+    BLEND_POOL_ADDRESS: '',
+    BLEND_ORACLE_ADDRESS: '',
+    BLEND_ADMIN_SECRET: '',
+}));
+vi.mock('$app/env/private', () => env);
+import { getBlendConfig } from '#lib/server/blend/config.ts';
 
 const REQUIRED = {
     BLEND_EMITTER_ADDRESS: 'CEMITTER',
@@ -17,7 +24,7 @@ const REQUIRED = {
 
 beforeEach(() => {
     // reset the mocked env between cases
-    for (const key of Object.keys(env)) delete (env as Record<string, string>)[key];
+    for (const key of Object.keys(env)) env[key as keyof typeof env] = '';
 });
 
 describe('getBlendConfig', () => {
@@ -45,7 +52,7 @@ describe('getBlendConfig', () => {
 
     it('throws naming only the missing var', () => {
         Object.assign(env, REQUIRED);
-        delete (env as Record<string, string>).BLEND_ADMIN_SECRET;
+        env.BLEND_ADMIN_SECRET = '';
 
         expect(() => getBlendConfig()).toThrowError(
             'Missing Blend maintenance env vars: adminSecret',

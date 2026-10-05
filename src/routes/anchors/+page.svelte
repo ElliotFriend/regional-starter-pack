@@ -1,7 +1,7 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import { COMMERCIAL_CRITERIA, DEVELOPER_CRITERIA } from '$lib/config/anchors';
-    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
+    import { COMMERCIAL_CRITERIA, DEVELOPER_CRITERIA } from '#lib/config/anchors.ts';
+    import CriteriaScorecard from '#lib/components/CriteriaScorecard.svelte';
     import type { PageProps } from './$types';
     const { data }: PageProps = $props();
 </script>
@@ -48,9 +48,12 @@
         </div>
         <p class="mt-3 text-sm text-gray-500">
             Providers that don't yet meet these criteria appear as alternatives on individual
-            <a href={resolve('/regions')} class="text-indigo-600 hover:text-indigo-800"
+
+            <a href={resolve('regions')} class="text-indigo-600 hover:text-indigo-800"
                 >region pages</a
-            >.
+            >
+
+            .
         </p>
     </div>
 
@@ -108,8 +111,8 @@
     </div>
 
     <div class="mt-8">
-        <a href={resolve('/')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-            &larr; Back to Home
-        </a>
+        <a href={resolve('/')} class="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >← Back to Home</a
+        >
     </div>
 </div>

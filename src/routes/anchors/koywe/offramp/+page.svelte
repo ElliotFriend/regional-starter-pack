@@ -2,24 +2,36 @@
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
     import { page } from '$app/state';
-    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import { getKoyweMarket, KOYWE_MARKETS, DEFAULT_KOYWE_REGION } from '$lib/config/koyweMarkets';
-    import { generateCurp, generateRfc } from '$lib/utils/mexico';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { getUsdcAsset, buildPaymentTransaction, submitTransaction } from '$lib/wallet/stellar';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import * as koywe from '$lib/api/koywe';
-    import type { StellarNetwork } from '$lib/wallet/types';
-    import type { KoyweQuote, KoyweOffRampOrder, KoyweAccountCheck } from '$lib/anchors/koywe';
+    import { PUBLIC_STELLAR_NETWORK, PUBLIC_USDC_ISSUER } from '$app/env/public';
+    import {
+        getKoyweMarket,
+        KOYWE_MARKETS,
+        DEFAULT_KOYWE_REGION,
+    } from '#lib/config/koyweMarkets.ts';
+    import { generateCurp, generateRfc } from '#lib/utils/mexico.ts';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import QuoteDisplay from '#lib/components/QuoteDisplay.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import {
+        getUsdcAsset,
+        buildPaymentTransaction,
+        submitTransaction,
+    } from '#lib/wallet/stellar.ts';
+    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import * as koywe from '#lib/api/koywe.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
+    import type {
+        KoyweQuote,
+        KoyweOffRampOrder,
+        KoyweAccountCheck,
+    } from '#lib/anchors/koywe/index.ts';
 
     // ------------------------------------------------------------------
     // Region & token derivation (Koywe — region from ?region= query param)
@@ -198,6 +210,7 @@
                 currencySymbol: fiatCurrency,
             });
             const match = existing.find((a) => a.accountNumber === number);
+
             const account =
                 match ??
                 (await koywe.createBankAccount(fetch, {
@@ -339,9 +352,10 @@
 <div class="mx-auto max-w-2xl px-4 py-8">
     <header class="mb-6 flex items-center justify-between">
         <div>
-            <a href={resolve('/anchors/koywe')} class="text-sm text-indigo-600 hover:underline">
-                ← Koywe
-            </a>
+            <a href={resolve('anchors/koywe')} class="text-sm text-indigo-600 hover:underline"
+                >← Koywe</a
+            >
+
             <h1 class="mt-1 text-2xl font-semibold text-gray-900">
                 Off-Ramp ({tokenSymbol} → {fiatCurrency})
             </h1>

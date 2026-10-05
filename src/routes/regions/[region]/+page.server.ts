@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import { getAnchorsForRegion, getRegion } from '$lib/config/regions';
-import { getHonorableMentionsForRegion } from '$lib/config/anchors';
+import { getAnchorsForRegion, getRegion } from '#lib/config/regions.ts';
+import { getHonorableMentionsForRegion } from '#lib/config/anchors.ts';
 import { error } from '@sveltejs/kit';
 
 /**
@@ -14,7 +14,7 @@ import { error } from '@sveltejs/kit';
 export const load: PageServerLoad = ({ params }) => {
     const regionId = params.region;
     const region = getRegion(regionId);
-    if (!region) error(404, { message: `Region not found: ${regionId}` });
+    if (!region) error(404, `Region not found: ${regionId}`);
 
     return {
         region,

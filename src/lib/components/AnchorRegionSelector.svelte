@@ -1,7 +1,7 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import type { AnchorProfile } from '$lib/config/anchors';
-    import { getRegionsForAnchor, getRegion } from '$lib/config/regions';
+    import type { AnchorProfile } from '#lib/config/anchors.ts';
+    import { getRegionsForAnchor, getRegion } from '#lib/config/regions.ts';
 
     let { profile }: { profile: AnchorProfile } = $props();
 

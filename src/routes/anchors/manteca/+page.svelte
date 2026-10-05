@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { ANCHORS } from '$lib/config/anchors';
-    import AnchorRegionSelector from '$lib/components/AnchorRegionSelector.svelte';
+    import { ANCHORS } from '#lib/config/anchors.ts';
+    import AnchorRegionSelector from '#lib/components/AnchorRegionSelector.svelte';
 
     const profile = ANCHORS.manteca;
 </script>

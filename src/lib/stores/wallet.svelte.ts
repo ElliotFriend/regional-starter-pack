@@ -2,14 +2,14 @@
  * Wallet connection state store using Svelte 5 runes
  */
 
-import { browser } from '$app/environment';
-import type { StellarNetwork } from '$lib/wallet/types';
+import { browser } from '$app/env';
+import type { StellarNetwork } from '#lib/wallet/types.ts';
 import {
     isFreighterInstalled,
     connectFreighter,
     getPublicKey,
     getFreighterNetwork,
-} from '$lib/wallet/freighter';
+} from '#lib/wallet/freighter.ts';
 
 interface WalletState {
     publicKey: string | null;

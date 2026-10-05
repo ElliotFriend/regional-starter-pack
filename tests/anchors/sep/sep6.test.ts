@@ -17,9 +17,9 @@ import {
     getTransaction,
     getTransactionByStellarId,
     getTransactions,
-} from '$lib/anchors/sep/sep6';
-import { SepApiError } from '$lib/anchors/sep/types';
-import type { TransactionStatus } from '$lib/anchors/sep/types';
+} from '#lib/anchors/sep/sep6.ts';
+import { SepApiError } from '#lib/anchors/sep/types.ts';
+import type { TransactionStatus } from '#lib/anchors/sep/types.ts';
 
 describe('isComplete', () => {
     it('returns true for completed', () => {

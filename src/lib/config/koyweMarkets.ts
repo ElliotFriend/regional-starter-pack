@@ -17,7 +17,7 @@
  * ([CLP, COP, MXN, PEN]) that gates Mexico/Colombia.
  */
 
-import { generateClabe, generateCurp } from '$lib/utils/mexico';
+import { generateClabe, generateCurp } from '#lib/utils/mexico.ts';
 
 export interface KoyweKycTestData {
     documentNumber: string;

@@ -2,27 +2,27 @@
     import { onMount } from 'svelte';
     import { page } from '$app/state';
     import { resolve } from '$app/paths';
-    import { PUBLIC_STELLAR_NETWORK } from '$env/static/public';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-    import WalletConnect from '$lib/components/WalletConnect.svelte';
-    import TrustlineStatus from '$lib/components/ramp/TrustlineStatus.svelte';
-    import AmountInput from '$lib/components/ramp/AmountInput.svelte';
-    import QuoteDisplay from '$lib/components/QuoteDisplay.svelte';
-    import CompletionStep from '$lib/components/ramp/CompletionStep.svelte';
-    import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
-    import CopyableField from '$lib/components/ui/CopyableField.svelte';
-    import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { getStellarAsset } from '$lib/wallet/stellar';
-    import { createPoller } from '$lib/utils/poll.svelte';
-    import * as ef from '$lib/api/etherfuse';
-    import type { StellarNetwork } from '$lib/wallet/types';
+    import { PUBLIC_STELLAR_NETWORK } from '$app/env/public';
+    import { walletStore } from '#lib/stores/wallet.svelte.ts';
+    import WalletConnect from '#lib/components/WalletConnect.svelte';
+    import TrustlineStatus from '#lib/components/ramp/TrustlineStatus.svelte';
+    import AmountInput from '#lib/components/ramp/AmountInput.svelte';
+    import QuoteDisplay from '#lib/components/QuoteDisplay.svelte';
+    import CompletionStep from '#lib/components/ramp/CompletionStep.svelte';
+    import ErrorAlert from '#lib/components/ui/ErrorAlert.svelte';
+    import CopyableField from '#lib/components/ui/CopyableField.svelte';
+    import DevBox from '#lib/components/ui/DevBox.svelte';
+    import { getStellarAsset } from '#lib/wallet/stellar.ts';
+    import { createPoller } from '#lib/utils/poll.svelte.ts';
+    import * as ef from '#lib/api/etherfuse.ts';
+    import type { StellarNetwork } from '#lib/wallet/types.ts';
     import type {
         EtherfuseCustomer,
         EtherfuseQuote,
         EtherfuseOnRampOrder,
         EtherfuseSavedBankAccount,
         EtherfuseKycStatus,
-    } from '$lib/anchors/etherfuse';
+    } from '#lib/anchors/etherfuse/index.ts';
 
     // ------------------------------------------------------------------
     // Region & token derivation (Etherfuse-specific, no capability flags)
@@ -301,7 +301,7 @@
     <header class="mb-6 flex items-center justify-between">
         <div>
             <a
-                href={resolve(`/anchors/etherfuse?region=${region}`)}
+                href={resolve(`anchors/etherfuse?region=${region}`)}
                 class="text-sm text-indigo-600 hover:underline"
             >
                 ← Etherfuse
@@ -601,8 +601,14 @@
     {#if step === 'complete' && order}
         {@const completionDetails = [
             ...(order.amountInTokens
-                ? [{ label: 'Amount', value: `${order.amountInTokens} ${tokenSymbol}` }]
+                ? [
+                      {
+                          label: 'Amount',
+                          value: `${order.amountInTokens} ${tokenSymbol}`,
+                      },
+                  ]
                 : []),
+
             ...(order.feeAmountInFiat
                 ? [
                       {
@@ -621,6 +627,7 @@
                       },
                   ]
                 : []),
+
             ...(order.statusPage ? [{ label: 'View on Etherfuse ↗', href: order.statusPage }] : []),
         ]}
         <CompletionStep

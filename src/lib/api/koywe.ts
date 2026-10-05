@@ -25,7 +25,7 @@ import type {
     GetBankAccountsArgs,
     KoyweBankAccount,
     KoyweTokenCurrency,
-} from '$lib/anchors/koywe';
+} from '#lib/anchors/koywe/index.ts';
 import { createApiRequester, type Fetch } from './http';
 
 /** Error thrown by client-side Koywe API calls. */

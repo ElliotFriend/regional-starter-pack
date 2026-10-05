@@ -5,10 +5,10 @@
  * Also provides cross-lookup helpers between regions and anchors.
  */
 
-import type { PaymentRail } from '$lib/config/rails';
-import { PAYMENT_RAILS } from '$lib/config/rails';
-import { ANCHORS } from '$lib/config/anchors';
-import type { AnchorProfile } from '$lib/config/anchors';
+import type { PaymentRail } from '#lib/config/rails.ts';
+import { PAYMENT_RAILS } from '#lib/config/rails.ts';
+import { ANCHORS } from '#lib/config/anchors.ts';
+import type { AnchorProfile } from '#lib/config/anchors.ts';
 
 export interface Region {
     id: string;

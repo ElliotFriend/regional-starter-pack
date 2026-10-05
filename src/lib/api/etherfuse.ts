@@ -21,7 +21,7 @@ import type {
     GetKycUrlArgs,
     GetKycStatusArgs,
     GetAssetsArgs,
-} from '$lib/anchors/etherfuse';
+} from '#lib/anchors/etherfuse/index.ts';
 import { createApiRequester, type Fetch } from './http';
 
 /** Error thrown by client-side Etherfuse API calls. */

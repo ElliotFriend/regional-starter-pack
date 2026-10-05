@@ -7,9 +7,9 @@
  *
  * Read-only public data, so CORS is wide open for programmatic consumers.
  */
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { buildReadiness, toMarkdown, resolveFormat } from '$lib/config/scorecard';
+import { buildReadiness, toMarkdown, resolveFormat } from '#lib/config/scorecard.ts';
 
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 
@@ -18,7 +18,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
     try {
         format = resolveFormat(url.searchParams.get('format'), request.headers.get('accept'));
     } catch (e) {
-        throw error(400, { message: e instanceof Error ? e.message : 'Unsupported format' });
+        throw error(400, e instanceof Error ? e.message : 'Unsupported format');
     }
 
     const entries = buildReadiness();
@@ -28,7 +28,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
             headers: { 'Content-Type': 'text/markdown; charset=utf-8', ...CORS },
         });
     }
-    return json(entries, { headers: CORS });
+    return Response.json(entries, { headers: CORS });
 };
 
 export const OPTIONS: RequestHandler = async () =>

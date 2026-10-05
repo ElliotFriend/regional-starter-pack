@@ -1,8 +1,8 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import { ANCHORS } from '$lib/config/anchors';
-    import { getRegionsForAnchor } from '$lib/config/regions';
-    import CriteriaScorecard from '$lib/components/CriteriaScorecard.svelte';
+    import { ANCHORS } from '#lib/config/anchors.ts';
+    import { getRegionsForAnchor } from '#lib/config/regions.ts';
+    import CriteriaScorecard from '#lib/components/CriteriaScorecard.svelte';
 
     const profile = ANCHORS.testanchor;
     const regions = getRegionsForAnchor('testanchor');
@@ -36,13 +36,13 @@
                 </p>
                 <div class="mt-4 flex gap-2">
                     <a
-                        href={resolve('/anchors/testanchor/interactive/onramp')}
+                        href={resolve('anchors/testanchor/interactive/onramp')}
                         class="flex-1 rounded-md bg-indigo-600 px-3 py-1.5 text-center text-sm font-medium text-white hover:bg-indigo-700"
                     >
                         On-Ramp
                     </a>
                     <a
-                        href={resolve('/anchors/testanchor/interactive/offramp')}
+                        href={resolve('anchors/testanchor/interactive/offramp')}
                         class="flex-1 rounded-md border border-indigo-600 px-3 py-1.5 text-center text-sm font-medium text-indigo-600 hover:bg-indigo-100"
                     >
                         Off-Ramp
@@ -57,13 +57,13 @@
                 </p>
                 <div class="mt-4 flex gap-2">
                     <a
-                        href={resolve('/anchors/testanchor/programmatic/onramp')}
+                        href={resolve('anchors/testanchor/programmatic/onramp')}
                         class="flex-1 rounded-md bg-emerald-600 px-3 py-1.5 text-center text-sm font-medium text-white hover:bg-emerald-700"
                     >
                         On-Ramp
                     </a>
                     <a
-                        href={resolve('/anchors/testanchor/programmatic/offramp')}
+                        href={resolve('anchors/testanchor/programmatic/offramp')}
                         class="flex-1 rounded-md border border-emerald-600 px-3 py-1.5 text-center text-sm font-medium text-emerald-600 hover:bg-emerald-100"
                     >
                         Off-Ramp

@@ -12,11 +12,11 @@
  * only inside an authenticated off-ramp flow.
  */
 
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getChipper } from '$lib/server/chipperInstance';
-import { ChipperError } from '$lib/anchors/chipper';
-import { isMethodForMarket } from '$lib/config/chipper-markets';
+import { getChipper } from '#lib/server/chipperInstance.ts';
+import { ChipperError } from '#lib/anchors/chipper/index.ts';
+import { isMethodForMarket } from '#lib/config/chipper-markets.ts';
 
 export const POST: RequestHandler = async ({ request }) => {
     const { code, accountNumber } = ((await request.json().catch(() => null)) ?? {}) as Record<
@@ -24,15 +24,15 @@ export const POST: RequestHandler = async ({ request }) => {
         unknown
     >;
     if (typeof code !== 'string' || typeof accountNumber !== 'string' || !accountNumber) {
-        throw error(400, { message: 'code and accountNumber are required' });
+        throw error(400, 'code and accountNumber are required');
     }
     if (!isMethodForMarket(code)) {
-        throw error(400, { message: `Unsupported method: ${code}` });
+        throw error(400, `Unsupported method: ${code}`);
     }
     try {
-        return json(await getChipper().validateDestination({ code, accountNumber }));
+        return Response.json(await getChipper().validateDestination({ code, accountNumber }));
     } catch (err) {
-        if (err instanceof ChipperError) throw error(err.statusCode, { message: err.message });
+        if (err instanceof ChipperError) throw error(err.statusCode, err.message);
         throw err;
     }
 };

@@ -10,7 +10,7 @@ import {
     sandboxOutcomeWillFail,
     defaultMethodCode,
     isMethodForMarket,
-} from '$lib/config/chipper-markets';
+} from '#lib/config/chipper-markets.ts';
 
 describe('CHIPPER_MARKETS', () => {
     it('covers Ghana and Kenya with country, currency, and dial code', () => {
