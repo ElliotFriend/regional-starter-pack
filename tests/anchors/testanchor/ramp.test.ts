@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { TransactionBuilder, Networks, Transaction } from '@stellar/stellar-sdk';
 import { server } from '../../test-setup';
 import { TestAnchorRampClient, TestAnchorSepUnsupportedError } from '$lib/anchors/testanchor';
+import type { Sep24Transaction } from '$lib/anchors/sep/types';
 
 // ---------------------------------------------------------------------------
 // Test constants & helpers
@@ -326,7 +327,7 @@ describe('SEP-6 programmatic ramps', () => {
         // is enough to assert XDR construction happened — we don't decode it
         // here because that just retests the Stellar SDK.
         expect(typeof withdrawal.signableXdr).toBe('string');
-        expect(withdrawal.signableXdr.length).toBeGreaterThan(0);
+        expect(withdrawal.signableXdr!.length).toBeGreaterThan(0);
     });
 
     it('sep6Withdraw decodes a base64 hash memo without Node Buffer (browser-safe)', async () => {
@@ -362,12 +363,142 @@ describe('SEP-6 programmatic ramps', () => {
         bufferSpy.mockRestore();
 
         const tx = TransactionBuilder.fromXDR(
-            withdrawal.signableXdr,
+            withdrawal.signableXdr!,
             Networks.TESTNET,
         ) as Transaction;
         expect(tx.memo.type).toBe('hash');
         expect(Array.from(tx.memo.value as Uint8Array)).toEqual(Array.from(bytes));
         expect(usedBase64Buffer).toBe(false);
+    });
+
+    it('sep6Withdraw defers the payment when the anchor omits account_id (SEP-6 allows it)', async () => {
+        let horizonHit = false;
+        server.use(
+            // testanchor answers with only an id; the destination arrives later
+            // on /transaction as withdraw_anchor_account. Verified 2026-10-05.
+            http.get(`${TRANSFER}/withdraw`, () => HttpResponse.json({ id: 'wd-3' })),
+            http.get(`${HORIZON}/accounts/${USER_PUBKEY}`, () => {
+                horizonHit = true;
+                return HttpResponse.json({});
+            }),
+        );
+
+        const withdrawal = await createClient().sep6Withdraw(
+            TOKEN,
+            { asset_code: 'SRT', amount: '5' },
+            USER_PUBKEY,
+        );
+        expect(withdrawal.id).toBe('wd-3');
+        expect(withdrawal.signableXdr).toBeNull();
+        expect(horizonHit).toBe(false);
+    });
+
+    it('sep6Withdraw fails clearly when the anchor returns neither account_id nor id', async () => {
+        server.use(http.get(`${TRANSFER}/withdraw`, () => HttpResponse.json({})));
+        await expect(
+            createClient().sep6Withdraw(TOKEN, { asset_code: 'SRT', amount: '5' }, USER_PUBKEY),
+        ).rejects.toThrow(/neither a payment destination nor a transaction id/);
+    });
+
+    it('buildWithdrawalPaymentXdr pays withdraw_anchor_account with the transaction memo', async () => {
+        const destinationKey = 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B';
+        server.use(
+            http.get(`${HORIZON}/accounts/${USER_PUBKEY}`, () =>
+                HttpResponse.json({
+                    id: USER_PUBKEY,
+                    account_id: USER_PUBKEY,
+                    sequence: '1234567890',
+                }),
+            ),
+        );
+
+        const xdr = await createClient().buildWithdrawalPaymentXdr(
+            {
+                id: 'wd-3',
+                kind: 'withdrawal',
+                status: 'pending_user_transfer_start',
+                amount_in: '5',
+                withdraw_anchor_account: destinationKey,
+                withdraw_memo: '987654',
+                withdraw_memo_type: 'id',
+            },
+            USER_PUBKEY,
+            'SRT',
+        );
+
+        const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction;
+        expect(tx.source).toBe(USER_PUBKEY);
+        expect(tx.memo.type).toBe('id');
+        expect(tx.memo.value).toBe('987654');
+        expect(tx.operations[0]).toMatchObject({
+            type: 'payment',
+            destination: destinationKey,
+            amount: '5.0000000',
+        });
+        expect(
+            (tx.operations[0] as { asset: { code: string; issuer: string } }).asset,
+        ).toMatchObject({ code: 'SRT', issuer: SRT_ISSUER });
+    });
+
+    it('buildWithdrawalPaymentXdr builds the SEP-24 withdrawal payment from amount_in', async () => {
+        server.use(
+            http.get(`${HORIZON}/accounts/${USER_PUBKEY}`, () =>
+                HttpResponse.json({ id: USER_PUBKEY, account_id: USER_PUBKEY, sequence: '1' }),
+            ),
+        );
+        // SEP-24: the amount is chosen in the anchor's hosted flow, so the
+        // wallet only learns it (and the destination) from the transaction.
+        const sep24Tx: Sep24Transaction = {
+            id: 'sep24-wd-1',
+            kind: 'withdrawal',
+            status: 'pending_user_transfer_start',
+            more_info_url: 'https://example.com/more',
+            amount_in: '7.5',
+            withdraw_anchor_account: SRT_ISSUER,
+            withdraw_memo: 'memo-123',
+            withdraw_memo_type: 'text',
+        };
+        const xdr = await createClient().buildWithdrawalPaymentXdr(sep24Tx, USER_PUBKEY, 'SRT');
+        const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction;
+        expect(tx.memo.type).toBe('text');
+        expect(tx.memo.value?.toString()).toBe('memo-123');
+        expect(tx.operations[0]).toMatchObject({
+            type: 'payment',
+            destination: SRT_ISSUER,
+            amount: '7.5000000',
+        });
+    });
+
+    it('buildWithdrawalPaymentXdr prefers an explicit amount over amount_in', async () => {
+        server.use(
+            http.get(`${HORIZON}/accounts/${USER_PUBKEY}`, () =>
+                HttpResponse.json({ id: USER_PUBKEY, account_id: USER_PUBKEY, sequence: '1' }),
+            ),
+        );
+        const xdr = await createClient().buildWithdrawalPaymentXdr(
+            {
+                id: 'wd-3',
+                kind: 'withdrawal',
+                status: 'pending_user_transfer_start',
+                amount_in: '5',
+                withdraw_anchor_account: SRT_ISSUER,
+            },
+            USER_PUBKEY,
+            'SRT',
+            '2',
+        );
+        const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction;
+        expect(tx.operations[0]).toMatchObject({ amount: '2.0000000' });
+    });
+
+    it('buildWithdrawalPaymentXdr fails clearly before the anchor provides an account', async () => {
+        await expect(
+            createClient().buildWithdrawalPaymentXdr(
+                { id: 'wd-3', kind: 'withdrawal', status: 'incomplete', amount_in: '5' },
+                USER_PUBKEY,
+                'SRT',
+            ),
+        ).rejects.toThrow(/has not provided a payment destination/);
     });
 
     it('rejects sep6Withdraw when the source account is not a valid public key', async () => {

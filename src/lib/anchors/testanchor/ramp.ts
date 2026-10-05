@@ -253,16 +253,30 @@ export class TestAnchorRampClient {
     }
 
     /**
-     * Initiate a SEP-6 withdrawal and pre-build the signable Stellar payment
-     * XDR the user's wallet must sign and submit.
+     * Initiate a SEP-6 withdrawal and, when the anchor names its receiving
+     * account up front, pre-build the signable Stellar payment XDR.
+     *
+     * SEP-6 lets an anchor omit `account_id` and supply it later as the
+     * transaction's `withdraw_anchor_account` (at `pending_user_transfer_start`).
+     * testanchor does exactly that, so `signableXdr` is `null` in that case:
+     * poll {@link getSep6Transaction} and build the payment with
+     * {@link buildWithdrawalPaymentXdr} once the account appears.
      */
     async sep6Withdraw(
         token: string,
         request: Sep6WithdrawRequest,
         sourceAccount: string,
-    ): Promise<Sep6WithdrawResponse & { signableXdr: string }> {
+    ): Promise<Sep6WithdrawResponse & { signableXdr: string | null }> {
         const transferServer = await this.endpoint(sep1.getSep6Endpoint, 'SEP-6');
         const response = await sep6.withdraw(transferServer, token, request, this.fetchFn);
+        if (!response.account_id) {
+            if (!response.id) {
+                throw new Error(
+                    'The anchor returned neither a payment destination nor a transaction id',
+                );
+            }
+            return { ...response, signableXdr: null };
+        }
         const tokenInfo = this.findToken(request.asset_code);
         const signableXdr = await this.buildWithdrawalXdr({
             from: sourceAccount,
@@ -274,6 +288,36 @@ export class TestAnchorRampClient {
             memoType: response.memo_type,
         });
         return { ...response, signableXdr };
+    }
+
+    /**
+     * Build the signable payment for a withdrawal whose destination arrived on
+     * the transaction (`withdraw_anchor_account` / `withdraw_memo`) rather
+     * than in a `/withdraw` response: a deferred SEP-6 withdrawal, or any
+     * SEP-24 withdrawal once it reaches `pending_user_transfer_start`.
+     * `amount` defaults to `amount_in` (what SEP-24's hosted flow settled on).
+     */
+    async buildWithdrawalPaymentXdr(
+        transaction: Sep6Transaction,
+        sourceAccount: string,
+        assetCode: string,
+        amount?: string,
+    ): Promise<string> {
+        if (!transaction.withdraw_anchor_account) {
+            throw new Error('The anchor has not provided a payment destination yet');
+        }
+        const paymentAmount = amount ?? transaction.amount_in;
+        if (!paymentAmount) throw new Error('No withdrawal amount to pay');
+        const tokenInfo = this.findToken(assetCode);
+        return this.buildWithdrawalXdr({
+            from: sourceAccount,
+            to: transaction.withdraw_anchor_account,
+            assetCode: tokenInfo?.symbol ?? assetCode,
+            assetIssuer: tokenInfo?.issuer,
+            amount: paymentAmount,
+            memo: transaction.withdraw_memo,
+            memoType: transaction.withdraw_memo_type,
+        });
     }
 
     async getSep6Transaction(token: string, id: string): Promise<Sep6Transaction | null> {

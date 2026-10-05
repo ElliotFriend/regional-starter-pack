@@ -3,7 +3,8 @@
     import { resolve } from '$app/paths';
     import { dev } from '$app/environment';
     import { walletStore } from '$lib/stores/wallet.svelte';
-    import { getStellarAsset } from '$lib/wallet/stellar';
+    import { signWithFreighter } from '$lib/wallet/freighter';
+    import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
     import { createSep10Session } from '$lib/wallet/sep10-session';
     import { createPoller } from '$lib/utils/poll.svelte';
     import WalletConnect from '$lib/components/WalletConnect.svelte';
@@ -26,13 +27,21 @@
     const network: StellarNetwork = 'testnet';
     const stellarAsset = getStellarAsset('SRT', SRT_ISSUER);
 
-    type Step = 'connect' | 'ready' | 'hosted' | 'complete';
+    type Step =
+        | 'connect'
+        | 'ready'
+        | 'hosted'
+        | 'ready-to-send'
+        | 'signing'
+        | 'awaiting-payout'
+        | 'complete';
     let step = $state<Step>('connect');
 
     let amount = $state('');
     let transactionId = $state<string | null>(null);
     let transaction = $state<Sep24Transaction | null>(null);
     let interactiveUrl = $state<string | null>(null);
+    let stellarTxHash = $state<string | null>(null);
     let isWorking = $state(false);
     let error = $state<string | null>(null);
     const poller = createPoller({
@@ -84,6 +93,18 @@
         const updated = await anchor.getSep24Transaction(token, transactionId);
         if (!updated) return;
         transaction = updated;
+        if (
+            step === 'hosted' &&
+            updated.status === 'pending_user_transfer_start' &&
+            updated.withdraw_anchor_account &&
+            walletStore.publicKey
+        ) {
+            // The wallet's half of a SEP-24 withdrawal: pay the anchor now that
+            // the hosted flow has set withdraw_anchor_account.
+            stop();
+            step = 'ready-to-send';
+            return;
+        }
         if (updated.status === 'completed') {
             step = 'complete';
             stop();
@@ -93,7 +114,34 @@
             updated.status === 'error' ||
             updated.status === 'no_market'
         ) {
+            error = updated.message || `The anchor ended this withdrawal: ${updated.status}`;
             stop();
+        }
+    }
+
+    // Signing is tied to this click, never to a poll tick: wallet prompts
+    // should only open in response to the user.
+    async function sendPayment() {
+        if (!transaction || !walletStore.publicKey) return;
+        error = null;
+        step = 'signing';
+        try {
+            // Build at click time: the XDR carries a Horizon sequence number and
+            // a 180s timebound, which go stale while the user is in the popup.
+            const xdr = await anchor.buildWithdrawalPaymentXdr(
+                transaction,
+                walletStore.publicKey,
+                'SRT',
+            );
+            const signed = await signWithFreighter(xdr, network);
+            const result = await submitTransaction(signed.signedXdr, network);
+            stellarTxHash = result.hash;
+            step = 'awaiting-payout';
+            poller.start();
+        } catch (err) {
+            error = err instanceof Error ? err.message : 'Failed to sign and submit the payment';
+            // Back to the send step; the next click rebuilds a fresh XDR.
+            step = 'ready-to-send';
         }
     }
 
@@ -106,6 +154,7 @@
         transactionId = null;
         transaction = null;
         interactiveUrl = null;
+        stellarTxHash = null;
         error = null;
         step = walletStore.isConnected ? 'ready' : 'connect';
         poller.stop();
@@ -230,6 +279,84 @@
                     </p>
                 </div>
             {/if}
+        </div>
+    {/if}
+
+    {#if step === 'ready-to-send' && transaction}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Send SRT to the anchor</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                The hosted flow is done. In SEP-24 the wallet sends the payment: confirm it in
+                Freighter and the anchor pays out once it arrives.
+            </p>
+            <div class="mt-4 space-y-2 text-sm text-gray-600">
+                <p>Amount: <span class="font-mono">{transaction.amount_in} SRT</span></p>
+                <p>
+                    Anchor account:
+                    <CopyableField value={transaction.withdraw_anchor_account ?? ''} mono />
+                </p>
+                {#if transaction.withdraw_memo}
+                    <p>
+                        Memo ({transaction.withdraw_memo_type}):
+                        <CopyableField value={transaction.withdraw_memo} mono />
+                    </p>
+                {/if}
+            </div>
+            <button
+                type="button"
+                onclick={sendPayment}
+                class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+                Send {transaction.amount_in} SRT
+            </button>
+        </div>
+    {/if}
+
+    {#if step === 'signing'}
+        <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                A Freighter window should be open. Confirm to send SRT to the anchor.
+            </p>
+            <div class="mt-4 flex items-center justify-center py-6">
+                <div
+                    class="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                ></div>
+                <span class="ml-3 text-sm text-gray-500">Awaiting signature…</span>
+            </div>
+        </div>
+    {/if}
+
+    {#if step === 'awaiting-payout'}
+        <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-gray-900">Awaiting payout</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Your SRT was sent to the anchor. Waiting for it to complete the withdrawal.
+            </p>
+            <div class="mt-4 space-y-1 text-sm text-gray-600">
+                {#if stellarTxHash}
+                    <p>
+                        Stellar tx:
+                        <a
+                            href={`https://stellar.expert/explorer/${network}/tx/${stellarTxHash}`}
+                            target="_blank"
+                            rel="noopener"
+                            class="text-indigo-600 hover:underline"
+                        >
+                            {stellarTxHash.slice(0, 12)}…↗
+                        </a>
+                    </p>
+                {/if}
+                {#if transaction}
+                    <p>Status: <span class="font-mono">{transaction.status}</span></p>
+                {/if}
+            </div>
+            <div class="mt-4 flex items-center justify-center py-4">
+                <div
+                    class="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                ></div>
+                <span class="ml-3 text-sm text-gray-500">Polling SEP-24 transaction…</span>
+            </div>
         </div>
     {/if}
 
