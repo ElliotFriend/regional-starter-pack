@@ -1,59 +1,38 @@
 # Stellar Regional Starter Pack
 
-A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network using locally denominated assets. It includes two curated anchor providers (Etherfuse, Koywe), a reference client for the Stellar test anchor, and a composable SEP protocol library for building against any SEP-compliant anchor.
+A SvelteKit application and portable library for building fiat on/off ramps on the Stellar network. It integrates five curated anchors (Etherfuse, Koywe, Manteca, Chipper, SeevCash), a reference client for the Stellar test anchor, a TR mock anchor, and a composable SEP protocol library for building against any SEP-compliant anchor.
 
-The project curates anchor integrations against **two lenses** — a **commercial** bar (locally denominated asset on Stellar, local payment rails, competitive rates, deep liquidity) and a **developer** bar (open self-service access, accurate docs, high-fidelity sandbox, agent-buildable). Anchors that don't clear the bar appear as **honorable mentions** on the region pages; candidates still being evaluated are flagged as in-vetting. See the [Anchor Readiness Scorecard](#anchor-readiness-scorecard) for the live, machine-readable view.
+The project curates anchor integrations against **two lenses**: a **commercial** bar (locally denominated asset on Stellar, local payment rails, competitive rates, deep liquidity) and a **developer** bar (open self-service access, accurate docs, high-fidelity sandbox, agent-buildable, fee discoverability). Anchors that don't clear the bar appear as **honorable mentions** on the region pages; candidates still being evaluated are flagged as in-vetting. See the [Anchor Readiness Scorecard](#anchor-readiness-scorecard) for the live, machine-readable view.
 
 ## TL;DR: The Most Important Thing
 
-This demo is a fully functional application you can test out and interact with — and (usually) even pull some Testnet tokens from the on-ramp simulations! But it's also a tool and a resource.
+This demo is a fully functional application you can test out and interact with, and (usually) even pull some testnet tokens from the on-ramp simulations! But it's also a tool and a resource.
 
-**The [`/src/lib/anchors/`](./src/lib/anchors/) and [`/src/lib/wallet/`](./src/lib/wallet/) directories are portable, framework-agnostic TypeScript libraries that should work out-of-the-box!** Copy them (or just the parts you need) into any TypeScript project, and your project can interact with the anchors and the Stellar network. Super easy. Barely an inconvenience!
+**The [`/src/lib/anchors/`](./src/lib/anchors/) and [`/src/lib/wallet/`](./src/lib/wallet/) directories are portable, framework-agnostic TypeScript libraries that should work out of the box!** Copy them (or just the parts you need) into any TypeScript project, and your project can interact with the anchors and the Stellar network. Super easy. Barely an inconvenience!
 
-Each anchor is **self-contained**: a single directory holds the client class, its types, an index file, and a README. Copying `anchors/etherfuse/` (or `anchors/testanchor/`, or `anchors/sep/`) into another project pulls in nothing else from this repo — only the `@stellar/stellar-sdk` peer dependency.
+Each anchor is **self-contained**: a single directory holds the client class, its types, an index file, and a README. Copying `anchors/etherfuse/` (or `anchors/seevcash/` plus `anchors/sep/`) into another project pulls in nothing else from this repo, only the `@stellar/stellar-sdk` peer dependency.
 
 ## What's Inside
 
 ```text
-src/lib/anchors/          <- PORTABLE: Copy what you need into any TypeScript project
-  etherfuse/              <- Etherfuse integration (Latin America)
-    client.ts             <- EtherfuseClient class
-    types.ts              <- Etherfuse-native types + EtherfuseError
-    index.ts
-    README.md             <- Paste-target documentation
-  koywe/                  <- Koywe integration (Argentina; USDC on Stellar)
-    client.ts             <- KoyweClient class
-    types.ts              <- Koywe-native types + KoyweError
-    index.ts
-    koywe.openapi.yaml    <- Authoritative API spec
-    README.md
-  testanchor/             <- Reference clients for testanchor.stellar.org
-    ramp.ts               <- TestAnchorRampClient (curated SEP wrapper)
-    client.ts             <- TestAnchorClient (SEP playground, used by /testanchor)
-    types.ts
-    index.ts
-    README.md
+src/lib/anchors/          <- PORTABLE: copy what you need into any TypeScript project
+  etherfuse/              <- Etherfuse (Mexico, Brazil; CETES/TESOURO stablebonds)
+  koywe/                  <- Koywe (Argentina, Mexico, Colombia; USDC)
+  manteca/                <- Manteca (Brazil, Argentina, Colombia; USDC)
+  chipper/                <- Chipper (Ghana, Kenya; mobile money, USDC)
+  seevcash/               <- SeevCash (Ghana; SEP anchor, mobile money, USDC)
+  testanchor/             <- Reference clients for testanchor.stellar.org (ramp + SEP playground)
+  trmock/                 <- TR Mock Anchor (Türkiye; SEP sandbox stand-in)
   sep/                    <- SEP protocol modules (SEP-1/6/10/12/24/31/38)
-    sep1.ts, sep10.ts, ... <- One file per SEP, each independently usable
-    types.ts
-    index.ts
-    README.md
+  README.md               <- Library guide and provider index
 
-src/lib/wallet/           <- PORTABLE: Freighter wallet + Stellar helpers
+src/lib/wallet/           <- PORTABLE: Freighter wallet, Stellar helpers, SEP-10 session helper
 
-src/lib/server/           <- SvelteKit-specific (reads $env)
-  etherfuseInstance.ts    <- Lazily-instantiated EtherfuseClient singleton
-  koyweInstance.ts        <- Lazily-instantiated KoyweClient singleton
-  testanchorInstance.ts   <- Lazily-instantiated TestAnchorRampClient singleton + requireBearer helper
-
-src/lib/api/              <- Browser-side fetch wrappers per provider
-  etherfuse.ts            <- Wraps /api/anchor/etherfuse/*
-  koywe.ts                <- Wraps /api/anchor/koywe/*
-  testanchor.ts           <- Wraps /api/anchor/testanchor/*
-
+src/lib/server/           <- SvelteKit-specific singletons for API-key anchors (read $env)
+src/lib/api/              <- Browser fetch wrappers for those anchors' proxy routes
 src/lib/components/       <- Shared UI primitives (provider-agnostic)
 src/lib/stores/           <- wallet.svelte.ts (Freighter), auth.ts (SEP-10 token cache)
-src/lib/config/           <- anchors.ts (+ two-lens criteria), scorecard.ts (dev-readiness), regions.ts, rails.ts
+src/lib/config/           <- anchors.ts (+ two-lens criteria), scorecard.ts, regions.ts, rails.ts
 src/routes/               <- SvelteKit pages and API routes
 ```
 
@@ -64,6 +43,7 @@ cp .env.example .env      # Configure API keys
 pnpm install              # Install dependencies
 pnpm dev                  # Run development server
 pnpm check                # Type check
+pnpm test:run             # Run the test suite once
 pnpm build                # Build for production
 ```
 
@@ -71,21 +51,23 @@ pnpm build                # Build for production
 
 ## Using the Anchor Library
 
-The `/src/lib/anchors/` directory is **framework-agnostic** and designed to be copied — directory-by-directory — into any TypeScript project. Each anchor is its own self-contained module.
+The `/src/lib/anchors/` directory is **framework-agnostic** and designed to be copied, directory by directory, into any TypeScript project. Each anchor is its own self-contained module. See [`src/lib/anchors/README.md`](./src/lib/anchors/README.md) for the library guide.
 
 ### Anchor Providers
 
-| Provider        | Region         | Fiat     | Token          | Rail        | Authentication  |
-| --------------- | -------------- | -------- | -------------- | ----------- | --------------- |
-| **Etherfuse**   | Mexico, Brazil | MXN, BRL | CETES, TESOURO | SPEI, PIX   | API key         |
-| **Koywe**       | Argentina      | ARS      | USDC           | WIREAR, QRI | clientId/secret |
-| **Test Anchor** | Testnet        | (test)   | SRT, USDC      | bank        | SEP-10          |
+| Provider        | Regions                     | Token          | Rails                      | Auth            | Runs in      |
+| --------------- | --------------------------- | -------------- | -------------------------- | --------------- | ------------ |
+| **Etherfuse**   | Mexico, Brazil              | CETES, TESOURO | SPEI, PIX                  | API key         | Server proxy |
+| **Koywe**       | Argentina, Mexico, Colombia | USDC           | WIREAR, QRI, SPEI, PSE     | clientId/secret | Server proxy |
+| **Manteca**     | Brazil, Argentina, Colombia | USDC           | PIX, CVU, Bre-B            | API key         | Server proxy |
+| **Chipper**     | Ghana, Kenya                | USDC           | Mobile money, M-Pesa, bank | API key         | Server proxy |
+| **SeevCash**    | Ghana                       | USDC           | Mobile money               | SEP-10          | Browser      |
+| **Test Anchor** | Testnet (reference)         | SRT, USDC      | Bank (simulated)           | SEP-10          | Browser      |
+| **TR Mock**     | Türkiye (sandbox stand-in)  | USDC           | FAST (simulated)           | SEP-10          | Browser      |
 
-Etherfuse and Koywe are the curated providers for production-shaped fiat ramps. The test anchor (`testanchor.stellar.org`) is a reference for SEP-compliant integrations.
+> **Honorable mentions:** anchors that don't clear the two-lens bar (e.g. AlfredPay, BlindPay, Abroad Finance, Transfero), plus in-vetting BD pipeline candidates flagged `vetting: true` (e.g. Bitso, Fonbnk, Yellow Card, PDAX), are surfaced on the region pages and in the [scorecard](#anchor-readiness-scorecard) with a per-criterion assessment. They have no client code; they live in `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts`.
 
-> **Honorable mentions** — anchors that don't clear the two-lens bar (e.g. AlfredPay, BlindPay, Abroad Finance, Transfero), plus in-vetting BD-pipeline candidates flagged `vetting: true` (e.g. Bitso, Fonbnk, Yellow Card, Manteca), are surfaced on the region pages and in the [scorecard](#anchor-readiness-scorecard) with a per-criterion assessment. They have no client code; they live in `HONORABLE_MENTIONS` in `src/lib/config/anchors.ts`.
-
-### Example: Etherfuse
+### Example: Etherfuse (API key, server-side)
 
 ```typescript
 import { EtherfuseClient } from './anchors/etherfuse';
@@ -123,7 +105,7 @@ const order = await anchor.createOnRampOrder({
     quoteId: quote.id,
     publicKey: 'GXYZ...',
 });
-// order.deposit — SPEI or PIX deposit instructions (discriminated by `rail`)
+// order.deposit: SPEI or PIX deposit instructions (discriminated by `rail`)
 
 // 5. Poll until completed
 let polled = await anchor.getOnRampOrder(order.id);
@@ -135,42 +117,38 @@ while (polled && polled.status !== 'completed' && polled.status !== 'failed') {
 
 See [`src/lib/anchors/etherfuse/README.md`](./src/lib/anchors/etherfuse/README.md) for the complete reference.
 
-### Example: Test Anchor (SEP-compliant)
+### Example: A SEP Anchor (browser)
 
-The test anchor exposes both archetypes through `TestAnchorRampClient`:
+SEP anchors hold no secrets (the user's wallet signs SEP-10), so their clients run directly in the browser. `SeevcashRampClient` is a small wrapper over the `sep/` modules:
 
 ```typescript
-import { TestAnchorRampClient } from './anchors/testanchor';
+import { SeevcashRampClient } from './anchors/seevcash';
 
-const anchor = new TestAnchorRampClient();
+const anchor = new SeevcashRampClient({ usdcIssuer: PUBLIC_USDC_ISSUER });
 
-// 1. SEP-10 wallet auth (sign client-side, e.g. Freighter)
+// 1. SEP-10 wallet auth (sign with the user's wallet, e.g. Freighter)
 const challenge = await anchor.getChallenge(publicKey);
 const signedXdr = await signWithWallet(challenge.transaction);
 const { token } = await anchor.submitChallenge(signedXdr);
 
-// 2a. Interactive (SEP-24): anchor hosts the flow
-const session = await anchor.sep24Deposit(token, {
-    asset_code: 'SRT',
-    asset_issuer: 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B',
-    account: publicKey,
+// 2. SEP-12 KYC, including the mobile money wallet to collect from / pay out to
+await anchor.putCustomer(token, {
+    first_name: 'Ama',
+    last_name: 'Mensah',
+    email_address: 'ama@example.com',
+    mobile_money_number: '+233241234567',
+    mobile_money_provider: 'MTN',
 });
-window.open(session.url, '_blank');
-const tx = await anchor.getSep24Transaction(token, session.id);
 
-// 2b. Programmatic (SEP-6): app orchestrates the flow
-const deposit = await anchor.sep6Deposit(token, {
-    asset_code: 'SRT',
-    funding_method: 'bank_account',
-    account: publicKey,
-    amount: '100',
-});
-// deposit.instructions — generic SEP-6 key/value deposit fields
+// 3. Preview the rate (SEP-38), then start a SEP-6 deposit
+const price = await anchor.getPrice({ kind: 'deposit', amount: '5' });
+const deposit = await anchor.deposit(token, { amount: '5', account: publicKey });
+
+// 4. Poll the SEP-6 transaction until the USDC lands
+const tx = await anchor.getTransaction(token, deposit.id!);
 ```
 
-The returned types are **directly the SEP-defined shapes** (`Sep10ChallengeResponse`, `Sep24InteractiveResponse`, `Sep6DepositResponse`, `Sep12CustomerResponse`, etc.) — no adaptation layer.
-
-See [`src/lib/anchors/testanchor/README.md`](./src/lib/anchors/testanchor/README.md) for the complete reference, including the separate `TestAnchorClient` SEP playground.
+The returned types are **directly the SEP-defined shapes** (`Sep10ChallengeResponse`, `Sep6DepositResponse`, `Sep12CustomerResponse`, ...); there's no adaptation layer. `TestAnchorRampClient` covers both SEP-6 and SEP-24 against the test anchor; see [`src/lib/anchors/testanchor/README.md`](./src/lib/anchors/testanchor/README.md).
 
 ### Example: Any SEP-Compliant Anchor
 
@@ -202,7 +180,9 @@ window.open(response.url, '_blank');
 
 ### Usage Outside SvelteKit
 
-The `anchors/` and `wallet/` directories have no framework dependencies — they rely only on `@stellar/stellar-sdk` (and `@stellar/freighter-api` for the wallet). Copy only what you need:
+The `anchors/` and `wallet/` directories have no framework dependencies; they rely only on `@stellar/stellar-sdk` (and `@stellar/freighter-api` for the wallet). Copy only the providers you use; they don't reference each other.
+
+**Keep API keys on a server.** For an API-key anchor, call the client from your backend, the same way this app proxies through `/api/anchor/<name>/*`:
 
 ```typescript
 // Express / Node.js example
@@ -223,104 +203,94 @@ app.post('/api/quotes', async (req, res) => {
 });
 ```
 
-You only need to copy the provider(s) you use. The providers don't reference each other — `anchors/etherfuse/` and `anchors/testanchor/` are independent.
-
-If your app runs in the browser, anchor API calls will hit CORS restrictions. Proxy them through your backend the same way this SvelteKit app does with its `/api/anchor/etherfuse/*` and `/api/anchor/testanchor/*` routes.
+**SEP anchors can run in the browser,** provided the anchor serves CORS on its SEP endpoints. The test anchor, TR mock anchor, and SeevCash all do. One known gap: the test anchor's 403 for a missing or invalid token carries no CORS header, so a browser sees a network error instead of the 403.
 
 ---
 
 ## Architecture
 
-### Server-Side Instances
+### Browser vs. server
 
-Each anchor has a server-side instance singleton that reads its env vars and lazily instantiates the client:
+- **API-key anchors** (Etherfuse, Koywe, Manteca, Chipper): a server-side singleton (`src/lib/server/<name>Instance.ts`) reads `$env` and lazily instantiates the client. Pages call browser wrappers (`src/lib/api/<name>.ts`), which hit proxy routes (`src/routes/api/anchor/<name>/*`), so the key never reaches the browser.
+- **SEP anchors** (SeevCash, test anchor, TR mock): pages instantiate the client directly. The SEP-10 token stays in the browser (cached by `authStore`), and there's no singleton, wrapper, or proxy route.
 
-```typescript
-// In a +server.ts route handler:
-import { getEtherfuse } from '$lib/server/etherfuseInstance';
-import { getTestAnchor, requireBearer } from '$lib/server/testanchorInstance';
-
-const etherfuse = getEtherfuse();
-const customer = await etherfuse.createCustomer({ publicKey, email });
-
-const testanchor = getTestAnchor();
-const token = requireBearer(request); // throws 401 if no Bearer header
-const sep24 = await testanchor.sep24Deposit(token, request);
-```
-
-This separation keeps the anchor library (`src/lib/anchors/`) portable and free of SvelteKit imports.
+This keeps the anchor library (`src/lib/anchors/`) portable and free of SvelteKit imports.
 
 ### API Routes
 
-All anchor operations are proxied through SvelteKit API routes. There is no dynamic `[provider]` segment — each anchor's routes live at a static path:
+There is no dynamic `[provider]` segment; each anchor's routes live at a static path.
 
 ```text
-/api/anchor/etherfuse/customers      - POST create, GET by ?customerId=
-/api/anchor/etherfuse/quotes         - POST get quote
-/api/anchor/etherfuse/onramp         - POST create, GET by ?orderId=
-/api/anchor/etherfuse/offramp        - POST create, GET by ?orderId=
-/api/anchor/etherfuse/bank-accounts  - GET by ?customerId=
-/api/anchor/etherfuse/kyc            - POST presigned URL, GET status
-/api/anchor/etherfuse/sandbox        - POST { action: 'simulateFiatReceived', orderId }
-/api/anchor/etherfuse/assets         - GET by ?currency=&wallet=
+/api/anchor/etherfuse/customers          - POST create, GET by ?customerId=
+/api/anchor/etherfuse/quotes             - POST get quote
+/api/anchor/etherfuse/onramp             - POST create, GET by ?orderId=
+/api/anchor/etherfuse/offramp            - POST create, GET by ?orderId=
+/api/anchor/etherfuse/bank-accounts      - GET by ?customerId=
+/api/anchor/etherfuse/kyc                - POST presigned URL, GET status
+/api/anchor/etherfuse/sandbox            - POST { action: 'simulateFiatReceived', orderId }
+/api/anchor/etherfuse/assets             - GET by ?currency=&wallet=
 
-/api/anchor/koywe/quotes             - POST get quote
-/api/anchor/koywe/onramp             - POST create on-ramp order
-/api/anchor/koywe/offramp            - POST create off-ramp order
-/api/anchor/koywe/order              - GET by ?orderId=
-/api/anchor/koywe/kyc                - GET/POST delegated KYC (accounts)
-/api/anchor/koywe/bank-accounts      - GET/POST off-ramp payout accounts
-/api/anchor/koywe/payment-methods    - GET rails for ?symbol=
-/api/anchor/koywe/token-currencies   - GET supported pairs + limits
+/api/anchor/koywe/quotes                 - POST executable quote
+/api/anchor/koywe/onramp                 - POST create on-ramp order
+/api/anchor/koywe/offramp                - POST create off-ramp order, or attach a Stellar tx hash
+/api/anchor/koywe/order                  - GET by ?orderId= or ?externalId=
+/api/anchor/koywe/kyc                    - GET account status by ?email=, POST delegated KYC
+/api/anchor/koywe/bank-accounts          - GET list, POST register off-ramp payout account
+/api/anchor/koywe/payment-methods        - GET rails for ?symbol=
+/api/anchor/koywe/token-currencies       - GET supported pairs + limits
 
-/api/anchor/testanchor/auth          - POST ?action=challenge|token
-/api/anchor/testanchor/customer      - GET / PUT (SEP-12, Bearer required)
-/api/anchor/testanchor/price         - POST (SEP-38)
-/api/anchor/testanchor/sep6          - POST ?action=deposit|withdraw, GET by ?transactionId=
-/api/anchor/testanchor/sep24         - POST ?action=deposit|withdraw, GET by ?transactionId=
+/api/anchor/manteca/users                - POST create end-user, GET by ?userAnyId=
+/api/anchor/manteca/kyc                  - POST onboarding identity data, GET status
+/api/anchor/manteca/personal-data        - POST personal data for an existing user
+/api/anchor/manteca/identity-image       - POST identity document / selfie (multipart)
+/api/anchor/manteca/quotes               - GET quote by ?ramp=&asset=&against=
+/api/anchor/manteca/ramp                 - POST create a ramp-on or ramp-off synthetic
+/api/anchor/manteca/synthetic            - GET synthetic by ?id= (polling)
+/api/anchor/manteca/withdraw-destination - GET validate a PIX key / CBU / CVU
+/api/anchor/manteca/sandbox-deposit      - POST simulate a deposit (sandbox)
 
-/api/scorecard                       - GET developer-readiness data (JSON default; ?format=md or Accept: text/markdown for Markdown)
+/api/anchor/chipper/capabilities         - GET methods for ?country=GH|KE
+/api/anchor/chipper/rate                 - GET rate by ?origin=&destination=
+/api/anchor/chipper/validate             - POST validate a payout destination
+/api/anchor/chipper/orders               - POST create on/off-ramp order, GET by ?id=
+/api/anchor/chipper/simulate-deposit     - POST simulate a bank deposit (sandbox)
+
+/api/testanchor/sep6, /api/testanchor/sep24  - SEP proxies for the /testanchor playground page
+/api/scorecard                           - developer-readiness data (JSON; ?format=md for Markdown)
+/api/cron/blend/oracle, .../emissions    - scheduled Blend pool maintenance (Vercel Cron)
 ```
 
-For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoints handle CORS:
-
-```text
-/api/testanchor/sep6   - SEP-6 proxy
-/api/testanchor/sep24  - SEP-24 proxy
-```
+See each provider's README for the exact request shapes.
 
 ### UI Components
 
-`src/lib/components/` contains **provider-agnostic primitives**. The flow pages compose them; there are no shared flow components per-archetype.
+`src/lib/components/` contains **provider-agnostic primitives**. The flow pages compose them; there are no shared flow components.
 
-- `WalletConnect.svelte` — Freighter connect/disconnect.
-- `QuoteDisplay.svelte` — takes a structural quote shape, renders an exchange-rate summary with countdown.
-- `KycIframe.svelte` — embeds a hosted KYC URL, listens for completion messages.
-- `CriteriaScorecard.svelte` — renders a two-lens scorecard (compact + `detailed` modes, Lucide status icons); used by the listing, region, anchor, and scorecard pages.
-- `ramp/AmountInput.svelte` — amount entry with trustline + wallet-connected guards.
-- `ramp/TrustlineStatus.svelte` — self-contained trustline check + "Add trustline" CTA.
+- `WalletConnect.svelte`: Freighter connect/disconnect.
+- `AnchorRegionSelector.svelte`: region tabs and on/off-ramp links for an anchor landing page.
+- `CriteriaScorecard.svelte`: renders a two-lens scorecard (compact and `detailed` modes).
+- `HonorableMentionAnchors.svelte`: honorable-mention cards for a region page.
+- `QuoteDisplay.svelte`: takes a structural quote shape and renders an exchange-rate summary with a countdown.
+- `KycIframe.svelte`: embeds a hosted KYC URL and listens for completion messages.
+- `ramp/`: `AmountInput`, `TrustlineStatus`, `CompletionStep`.
 - `ui/`: `Header`, `Footer`, `Sidebar`, `DevBox`, `ErrorAlert`, `CopyableField`.
 
 ### Pages
 
 ```text
-/                                                       - Home page
-/anchors                                                - Anchor provider listing (curated)
-/anchors/etherfuse                                      - Etherfuse landing page
-/anchors/etherfuse/onramp                               - Etherfuse on-ramp
-/anchors/etherfuse/offramp                              - Etherfuse off-ramp
-/anchors/koywe                                          - Koywe landing page
-/anchors/koywe/onramp                                   - Koywe on-ramp
-/anchors/koywe/offramp                                  - Koywe off-ramp
-/anchors/testanchor                                     - Test anchor landing page (links to both archetypes)
-/anchors/testanchor/interactive/onramp                  - SEP-24 deposit
-/anchors/testanchor/interactive/offramp                 - SEP-24 withdraw
-/anchors/testanchor/programmatic/onramp                 - SEP-6 deposit
-/anchors/testanchor/programmatic/offramp                - SEP-6 withdraw
-/anchors/scorecard                                      - Developer-readiness scorecard (human view)
-/regions                                                - Region listing
-/regions/[region]                                       - Region detail with curated anchors + honorable mentions
-/testanchor                                             - Standalone SEP protocol demo (uses TestAnchorClient playground)
+/                                         - Home page
+/anchors                                  - Anchor listing (curated)
+/anchors/<name>                           - Landing page for etherfuse, koywe, manteca, chipper, seevcash, trmock
+/anchors/<name>/onramp, /offramp          - On- and off-ramp flows for each of those
+/anchors/testanchor                       - Test anchor landing page (links to both archetypes)
+/anchors/testanchor/interactive/onramp    - SEP-24 deposit
+/anchors/testanchor/interactive/offramp   - SEP-24 withdraw
+/anchors/testanchor/programmatic/onramp   - SEP-6 deposit
+/anchors/testanchor/programmatic/offramp  - SEP-6 withdraw
+/anchors/scorecard                        - Developer-readiness scorecard (human view)
+/regions                                  - Region listing
+/regions/[region]                         - Region detail with curated anchors + honorable mentions
+/testanchor                               - Standalone SEP protocol playground (TestAnchorPlaygroundClient)
 ```
 
 ---
@@ -329,31 +299,31 @@ For the standalone test anchor SEP demo (`/testanchor`), separate proxy endpoint
 
 A self-updating, machine-readable view of how build-ready each anchor is for developers. It is derived live from the anchor config (`src/lib/config/anchors.ts`) via `src/lib/config/scorecard.ts`, so it never drifts from reality. Built for agents to ingest, and viewable by humans.
 
-- **Humans:** [`/anchors/scorecard`](/anchors/scorecard) — verdicts and signals rendered with status icons.
-- **Agents:** `/api/scorecard` — always serves data. JSON by default; Markdown via `?format=md` or an `Accept: text/markdown` header (an explicit `?format=` wins over the header).
+- **Humans:** [`/anchors/scorecard`](/anchors/scorecard): verdicts and signals rendered with status icons.
+- **Agents:** `/api/scorecard`: always serves data. JSON by default; Markdown via `?format=md` or an `Accept: text/markdown` header (an explicit `?format=` wins over the header).
 
 ```bash
-# JSON — what any standard HTTP client (curl, fetch, requests, …) gets by default
+# JSON: what any standard HTTP client (curl, fetch, requests, ...) gets by default
 curl https://<host>/api/scorecard
 
-# Markdown — a self-describing report (signal meanings + per-anchor detail)
+# Markdown: a self-describing report (signal meanings + per-anchor detail)
 curl 'https://<host>/api/scorecard?format=md'
 curl -H 'Accept: text/markdown' https://<host>/api/scorecard
 ```
 
 **Each entry:**
 
-| Field        | Meaning                                                                                                                                             |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verdict`    | `ready` · `partial` · `blocked`                                                                                                                     |
-| `signals[]`  | the five buildability signals, each with `severity` (`required` / `friction`), `status` (`met` / `partial` / `failed` / `unverified`), and a `note` |
-| `blockers[]` | failed **required** signals — the reasons a verdict is `blocked`                                                                                    |
-| `caveats[]`  | other not-met signals (friction failures + any partial/unverified)                                                                                  |
-| `localAsset` | informational only — **not** part of the verdict                                                                                                    |
+| Field        | Meaning                                                                                                                                            |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verdict`    | `ready` · `partial` · `blocked`                                                                                                                    |
+| `signals[]`  | the six buildability signals, each with `severity` (`required` / `friction`), `status` (`met` / `partial` / `failed` / `unverified`), and a `note` |
+| `blockers[]` | failed **required** signals: the reasons a verdict is `blocked`                                                                                    |
+| `caveats[]`  | other not-met signals (friction failures + any partial/unverified)                                                                                 |
+| `localAsset` | informational only, **not** part of the verdict                                                                                                    |
 
-The verdict rule: a failed **required** signal → `blocked`; a failed **friction** signal (or any partial/unverified) → `partial`; all five met → `ready`.
+The signals: **required** are local rails, open access, and a high-fidelity sandbox; **friction** are accurate docs, agent-buildability, and fee discoverability. A failed required signal → `blocked`; a failed friction signal (or any partial/unverified) → `partial`; all six met → `ready`.
 
-**Scope:** reflects anchors in the production config only (curated + honorable mentions). Fees and liquidity are assessed separately by the BD team and intentionally omitted; the reference test anchor is excluded.
+**Scope:** reflects anchors in the production config only (curated + honorable mentions). Fees and liquidity are assessed separately by the BD team and intentionally omitted; reference anchors (the test anchor and TR mock) are excluded.
 
 ---
 
@@ -369,60 +339,65 @@ The verdict rule: a failed **required** signal → `blocked`; a failed **frictio
 | `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments             |
 | `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor quotes (RFQ)               |
 
-SEP modules are framework-agnostic. They accept an optional `fetchFn` parameter for SSR and depend only on `@stellar/stellar-sdk`.
+SEP modules are framework-agnostic and depend only on `@stellar/stellar-sdk`. Network calls accept an optional `fetchFn` (except `sep1.fetchStellarToml`, which uses the SDK's resolver). See [`src/lib/anchors/sep/README.md`](./src/lib/anchors/sep/README.md).
 
 ---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in your API keys:
+Copy `.env.example` to `.env` and fill in the API keys for the anchors you use. It covers:
 
-```env
-# Etherfuse
-ETHERFUSE_API_KEY=""
-ETHERFUSE_BASE_URL="https://api.sand.etherfuse.com"
+- **Etherfuse:** `ETHERFUSE_API_KEY`, `ETHERFUSE_BASE_URL`
+- **Koywe:** `KOYWE_CLIENT_ID`, `KOYWE_SECRET`, `KOYWE_BASE_URL`
+- **Manteca:** `MANTECA_API_KEY`, `MANTECA_BASE_URL`
+- **Chipper:** `CHIPPER_API_URL`, `CHIPPER_SECRET_KEY`
+- **TR Mock Anchor:** `PUBLIC_TRMOCK_HOME_DOMAIN` (public; no key)
+- **Stellar:** `PUBLIC_STELLAR_NETWORK`, `PUBLIC_USDC_ISSUER`, `SEP1_SIGNING_KEY_SECRET` (signs this app's own `stellar.toml`)
+- **Cron / Blend maintenance:** `CRON_SECRET`, `BLEND_*`
 
-# Stellar Network (public, accessible client-side)
-PUBLIC_STELLAR_NETWORK="testnet"
-PUBLIC_USDC_ISSUER="GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
-```
+SeevCash and the test anchor need no configuration.
 
 ## Tech Stack
 
-- **SvelteKit** - Full-stack framework
-- **Svelte 5** - UI with runes (`$state`, `$derived`, `$effect`)
-- **TypeScript** - Type safety throughout
-- **Tailwind CSS** - Styling
-- **@stellar/stellar-sdk** - Stellar blockchain interaction
-- **@stellar/freighter-api** - Wallet connection (Freighter browser extension)
-- **@lucide/svelte** - UI icons (per-icon deep imports, tree-shakeable)
+- **SvelteKit**: full-stack framework
+- **Svelte 5**: UI with runes (`$state`, `$derived`, `$effect`)
+- **TypeScript**: type safety throughout
+- **Tailwind CSS**: styling
+- **Vitest + MSW**: unit and component tests
+- **@stellar/stellar-sdk**: Stellar blockchain interaction
+- **@stellar/freighter-api**: wallet connection (Freighter browser extension)
+- **@lucide/svelte**: UI icons (per-icon deep imports, tree-shakeable)
 
 ## Adding a New Anchor
 
-Curated anchors should clear the two-lens bar (`COMMERCIAL_CRITERIA` + `DEVELOPER_CRITERIA` in `src/lib/config/anchors.ts`). If they don't — or are still being evaluated — add them to `HONORABLE_MENTIONS` instead (no client code needed), with a `scorecard` and, for pipeline candidates, `vetting: true`.
+Curated anchors should clear the two-lens bar (`COMMERCIAL_CRITERIA` + `DEVELOPER_CRITERIA` in `src/lib/config/anchors.ts`). If they don't, or are still being evaluated, add them to `HONORABLE_MENTIONS` instead (no client code needed), with a `scorecard` and, for pipeline candidates, `vetting: true`.
 
-1. Create `/src/lib/anchors/[anchor-name]/{client.ts,types.ts,index.ts}` shaped however the anchor's API works.
-2. Create `/src/lib/server/[anchor-name]Instance.ts` — singleton getter.
-3. Create `/src/lib/api/[anchor-name].ts` — client-side fetch wrappers.
-4. Create `/src/routes/api/anchor/[anchor-name]/<operation>/+server.ts` per operation.
-5. Create `/src/routes/anchors/[anchor-name]/+page.svelte` (landing) and `<flow>/+page.svelte` per flow. Compose primitives from `src/lib/components/`.
-6. Add the provider to `src/lib/constants.ts` (`PROVIDER`).
-7. Add to `src/lib/config/anchors.ts` (`ANCHORS`) and `src/lib/config/regions.ts` if regional.
-8. Add tests under `tests/anchors/[anchor-name]/`.
-9. Document in `/src/lib/anchors/[anchor-name]/README.md`.
+For a curated anchor:
+
+1. Create the client in `src/lib/anchors/<name>/`, test-first under `tests/anchors/<name>/`.
+2. **SEP anchor:** have the pages instantiate the client in the browser. **API-key anchor:** add a server singleton (`src/lib/server/<name>Instance.ts`), browser wrappers (`src/lib/api/<name>.ts`), and proxy routes (`src/routes/api/anchor/<name>/*`), and list its env vars in `.env.example`.
+3. Create `src/routes/anchors/<name>/+page.svelte` (landing, using `AnchorRegionSelector`) and the flow pages.
+4. Add the anchor to `ANCHORS` in `src/lib/config/anchors.ts` and to its regions in `src/lib/config/regions.ts`.
+5. Document it in `src/lib/anchors/<name>/README.md` and the provider indexes.
+
+The `adding-an-anchor` Claude Code skill walks through the details.
 
 ## Claude Code
 
-This repository includes configuration for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to assist with development. Contributors using Claude Code automatically pick up the MCP servers described below.
+This repository includes configuration for [Claude Code](https://code.claude.com/docs) to assist with development:
+
+- **`CLAUDE.md`:** project rules loaded in every session (kept short on purpose).
+- **`.claude/rules/`:** path-scoped rules that load when Claude works on matching files: `anchor-integrations.md` (client conventions, browser vs. proxy) and `curation-and-scorecard.md` (the two lenses and readiness verdicts).
+- **`.claude/skills/`:** workflows Claude loads on demand: `adding-an-anchor` and `assessing-an-anchor`.
 
 ### MCP Servers
 
 Configured in `.mcp.json` and loaded automatically when Claude Code starts a session in this repo.
 
-| Server        | URL                              | Description                                                                                                                     |
-| ------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **Svelte**    | `https://mcp.svelte.dev/mcp`     | Official Svelte MCP server. Provides Svelte 5 and SvelteKit documentation, code autofixing, and playground links.               |
-| **Etherfuse** | `https://docs.etherfuse.com/mcp` | Etherfuse FX API documentation search. Provides API references, code examples, and integration guides for the Etherfuse anchor. |
+| Server        | URL                              | Description                                                                                                         |
+| ------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Svelte**    | `https://mcp.svelte.dev/mcp`     | Official Svelte MCP server: Svelte 5 and SvelteKit documentation, code autofixing, and playground links.            |
+| **Etherfuse** | `https://docs.etherfuse.com/mcp` | Etherfuse API documentation search: API references, code examples, and integration guides for the Etherfuse anchor. |
 
 To enable a new MCP server, add it to `.mcp.json`:
 
@@ -436,10 +411,6 @@ To enable a new MCP server, add it to `.mcp.json`:
     }
 }
 ```
-
-### Skills
-
-Skills are project-scoped prompt extensions under `.claude/skills/` that give Claude Code domain knowledge for a specific integration. They activate automatically when Claude Code detects relevant context (e.g. working on a particular anchor's files). Add one per integration that benefits from bundled API docs.
 
 ## License
 

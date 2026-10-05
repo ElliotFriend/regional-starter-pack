@@ -117,6 +117,6 @@ On-ramp is now verified end-to-end (see Sandbox quirks). Off-ramp remains blocke
 4. **[us, once #1/#2 unblock] Document upload** — `POST /upload-delegated-kyc-files` (multipart `pdf`/`video`/`image`) is **not implemented**; it is likely required before an account reaches `canOperate: true`. Wire it only after `checkAccount`'s `missing[]` confirms documents are the gap (read the amber banner in the flow pages).
 5. **[us] Confirm off-ramp to `DELIVERED`** — on-ramp is confirmed; off-ramp still can't be verified end-to-end until blocker #2 is resolved.
 
-These are tracked as `knownIssues` on `ANCHORS.koywe` (rendered on the anchor page) and as a `TODO(koywe)` in `routes/anchors/koywe/offramp/+page.svelte`.
+These are tracked as `knownIssues` on `ANCHORS.koywe` (rendered on the anchor page).
 
 Mexico and Colombia have no published whitelisted test identities (document↔account pairs), so their off-ramp bank-account registration cannot be sandbox-verified either.

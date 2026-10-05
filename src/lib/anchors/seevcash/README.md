@@ -15,6 +15,21 @@ browser with no proxy routes.
 - Docs: <https://docs.seevcash.com/docs/anchor>
 - Machine-readable docs: <https://docs.seevcash.com/llms-full.txt>
 
+## Usage
+
+```typescript
+import { SeevcashRampClient } from 'path/to/anchors/seevcash';
+
+const anchor = new SeevcashRampClient({ usdcIssuer: PUBLIC_USDC_ISSUER });
+// Optional: domain, networkPassphrase, horizonUrl, fetchFn, debug
+```
+
+Methods: `getChallenge` / `submitChallenge` (SEP-10), `getCustomer` /
+`putCustomer` (SEP-12), `getPrice({ kind, amount })` (SEP-38 preview; `amount`
+is always USDC), `info`, `deposit`, `withdraw` (returns a ready `signableXdr`),
+and `getTransaction` (null on 404). Errors are `SeevcashError`, carrying the
+anchor's status and message.
+
 ## Flow
 
 1. SEP-10 auth (any keypair; no API key).

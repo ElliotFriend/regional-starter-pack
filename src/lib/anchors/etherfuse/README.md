@@ -1,6 +1,6 @@
 # Etherfuse Client
 
-Self-contained TypeScript client for the [Etherfuse](https://etherfuse.com) anchor API. Copy these three files into any TypeScript project — the only runtime dependency outside this directory is `@stellar/stellar-sdk` (for Stellar public-key validation).
+Self-contained TypeScript client for the [Etherfuse](https://etherfuse.com) anchor API. Copy `client.ts`, `types.ts`, and `index.ts` into any TypeScript project (`etherfuse.openapi.yaml` is the vendored API spec, for reference) — the only runtime dependency outside this directory is `@stellar/stellar-sdk` (for Stellar public-key validation).
 
 Handles fiat on/off ramps:
 
@@ -327,7 +327,7 @@ Lets you test the on-ramp end-to-end without sending real SPEI / PIX transfers.
 
 ## MCP Server
 
-An Etherfuse MCP server is configured in the repository's `.mcp.json` and loaded automatically when using [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It exposes a `SearchEtherfuseFxApi` tool that searches the Etherfuse FX API documentation for API references, code examples, and integration guides.
+An Etherfuse MCP server is configured in the repository's `.mcp.json` and loaded automatically when using [Claude Code](https://code.claude.com/docs). It exposes tools that search and read the Etherfuse API documentation (API references, code examples, and integration guides).
 
 ```json
 {

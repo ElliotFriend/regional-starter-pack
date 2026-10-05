@@ -1,42 +1,47 @@
 # API Client Functions
 
-Per-provider client-side wrappers around the SvelteKit API routes. These functions are called by Svelte components to interact with anchor services without importing server-side code directly.
+Per-provider browser wrappers around the SvelteKit proxy routes for **API-key anchors**. Svelte components call these functions to reach an anchor without importing server-side code or the API key.
 
 ```text
 src/lib/api/
+├── http.ts          <- shared fetch/JSON/error helpers (createApiRequester)
 ├── etherfuse.ts     <- wraps /api/anchor/etherfuse/*
-└── testanchor.ts    <- wraps /api/anchor/testanchor/*
+├── koywe.ts         <- wraps /api/anchor/koywe/*
+├── manteca.ts       <- wraps /api/anchor/manteca/*
+└── chipper.ts       <- wraps /api/anchor/chipper/*
 ```
+
+**SEP anchors don't have a wrapper here.** SeevCash, the test anchor, and the TR mock anchor hold no secrets, so their pages instantiate the anchor client (`SeevcashRampClient`, `TestAnchorRampClient`, `TrMockRampClient`) directly in the browser. See [`src/lib/anchors/README.md`](../anchors/README.md#where-clients-run).
 
 ## Why This Exists
 
-The anchor client libraries (`$lib/anchors/`) require credentials (an API key, or a per-request SEP-10 token) and run server-side only. The SvelteKit route handlers at `/api/anchor/<provider>/` expose them to the browser. The files in this directory provide typed functions that call those routes, so components don't need to manually construct `fetch` calls with the right URLs, methods, and error handling.
+API-key anchor clients (`$lib/anchors/<provider>/`) need a secret, so they run server-side only, behind route handlers at `/api/anchor/<provider>/`. The files in this directory provide typed functions that call those routes, so components don't need to hand-build `fetch` calls with the right URLs, methods, and error handling.
 
 ```text
 Component (.svelte)
     │
-    │  calls functions from $lib/api/etherfuse or $lib/api/testanchor
+    │  calls functions from $lib/api/<provider>
     ▼
-API client (this directory)
+API wrapper (this directory)
     │
     │  fetch('/api/anchor/<provider>/...')
     ▼
-Route handler ('/api/anchor/<provider>/.../+server.ts')
+Route handler (src/routes/api/anchor/<provider>/.../+server.ts)
     │
-    │  calls getEtherfuse() / getTestAnchor() / requireBearer(request)
+    │  calls get<Provider>() from $lib/server/<provider>Instance
     ▼
 Anchor client ($lib/anchors/<provider>/)
     │
-    │  fetch to external anchor API
+    │  fetch to the external anchor API, with the key
     ▼
-Anchor API (Etherfuse, testanchor.stellar.org)
+Anchor API (Etherfuse, Koywe, Manteca, Chipper)
 ```
 
 Each provider gets its own wrapper module, mirroring the per-provider isolation in `$lib/anchors/`.
 
 ## Usage
 
-Every function takes SvelteKit's `fetch` as its first argument. This ensures proper cookie forwarding and SSR support. Functions that need a SEP-10 session token (testanchor) accept the token as an explicit argument, which is forwarded as `Authorization: Bearer ...`.
+Every function takes SvelteKit's `fetch` as its first argument, for proper cookie forwarding and SSR support.
 
 ### Etherfuse
 
@@ -91,68 +96,17 @@ Every function takes SvelteKit's `fetch` as its first argument. This ensures pro
 
 All routes are under `/api/anchor/etherfuse/`. Errors throw `EtherfuseApiError`. Single-resource lookups return `null` on 404.
 
-### Testanchor
+### Koywe, Manteca, Chipper
 
-The testanchor wrapper expects an explicit SEP-10 token argument on methods that require auth (`getCustomer`, `putCustomer`, `sep6Deposit`, `sep6Withdraw`, `getSep6Transaction`, `sep24Deposit`, `sep24Withdraw`, `getSep24Transaction`). Use `getChallenge` + `submitChallenge` to obtain one; the demo app caches it in `authStore` (`$lib/stores/auth`).
+These follow the same pattern; read each module for its functions:
 
-```svelte
-<script lang="ts">
-    import * as ta from '$lib/api/testanchor';
-    import { authStore } from '$lib/stores/auth';
-    import { signWithFreighter } from '$lib/wallet/freighter';
-    import { walletStore } from '$lib/stores/wallet.svelte';
-
-    async function ensureToken(): Promise<string> {
-        const cached = authStore.get('testanchor', walletStore.publicKey!);
-        if (cached) return cached;
-        const challenge = await ta.getChallenge(fetch, walletStore.publicKey!);
-        const { signedXdr } = await signWithFreighter(challenge.transaction, walletStore.network);
-        const { token } = await ta.submitChallenge(fetch, signedXdr);
-        authStore.set('testanchor', walletStore.publicKey!, token);
-        return token;
-    }
-
-    const token = await ensureToken();
-
-    const customer = await ta.getCustomer(fetch, token);
-    if (customer.status === 'NEEDS_INFO') {
-        await ta.putCustomer(fetch, token, {
-            first_name: 'Test',
-            last_name: 'User',
-            email_address: 'test@example.com',
-        });
-    }
-
-    const session = await ta.sep24Deposit(fetch, token, {
-        asset_code: 'SRT',
-        asset_issuer: 'GCDNJUBQSX...',
-        account: walletStore.publicKey!,
-    });
-    window.open(session.url, '_blank');
-
-    const tx = await ta.getSep24Transaction(fetch, token, session.id);
-</script>
-```
-
-| Function              | Route                                  | Description                     |
-| --------------------- | -------------------------------------- | ------------------------------- |
-| `getChallenge`        | `POST /auth?action=challenge`          | Request SEP-10 challenge XDR    |
-| `submitChallenge`     | `POST /auth?action=token`              | Exchange signed XDR for JWT     |
-| `getCustomer`         | `GET /customer` (Bearer)               | SEP-12 customer fields + status |
-| `putCustomer`         | `PUT /customer` (Bearer)               | Submit SEP-12 fields            |
-| `getPrice`            | `POST /price`                          | SEP-38 indicative price         |
-| `sep6Deposit`         | `POST /sep6?action=deposit` (Bearer)   | SEP-6 deposit                   |
-| `sep6Withdraw`        | `POST /sep6?action=withdraw` (Bearer)  | SEP-6 withdraw + signable XDR   |
-| `getSep6Transaction`  | `GET /sep6?transactionId=` (Bearer)    | Poll SEP-6 transaction          |
-| `sep24Deposit`        | `POST /sep24?action=deposit` (Bearer)  | SEP-24 deposit (hosted URL)     |
-| `sep24Withdraw`       | `POST /sep24?action=withdraw` (Bearer) | SEP-24 withdraw (hosted URL)    |
-| `getSep24Transaction` | `GET /sep24?transactionId=` (Bearer)   | Poll SEP-24 transaction         |
-
-All routes are under `/api/anchor/testanchor/`. Errors throw `TestAnchorApiError`. Single-resource lookups return `null` on 404.
+- **`koywe.ts`** (`KoyweApiError`): payment providers and token currencies, quotes, on/off-ramp orders, `submitTxHash`, order polling (`getOrder`, `getOrderByExternalId`), delegated KYC accounts, and payout bank accounts.
+- **`manteca.ts`** (`MantecaApiError`): user onboarding (`createUser`, `submitOnboarding`, `definePersonalData`, `uploadIdentityImage`), quotes, ramp-on/ramp-off synthetics, `getSynthetic` polling, withdraw-destination validation, and the sandbox deposit.
+- **`chipper.ts`** (`ChipperApiError`): capabilities, rate, destination validation, on/off-ramp orders, `getOrder` polling, and the sandbox bank deposit.
 
 ## Error Handling
 
-Each wrapper has its own error class (`EtherfuseApiError`, `TestAnchorApiError`) with a numeric `statusCode` and a string message. Catch the specific class per provider:
+Each wrapper has its own error class (`EtherfuseApiError`, `KoyweApiError`, `MantecaApiError`, `ChipperApiError`) with a numeric `statusCode` and a string message. Catch the specific class per provider:
 
 ```typescript
 import { EtherfuseApiError } from '$lib/api/etherfuse';
@@ -169,4 +123,4 @@ try {
 
 ## Adding a wrapper for a new anchor
 
-When you add a new curated anchor (`src/lib/anchors/<name>/`), add a matching `src/lib/api/<name>.ts` here that mirrors the same per-route function pattern. Keep it focused on `fetch` + JSON marshaling — the error mapping, validation, and business logic all live server-side in the route handlers and the underlying client.
+Only API-key anchors need one. Add `src/lib/api/<name>.ts` with its own error class, build `apiRequest`/`postJson` from `createApiRequester` in `./http`, and write one function per route. Keep it to `fetch` + JSON marshaling; error mapping, validation, and business logic live server-side in the route handlers and the underlying client.

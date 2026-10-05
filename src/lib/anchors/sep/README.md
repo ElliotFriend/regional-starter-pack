@@ -4,7 +4,7 @@ Composable, framework-agnostic implementations of the [Stellar Ecosystem Proposa
 
 This library depends only on `@stellar/stellar-sdk` and has no framework-specific imports. Copy it into any TypeScript project.
 
-For a complete example of these modules composed into an anchor client, see the [Test Anchor Client](../testanchor/).
+For these modules composed into anchor clients, see [`seevcash/ramp.ts`](../seevcash/) (the smallest), [`trmock/ramp.ts`](../trmock/) (quoted `-exchange` ramps), and [`testanchor/ramp.ts`](../testanchor/) (SEP-6 and SEP-24). All three run in the browser.
 
 ## Modules
 
@@ -26,7 +26,7 @@ Import the namespaced modules you need:
 import { sep1, sep10, sep24, sep38 } from './anchors/sep';
 ```
 
-All async functions accept an optional `fetchFn` parameter as their last argument. This lets you pass in SvelteKit's `fetch`, Next.js `fetch`, or any other implementation for SSR compatibility. If omitted, the global `fetch` is used.
+Every network call except `sep1.fetchStellarToml` accepts an optional `fetchFn` parameter as its last argument. This lets you pass in SvelteKit's `fetch`, Next.js `fetch`, or any other implementation for SSR compatibility. If omitted, the global `fetch` is used. `fetchStellarToml` uses the Stellar SDK's resolver, which has its own HTTP client.
 
 ### Discover Anchor Endpoints (SEP-1)
 
@@ -168,6 +168,8 @@ const withdrawal = await sep6.withdraw(sep6Server, token, {
     dest: '123456789',
 });
 // withdrawal.account_id, withdrawal.memo, withdrawal.memo_type
+// SEP-6 lets the anchor omit these and supply withdraw_anchor_account /
+// withdraw_memo on the transaction at pending_user_transfer_start instead.
 
 // Check transaction status
 const tx = await sep6.getTransaction(sep6Server, token, deposit.id!);
@@ -181,6 +183,22 @@ const history = await sep6.getTransactions(sep6Server, token, {
     limit: 10,
 });
 ```
+
+For a rate locked with SEP-38, use the quoted variants. Asset identifiers are sent exactly as given (anchors disagree on what they accept):
+
+```typescript
+const quoted = await sep6.depositExchange(sep6Server, token, {
+    destination_asset: 'stellar:USDC:GA5ZS...',
+    source_asset: 'iso4217:TRY',
+    amount: '1000',
+    account: userPublicKey,
+    quote_id: quote.id, // from sep38.postQuote
+    funding_method: 'bank_account',
+});
+// sep6.withdrawExchange takes source_asset / destination_asset the other way round
+```
+
+Other helpers: `sep6.getTransactionByStellarId` (also in `sep24`), `sep38.getPrices` / `getAssets`, `sep12.deleteCustomer` / `getCustomerStatus`, and `sep31.getReceiveAssets` / `putTransactionCallback`.
 
 ### KYC / Customer Management (SEP-12)
 
@@ -306,7 +324,7 @@ sep38.parseAssetId('stellar:USDC:GA5ZS...'); // { type: 'stellar', code: 'USDC',
 
 ## SSR Compatibility
 
-Every async function accepts an optional `fetchFn` as its last parameter. In server-side contexts (SvelteKit load functions, Next.js server components, Express handlers), pass the framework's fetch to ensure proper cookie forwarding and request context:
+Every network call except `sep1.fetchStellarToml` accepts an optional `fetchFn` as its last parameter. In server-side contexts (SvelteKit load functions, Next.js server components, Express handlers), pass the framework's fetch to ensure proper cookie forwarding and request context:
 
 ```typescript
 // SvelteKit +page.ts

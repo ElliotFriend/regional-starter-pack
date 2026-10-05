@@ -6,10 +6,15 @@ A portable, framework-agnostic TypeScript library for integrating fiat on/off ra
 
 ```text
 anchors/
-├── etherfuse/       Etherfuse — API-key auth, Mexico (SPEI/CETES) + Brazil (PIX/TESOURO)
-├── testanchor/      Reference clients for testanchor.stellar.org
+├── etherfuse/       Etherfuse: API key; Mexico (SPEI/CETES) + Brazil (PIX/TESOURO)
+├── koywe/           Koywe: clientId/secret; Argentina, Mexico, Colombia (USDC)
+├── manteca/         Manteca: API key; Brazil, Argentina, Colombia (USDC)
+├── chipper/         Chipper: API key; Ghana, Kenya mobile money (USDC)
+├── seevcash/        SeevCash: SEP anchor; Ghana mobile money (USDC)
+├── testanchor/      Reference clients for testanchor.stellar.org (SEP-6 + SEP-24, and a playground)
+├── trmock/          TR Mock Anchor: SEP sandbox stand-in for Türkiye (FAST, USDC)
 ├── sep/             Composable SEP protocol modules (sep1, sep6, sep10, sep12, sep24, sep31, sep38)
-├── sandbox.ts       Shared sandbox helpers (test bank/PIX data)
+├── sandbox.ts       Sandbox KYC test data (Mexico)
 └── README.md        ← you are here
 ```
 
@@ -17,19 +22,33 @@ Every subdirectory is **self-contained**: copying it into another project pulls 
 
 ## Provider Index
 
-| Provider        | Directory     | Region         | Auth    | Token shapes   |
-| --------------- | ------------- | -------------- | ------- | -------------- |
-| **Etherfuse**   | `etherfuse/`  | Mexico, Brazil | API key | CETES, TESOURO |
-| **Test Anchor** | `testanchor/` | Testnet (SEP)  | SEP-10  | SRT, USDC      |
+| Provider        | Directory     | Client                 | Error class                     | Auth            | Runs in           |
+| --------------- | ------------- | ---------------------- | ------------------------------- | --------------- | ----------------- |
+| **Etherfuse**   | `etherfuse/`  | `EtherfuseClient`      | `EtherfuseError`                | API key         | Server only       |
+| **Koywe**       | `koywe/`      | `KoyweClient`          | `KoyweError`                    | clientId/secret | Server only       |
+| **Manteca**     | `manteca/`    | `MantecaClient`        | `MantecaError`                  | API key         | Server only       |
+| **Chipper**     | `chipper/`    | `ChipperClient`        | `ChipperError`                  | API key         | Server only       |
+| **SeevCash**    | `seevcash/`   | `SeevcashRampClient`   | `SeevcashError`                 | SEP-10          | Browser or server |
+| **Test Anchor** | `testanchor/` | `TestAnchorRampClient` | `TestAnchorSepUnsupportedError` | SEP-10          | Browser or server |
+| **TR Mock**     | `trmock/`     | `TrMockRampClient`     | `TrMockError`                   | SEP-10          | Browser or server |
 
-Each provider directory ships:
+Each provider directory ships a client class, its types and error class, an `index.ts` that re-exports the public surface, and a `README.md` with paste-target documentation. Proprietary APIs use `client.ts` + `types.ts`; SEP wrappers use `ramp.ts` and take their types from `sep/types.ts`.
 
-- A standalone client class (`EtherfuseClient`, `TestAnchorRampClient`).
-- Its own `types.ts` defining the inputs, outputs, and error class used by that client.
-- An `index.ts` that re-exports the public surface.
-- A `README.md` with paste-target documentation.
+Anchors that don't clear the project's two-lens bar (**commercial**: local value for end users; **developer**: buildability) are tracked as **honorable mentions** in `src/lib/config/anchors.ts`, with no client code.
 
-Anchors that exist in a curated region but don't clear the project's two-lens bar — **commercial** (local value for end-users) and **developer** (buildability) — are tracked as **honorable mentions** in `src/lib/config/anchors.ts` (no client code), each with a scored `scorecard`.
+---
+
+## Where clients run
+
+**API-key anchors must run server-side.** Never import `EtherfuseClient`, `KoyweClient`, `MantecaClient`, or `ChipperClient` into browser code. The demo app proxies them through `/api/anchor/<name>/*` routes so the key never reaches the client.
+
+**SEP anchors can run in the browser.** They hold no secrets: the user's wallet signs the SEP-10 challenge, and the token stays with the user. The demo pages instantiate `SeevcashRampClient`, `TestAnchorRampClient`, and `TrMockRampClient` directly. This only works when the anchor serves CORS on its SEP endpoints, so check before relying on it:
+
+- `stellar.toml` and `GET /auth` return `Access-Control-Allow-Origin`.
+- Preflights for `POST /auth`, `PUT /customer`, and authenticated `GET`s allow `Authorization` and `Content-Type`.
+- Error responses (400/401/403/404) carry the header too, or the browser hides the anchor's error message.
+
+All three SEP anchors above pass, with one known gap: the test anchor's 403 for a missing or invalid token has no CORS header, so a browser sees a generic network error instead. If an anchor's CORS is broken, proxy it through your backend instead.
 
 ---
 
@@ -75,17 +94,13 @@ const order = await anchor.createOnRampOrder({
 
 Off-ramp uses **deferred signing**: `createOffRampOrder()` returns immediately with no XDR. Poll `getOffRampOrder()` until `burnTransaction` is populated, then sign with the user's wallet and submit to Stellar. The anchor pays out fiat once the burn is confirmed.
 
-See [`etherfuse/README.md`](etherfuse/README.md) for the complete reference.
+See [`etherfuse/README.md`](etherfuse/README.md) for the complete reference. Koywe, Manteca, and Chipper follow the same server-side pattern; see their READMEs.
 
 ---
 
-## Test Anchor
+## SEP anchors
 
-The `testanchor/` directory ships **two** clients side-by-side:
-
-### `TestAnchorRampClient` (curated)
-
-A SEP-shaped wrapper used by the `/anchors/testanchor` ramp flows. Returns SEP types directly (`Sep6Transaction`, `Sep24InteractiveResponse`, `Sep12CustomerResponse`, `Sep10ChallengeResponse`, etc.). SEP-10 tokens are passed explicitly to each method.
+`SeevcashRampClient`, `TestAnchorRampClient`, and `TrMockRampClient` are thin wrappers over the `sep/` modules. Each one discovers endpoints from the anchor's `stellar.toml` (cached), takes the SEP-10 token explicitly on every call, and returns SEP-defined types directly (`Sep6Transaction`, `Sep12CustomerResponse`, `Sep24InteractiveResponse`, ...).
 
 ```typescript
 import { TestAnchorRampClient } from 'path/to/anchors/testanchor';
@@ -93,10 +108,10 @@ import { TestAnchorRampClient } from 'path/to/anchors/testanchor';
 const anchor = new TestAnchorRampClient();
 
 const challenge = await anchor.getChallenge(publicKey);
-// sign client-side...
+// sign with the user's wallet...
 const { token } = await anchor.submitChallenge(signedXdr);
 
-// SEP-24 interactive
+// SEP-24 interactive: open session.url for the anchor's hosted flow
 const session = await anchor.sep24Deposit(token, {
     asset_code: 'SRT',
     asset_issuer: 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B',
@@ -110,30 +125,27 @@ const deposit = await anchor.sep6Deposit(token, {
     account: publicKey,
     amount: '100',
 });
-
-// SEP-6 withdraw also returns a pre-built signable XDR for the user to sign with their wallet
-const withdrawal = await anchor.sep6Withdraw(
-    token,
-    { asset_code: 'SRT', funding_method: 'bank_account', amount: '100' },
-    publicKey,
-);
-// withdrawal.signableXdr — sign this with Freighter and submit
 ```
 
-### `TestAnchorPlaygroundClient` (SEP playground)
+### Withdrawals: the wallet sends the payment
 
-A stateful, SEP-namespaced "playground" client used by the `/testanchor` protocol demo page. Methods like `client.sep24.deposit()`, `client.sep12.getCustomer()`. Good for learning the raw SEP protocols.
+For an off-ramp, the user's wallet pays the anchor on Stellar. Where the payment details come from depends on the flow:
+
+- **SEP-6**, when the `/withdraw` response includes `account_id`: `sep6Withdraw()` returns a ready `signableXdr`.
+- **SEP-6 without `account_id`** (allowed by the spec, and what the test anchor does): `signableXdr` is `null`. Poll the transaction until `pending_user_transfer_start`, when it carries `withdraw_anchor_account` and `withdraw_memo`.
+- **SEP-24**: always deferred. The hosted flow sets the amount, and the transaction carries the details once it reaches `pending_user_transfer_start`.
+
+For the deferred cases, build the payment with `buildWithdrawalPaymentXdr(transaction, sourceAccount, assetCode, amount?)` **when the user confirms**: the XDR has a 180-second timebound and a sequence number, so building it early risks `tx_too_late` or `tx_bad_seq`.
 
 ```typescript
-import { createTestAnchorPlaygroundClient } from 'path/to/anchors/testanchor';
-
-const client = createTestAnchorPlaygroundClient();
-await client.initialize();
-await client.authenticate(publicKey, signerFn);
-const info = await client.sep24.getInfo();
+const tx = await anchor.getSep24Transaction(token, session.id);
+if (tx?.status === 'pending_user_transfer_start' && tx.withdraw_anchor_account) {
+    const xdr = await anchor.buildWithdrawalPaymentXdr(tx, publicKey, 'SRT'); // amount defaults to amount_in
+    // sign xdr with the user's wallet and submit to Horizon
+}
 ```
 
-See [`testanchor/README.md`](testanchor/README.md) for both clients' complete references.
+`testanchor/` also ships `TestAnchorPlaygroundClient`, a stateful, SEP-namespaced client (`client.sep24.deposit()`, `client.sep12.getCustomer()`) used by the `/testanchor` protocol demo page. See [`testanchor/README.md`](testanchor/README.md), [`seevcash/README.md`](seevcash/README.md), and [`trmock/README.md`](trmock/README.md).
 
 ---
 
@@ -151,7 +163,7 @@ See [`testanchor/README.md`](testanchor/README.md) for both clients' complete re
 | `sep31` | [SEP-31](https://stellar.org/protocol/sep-31) | Cross-border payments             |
 | `sep38` | [SEP-38](https://stellar.org/protocol/sep-38) | Anchor RFQ (quotes)               |
 
-All functions are framework-agnostic and accept an optional `fetchFn` parameter for SSR. Combine them to build a client against any SEP-compliant anchor.
+All modules are framework-agnostic. Network calls accept an optional `fetchFn` (except `sep1.fetchStellarToml`, which uses the SDK's resolver). Combine them to build a client against any SEP-compliant anchor.
 
 ```typescript
 import { sep1, sep10, sep24 } from 'path/to/anchors/sep';
@@ -181,7 +193,11 @@ See [`sep/README.md`](sep/README.md) for the full module reference.
 
 ## Implementing a New Anchor
 
-Each anchor stands on its own. There is no shared interface to satisfy — your client should be shaped to match the anchor's actual API. Define your own error class so consumers can `instanceof` it cleanly.
+Each anchor stands on its own. There is no shared interface to satisfy; shape your client to match the anchor's actual API. Define your own error class so consumers can `instanceof` it cleanly.
+
+**For a SEP-compliant anchor**, start from `seevcash/ramp.ts` (the smallest SEP wrapper): read endpoints from the toml, take the token explicitly, and wrap SEP errors in your own error class.
+
+**For a proprietary API**, the shape looks like this:
 
 ```typescript
 // anchors/myanchor/types.ts
@@ -200,6 +216,8 @@ export class MyAnchorError extends Error {
 export interface MyAnchorConfig {
     apiKey: string;
     baseUrl: string;
+    /** Log requests and responses (never credentials). Off by default. */
+    debug?: boolean;
 }
 
 export interface CreateCustomerArgs {
@@ -221,7 +239,6 @@ import { MyAnchorError, type MyAnchorConfig /*, ... */ } from './types';
 export class MyAnchorClient {
     readonly name = 'myanchor';
     readonly displayName = 'My Anchor';
-    readonly supportedTokens = [/* ... */] as const;
     readonly supportedCurrencies = ['USD'] as const;
     readonly supportedRails = ['bank'] as const;
 
@@ -259,15 +276,13 @@ export { MyAnchorError } from './types';
 export type * from './types';
 ```
 
-For SEP-compliant anchors, follow the `TestAnchorRampClient` pattern: import the `sep/` modules and wrap them with discovery caching + an explicit token parameter.
-
 ---
 
 ## Common Patterns
 
-### Returning typed errors
+### Typed errors
 
-Each client defines its own `*Error` class with `code: string` and `statusCode: number`. Callers can narrow with `instanceof`:
+Each client defines its own `*Error` class with a `statusCode` (and usually a `code`). Callers narrow with `instanceof`:
 
 ```typescript
 import { MyAnchorClient, MyAnchorError } from './anchors/myanchor';
@@ -284,22 +299,15 @@ try {
 
 ### 404 returns null
 
-Single-resource lookups (`getCustomer`, `getOrder`, etc.) should return `null` on 404 rather than throwing. List operations return `[]` on 404. This lets callers `await` without `try`/`catch` for "not found" expectations.
+Single-resource lookups (`getCustomer`, `getOrder`, `getTransaction`, ...) return `null` on 404 rather than throwing. List operations return `[]` on 404. This lets callers `await` without `try`/`catch` for "not found" expectations.
 
-### Server-only
+### Debug logging
 
-Clients that use API keys (e.g. Etherfuse) **must only run server-side**. Don't import them into browser code. The SvelteKit demo app routes Etherfuse calls through `/api/anchor/etherfuse/*` proxy routes so the key never reaches the client.
+Every client takes `debug?: boolean`, off by default. When set, it logs requests, responses, and errors; when not, it logs nothing. It never logs credentials or SEP-10 tokens, even in debug.
 
-For SEP-10–authenticated clients, the token can travel to the browser via an `Authorization: Bearer ...` header on each request. The test anchor route handlers use `requireBearer(request)` for this pattern.
+### Browser safety
 
----
-
-## CORS Note
-
-Browser requests to anchor APIs typically fail due to CORS. Solutions:
-
-1. **Server proxy** (recommended): create API routes that proxy to the anchor. The SvelteKit app does this at `/api/anchor/etherfuse/*` and `/api/anchor/testanchor/*`.
-2. **Server-side only**: use the library only in server code (API routes, SSR).
+Clients that may run in the browser avoid Node-only APIs (decode base64 with `atob`, not `Buffer`) and never call the global `fetch` as a method of the client object, which browsers reject with "Illegal invocation".
 
 ---
 

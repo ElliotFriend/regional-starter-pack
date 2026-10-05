@@ -16,12 +16,12 @@ This app's proxy routes (`src/routes/api/anchor/chipper/*`) are unauthenticated,
 
 ## Files
 
-| File                   | Purpose                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `client.ts`            | `ChipperClient` plus the pure helpers `mapOrder` and `sandboxCollectionOutcome` |
-| `types.ts`             | Wire and client types, and `ChipperError`                                       |
-| `index.ts`             | Re-exports                                                                      |
-| `chipper.openapi.json` | Vendored OpenAPI spec (the wire authority)                                      |
+| File                   | Purpose                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `client.ts`            | `ChipperClient`, the pure helpers `mapOrder` and `sandboxCollectionOutcome`, and `assertSandboxKey` (refuses live keys) |
+| `types.ts`             | Wire and client types, and `ChipperError`                                                                               |
+| `index.ts`             | Re-exports                                                                                                              |
+| `chipper.openapi.json` | Vendored OpenAPI spec (the wire authority)                                                                              |
 
 ## Setup
 

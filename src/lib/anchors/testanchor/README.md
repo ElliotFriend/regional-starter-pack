@@ -13,7 +13,9 @@ Both are framework-agnostic and copy-pasteable. They compose the [SEP modules](.
 
 ## `TestAnchorRampClient` (curated ramp client)
 
-A focused wrapper around the SEP modules for talking to the test anchor. Returns SEP-shaped responses directly — there's no adaptation layer because testanchor IS SEP. SEP-10 tokens are passed explicitly to each method that needs them, so a single instance is safe to share across requests.
+A focused wrapper around the SEP modules for talking to the test anchor. Returns SEP-shaped responses directly — there's no adaptation layer because testanchor IS SEP. SEP-10 tokens are passed explicitly to each method that needs them, so a single instance is safe to share.
+
+The client is **browser-safe**: the test anchor holds no secrets and serves CORS on its SEP endpoints, so the demo pages construct it in the browser (`new TestAnchorRampClient({ debug: dev })`) with no proxy routes. One CORS gap: a 403 for a missing or invalid token has no `Access-Control-Allow-Origin`, so a browser sees a network error instead of the 403.
 
 ### Usage
 
@@ -23,6 +25,9 @@ import { TestAnchorRampClient } from 'path/to/anchors/testanchor';
 const anchor = new TestAnchorRampClient();
 // Optional config: { domain, networkPassphrase, horizonUrl, fetchFn, debug }
 // `debug` logs request URLs and response statuses to the console (off by default).
+
+anchor.supportedTokens; // SRT and USDC, with their testnet issuers
+anchor.findToken('SRT'); // case-insensitive lookup
 ```
 
 ### SEP-1 discovery
@@ -86,18 +91,33 @@ const deposit = await anchor.sep6Deposit(token, {
 });
 // deposit.instructions is a Record<string, { value, description }>
 
-// Withdraw — returns the anchor's account/memo PLUS a pre-built signable XDR
+// Withdraw — starts the withdrawal; the wallet then pays the anchor
 const withdrawal = await anchor.sep6Withdraw(
     token,
     { asset_code: 'SRT', funding_method: 'bank_account', amount: '50' },
     sourceAccount,
 );
-// withdrawal.signableXdr — sign with Freighter and submit to Stellar
+// withdrawal.signableXdr is a ready payment XDR when the response named the
+// anchor's account_id, and null when the anchor defers it (see below)
 
 // Poll a transaction
 const tx = await anchor.getSep6Transaction(token, withdrawal.id);
 // tx is Sep6Transaction or null on 404
 ```
+
+**Deferred withdrawals.** SEP-6 lets an anchor omit `account_id` from `/withdraw` and supply `withdraw_anchor_account` / `withdraw_memo` on the transaction once it reaches `pending_user_transfer_start`. The test anchor does this, so `signableXdr` is `null`. Poll until then, and build the payment when the user confirms (the XDR carries a 180s timebound and a sequence number):
+
+```typescript
+const tx = await anchor.getSep6Transaction(token, withdrawal.id);
+if (tx?.status === 'pending_user_transfer_start' && tx.withdraw_anchor_account) {
+    const xdr = await anchor.buildWithdrawalPaymentXdr(tx, sourceAccount, 'SRT', '50');
+    // sign with the user's wallet and submit to Stellar
+}
+```
+
+`buildWithdrawalPaymentXdr(transaction, sourceAccount, assetCode, amount?)` throws if the anchor hasn't provided `withdraw_anchor_account` yet; `amount` defaults to the transaction's `amount_in`.
+
+> As of 2026-10-05 the test anchor leaves SEP-6 withdrawals in `incomplete` and never reaches `pending_user_transfer_start`, so the programmatic off-ramp can't finish there. The SEP-24 withdrawal does.
 
 ### SEP-24 interactive
 
@@ -118,9 +138,19 @@ const withdrawal = await anchor.sep24Withdraw(token, {/* ... */});
 const tx = await anchor.getSep24Transaction(token, deposit.id);
 ```
 
+A SEP-24 withdrawal also needs the wallet's payment. After the hosted flow, poll until `pending_user_transfer_start`, then build the payment from the transaction (the amount defaults to the `amount_in` the hosted flow settled on):
+
+```typescript
+const tx = await anchor.getSep24Transaction(token, withdrawal.id);
+if (tx?.status === 'pending_user_transfer_start' && tx.withdraw_anchor_account) {
+    const xdr = await anchor.buildWithdrawalPaymentXdr(tx, publicKey, 'SRT');
+    // sign with the user's wallet and submit to Stellar
+}
+```
+
 ### Errors
 
-The client throws `TestAnchorSepUnsupportedError` if the anchor's `stellar.toml` doesn't advertise a required SEP. Other errors propagate from the underlying SEP modules.
+The client throws `TestAnchorSepUnsupportedError` if the anchor's `stellar.toml` doesn't advertise a required SEP, and a plain `Error` if a `/withdraw` response has neither `account_id` nor `id`. Other errors propagate from the underlying SEP modules (`SepApiError`).
 
 ```typescript
 import { TestAnchorSepUnsupportedError } from 'path/to/anchors/testanchor';
@@ -324,11 +354,11 @@ export async function load({ fetch }) {
 
 ## Choosing between the two
 
-- **`TestAnchorRampClient`** — use this if you're building production ramp UI. Methods return SEP types directly; explicit token passing makes it safe to share across requests.
+- **`TestAnchorRampClient`** — use this if you're building ramp UI. Methods return SEP types directly; explicit token passing makes one instance safe to share.
 - **`TestAnchorPlaygroundClient`** — use this if you're learning the SEP protocols or building a playground UI. The namespaced API (`client.sep24.deposit()`) reads like the SEP spec; the cached token is convenient for an interactive shell.
 
-Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorPlaygroundClient`.
+Both are independent and you can use either, neither, or both. The curated ramp pages (`/anchors/testanchor/...`) use `TestAnchorRampClient`; the standalone demo (`/testanchor`) uses `TestAnchorPlaygroundClient`, and also posts some SEP-6/SEP-24 calls through its own `/api/testanchor/sep6` and `/api/testanchor/sep24` proxies.
 
 ## Implementing a similar client for another SEP-compliant anchor
 
-`TestAnchorRampClient` is a small (~350 LOC) reference for how to wrap the SEP modules into a per-anchor client. Copy it, rename the class, change the default domain, and adjust `supportedTokens` to match the anchor's issuers. The discovery caching + endpoint resolution helpers (`toml()`, `endpoint()`) are the reusable bits — drop them in as-is.
+`TestAnchorRampClient` is a reference for how to wrap the SEP modules into a per-anchor client (for the smallest example, see `../seevcash/ramp.ts`). Copy it, rename the class, change the default domain, and adjust `supportedTokens` to match the anchor's issuers. The discovery caching + endpoint resolution helpers (`toml()`, `endpoint()`) are the reusable bits — drop them in as-is.

@@ -90,7 +90,9 @@ const manteca = new MantecaClient({
 | ---------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- |
 | `createUser`                 | `POST /crypto/v2/users`                                         | Create an end-user (returns per-user Stellar deposit address) |
 | `getUser`                    | `GET /crypto/v2/users/{anyId}`                                  | Read onboarding status / `canOperate`                         |
+| `findUser`                   | `GET /crypto/v2/users?email=&legalId=`                          | Look up an existing user (null when none)                     |
 | `submitOnboarding`           | `POST /crypto/v2/onboarding-actions/initial`                    | Create user + submit CPF and `personalData`                   |
+| `definePersonalData`         | `POST /crypto/v2/onboarding-actions/define-personal-data`       | Fill pending `personalData` for an existing user              |
 | `getMissingPersonalData`     | `GET /crypto/v2/stats/onboarding/missing-personal-data/{anyId}` | Which KYC fields are still pending                            |
 | `getPrice`                   | `GET /crypto/v2/prices/direct/{ticker}`                         | Nominal + effective buy/sell for e.g. `USDC_BRL`              |
 | `getQuote`                   | _(composed)_                                                    | Quote from the price's effective buy/sell + spread            |
@@ -98,6 +100,7 @@ const manteca = new MantecaClient({
 | `createRampOff`              | `POST /crypto/v2/synthetics/ramp-off`                           | USDC-on-Stellar → fiat synthetic                              |
 | `getSynthetic`               | `GET /crypto/v2/synthetics/{anyId}`                             | Poll ramp progress (`isTerminal`)                             |
 | `getWithdrawDestinationInfo` | `GET /crypto/v2/info/withdraw-destination/{dest}`               | Validate a PIX key / CBU / CVU                                |
+| `uploadIdentityImage`        | `POST /crypto/v2/onboarding-actions/upload-identity-image`      | Presigned ID document upload (`FRONT` / `BACK`)               |
 | `uploadSelfieImage`          | `POST /crypto/v2/onboarding-actions/upload-selfie-image`        | Presigned selfie upload (`SELFIE_VALIDATION`)                 |
 | `createSandboxDeposit`       | `POST /crypto/v2/sandbox-actions/create-deposit`                | Sandbox only: credit a static deposit address (AR CVU)        |
 
