@@ -30,7 +30,6 @@
         "clear": "rm -rf .svelte-kit && rm -rf build"
     },
     "devDependencies": {
-        "@eslint/compat": "^2.1.1",
         "@eslint/js": "^10.0.1",
         "@sveltejs/adapter-vercel": "^7.0.0",
         "@sveltejs/kit": "^3.0.0",
