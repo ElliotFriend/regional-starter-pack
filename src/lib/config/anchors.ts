@@ -1088,11 +1088,11 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             },
             'accurate-docs': {
                 status: 'failed',
-                note: 'Endorsement names, payout body, and several endpoints differ from the wire; MX individual KYC cannot pass preflight',
+                note: 'Webhook, virtual account, and settlement fields differ from the wire; many 422s are bare',
             },
             'high-fidelity-sandbox': {
                 status: 'failed',
-                note: 'XLM deposit address is not a valid Stellar key; a "COMPLETE" USDC payout to a testnet account had no tx hash and nothing landed',
+                note: 'Stellar payout leg is simulated (confirmed by Alfred): "COMPLETE" with no tx hash; XLM deposit address invalid',
             },
             'agent-buildable': {
                 status: 'partial',
