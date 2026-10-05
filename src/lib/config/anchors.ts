@@ -1472,6 +1472,52 @@ export const HONORABLE_MENTIONS: Record<string, HonorableMention> = {
             'agent-buildable': { status: 'met', note: 'OpenAPI + llms.txt; diagnosable errors' },
         }),
     },
+    seevcash: {
+        id: 'seevcash',
+        name: 'SeevCash',
+        description:
+            'Ghana SEP anchor (SEP-6/10/12/24/38) bridging USDC on Stellar with GHS over MTN, Telecel, and AirtelTigo mobile money. Self-serve testnet anchor; production access terms not yet confirmed.',
+        website: 'https://seevcash.com',
+        tokens: ['USDC'],
+        rails: ['mobile-money', 'bank'],
+        regions: ['ghana'],
+        vetting: true,
+        scorecard: makeCriteria({
+            'local-asset': {
+                status: 'failed',
+                note: 'USDC only; GHS is off-chain fiat',
+            },
+            'local-rails': {
+                status: 'met',
+                note: 'Ghana mobile money (MTN, Telecel, AirtelTigo) and bank',
+            },
+            'competitive-rates': {
+                status: 'unverified',
+                note: 'Testnet SEP-38 quotes ~3%; production pricing unconfirmed',
+            },
+            'deep-liquidity': { status: 'unverified' },
+            'open-access': {
+                status: 'met',
+                note: 'Standard SEP-10 auth on testnet; no keys or signup',
+            },
+            'accurate-docs': {
+                status: 'partial',
+                note: 'SEP-standard, but docs drift: wrong SEP-24 paths, missing withdraw params, mainnet values on testnet pages',
+            },
+            'high-fidelity-sandbox': {
+                status: 'met',
+                note: 'SEP-6 deposit and withdraw settle real testnet USDC; mobile money leg simulated',
+            },
+            'agent-buildable': {
+                status: 'partial',
+                note: 'llms.txt + SEP contract; SEP-12 silently accepts unknown fields, SEP-24 page returns 500',
+            },
+            'fee-discoverability': {
+                status: 'partial',
+                note: 'SEP-38 quotes work; fees disagree across /info, SEP-6, and SEP-38',
+            },
+        }),
+    },
 };
 
 export function getHonorableMentionsForRegion(regionId: string): HonorableMention[] {

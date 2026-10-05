@@ -204,9 +204,9 @@ describe('curationStatus', () => {
 });
 
 describe('HONORABLE_MENTIONS', () => {
-    it('has 12 entries (4 vetted + 8 in-vetting pipeline; Manteca and Chipper graduated to curated)', () => {
+    it('has 13 entries (4 vetted + 9 in-vetting pipeline; Manteca and Chipper graduated to curated)', () => {
         const mentions = Object.keys(HONORABLE_MENTIONS);
-        expect(mentions).toHaveLength(12);
+        expect(mentions).toHaveLength(13);
         expect(mentions).not.toContain('manteca');
     });
 
@@ -232,6 +232,17 @@ describe('HONORABLE_MENTIONS', () => {
         expect(ANCHORS.chipper.regions.ghana.kycRequired).toBe(true);
         expect(ANCHORS.chipper.regions.kenya.kycRequired).toBe(true);
         expect(ANCHORS.chipper.logo).toBe('/anchor-logos/chipper.svg');
+    });
+
+    it('includes Seevcash (Ghana SEP anchor), flagged vetting, over mobile money and bank', () => {
+        const mention = HONORABLE_MENTIONS['seevcash'];
+        expect(mention).toBeDefined();
+        expect(mention.name).toBe('SeevCash');
+        expect(mention.vetting).toBe(true);
+        expect(mention.scorecard).toHaveLength(9);
+        expect(mention.regions).toEqual(['ghana']);
+        expect(mention.rails).toEqual(['mobile-money', 'bank']);
+        expect(mention.tokens).toEqual(['USDC']);
     });
 
     it('includes blindpay', () => {
@@ -334,9 +345,9 @@ describe('getHonorableMentionsForRegion', () => {
 });
 
 describe('getAllHonorableMentions', () => {
-    it('returns all 12 honorable mentions', () => {
+    it('returns all 13 honorable mentions', () => {
         const mentions = getAllHonorableMentions();
-        expect(mentions).toHaveLength(12);
+        expect(mentions).toHaveLength(13);
     });
 });
 
