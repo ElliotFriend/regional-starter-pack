@@ -1,0 +1,38 @@
+# SeevCash
+
+Client for `anchor.seevcash.com`, SeevCash's Ghana SEP anchor on Stellar
+testnet. It bridges USDC with GHS over mobile money (MTN, Telecel,
+AirtelTigo). GHS is off-chain fiat; USDC is the only Stellar asset.
+
+On testnet the mobile money leg is simulated and the Stellar leg pays real
+testnet USDC. Mainnet runs on a separate host, `anchor-prod.seevcash.com`.
+
+- Docs: <https://docs.seevcash.com/docs/anchor>
+- Machine-readable docs: <https://docs.seevcash.com/llms-full.txt>
+
+## Flow
+
+1. SEP-10 auth (any keypair; no API key).
+2. SEP-12 `PUT /customer` with SEP-9 fields, including `mobile_money_number`
+   and `mobile_money_provider`. Testnet auto-accepts.
+3. Optional SEP-38 `/price` preview (`getPrice`).
+4. SEP-6 `deposit` (the anchor prompts the customer's mobile money wallet) or
+   `withdraw` (the wallet pays USDC to `account_id` with the returned memo).
+5. Poll SEP-6 `/transaction`.
+
+## Wire quirks (verified 2026-10-05)
+
+- `/withdraw` requires `funding_method` (`mobile`), which the docs omit. The
+  payout number comes from the SEP-12 `mobile_money_*` fields; `dest` and
+  `dest_extra` are ignored.
+- SEP-12 accepts and reports `ACCEPTED` for any key, recognised or not. Use
+  SEP-9 `birth_date`; the docs' `date_of_birth` is not recognised.
+- SEP-24 lives at the toml's `TRANSFER_SERVER_SEP0024` root, not the docs'
+  `/sep24/...` paths, and its hosted page currently returns 500. This client
+  covers SEP-6 only.
+- SEP-10 JWTs expire after 15 minutes (the docs say 24 hours).
+- `/sep6/info` advertises `account_creation: true`, but a deposit to an
+  unfunded account errors ("Destination account ... does not exist"). The
+  account must exist and trust USDC first.
+- SEP-6 transaction objects include `amount_in` and `amount_out` but omit
+  `amount_fee`.
