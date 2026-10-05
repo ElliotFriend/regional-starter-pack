@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
+    import { dev } from '$app/environment';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { getStellarAsset } from '$lib/wallet/stellar';
     import { createSep10Session } from '$lib/wallet/sep10-session';
@@ -11,9 +12,14 @@
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
-    import * as ta from '$lib/api/testanchor';
+    import { TestAnchorRampClient } from '$lib/anchors/testanchor';
     import type { Sep24Transaction } from '$lib/anchors/sep/types';
     import type { StellarNetwork } from '$lib/wallet/types';
+
+    // No proxy routes: the test anchor holds no secrets and serves CORS on its SEP
+    // endpoints, so the page talks to the anchor directly. The SEP-10 token
+    // never leaves the browser.
+    const anchor = new TestAnchorRampClient({ debug: dev });
 
     const PROVIDER = 'testanchor';
     const SRT_ISSUER = 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B';
@@ -42,8 +48,8 @@
     });
 
     const sep10 = createSep10Session(PROVIDER, {
-        getChallenge: ta.getChallenge,
-        submitChallenge: ta.submitChallenge,
+        getChallenge: (_fetch, account) => anchor.getChallenge(account),
+        submitChallenge: (_fetch, signedXdr) => anchor.submitChallenge(signedXdr),
     });
 
     async function startWithdraw() {
@@ -53,7 +59,7 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            const session = await ta.sep24Withdraw(fetch, token, {
+            const session = await anchor.sep24Withdraw(token, {
                 asset_code: 'SRT',
                 asset_issuer: SRT_ISSUER,
                 account: walletStore.publicKey,
@@ -75,7 +81,7 @@
         if (!transactionId) return;
         const token = sep10.cached();
         if (!token) return;
-        const updated = await ta.getSep24Transaction(fetch, token, transactionId);
+        const updated = await anchor.getSep24Transaction(token, transactionId);
         if (!updated) return;
         transaction = updated;
         if (updated.status === 'completed') {

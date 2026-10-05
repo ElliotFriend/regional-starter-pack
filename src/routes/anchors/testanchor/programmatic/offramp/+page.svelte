@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
+    import { dev } from '$app/environment';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
@@ -13,7 +14,7 @@
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
-    import * as ta from '$lib/api/testanchor';
+    import { TestAnchorRampClient } from '$lib/anchors/testanchor';
     import type {
         Sep6Transaction,
         Sep6WithdrawResponse,
@@ -21,6 +22,11 @@
         Sep12Field,
     } from '$lib/anchors/sep/types';
     import type { StellarNetwork } from '$lib/wallet/types';
+
+    // No proxy routes: the test anchor holds no secrets and serves CORS on its SEP
+    // endpoints, so the page talks to the anchor directly. The SEP-10 token
+    // never leaves the browser.
+    const anchor = new TestAnchorRampClient({ debug: dev });
 
     const PROVIDER = 'testanchor';
     const SRT_ISSUER = 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B';
@@ -54,8 +60,8 @@
     });
 
     const sep10 = createSep10Session(PROVIDER, {
-        getChallenge: ta.getChallenge,
-        submitChallenge: ta.submitChallenge,
+        getChallenge: (_fetch, account) => anchor.getChallenge(account),
+        submitChallenge: (_fetch, signedXdr) => anchor.submitChallenge(signedXdr),
     });
 
     async function checkKyc() {
@@ -65,7 +71,7 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            customer = await ta.getCustomer(fetch, token);
+            customer = await anchor.getCustomer(token);
             if (customer.status === 'ACCEPTED') {
                 step = 'amount';
             }
@@ -91,8 +97,8 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            await ta.putCustomer(fetch, token, kycFields);
-            customer = await ta.getCustomer(fetch, token);
+            await anchor.putCustomer(token, kycFields);
+            customer = await anchor.getCustomer(token);
             if (customer.status === 'ACCEPTED') {
                 step = 'amount';
             }
@@ -110,8 +116,7 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            withdraw = await ta.sep6Withdraw(
-                fetch,
+            withdraw = await anchor.sep6Withdraw(
                 token,
                 {
                     asset_code: 'SRT',
@@ -149,7 +154,7 @@
         if (!withdraw?.id) return;
         const token = sep10.cached();
         if (!token) return;
-        const updated = await ta.getSep6Transaction(fetch, token, withdraw.id);
+        const updated = await anchor.getSep6Transaction(token, withdraw.id);
         if (!updated) return;
         transaction = updated;
         if (updated.status === 'completed') {

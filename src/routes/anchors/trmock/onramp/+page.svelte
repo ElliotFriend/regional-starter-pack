@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
+    import { dev } from '$app/environment';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { getStellarAsset } from '$lib/wallet/stellar';
     import { createSep10Session } from '$lib/wallet/sep10-session';
@@ -12,8 +13,8 @@
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import * as trmock from '$lib/api/trmock';
+    import { PUBLIC_TRMOCK_HOME_DOMAIN, PUBLIC_USDC_ISSUER } from '$env/static/public';
+    import { TrMockRampClient } from '$lib/anchors/trmock';
     import type {
         Sep6Transaction,
         Sep6DepositResponse,
@@ -21,6 +22,15 @@
         Sep38QuoteResponse,
     } from '$lib/anchors/sep/types';
     import type { StellarNetwork } from '$lib/wallet/types';
+
+    // No proxy routes: the TR Mock Anchor holds no secrets and serves CORS on its SEP
+    // endpoints, so the page talks to the anchor directly. The SEP-10 token
+    // never leaves the browser.
+    const anchor = new TrMockRampClient({
+        domain: PUBLIC_TRMOCK_HOME_DOMAIN,
+        usdcIssuer: PUBLIC_USDC_ISSUER,
+        debug: dev,
+    });
 
     const PROVIDER = 'trmock';
     const network: StellarNetwork = 'testnet';
@@ -54,8 +64,8 @@
     onMount(() => () => poller.stop());
 
     const sep10 = createSep10Session(PROVIDER, {
-        getChallenge: trmock.getChallenge,
-        submitChallenge: trmock.submitChallenge,
+        getChallenge: (_fetch, account) => anchor.getChallenge(account),
+        submitChallenge: (_fetch, signedXdr) => anchor.submitChallenge(signedXdr),
     });
 
     $effect(() => {
@@ -72,7 +82,7 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            customer = await trmock.getCustomer(fetch, token);
+            customer = await anchor.getCustomer(token);
             if (customer.status === 'ACCEPTED') step = 'amount';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to check KYC status';
@@ -98,8 +108,8 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            await trmock.putCustomer(fetch, token, kycFields);
-            customer = await trmock.getCustomer(fetch, token);
+            await anchor.putCustomer(token, kycFields);
+            customer = await anchor.getCustomer(token);
             if (customer.status === 'ACCEPTED') step = 'amount';
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to submit KYC';
@@ -117,8 +127,13 @@
             if (!token) throw new Error('Wallet authentication failed');
             // Lock a firm rate first, then hand the quote to deposit-exchange
             // so the settled amount matches what the user was shown.
-            quote = await trmock.createQuote(fetch, token, 'onramp', amount);
-            deposit = await trmock.depositExchange(fetch, token, {
+            quote = await anchor.createQuote(token, {
+                sell_asset: anchor.fiatAssetId(),
+                buy_asset: anchor.sep38AssetId(),
+                sell_amount: amount,
+                context: 'sep6',
+            });
+            deposit = await anchor.depositExchange(token, {
                 amount,
                 account: walletStore.publicKey,
                 quoteId: quote.id,
@@ -139,7 +154,7 @@
         try {
             const token = sep10.cached();
             if (!token) throw new Error('Session expired — reconnect your wallet');
-            await trmock.simulateBankTransfer(fetch, token, deposit.id, amount);
+            await anchor.simulateBankTransfer(token, deposit.id, amount);
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to simulate the bank transfer';
         } finally {
@@ -151,7 +166,7 @@
         if (!deposit?.id) return;
         const token = sep10.cached();
         if (!token) return;
-        const updated = await trmock.getTransaction(fetch, token, deposit.id);
+        const updated = await anchor.getTransaction(token, deposit.id);
         if (!updated) return;
         transaction = updated;
         if (updated.status === 'completed') {

@@ -1,6 +1,6 @@
 /**
  * Shared HTTP helpers for the per-provider client-side API wrappers
- * (`$lib/api/etherfuse.ts`, `$lib/api/testanchor.ts`, etc.).
+ * (`$lib/api/etherfuse.ts`, `$lib/api/chipper.ts`, etc.).
  *
  * Per-provider wrappers create their own bound `apiRequest`/`postJson` via
  * {@link createApiRequester} so each provider keeps its own typed error class

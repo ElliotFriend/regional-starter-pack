@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { resolve } from '$app/paths';
+    import { dev } from '$app/environment';
     import { walletStore } from '$lib/stores/wallet.svelte';
     import { signWithFreighter } from '$lib/wallet/freighter';
     import { getStellarAsset, submitTransaction } from '$lib/wallet/stellar';
@@ -13,14 +14,23 @@
     import ErrorAlert from '$lib/components/ui/ErrorAlert.svelte';
     import CopyableField from '$lib/components/ui/CopyableField.svelte';
     import DevBox from '$lib/components/ui/DevBox.svelte';
-    import { PUBLIC_USDC_ISSUER } from '$env/static/public';
-    import * as trmock from '$lib/api/trmock';
+    import { PUBLIC_TRMOCK_HOME_DOMAIN, PUBLIC_USDC_ISSUER } from '$env/static/public';
+    import { TrMockRampClient } from '$lib/anchors/trmock';
     import type {
         Sep6Transaction,
         Sep6WithdrawResponse,
         Sep38QuoteResponse,
     } from '$lib/anchors/sep/types';
     import type { StellarNetwork } from '$lib/wallet/types';
+
+    // No proxy routes: the TR Mock Anchor holds no secrets and serves CORS on its SEP
+    // endpoints, so the page talks to the anchor directly. The SEP-10 token
+    // never leaves the browser.
+    const anchor = new TrMockRampClient({
+        domain: PUBLIC_TRMOCK_HOME_DOMAIN,
+        usdcIssuer: PUBLIC_USDC_ISSUER,
+        debug: dev,
+    });
 
     // No SEP-12 step here, unlike the on-ramp. Verified against the live anchor
     // 2026-09-15: a fresh account that never created a customer still gets a 200
@@ -56,8 +66,8 @@
     });
 
     const sep10 = createSep10Session(PROVIDER, {
-        getChallenge: trmock.getChallenge,
-        submitChallenge: trmock.submitChallenge,
+        getChallenge: (_fetch, account) => anchor.getChallenge(account),
+        submitChallenge: (_fetch, signedXdr) => anchor.submitChallenge(signedXdr),
     });
 
     // Stop polling if the user navigates away mid-withdrawal — parity with
@@ -75,8 +85,13 @@
         try {
             const token = await sep10.ensure(fetch);
             if (!token) throw new Error('Wallet authentication failed');
-            quote = await trmock.createQuote(fetch, token, 'offramp', amount);
-            withdrawal = await trmock.withdrawExchange(fetch, token, {
+            quote = await anchor.createQuote(token, {
+                sell_asset: anchor.sep38AssetId(),
+                buy_asset: anchor.fiatAssetId(),
+                sell_amount: amount,
+                context: 'sep6',
+            });
+            withdrawal = await anchor.withdrawExchange(token, {
                 amount,
                 account: walletStore.publicKey,
                 quoteId: quote.id,
@@ -138,7 +153,7 @@
         if (!withdrawal?.id) return;
         const token = sep10.cached();
         if (!token) return;
-        const updated = await trmock.getTransaction(fetch, token, withdrawal.id);
+        const updated = await anchor.getTransaction(token, withdrawal.id);
         if (!updated) return;
         transaction = updated;
         if (updated.status === 'completed') {
