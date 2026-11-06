@@ -1,3 +1,275 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+/*
+ * Existing pages use Tailwind's light-surface utilities throughout their
+ * independent anchor flows. Scope their dark equivalents at the root so
+ * all routes—including provider demos—share the same dark presentation.
+ * Preserve the original utility colors when dark mode is not active.
+ */
+html {
+    color-scheme: light;
+}
+
+html.dark {
+    color-scheme: dark;
+}
+
+@layer utilities {
+    html.dark .bg-white {
+        background: #172235;
+    }
+
+    html.dark .bg-gray-50 {
+        background: #0e1728;
+    }
+
+    html.dark .bg-gray-100 {
+        background: #253349;
+    }
+
+    html.dark .bg-gray-200 {
+        background: #334155;
+    }
+
+    html.dark .bg-gray-300 {
+        background: #475569;
+    }
+
+    html.dark .bg-indigo-50 {
+        background: #20294c;
+    }
+
+    html.dark .bg-indigo-100 {
+        background: #303b68;
+    }
+
+    html.dark .bg-violet-100 {
+        background: #3c285a;
+    }
+
+    html.dark .bg-blue-50 {
+        background: #172b48;
+    }
+
+    html.dark .bg-blue-100 {
+        background: #1b3559;
+    }
+
+    html.dark .bg-green-50 {
+        background: #16382e;
+    }
+
+    html.dark .bg-green-100 {
+        background: #194637;
+    }
+
+    html.dark .bg-red-50 {
+        background: #43212c;
+    }
+
+    html.dark .bg-red-100 {
+        background: #51232d;
+    }
+
+    html.dark .bg-amber-50 {
+        background: #42321e;
+    }
+
+    html.dark .bg-amber-100 {
+        background: #524023;
+    }
+
+    html.dark .bg-yellow-50 {
+        background: #403719;
+    }
+
+    html.dark .bg-yellow-100 {
+        background: #4e421c;
+    }
+
+    html.dark .text-gray-900 {
+        color: #f8fafc;
+    }
+
+    html.dark .text-gray-800 {
+        color: #e2e8f0;
+    }
+
+    html.dark .text-gray-700 {
+        color: #cbd5e1;
+    }
+
+    html.dark .text-gray-600 {
+        color: #b6c4d5;
+    }
+
+    html.dark .text-gray-500 {
+        color: #94a3b8;
+    }
+
+    html.dark .text-gray-400 {
+        color: #94a3b8;
+    }
+
+    html.dark .text-gray-300 {
+        color: #cbd5e1;
+    }
+
+    html.dark .text-indigo-600 {
+        color: #a5b4fc;
+    }
+
+    html.dark .text-indigo-700 {
+        color: #c7d2fe;
+    }
+
+    html.dark .text-indigo-800 {
+        color: #c7d2fe;
+    }
+
+    html.dark .text-violet-800 {
+        color: #ddd6fe;
+    }
+
+    html.dark .text-blue-800 {
+        color: #bfdbfe;
+    }
+
+    html.dark .text-blue-700 {
+        color: #93c5fd;
+    }
+
+    html.dark .text-green-800 {
+        color: #bbf7d0;
+    }
+
+    html.dark .text-green-700 {
+        color: #86efac;
+    }
+
+    html.dark .text-red-700 {
+        color: #fda4af;
+    }
+
+    html.dark .text-red-600 {
+        color: #f87171;
+    }
+
+    html.dark .text-amber-800 {
+        color: #fde68a;
+    }
+
+    html.dark .text-amber-700 {
+        color: #fcd34d;
+    }
+
+    html.dark .text-amber-600 {
+        color: #fbbf24;
+    }
+
+    html.dark .text-yellow-800 {
+        color: #fef08a;
+    }
+
+    html.dark .text-yellow-700 {
+        color: #fde68a;
+    }
+
+    html.dark .border-gray-100 {
+        border-color: #253349;
+    }
+
+    html.dark .border-gray-200 {
+        border-color: #334155;
+    }
+
+    html.dark .border-gray-300 {
+        border-color: #475569;
+    }
+
+    html.dark .border-indigo-100 {
+        border-color: #394575;
+    }
+
+    html.dark .border-indigo-200 {
+        border-color: #4c5c92;
+    }
+
+    html.dark .border-indigo-300 {
+        border-color: #636fb4;
+    }
+
+    html.dark .border-red-200 {
+        border-color: #92465a;
+    }
+
+    html.dark .border-amber-200 {
+        border-color: #85622d;
+    }
+
+    html.dark .border-blue-200 {
+        border-color: #355b91;
+    }
+
+    html.dark .ring-gray-300 {
+        --tw-ring-color: #475569;
+    }
+
+    html.dark [class~='hover:bg-gray-50']:hover,
+    html.dark [class~='hover:bg-gray-100']:hover {
+        background-color: #293850;
+    }
+
+    html.dark [class~='hover:bg-gray-200']:hover {
+        background-color: #3b4b64;
+    }
+
+    html.dark [class~='hover:bg-white']:hover {
+        background-color: #1d2b42;
+    }
+
+    html.dark [class~='hover:text-gray-600']:hover,
+    html.dark [class~='hover:text-gray-700']:hover {
+        color: #f1f5f9;
+    }
+
+    html.dark [class~='hover:text-indigo-800']:hover,
+    html.dark [class~='group-hover:text-indigo-600']:is(:hover, :focus-within) {
+        color: #c7d2fe;
+    }
+
+    html.dark .group:hover [class~='group-hover:text-indigo-600'] {
+        color: #c7d2fe;
+    }
+
+    html.dark :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+        background-color: #172235;
+        border-color: #475569;
+        color: #f8fafc;
+    }
+
+    html.dark :is(input, textarea)::placeholder {
+        color: #94a3b8;
+    }
+
+    html.dark .prose {
+        --tw-prose-body: #cbd5e1;
+        --tw-prose-headings: #f8fafc;
+        --tw-prose-lead: #cbd5e1;
+        --tw-prose-links: #a5b4fc;
+        --tw-prose-bold: #f8fafc;
+        --tw-prose-counters: #94a3b8;
+        --tw-prose-bullets: #64748b;
+        --tw-prose-hr: #334155;
+        --tw-prose-quotes: #e2e8f0;
+        --tw-prose-quote-borders: #475569;
+        --tw-prose-captions: #94a3b8;
+        --tw-prose-code: #e2e8f0;
+        --tw-prose-pre-code: #e2e8f0;
+        --tw-prose-pre-bg: #0e1728;
+        --tw-prose-th-borders: #475569;
+        --tw-prose-td-borders: #334155;
+    }
+}
