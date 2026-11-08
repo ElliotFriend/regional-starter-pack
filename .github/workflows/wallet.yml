@@ -1,0 +1,53 @@
+name: Wallet CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wallet-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wallet:
+    name: Wallet tests and type checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Placeholder configuration only. Wallet tests mock SDK and Horizon calls;
+    # no anchor credentials or funded wallet are needed, including for fork PRs.
+    env:
+      PUBLIC_TRMOCK_HOME_DOMAIN: localhost
+      PUBLIC_USDC_ISSUER: test-only
+      PUBLIC_STELLAR_NETWORK: testnet
+      SEP1_SIGNING_KEY_SECRET: ''
+      CHIPPER_API_URL: ''
+      CHIPPER_SECRET_KEY: ''
+      ETHERFUSE_API_KEY: ''
+      ETHERFUSE_BASE_URL: ''
+      KOYWE_CLIENT_ID: ''
+      KOYWE_SECRET: ''
+      KOYWE_BASE_URL: ''
+      MANTECA_API_KEY: ''
+      MANTECA_BASE_URL: ''
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check types and Svelte components
+        run: pnpm check
+      - name: Run wallet regression tests
+        run: pnpm exec vitest run --project unit tests/wallet

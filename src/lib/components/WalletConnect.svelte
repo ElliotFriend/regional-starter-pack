@@ -46,18 +46,29 @@
     {#if walletStore.error}
         <div
             role="alert"
-            class="absolute top-full right-0 mt-2 w-80 rounded-md border border-gray-200 bg-white p-3 text-sm text-red-600 shadow-md"
+            class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-3rem)] rounded-md border border-gray-200 bg-white p-3 text-sm shadow-md"
         >
-            {walletStore.error}
             {#if walletStore.errorCode === 'NOT_INSTALLED'}
+                <p class="font-medium text-gray-900">Install Varial to connect your wallet</p>
+                <p class="mt-1 text-gray-600">
+                    Install and enable Varial in this browser. After setup, return here and retry
+                    the connection.
+                </p>
                 <a
                     href="https://varialwallet.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="ml-2 underline">Install Varial</a
+                    aria-label="Get Varial (opens in a new tab)"
+                    class="mt-2 inline-block text-xs font-medium text-indigo-600 underline hover:text-indigo-700"
+                    >Get Varial <span aria-hidden="true">↗</span></a
                 >
+            {:else}
+                <p class="text-red-600">{walletStore.error}</p>
             {/if}
-            <button onclick={() => walletStore.clearError()} class="ml-2 underline">Dismiss</button>
+            <button
+                onclick={() => walletStore.clearError()}
+                class="ml-2 text-xs text-gray-500 underline hover:text-gray-700">Dismiss</button
+            >
         </div>
     {/if}
 </div>
