@@ -172,7 +172,7 @@ export function validateChallenge(
 
 /**
  * Signs a challenge transaction using the provided signer function.
- * The signer function should handle the actual signing (e.g., via Freighter).
+ * The signer function should handle the actual signing (e.g., via Varial).
  *
  * @param challengeXdr - The challenge transaction XDR
  * @param networkPassphrase - The Stellar network passphrase

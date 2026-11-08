@@ -60,8 +60,8 @@
     },
     "dependencies": {
         "@lucide/svelte": "^1.66.0",
-        "@stellar/freighter-api": "^6.0.1",
-        "@stellar/stellar-sdk": "^17.4.0"
+        "@stellar/stellar-sdk": "^17.4.0",
+        "@stellar/varial-sdk": "^7.0.0"
     },
     "engines": {
         "node": "26.x"

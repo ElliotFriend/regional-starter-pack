@@ -413,9 +413,9 @@
 
     {#if step === 'signing'}
         <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Varial</h2>
             <p class="mt-1 text-sm text-gray-500">
-                A Freighter window should be open. Confirm to send SRT to the anchor.
+                A Varial window should be open. Confirm to send SRT to the anchor.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">
                 <div

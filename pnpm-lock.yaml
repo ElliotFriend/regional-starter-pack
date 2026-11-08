@@ -169,12 +169,12 @@ importers:
       '@lucide/svelte':
         specifier: ^1.66.0
         version: 1.66.0(svelte@5.57.3(@typescript-eslint/types@8.72.1))
-      '@stellar/freighter-api':
-        specifier: ^6.0.1
-        version: 6.0.1
       '@stellar/stellar-sdk':
         specifier: ^17.4.0
         version: 17.4.0(debug@4.4.3)
+      '@stellar/varial-sdk':
+        specifier: ^7.0.0
+        version: 7.0.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -545,9 +545,6 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@stellar/freighter-api@6.0.1':
-    resolution: {integrity: sha512-eqwakEqSg+zoLuPpSbKyrX0pG8DQFzL/J5GtbfuMCmJI+h+oiC9pQ5C6QLc80xopZQKdGt8dUAFCmDMNdAG95w==}
-
   '@stellar/js-xdr@5.0.0':
     resolution: {integrity: sha512-HBDNKnxr+ecdaEmbZ0mcKkirOF8tXXEbWSw34P3wT40Tn3g+u+cCH17xAWZymzscq8cojHB8340pR8QNVaD32w==}
     engines: {node: '>=22.0.0', pnpm: '>=10.0.0'}
@@ -556,6 +553,9 @@ packages:
     resolution: {integrity: sha512-IX6gi62yWQ+6Oz56LsVEEeSViSOWJL3BkttftwVmVsu+62nLTWNVsCmTWEzwgNLT/q5HGP25OnlU+hhy2E4wwA==}
     engines: {node: '>=22.12.0'}
     hasBin: true
+
+  '@stellar/varial-sdk@7.0.0':
+    resolution: {integrity: sha512-lF56k2v1TjfARsdpJdCO5pP70lW2SSsm6VupbWFV6vHNy7bi9sOFWXvn30B+AvUqqpFiXTHwRaVQWXt+dR9XXA==}
 
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
@@ -1783,8 +1783,8 @@ packages:
     resolution: {integrity: sha512-xal3CZX1Xlo/k4ApwCFrHVACi9fBqJ7V+mwhBsuf/1IOKbBy098Fex+Wa/5QMubw09pSZ/u8EY8PWgevJsXp1A==}
     engines: {node: '>=6'}
 
-  semver@7.7.1:
-    resolution: {integrity: sha512-hlq8tAfn0m/61p4BVRcPzIGr6LKiMwo4VM6dGi6pt4qcRkmNzTcWq6eCEjEh+qXjkMDvPlOFFSGwQjoEa6gyMA==}
+  semver@7.8.4:
+    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -2331,11 +2331,6 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@stellar/freighter-api@6.0.1':
-    dependencies:
-      buffer: 6.0.3
-      semver: 7.7.1
-
   '@stellar/js-xdr@5.0.0': {}
 
   '@stellar/stellar-sdk@17.4.0(debug@4.4.3)':
@@ -2355,6 +2350,11 @@ snapshots:
     transitivePeerDependencies:
       - debug
       - supports-color
+
+  '@stellar/varial-sdk@7.0.0':
+    dependencies:
+      buffer: 6.0.3
+      semver: 7.8.4
 
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.19.0)':
     dependencies:
@@ -3460,7 +3460,7 @@ snapshots:
     dependencies:
       mri: 1.2.0
 
-  semver@7.7.1: {}
+  semver@7.8.4: {}
 
   semver@7.8.5: {}
 

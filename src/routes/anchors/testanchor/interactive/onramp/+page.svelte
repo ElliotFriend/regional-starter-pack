@@ -171,7 +171,7 @@
                 {isWorking ? 'Authenticating…' : 'Start hosted deposit'}
             </button>
             <p class="mt-3 text-xs text-gray-500">
-                You'll be prompted to sign a SEP-10 challenge in Freighter, then a new tab opens
+                You'll be prompted to sign a SEP-10 challenge in Varial, then a new tab opens
                 with the anchor-hosted flow.
             </p>
         </div>

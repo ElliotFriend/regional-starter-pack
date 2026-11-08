@@ -226,7 +226,7 @@
                 {isWorking ? 'Authenticating…' : 'Start hosted withdrawal'}
             </button>
             <p class="mt-3 text-xs text-gray-500">
-                You'll sign a SEP-10 challenge in Freighter and then complete the rest in a new tab.
+                You'll sign a SEP-10 challenge in Varial and then complete the rest in a new tab.
             </p>
         </div>
     {/if}
@@ -284,7 +284,7 @@
             <h2 class="text-lg font-semibold text-gray-900">Send SRT to the anchor</h2>
             <p class="mt-1 text-sm text-gray-500">
                 The hosted flow is done. In SEP-24 the wallet sends the payment: confirm it in
-                Freighter and the anchor pays out once it arrives.
+                Varial and the anchor pays out once it arrives.
             </p>
             <div class="mt-4 space-y-2 text-sm text-gray-600">
                 <p>
@@ -315,9 +315,9 @@
 
     {#if step === 'signing'}
         <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Varial</h2>
             <p class="mt-1 text-sm text-gray-500">
-                A Freighter window should be open. Confirm to send SRT to the anchor.
+                A Varial window should be open. Confirm to send SRT to the anchor.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">
                 <div
