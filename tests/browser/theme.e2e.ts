@@ -8,6 +8,8 @@ import type { Browser } from 'playwright';
 
 const baseURL = process.env.TEST_BASE_URL ?? 'http://127.0.0.1:4173';
 const storageKey = 'regional-starter-pack-theme';
+const serverMode = process.env.TEST_SERVER_MODE ?? 'dev';
+assert.ok(['dev', 'preview'].includes(serverMode), 'TEST_SERVER_MODE must be dev or preview');
 let server: ChildProcess | undefined;
 let browser: Browser;
 
@@ -18,7 +20,7 @@ before(async () => {
             [
                 'scripts/with-test-env.mjs',
                 'pnpm',
-                'dev',
+                serverMode,
                 '--host',
                 '127.0.0.1',
                 '--port',
@@ -30,14 +32,18 @@ before(async () => {
     }
     let ready = false;
     for (let attempt = 0; attempt < 120; attempt++) {
+        assert.ok(
+            !server || server.exitCode === null,
+            `Localhost ${serverMode} server exited with code ${server?.exitCode}`,
+        );
         try {
-            const response = await fetch(baseURL);
+            const response = await fetch(baseURL, { signal: AbortSignal.timeout(2000) });
             if (response.ok) {
                 ready = true;
                 break;
             }
         } catch {
-            // Wait for Vite to start.
+            // Wait for the localhost server to start.
         }
         await delay(500);
     }
