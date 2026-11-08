@@ -3,7 +3,6 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -32,7 +31,9 @@ jobs:
         run: pnpm exec eslint src tests vite.config.ts eslint.config.js
       - name: Unit and component tests
         run: node scripts/with-test-env.mjs pnpm exec vitest run --project unit --project client --maxWorkers=2
-      - name: Localhost browser regression tests
-        run: pnpm test:browser
       - name: Production build
         run: node scripts/with-test-env.mjs pnpm build
+      - name: Production browser regression tests
+        run: pnpm test:browser
+        env:
+          TEST_SERVER_MODE: preview
