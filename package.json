@@ -27,6 +27,7 @@
         "test:unit": "vitest --project unit",
         "test:integration": "vitest --project integration",
         "test:run": "vitest run",
+        "test:browser": "node --test tests/browser/theme.e2e.ts",
         "clear": "rm -rf .svelte-kit && rm -rf build"
     },
     "devDependencies": {

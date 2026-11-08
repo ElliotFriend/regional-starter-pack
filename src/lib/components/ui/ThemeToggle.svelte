@@ -6,6 +6,7 @@
 
     const storageKey = 'regional-starter-pack-theme';
     let isDark = $state(false);
+    let ready = $state(false);
 
     onMount(() => {
         const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -28,6 +29,7 @@
         }
 
         synchronize();
+        ready = true;
         media.addEventListener('change', synchronize);
         window.addEventListener('storage', handleStorage);
 
@@ -50,6 +52,7 @@
 
 <button
     type="button"
+    disabled={!ready}
     onclick={toggleTheme}
     aria-label="Toggle dark mode"
     aria-pressed={isDark}
