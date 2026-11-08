@@ -130,7 +130,7 @@
         loading = true;
         error = null;
         try {
-            // Use Freighter to sign the challenge
+            // Use Varial to sign the challenge
             const { signTransaction } = await import('@stellar/freighter-api');
 
             await client.authenticate(walletStore.publicKey, async (xdr, networkPassphrase) => {
@@ -302,7 +302,7 @@
                 network: 'testnet',
             });
 
-            // Sign with Freighter
+            // Sign with Varial
             const { signTransaction } = await import('@stellar/freighter-api');
             const networkPassphrase = getNetworkPassphrase('testnet');
             const result = await signTransaction(xdr, { networkPassphrase });
@@ -506,7 +506,7 @@
                 disabled={loading}
                 class="rounded-lg bg-violet-600 px-4 py-2 text-white hover:bg-violet-700 disabled:opacity-50"
             >
-                {loading ? 'Signing...' : 'Authenticate with Freighter'}
+                {loading ? 'Signing...' : 'Authenticate with Varial'}
             </button>
         {/if}
     </section>

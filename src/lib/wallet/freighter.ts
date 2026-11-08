@@ -1,6 +1,6 @@
 /**
- * Freighter wallet integration
- * Client-side only - wraps the Freighter browser extension API
+ * Varial wallet integration
+ * Client-side only - wraps the Varial browser extension API
  */
 
 import freighterApi from '@stellar/freighter-api';
@@ -18,7 +18,7 @@ const {
 } = freighterApi;
 
 /**
- * Check if Freighter extension is installed
+ * Check if Varial extension is installed
  */
 export async function isFreighterInstalled(): Promise<boolean> {
     try {
@@ -42,13 +42,13 @@ export async function isFreighterAllowed(): Promise<boolean> {
 }
 
 /**
- * Request access to connect to Freighter
- * Will open Freighter popup if not already allowed
+ * Request access to connect to Varial
+ * Will open Varial popup if not already allowed
  */
 export async function connectFreighter(): Promise<string> {
     const installed = await isFreighterInstalled();
     if (!installed) {
-        throw new WalletError('Freighter extension is not installed', 'NOT_INSTALLED');
+        throw new WalletError('Varial extension is not installed', 'NOT_INSTALLED');
     }
 
     // Check if already allowed
@@ -70,7 +70,7 @@ export async function connectFreighter(): Promise<string> {
     // Get the address
     const addressResult = await getAddress();
     if (addressResult.error || !addressResult.address) {
-        throw new WalletError('No account found in Freighter', 'NO_ACCOUNT');
+        throw new WalletError('No account found in Varial', 'NO_ACCOUNT');
     }
 
     return addressResult.address;
@@ -97,15 +97,15 @@ export async function getPublicKey(): Promise<string | null> {
 }
 
 /**
- * Get the current network from Freighter
+ * Get the current network from Varial
  */
 export async function getFreighterNetwork(): Promise<StellarNetwork> {
     const result = await getNetwork();
     if (result.error) {
-        throw new WalletError('Failed to get network from Freighter', 'UNKNOWN');
+        throw new WalletError('Failed to get network from Varial', 'UNKNOWN');
     }
 
-    // Freighter returns network names like "TESTNET" or "PUBLIC"
+    // Varial returns network names like "TESTNET" or "PUBLIC"
     const network = result.network?.toLowerCase();
     if (network === 'testnet') {
         return 'testnet';
@@ -114,7 +114,7 @@ export async function getFreighterNetwork(): Promise<StellarNetwork> {
 }
 
 /**
- * Sign a transaction using Freighter
+ * Sign a transaction using Varial
  * @param xdr - The XDR-encoded transaction to sign
  * @param network - The network for the transaction
  */
@@ -124,7 +124,7 @@ export async function signWithFreighter(
 ): Promise<SignedTransaction> {
     const installed = await isFreighterInstalled();
     if (!installed) {
-        throw new WalletError('Freighter extension is not installed', 'NOT_INSTALLED');
+        throw new WalletError('Varial extension is not installed', 'NOT_INSTALLED');
     }
 
     const networkPassphrase = getNetworkPassphrase(network);

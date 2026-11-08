@@ -26,12 +26,12 @@ src/lib/anchors/          <- PORTABLE: copy what you need into any TypeScript pr
   sep/                    <- SEP protocol modules (SEP-1/6/10/12/24/31/38)
   README.md               <- Library guide and provider index
 
-src/lib/wallet/           <- PORTABLE: Freighter wallet, Stellar helpers, SEP-10 session helper
+src/lib/wallet/           <- PORTABLE: Varial wallet, Stellar helpers, SEP-10 session helper
 
 src/lib/server/           <- SvelteKit-specific singletons for API-key anchors (read $env)
 src/lib/api/              <- Browser fetch wrappers for those anchors' proxy routes
 src/lib/components/       <- Shared UI primitives (provider-agnostic)
-src/lib/stores/           <- wallet.svelte.ts (Freighter), auth.ts (SEP-10 token cache)
+src/lib/stores/           <- wallet.svelte.ts (Varial), auth.ts (SEP-10 token cache)
 src/lib/config/           <- anchors.ts (+ two-lens criteria), scorecard.ts, regions.ts, rails.ts
 src/routes/               <- SvelteKit pages and API routes
 ```
@@ -126,7 +126,7 @@ import { SeevcashRampClient } from './anchors/seevcash';
 
 const anchor = new SeevcashRampClient({ usdcIssuer: PUBLIC_USDC_ISSUER });
 
-// 1. SEP-10 wallet auth (sign with the user's wallet, e.g. Freighter)
+// 1. SEP-10 wallet auth (sign with the user's wallet, e.g. Varial)
 const challenge = await anchor.getChallenge(publicKey);
 const signedXdr = await signWithWallet(challenge.transaction);
 const { token } = await anchor.submitChallenge(signedXdr);
@@ -180,7 +180,7 @@ window.open(response.url, '_blank');
 
 ### Usage Outside SvelteKit
 
-The `anchors/` and `wallet/` directories have no framework dependencies; they rely only on `@stellar/stellar-sdk` (and `@stellar/freighter-api` for the wallet). Copy only the providers you use; they don't reference each other.
+The `anchors/` and `wallet/` directories have no framework dependencies; they rely only on `@stellar/stellar-sdk` (and the legacy `@stellar/freighter-api` package for the Varial wallet). Copy only the providers you use; they don't reference each other.
 
 **Keep API keys on a server.** For an API-key anchor, call the client from your backend, the same way this app proxies through `/api/anchor/<name>/*`:
 
@@ -265,7 +265,7 @@ See each provider's README for the exact request shapes.
 
 `src/lib/components/` contains **provider-agnostic primitives**. The flow pages compose them; there are no shared flow components.
 
-- `WalletConnect.svelte`: Freighter connect/disconnect.
+- `WalletConnect.svelte`: Varial connect/disconnect.
 - `AnchorRegionSelector.svelte`: region tabs and on/off-ramp links for an anchor landing page.
 - `CriteriaScorecard.svelte`: renders a two-lens scorecard (compact and `detailed` modes).
 - `HonorableMentionAnchors.svelte`: honorable-mention cards for a region page.
@@ -364,7 +364,7 @@ SeevCash and the test anchor need no configuration.
 - **Tailwind CSS**: styling
 - **Vitest + MSW**: unit and component tests
 - **@stellar/stellar-sdk**: Stellar blockchain interaction
-- **@stellar/freighter-api**: wallet connection (Freighter browser extension)
+- **@stellar/freighter-api**: wallet connection (Varial browser extension)
 - **@lucide/svelte**: UI icons (per-icon deep imports, tree-shakeable)
 
 ## Adding a New Anchor
@@ -414,3 +414,5 @@ To enable a new MCP server, add it to `.mcp.json`:
 ## License
 
 Apache-2.0
+
+> **Varial wallet compatibility:** This site refers to the wallet by its current name, Varial. Its existing `@stellar/freighter-api` dependency continues to work with the rebranded extension. For new SDK features, Stellar recommends [`@stellar/varial-sdk`](https://github.com/stellar/freighter-developer-docs/blob/main/extension/installation.md); dependency migration is separate from this user-facing branding update.

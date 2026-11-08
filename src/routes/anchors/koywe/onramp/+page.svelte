@@ -403,7 +403,7 @@
             {#if !walletStore.isConnected}
                 <h2 class="text-lg font-semibold text-gray-900">Connect your wallet</h2>
                 <p class="mt-1 text-sm text-gray-500">
-                    Koywe delivers USDC to your Stellar public key. Connect Freighter to continue.
+                    Koywe delivers USDC to your Stellar public key. Connect Varial to continue.
                 </p>
             {:else}
                 <h2 class="text-lg font-semibold text-gray-900">Start</h2>

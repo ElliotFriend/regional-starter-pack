@@ -122,7 +122,7 @@
             error = err instanceof Error ? err.message : 'Failed to sign and submit the payment';
             // Back to 'amount', not 'send': the XDR was built against a
             // Horizon sequence number and a 180s timebound, so a stale retry
-            // (e.g. after unlocking Freighter) would just fail again with
+            // (e.g. after unlocking Varial) would just fail again with
             // tx_too_late. Restarting from 'amount' rebuilds a fresh quote
             // and XDR.
             step = 'amount';
@@ -275,9 +275,9 @@
 
     {#if step === 'signing'}
         <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Varial</h2>
             <p class="mt-1 text-sm text-gray-500">
-                A Freighter window should be open. Confirm to send USDC to the anchor.
+                A Varial window should be open. Confirm to send USDC to the anchor.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">
                 <div

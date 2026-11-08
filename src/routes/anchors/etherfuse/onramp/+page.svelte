@@ -322,7 +322,7 @@
             {#if !walletStore.isConnected}
                 <h2 class="text-lg font-semibold text-gray-900">Connect your wallet</h2>
                 <p class="mt-1 text-sm text-gray-500">
-                    Etherfuse ties each customer to a Stellar public key. Connect Freighter to
+                    Etherfuse ties each customer to a Stellar public key. Connect Varial to
                     continue.
                 </p>
             {:else if !customer}
