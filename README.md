@@ -180,7 +180,7 @@ window.open(response.url, '_blank');
 
 ### Usage Outside SvelteKit
 
-The `anchors/` and `wallet/` directories have no framework dependencies; they rely only on `@stellar/stellar-sdk` (and the legacy `@stellar/freighter-api` package for the Varial wallet). Copy only the providers you use; they don't reference each other.
+The `anchors/` and `wallet/` directories have no framework dependencies; they rely only on `@stellar/stellar-sdk` (and the `@stellar/varial-sdk` package for the Varial wallet). Copy only the providers you use; they don't reference each other.
 
 **Keep API keys on a server.** For an API-key anchor, call the client from your backend, the same way this app proxies through `/api/anchor/<name>/*`:
 
@@ -364,7 +364,7 @@ SeevCash and the test anchor need no configuration.
 - **Tailwind CSS**: styling
 - **Vitest + MSW**: unit and component tests
 - **@stellar/stellar-sdk**: Stellar blockchain interaction
-- **@stellar/freighter-api**: wallet connection (Varial browser extension)
+- **@stellar/varial-sdk**: wallet connection (Varial browser extension)
 - **@lucide/svelte**: UI icons (per-icon deep imports, tree-shakeable)
 
 ## Adding a New Anchor
@@ -415,4 +415,4 @@ To enable a new MCP server, add it to `.mcp.json`:
 
 Apache-2.0
 
-> **Varial wallet compatibility:** This site refers to the wallet by its current name, Varial. Its existing `@stellar/freighter-api` dependency continues to work with the rebranded extension. For new SDK features, Stellar recommends [`@stellar/varial-sdk`](https://github.com/stellar/freighter-developer-docs/blob/main/extension/installation.md); dependency migration is separate from this user-facing branding update.
+> **Varial wallet connection:** Install and enable the Varial browser extension before connecting. If the wallet is unavailable, the connect control offers an installation link and a retry action. The app uses `@stellar/varial-sdk` and requests authorization and the wallet address in one call.

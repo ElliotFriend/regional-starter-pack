@@ -3,19 +3,12 @@
  * Client-side only - wraps the Varial browser extension API
  */
 
-import freighterApi from '@stellar/freighter-api';
+import varialSdk from '@stellar/varial-sdk';
 import { WalletError, type StellarNetwork, type SignedTransaction } from './types';
 import { getNetworkPassphrase } from './stellar';
 
-const {
-    isConnected,
-    isAllowed,
-    setAllowed,
-    requestAccess,
-    getAddress,
-    getNetwork,
-    signTransaction,
-} = freighterApi;
+const { isConnected, isAllowed, requestAccess, getAddress, getNetwork, signTransaction } =
+    varialSdk;
 
 /**
  * Check if Varial extension is installed
@@ -48,32 +41,22 @@ export async function isFreighterAllowed(): Promise<boolean> {
 export async function connectFreighter(): Promise<string> {
     const installed = await isFreighterInstalled();
     if (!installed) {
-        throw new WalletError('Varial extension is not installed', 'NOT_INSTALLED');
+        throw new WalletError(
+            'Install or enable Varial in this browser, then retry.',
+            'NOT_INSTALLED',
+        );
     }
 
-    // Check if already allowed
-    const allowed = await isFreighterAllowed();
-    if (!allowed) {
-        // Request access
-        const accessResult = await setAllowed();
-        if (accessResult.error) {
-            throw new WalletError('User rejected connection request', 'CONNECTION_REJECTED');
-        }
-    }
-
-    // Request access to get the public key
+    // requestAccess authorizes the app and returns the address in one prompt.
     const accessResult = await requestAccess();
     if (accessResult.error) {
         throw new WalletError('User rejected connection request', 'CONNECTION_REJECTED');
     }
-
-    // Get the address
-    const addressResult = await getAddress();
-    if (addressResult.error || !addressResult.address) {
+    if (!accessResult.address) {
         throw new WalletError('No account found in Varial', 'NO_ACCOUNT');
     }
 
-    return addressResult.address;
+    return accessResult.address;
 }
 
 /**
@@ -124,7 +107,10 @@ export async function signWithFreighter(
 ): Promise<SignedTransaction> {
     const installed = await isFreighterInstalled();
     if (!installed) {
-        throw new WalletError('Varial extension is not installed', 'NOT_INSTALLED');
+        throw new WalletError(
+            'Install or enable Varial in this browser, then retry.',
+            'NOT_INSTALLED',
+        );
     }
 
     const networkPassphrase = getNetworkPassphrase(network);
@@ -134,10 +120,10 @@ export async function signWithFreighter(
     });
 
     if (result.error) {
-        if (result.error.includes('User declined')) {
+        if (result.error.message.includes('User declined')) {
             throw new WalletError('User rejected the transaction', 'SIGNING_REJECTED');
         }
-        throw new WalletError(`Failed to sign transaction: ${result.error}`, 'UNKNOWN');
+        throw new WalletError(`Failed to sign transaction: ${result.error.message}`, 'UNKNOWN');
     }
 
     if (!result.signedTxXdr) {

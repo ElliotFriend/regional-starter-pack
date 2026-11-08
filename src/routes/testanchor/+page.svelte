@@ -131,7 +131,7 @@
         error = null;
         try {
             // Use Varial to sign the challenge
-            const { signTransaction } = await import('@stellar/freighter-api');
+            const { signTransaction } = await import('@stellar/varial-sdk');
 
             await client.authenticate(walletStore.publicKey, async (xdr, networkPassphrase) => {
                 const result = await signTransaction(xdr, { networkPassphrase });
@@ -303,7 +303,7 @@
             });
 
             // Sign with Varial
-            const { signTransaction } = await import('@stellar/freighter-api');
+            const { signTransaction } = await import('@stellar/varial-sdk');
             const networkPassphrase = getNetworkPassphrase('testnet');
             const result = await signTransaction(xdr, { networkPassphrase });
 

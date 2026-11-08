@@ -3,7 +3,7 @@
  */
 
 import { browser } from '$app/env';
-import type { StellarNetwork } from '#lib/wallet/types.ts';
+import { WalletError, type WalletErrorCode, type StellarNetwork } from '#lib/wallet/types.ts';
 import {
     isFreighterInstalled,
     connectFreighter,
@@ -17,6 +17,7 @@ interface WalletState {
     isConnected: boolean;
     isConnecting: boolean;
     error: string | null;
+    errorCode: WalletErrorCode | null;
 }
 
 function createWalletStore() {
@@ -26,6 +27,7 @@ function createWalletStore() {
         isConnected: false,
         isConnecting: false,
         error: null,
+        errorCode: null,
     });
 
     async function checkConnection() {
@@ -44,10 +46,11 @@ function createWalletStore() {
     }
 
     async function connect() {
-        if (!browser) return;
+        if (!browser || state.isConnecting) return;
 
         state.isConnecting = true;
         state.error = null;
+        state.errorCode = null;
 
         try {
             const pk = await connectFreighter();
@@ -58,6 +61,7 @@ function createWalletStore() {
             state.isConnected = true;
         } catch (err) {
             state.error = err instanceof Error ? err.message : 'Failed to connect wallet';
+            state.errorCode = err instanceof WalletError ? err.code : 'UNKNOWN';
             state.isConnected = false;
             state.publicKey = null;
         } finally {
@@ -69,10 +73,12 @@ function createWalletStore() {
         state.publicKey = null;
         state.isConnected = false;
         state.error = null;
+        state.errorCode = null;
     }
 
     function clearError() {
         state.error = null;
+        state.errorCode = null;
     }
 
     // Check connection on init (client-side only)
@@ -95,6 +101,9 @@ function createWalletStore() {
         },
         get error() {
             return state.error;
+        },
+        get errorCode() {
+            return state.errorCode;
         },
         get truncatedAddress() {
             if (!state.publicKey) return null;
