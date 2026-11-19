@@ -15,6 +15,7 @@ const {
     getAddress,
     getNetwork,
     signTransaction,
+    disconnect,
 } = varialSdk;
 
 /**
@@ -148,4 +149,20 @@ export async function signWithVarial(
         signedXdr: result.signedTxXdr,
         networkPassphrase,
     };
+}
+
+/**
+ * Revoke this site's access in Varial so the next re-connect re-prompts.
+ * No-op if the extension isn't installed.
+ */
+export async function disconnectVarial(): Promise<void> {
+    const installed = await isVarialInstalled();
+    if (!installed) {
+        return;
+    }
+
+    const result = await disconnect();
+    if (result.error) {
+        throw new WalletError(`Failed to disconnect: ${result.error.message}`, 'UNKNOWN');
+    }
 }

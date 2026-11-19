@@ -9,7 +9,9 @@ import {
     connectVarial,
     getPublicKey,
     getVarialNetwork,
+    disconnectVarial,
 } from '#lib/wallet/varial.ts';
+import { authStore } from '#lib/stores/auth.ts';
 
 interface WalletState {
     publicKey: string | null;
@@ -65,10 +67,17 @@ function createWalletStore() {
         }
     }
 
-    function disconnect() {
+    async function disconnect() {
+        try {
+            await disconnectVarial();
+        } catch {
+            // Older extension version may not support disconnect; still clear locally.
+        }
+
         state.publicKey = null;
         state.isConnected = false;
         state.error = null;
+        authStore.clear();
     }
 
     function clearError() {
