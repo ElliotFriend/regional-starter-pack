@@ -134,10 +134,10 @@ export async function signWithVarial(
     });
 
     if (result.error) {
-        if (result.error.includes('User declined')) {
+        if (result.error.message.includes('User declined')) {
             throw new WalletError('User rejected the transaction', 'SIGNING_REJECTED');
         }
-        throw new WalletError(`Failed to sign transaction: ${result.error}`, 'UNKNOWN');
+        throw new WalletError(`Failed to sign transaction: ${result.error.message}`, 'UNKNOWN');
     }
 
     if (!result.signedTxXdr) {

@@ -1,17 +1,34 @@
 import { page } from 'vitest/browser';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { Networks } from '@stellar/stellar-sdk';
 import Page from './+page.svelte';
 import type { TestAnchorPlaygroundClient } from '#lib/anchors/testanchor/playground.ts';
+import type { Sep10SignerFn } from '#lib/anchors/sep/sep10.ts';
+import { WalletError } from '#lib/wallet/types.ts';
+
+const PUBLIC_KEY = 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B';
+
+// Wallet starts disconnected; the auth tests connect it.
+const wallet = vi.hoisted(() => ({
+    isConnected: false,
+    publicKey: null as string | null,
+    network: 'testnet',
+}));
+vi.mock('#lib/stores/wallet.svelte.ts', () => ({ walletStore: wallet }));
+
+const varial = vi.hoisted(() => ({ signWithVarial: vi.fn() }));
+vi.mock('#lib/wallet/varial.ts', () => varial);
 
 // Minimal mock of the testanchor playground client — just enough for
-// the component to render without errors. The interactive features
-// (auth, transfers) are not tested here. Cast through `unknown` because
-// the real TestAnchorPlaygroundClient has many additional methods we
-// don't exercise.
+// the component to render without errors, plus a SEP-10 `authenticate`
+// the auth tests can drive. Transfers are not tested here. Cast through
+// `unknown` because the real TestAnchorPlaygroundClient has many additional
+// methods we don't exercise.
+const authenticate = vi.fn(async (_account: string, _signer: Sep10SignerFn) => '');
 const mockClient = {
     initialize: async () => ({}),
-    authenticate: async () => {},
+    authenticate,
     getToken: () => null,
     sep6: { getInfo: async () => null },
     sep24: { getInfo: async () => null },
@@ -95,5 +112,53 @@ describe('/testanchor/+page.svelte', () => {
         await expect
             .element(page.getByRole('heading', { name: /About the Test Anchor/ }))
             .toBeInTheDocument();
+    });
+});
+
+describe('/testanchor/+page.svelte SEP-10 authentication', () => {
+    beforeEach(() => {
+        wallet.isConnected = true;
+        wallet.publicKey = PUBLIC_KEY;
+        varial.signWithVarial.mockReset();
+        // Drive the signer the way the real client does: hand it the challenge.
+        authenticate.mockReset().mockImplementation(async (_account, signer) => {
+            await signer('CHALLENGE_XDR', Networks.TESTNET);
+            return 'JWT';
+        });
+    });
+
+    it('signs the challenge through signWithVarial on testnet', async () => {
+        varial.signWithVarial.mockResolvedValue({
+            signedXdr: 'SIGNED_XDR',
+            networkPassphrase: Networks.TESTNET,
+        });
+        let returnedToClient: string | undefined;
+        authenticate.mockImplementation(async (_account, signer) => {
+            returnedToClient = await signer('CHALLENGE_XDR', Networks.TESTNET);
+            return 'JWT';
+        });
+        render(Page, props);
+
+        await page.getByRole('button', { name: 'Authenticate with Varial' }).click();
+
+        await expect.element(page.getByText(/Authenticated as/)).toBeInTheDocument();
+        expect(authenticate).toHaveBeenCalledWith(PUBLIC_KEY, expect.any(Function));
+        expect(varial.signWithVarial).toHaveBeenCalledWith('CHALLENGE_XDR', 'testnet');
+        expect(returnedToClient).toBe('SIGNED_XDR');
+    });
+
+    it('shows the rejection and stays unauthenticated when the user declines', async () => {
+        varial.signWithVarial.mockRejectedValue(
+            new WalletError('User rejected the transaction', 'SIGNING_REJECTED'),
+        );
+        render(Page, props);
+
+        await page.getByRole('button', { name: 'Authenticate with Varial' }).click();
+
+        await expect.element(page.getByText('User rejected the transaction')).toBeInTheDocument();
+        await expect
+            .element(page.getByRole('button', { name: 'Authenticate with Varial' }))
+            .toBeInTheDocument();
+        expect(page.getByText(/Authenticated as/).query()).toBeNull();
     });
 });

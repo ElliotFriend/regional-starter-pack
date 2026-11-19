@@ -4,8 +4,8 @@
         buildPaymentTransaction,
         submitTransaction,
         getStellarAsset,
-        getNetworkPassphrase,
     } from '#lib/wallet/stellar.ts';
+    import { signWithVarial } from '#lib/wallet/varial.ts';
     import type {
         Sep6DepositResponse,
         Sep6WithdrawResponse,
@@ -131,11 +131,9 @@
         error = null;
         try {
             // Use Varial to sign the challenge
-            const { signTransaction } = await import('@stellar/varial-sdk');
-
-            await client.authenticate(walletStore.publicKey, async (xdr, networkPassphrase) => {
-                const result = await signTransaction(xdr, { networkPassphrase });
-                return result.signedTxXdr;
+            await client.authenticate(walletStore.publicKey, async (xdr) => {
+                const result = await signWithVarial(xdr, 'testnet');
+                return result.signedXdr;
             });
 
             authenticated = true;
@@ -303,12 +301,10 @@
             });
 
             // Sign with Varial
-            const { signTransaction } = await import('@stellar/varial-sdk');
-            const networkPassphrase = getNetworkPassphrase('testnet');
-            const result = await signTransaction(xdr, { networkPassphrase });
+            const result = await signWithVarial(xdr, 'testnet');
 
             // Submit to the network
-            const submitResult = await submitTransaction(result.signedTxXdr, 'testnet');
+            const submitResult = await submitTransaction(result.signedXdr, 'testnet');
 
             if ('hash' in submitResult) {
                 paymentResult = { success: true, stellarTxId: submitResult.hash };
