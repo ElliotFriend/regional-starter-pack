@@ -1,7 +1,7 @@
 /**
  * SEP-10 session helper.
  *
- * Wraps the `ensureAuth` / `cachedAuth` / Freighter-sign / authStore
+ * Wraps the `ensureAuth` / `cachedAuth` / Varial-sign / authStore
  * handshake that was duplicated in every flow page using a SEP-10-authed
  * anchor (the four testanchor pages on this branch; future Koywe-and-similar
  * pages will use it too).
@@ -12,7 +12,7 @@
 
 import { walletStore } from '#lib/stores/wallet.svelte.ts';
 import { authStore } from '#lib/stores/auth.ts';
-import { signWithFreighter } from './freighter';
+import { signWithVarial } from './varial';
 
 /** The two operations a SEP-10 session needs from an anchor's API client. */
 export interface Sep10Endpoints {
@@ -31,11 +31,11 @@ export interface Sep10Endpoints {
 export interface Sep10Session {
     /**
      * Return a cached SEP-10 token if one is fresh for the connected wallet,
-     * otherwise run the handshake (which triggers a Freighter signing popup).
+     * otherwise run the handshake (which triggers a Varial signing popup).
      * Returns `undefined` if no wallet is connected.
      *
      * MUST only be called from user-initiated handlers — never from `$effect`
-     * or a polling interval, because it may pop a Freighter window.
+     * or a polling interval, because it may pop a Varial window.
      */
     ensure: (fetch: typeof globalThis.fetch) => Promise<string | undefined>;
     /**
@@ -53,10 +53,7 @@ export function createSep10Session(provider: string, endpoints: Sep10Endpoints):
             const cached = authStore.get(provider, walletStore.publicKey);
             if (cached) return cached;
             const challenge = await endpoints.getChallenge(fetch, walletStore.publicKey);
-            const { signedXdr } = await signWithFreighter(
-                challenge.transaction,
-                walletStore.network,
-            );
+            const { signedXdr } = await signWithVarial(challenge.transaction, walletStore.network);
             const { token } = await endpoints.submitChallenge(fetch, signedXdr);
             authStore.set(provider, walletStore.publicKey, token);
             return token;

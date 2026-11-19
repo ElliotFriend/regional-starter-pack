@@ -2,7 +2,7 @@
  * Wallet-auth (SEP-10) token store.
  *
  * Caches SEP-10 JWTs keyed by provider + wallet public key, persisted to
- * localStorage so the user isn't prompted to re-sign a Freighter challenge on
+ * localStorage so the user isn't prompted to re-sign a Varial challenge on
  * every navigation or component remount. Tokens are validated against their
  * `exp` claim on read and dropped once expired (or about to expire), so a fresh
  * handshake happens only when one is actually needed.

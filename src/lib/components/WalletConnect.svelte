@@ -34,7 +34,7 @@
             {#if walletStore.isConnecting}
                 Connecting...
             {:else}
-                Connect Freighter
+                Connect Varial
             {/if}
         </button>
     {/if}

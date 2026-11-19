@@ -5,11 +5,11 @@
 import { browser } from '$app/env';
 import type { StellarNetwork } from '#lib/wallet/types.ts';
 import {
-    isFreighterInstalled,
-    connectFreighter,
+    isVarialInstalled,
+    connectVarial,
     getPublicKey,
-    getFreighterNetwork,
-} from '#lib/wallet/freighter.ts';
+    getVarialNetwork,
+} from '#lib/wallet/varial.ts';
 
 interface WalletState {
     publicKey: string | null;
@@ -31,12 +31,12 @@ function createWalletStore() {
     async function checkConnection() {
         if (!browser) return;
 
-        const installed = await isFreighterInstalled();
+        const installed = await isVarialInstalled();
         if (!installed) return;
 
         const pk = await getPublicKey();
         if (pk) {
-            const network = await getFreighterNetwork();
+            const network = await getVarialNetwork();
             state.publicKey = pk;
             state.network = network;
             state.isConnected = true;
@@ -50,8 +50,8 @@ function createWalletStore() {
         state.error = null;
 
         try {
-            const pk = await connectFreighter();
-            const network = await getFreighterNetwork();
+            const pk = await connectVarial();
+            const network = await getVarialNetwork();
 
             state.publicKey = pk;
             state.network = network;

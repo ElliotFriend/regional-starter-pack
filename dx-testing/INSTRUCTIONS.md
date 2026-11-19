@@ -46,7 +46,7 @@ Scaffold with the standard tooling for the framework:
 
 Verify the scaffold builds cleanly before launching the subagent. Fix any issues.
 
-**Important**: Do NOT install Stellar dependencies (`@stellar/stellar-sdk`, `@stellar/freighter-api`). The subagent should do this — it's part of the DX being tested.
+**Important**: Do NOT install Stellar dependencies (`@stellar/stellar-sdk`, `@stellar/varial-sdk`). The subagent should do this — it's part of the DX being tested.
 
 ---
 
@@ -69,7 +69,7 @@ Tell the subagent what kind of developer it is and that it found this SvelteKit 
 
 Be specific about the features. Include:
 
-- Wallet connection (Freighter)
+- Wallet connection (Varial)
 - Customer registration + KYC
 - On-ramp flow (fiat -> crypto)
 - Off-ramp flow (crypto -> fiat)

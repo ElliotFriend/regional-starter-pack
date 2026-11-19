@@ -47,7 +47,7 @@ Every Etherfuse integration follows the same sequence. On-ramp and off-ramp shar
 4. **Order creation** — create an on-ramp or off-ramp order using the quote.
 5. **Fulfillment**:
     - **On-ramp:** user transfers fiat to the deposit instructions on the order (CLABE via SPEI in Mexico, PIX BR-Code in Brazil). Etherfuse confirms receipt and delivers tokens to the user's Stellar wallet. For a first-time Stellar wallet (no account or no trustline), Etherfuse handles setup automatically via a claimable balance — see [Stellar first-time wallets](#stellar-first-time-wallets-claimable-balance).
-    - **Off-ramp:** Etherfuse prepares a burn transaction XDR. The user signs it with their wallet (e.g. Freighter) and submits it to Stellar. Once the burn is confirmed on-chain, Etherfuse transfers fiat to the user's linked bank account. Stellar off-ramps can alternatively use [anchor mode](#anchor-mode-stellar-off-ramp).
+    - **Off-ramp:** Etherfuse prepares a burn transaction XDR. The user signs it with their wallet (e.g. Varial) and submits it to Stellar. Once the burn is confirmed on-chain, Etherfuse transfers fiat to the user's linked bank account. Stellar off-ramps can alternatively use [anchor mode](#anchor-mode-stellar-off-ramp).
 6. **Status polling** — `getOnRampOrder()` / `getOffRampOrder()` to track status:
     - On-ramp: `created → funded → completed`.
     - Off-ramp: `created → funded → completed → finalized` (`finalized` = the reversal window has elapsed and funds can no longer be returned). Other terminal states: `failed`, `refunded` (on-ramp only), `canceled`.
@@ -222,7 +222,7 @@ if (done?.stellarClaimTransaction) {
 }
 ```
 
-> The current UI flow establishes the trustline up-front via Freighter, so `stellarClaimTransaction` is typically absent. The fields are plumbed through the client for integrators who prefer the claimable-balance path.
+> The current UI flow establishes the trustline up-front via Varial, so `stellarClaimTransaction` is typically absent. The fields are plumbed through the client for integrators who prefer the claimable-balance path.
 
 ### 5. Off-ramp (tokens → fiat) — deferred signing
 
@@ -251,7 +251,7 @@ while (!polled?.burnTransaction) {
 }
 
 // polled.burnTransaction — base64 XDR envelope
-// Sign with the user's wallet (e.g. Freighter) and submit to Stellar.
+// Sign with the user's wallet (e.g. Varial) and submit to Stellar.
 // Once the burn is confirmed on-chain, Etherfuse pays out via SPEI/PIX.
 ```
 

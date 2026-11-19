@@ -520,7 +520,7 @@ export class EtherfuseClient {
      *
      * Returns immediately with `burnTransaction: undefined`. Poll
      * {@link getOffRampOrder} until `burnTransaction` is populated, then have
-     * the user sign and submit the XDR via Freighter (or another wallet).
+     * the user sign and submit the XDR via Varial (or another wallet).
      *
      * @throws {EtherfuseError} On API failure.
      */

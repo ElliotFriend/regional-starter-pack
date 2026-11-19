@@ -220,7 +220,7 @@ const toml = await client.initialize();
 
 // 2. Authenticate (SEP-10 challenge-response)
 const token = await client.authenticate(publicKey, async (xdr, passphrase) => {
-    return await freighter.signTransaction(xdr, { networkPassphrase: passphrase });
+    return await varial.signTransaction(xdr, { networkPassphrase: passphrase });
 });
 
 // 3. Use any SEP operation

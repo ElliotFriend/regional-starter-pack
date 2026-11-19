@@ -19,7 +19,7 @@ Usage:
     import type { Asset } from '@stellar/stellar-sdk';
     import type { StellarNetwork } from '#lib/wallet/types.ts';
     import { walletStore } from '#lib/stores/wallet.svelte.ts';
-    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { signWithVarial } from '#lib/wallet/varial.ts';
     import {
         checkTrustline,
         buildTrustlineTransaction,
@@ -75,7 +75,7 @@ Usage:
                 network,
             });
 
-            const signed = await signWithFreighter(xdr, network);
+            const signed = await signWithVarial(xdr, network);
             await submitTransaction(signed.signedXdr, network);
 
             await check();

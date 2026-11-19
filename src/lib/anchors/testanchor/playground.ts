@@ -143,7 +143,7 @@ export class TestAnchorPlaygroundClient {
     /**
      * Authenticate with the anchor using SEP-10.
      * @param account - The user's Stellar public key
-     * @param signer - Function to sign the challenge transaction (e.g., from Freighter)
+     * @param signer - Function to sign the challenge transaction (e.g., from Varial)
      */
     async authenticate(account: string, signer: sep10.Sep10SignerFn): Promise<string> {
         const toml = await this.getToml();

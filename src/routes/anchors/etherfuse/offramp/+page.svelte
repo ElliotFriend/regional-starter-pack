@@ -13,7 +13,7 @@
     import CopyableField from '#lib/components/ui/CopyableField.svelte';
     import DevBox from '#lib/components/ui/DevBox.svelte';
     import { getStellarAsset, submitTransaction } from '#lib/wallet/stellar.ts';
-    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { signWithVarial } from '#lib/wallet/varial.ts';
     import { createPoller } from '#lib/utils/poll.svelte.ts';
     import * as ef from '#lib/api/etherfuse.ts';
     import type { StellarNetwork } from '#lib/wallet/types.ts';
@@ -259,7 +259,7 @@
     async function signAndSubmit(envelope: string) {
         step = 'signing';
         try {
-            const signed = await signWithFreighter(envelope, network);
+            const signed = await signWithVarial(envelope, network);
             const result = await submitTransaction(signed.signedXdr, network);
             stellarTxHash = result.hash;
             step = 'awaiting-payout';
@@ -352,7 +352,7 @@
             {#if !walletStore.isConnected}
                 <h2 class="text-lg font-semibold text-gray-900">Connect your wallet</h2>
                 <p class="mt-1 text-sm text-gray-500">
-                    Etherfuse ties each customer to a Stellar public key. Connect Freighter to
+                    Etherfuse ties each customer to a Stellar public key. Connect Varial to
                     continue.
                 </p>
             {:else if !customer}
@@ -535,7 +535,7 @@
             <h2 class="text-lg font-semibold text-gray-900">Preparing burn transaction</h2>
             <p class="mt-1 text-sm text-gray-500">
                 Etherfuse is preparing the Stellar burn transaction. This usually takes a few
-                seconds — you'll be prompted to sign with Freighter when it's ready.
+                seconds — you'll be prompted to sign with Varial when it's ready.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">
                 <div
@@ -561,9 +561,9 @@
     <!-- =================== SIGNING =============================== -->
     {#if step === 'signing'}
         <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Varial</h2>
             <p class="mt-1 text-sm text-gray-500">
-                A Freighter window should be open. Confirm the burn transaction to send {tokenSymbol}
+                A Varial window should be open. Confirm the burn transaction to send {tokenSymbol}
                 to Etherfuse.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">

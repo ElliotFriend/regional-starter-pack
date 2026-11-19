@@ -69,9 +69,9 @@ const token = await sep10.authenticate(
         homeDomain: 'testanchor.stellar.org',
     },
     userPublicKey,
-    // signer function — e.g., from Freighter, Albedo, or a Keypair
+    // signer function — e.g., from Varial, Albedo, or a Keypair
     async (xdr, networkPassphrase) => {
-        return await freighter.signTransaction(xdr, { networkPassphrase });
+        return await varial.signTransaction(xdr, { networkPassphrase });
     },
     { validateChallenge: true },
 );

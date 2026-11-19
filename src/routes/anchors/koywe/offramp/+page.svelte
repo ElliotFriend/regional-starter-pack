@@ -23,7 +23,7 @@
         buildPaymentTransaction,
         submitTransaction,
     } from '#lib/wallet/stellar.ts';
-    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { signWithVarial } from '#lib/wallet/varial.ts';
     import { createPoller } from '#lib/utils/poll.svelte.ts';
     import * as koywe from '#lib/api/koywe.ts';
     import type { StellarNetwork } from '#lib/wallet/types.ts';
@@ -296,7 +296,7 @@
                 amount: usdcAmount,
                 network,
             });
-            const signed = await signWithFreighter(xdr, network);
+            const signed = await signWithVarial(xdr, network);
             const result = await submitTransaction(signed.signedXdr, network);
             stellarTxHash = result.hash;
             await koywe.submitTxHash(fetch, order.id, result.hash, email);
@@ -372,7 +372,7 @@
             {#if !walletStore.isConnected}
                 <h2 class="text-lg font-semibold text-gray-900">Connect your wallet</h2>
                 <p class="mt-1 text-sm text-gray-500">
-                    You'll send {tokenSymbol} from this Stellar wallet. Connect Freighter to continue.
+                    You'll send {tokenSymbol} from this Stellar wallet. Connect Varial to continue.
                 </p>
             {:else}
                 <h2 class="text-lg font-semibold text-gray-900">Start</h2>
@@ -743,10 +743,9 @@
     <!-- =================== SIGNING =============================== -->
     {#if step === 'signing'}
         <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Varial</h2>
             <p class="mt-1 text-sm text-gray-500">
-                A Freighter window should be open. Confirm the {tokenSymbol} payment to Koywe's deposit
-                address.
+                A Varial window should be open. Confirm the {tokenSymbol} payment to Koywe's deposit address.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">
                 <div

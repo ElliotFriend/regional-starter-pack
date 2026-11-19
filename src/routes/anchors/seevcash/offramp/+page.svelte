@@ -3,7 +3,7 @@
     import { resolve } from '$app/paths';
     import { dev } from '$app/env';
     import { walletStore } from '#lib/stores/wallet.svelte.ts';
-    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { signWithVarial } from '#lib/wallet/varial.ts';
     import { getStellarAsset, submitTransaction } from '#lib/wallet/stellar.ts';
     import { createSep10Session } from '#lib/wallet/sep10-session.ts';
     import { createPoller } from '#lib/utils/poll.svelte.ts';
@@ -148,7 +148,7 @@
         try {
             // The client pre-built the payment with the anchor's memo attached;
             // the wallet only has to sign and submit it.
-            const signed = await signWithFreighter(withdrawal.signableXdr, network);
+            const signed = await signWithVarial(withdrawal.signableXdr, network);
             const result = await submitTransaction(signed.signedXdr, network);
             stellarTxHash = result.hash;
             step = 'awaiting-payout';
@@ -403,9 +403,9 @@
 
     {#if step === 'signing'}
         <div class="rounded-lg border border-indigo-200 bg-white p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-900">Sign in Freighter</h2>
+            <h2 class="text-lg font-semibold text-gray-900">Sign in Varial</h2>
             <p class="mt-1 text-sm text-gray-500">
-                A Freighter window should be open. Confirm to send USDC to the anchor.
+                A Varial window should be open. Confirm to send USDC to the anchor.
             </p>
             <div class="mt-4 flex items-center justify-center py-6">
                 <div

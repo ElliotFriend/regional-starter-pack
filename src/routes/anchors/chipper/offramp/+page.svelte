@@ -15,7 +15,7 @@
         buildPaymentTransaction,
         submitTransaction,
     } from '#lib/wallet/stellar.ts';
-    import { signWithFreighter } from '#lib/wallet/freighter.ts';
+    import { signWithVarial } from '#lib/wallet/varial.ts';
     import { createPoller } from '#lib/utils/poll.svelte.ts';
     import * as chipper from '#lib/api/chipper.ts';
     import type { ChipperMethod, ChipperOrder } from '#lib/anchors/chipper/index.ts';
@@ -184,7 +184,7 @@
                 memoType: 'id',
                 network,
             });
-            const signed = await signWithFreighter(xdr, network);
+            const signed = await signWithVarial(xdr, network);
             const result = await submitTransaction(signed.signedXdr, network);
             stellarTxHash = result.hash;
             step = 'awaiting';
@@ -428,7 +428,7 @@
                 disabled={isWorking || !!missingUsdc}
                 class="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-                {isWorking ? 'Waiting for Freighter…' : 'Sign and send with Freighter'}
+                {isWorking ? 'Waiting for Varial...' : 'Sign and send with Varial'}
             </button>
             <div class="text-center">
                 <button

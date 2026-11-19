@@ -305,8 +305,8 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                     description: 'Wait for the burn transaction XDR to appear via polling.',
                 },
                 {
-                    title: 'Sign with Freighter',
-                    description: 'Sign the burn transaction in Freighter and submit to Stellar.',
+                    title: 'Sign with Varial',
+                    description: 'Sign the burn transaction in Varial and submit to Stellar.',
                 },
                 {
                     title: 'Receive Fiat',
@@ -462,7 +462,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Send USDC',
                     description:
-                        'Sign and submit the USDC payment to the Koywe deposit address with Freighter.',
+                        'Sign and submit the USDC payment to the Koywe deposit address with Varial.',
                 },
                 {
                     title: 'Submit Tx Hash',
@@ -637,7 +637,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Send USDC',
                     description:
-                        'Sign and submit the USDC payment to the Manteca Stellar address with Freighter.',
+                        'Sign and submit the USDC payment to the Manteca Stellar address with Varial.',
                 },
                 {
                     title: 'Receive BRL',
@@ -785,7 +785,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 {
                     title: 'Send USDC',
                     description:
-                        'Sign a USDC payment for the exact amount with the memo ID in Freighter.',
+                        'Sign a USDC payment for the exact amount with the memo ID in Varial.',
                 },
                 {
                     title: 'Receive the payout',
@@ -920,7 +920,7 @@ export const ANCHORS: Record<string, AnchorProfile> = {
                 },
                 {
                     title: 'Send USDC',
-                    description: 'Sign a USDC payment to that account with the memo in Freighter.',
+                    description: 'Sign a USDC payment to that account with the memo in Varial.',
                 },
                 {
                     title: 'Receive the payout',

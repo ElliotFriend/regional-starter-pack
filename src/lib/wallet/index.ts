@@ -1,4 +1,4 @@
-export * from './freighter';
+export * from './varial';
 export {
     getHorizonServer,
     getUsdcAsset,
